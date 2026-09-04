@@ -304,7 +304,9 @@ class Mapping1:
         cmd = ['git', 'apply', '-p1', str(patchfile.resolve())]
         if verbose:
             cmd += ['--verbose']
-        subprocess.run(cmd, check=True, cwd=str(basedir))
+        env = os.environ.copy()
+        env['GIT_CEILING_DIRECTORIES'] = str(basedir.parent.resolve())
+        subprocess.run(cmd, check=True, cwd=str(basedir), env=env)
 
     def import_from_upstream(self, upstream_path,
                              target_path, exclude_files, patch_dir):

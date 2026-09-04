@@ -1,0 +1,23 @@
+// FlexSoC register tooling from a pinned modern OpenTitan revision.
+// Kept separate from lowrisc_ip so register tooling can evolve independently
+// from the RTL IP snapshot. FlexSoC reg_iface patches are layered here.
+{
+    name: "opentitan_reggen",
+    target_dir: "opentitan_reggen",
+    patch_dir: "patches/opentitan_reggen",
+
+    upstream: {
+        url: "https://github.com/lowRISC/opentitan.git",
+        rev: "dadd26eef9a955b2b72759420b9929ac3fc79e33",
+    }
+
+    mapping: [
+        {from: "LICENSE",              to: "LICENSE"},
+        {from: "util/regtool.py",      to: "util/regtool.py"},
+        {from: "util/reggen",          to: "util/reggen", patch_dir: "reggen"},
+        {from: "util/design/mubi",     to: "util/design/mubi"},
+        {from: "util/topgen",          to: "util/topgen"},
+        {from: "util/basegen",         to: "util/basegen"},
+        {from: "util/version_file.py", to: "util/version_file.py"},
+    ]
+}

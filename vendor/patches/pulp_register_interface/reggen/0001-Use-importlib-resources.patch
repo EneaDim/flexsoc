@@ -1,0 +1,110 @@
+diff --git a/gen_dv.py b/gen_dv.py
+index 9420521..ef84806 100644
+--- a/gen_dv.py
++++ b/gen_dv.py
+@@ -3,6 +3,7 @@
+ # SPDX-License-Identifier: Apache-2.0
+ '''Generate DV code for an IP block'''
+ 
++import importlib.resources
+ import logging as log
+ import os
+ from typing import List
+@@ -11,7 +12,6 @@ import yaml
+ 
+ from mako import exceptions  # type: ignore
+ from mako.lookup import TemplateLookup  # type: ignore
+-from pkg_resources import resource_filename
+ 
+ from .ip_block import IpBlock
+ from .register import Register
+@@ -74,7 +74,7 @@ from .window import Window
+ def gen_dv(block: IpBlock, dv_base_prefix: str, outdir: str) -> int:
+     '''Generate DV files for an IpBlock'''
+ 
+-    lookup = TemplateLookup(directories=[resource_filename('reggen', '.')])
++    lookup = TemplateLookup(directories=[str(importlib.resources.files('reggen'))])
+     uvm_reg_tpl = lookup.get_template('uvm_reg.sv.tpl')
+ 
+     # Generate the RAL package(s). For a device interface with no name we
+diff --git a/gen_fpv.py b/gen_fpv.py
+--- a/gen_fpv.py
++++ b/gen_fpv.py
+@@ -6,13 +6,13 @@
+ """Generate FPV CSR read and write assertions from IpBlock
+ """
+ 
++import importlib.resources
+ import logging as log
+ import os.path
+ 
+ import yaml
+ from mako import exceptions
+ from mako.template import Template
+-from pkg_resources import resource_filename
+ 
+ from .ip_block import IpBlock
+ 
+@@ -20,7 +20,7 @@
+ def gen_fpv(block: IpBlock, outdir):
+     # Read Register templates
+     fpv_csr_tpl = Template(
+-        filename=resource_filename('reggen', 'fpv_csr.sv.tpl'))
++        filename=str(importlib.resources.files('reggen') / 'fpv_csr.sv.tpl'))
+ 
+     # Generate a module with CSR assertions for each device interface. For a
+     # device interface with no name, we generate <block>_csr_assert_fpv. For a
+diff --git a/gen_rtl.py b/gen_rtl.py
+--- a/gen_rtl.py
++++ b/gen_rtl.py
+@@ -3,13 +3,13 @@
+ # SPDX-License-Identifier: Apache-2.0
+ """Generate SystemVerilog designs from IpBlock object"""
+ 
++import importlib.resources
+ import logging as log
+ import os
+ from typing import Dict, Optional, Tuple
+ 
+ from mako import exceptions  # type: ignore
+ from mako.template import Template  # type: ignore
+-from pkg_resources import resource_filename
+ 
+ from .ip_block import IpBlock
+ from .multi_register import MultiRegister
+@@ -93,9 +93,9 @@
+ def gen_rtl(block: IpBlock, outdir: str) -> int:
+     # Read Register templates
+     reg_top_tpl = Template(
+-        filename=resource_filename('reggen', 'reg_top.sv.tpl'))
++        filename=str(importlib.resources.files('reggen') / 'reg_top.sv.tpl'))
+     reg_pkg_tpl = Template(
+-        filename=resource_filename('reggen', 'reg_pkg.sv.tpl'))
++        filename=str(importlib.resources.files('reggen') / 'reg_pkg.sv.tpl'))
+ 
+     # Generate <block>_reg_pkg.sv
+     #
+diff --git a/version.py b/version.py
+--- a/version.py
++++ b/version.py
+@@ -3,11 +3,11 @@
+ # SPDX-License-Identifier: Apache-2.0
+ r"""Standard version printing
+ """
++from importlib.metadata import version
++
+ import os
+ import subprocess
+ import sys
+-
+-import pkg_resources  # part of setuptools
+ 
+ 
+ def show_and_exit(clitool, packages):
+@@ -20,5 +20,5 @@
+         ver = 'not found (not in Git repository?)'
+     sys.stderr.write(clitool + " Git version " + ver + '\n')
+     for p in packages:
+-        sys.stderr.write(p + ' ' + pkg_resources.require(p)[0].version + '\n')
++        sys.stderr.write(p + ' ' + version(p) + '\n')
+     exit(0)

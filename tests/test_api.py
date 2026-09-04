@@ -2050,18 +2050,197 @@ def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> N
 
 
 
-def test_register_tooling_is_owned_by_pulp_vendor() -> None:
+def test_modern_opentitan_reggen_is_staged_with_pulp_adapters() -> None:
+    reggen = (ROOT / "vendor" / "opentitan_reggen.vendor.hjson").read_text(encoding="utf-8")
     lowrisc = (ROOT / "vendor" / "lowrisc_ip.vendor.hjson").read_text(encoding="utf-8")
     pulp = (ROOT / "vendor" / "pulp_register_interface.vendor.hjson").read_text(encoding="utf-8")
+
+    # Register tooling has its own modern OpenTitan pin and patch namespace.
+    assert 'name: "opentitan_reggen"' in reggen
+    assert 'target_dir: "opentitan_reggen"' in reggen
+    assert 'rev: "dadd26eef9a955b2b72759420b9929ac3fc79e33"' in reggen
+    assert 'patch_dir: "patches/opentitan_reggen"' in reggen
+    assert '{from: "util/regtool.py",      to: "util/regtool.py"}' in reggen
+    assert '{from: "util/reggen",          to: "util/reggen", patch_dir: "reggen"}' in reggen
+    assert '{from: "util/design/mubi",     to: "util/design/mubi"}' in reggen
+    assert '{from: "util/topgen",          to: "util/topgen"}' in reggen
+    assert '{from: "util/basegen",         to: "util/basegen"}' in reggen
+    assert '{from: "util/version_file.py", to: "util/version_file.py"}' in reggen
+
+    # The RTL OpenTitan snapshot is intentionally independent of the tooling pin.
     assert 'rev: "ddc6f6144995624f2c7f181cfb4a3ce7e675b373"' in lowrisc
+    assert '{from: "util/reggen"' not in lowrisc
+    assert '{from: "util/regtool.py"' not in lowrisc
     assert '{from: "hw/ip/tlul",         to: "ip/tlul", patch_dir: "tlul"}' in lowrisc
     assert '"hw/ip/tlul/rtl/tlul_lc_gate.sv"' in lowrisc
-    assert 'util/reggen' not in lowrisc
-    assert 'util/regtool.py' not in lowrisc
-    assert 'rev: "d6e1d4c"' in pulp
-    assert '{from: "vendor/lowrisc_opentitan/util/regtool.py", to: "util/regtool.py"}' in pulp
-    assert '{from: "vendor/lowrisc_opentitan/util/reggen", to: "util/reggen"}' in pulp
 
+    # PULP remains the owner of the register-interface and AXI-Lite adapters
+    # while its legacy reggen stays available only until the backend switchover.
+    assert 'rev: "d6e1d4c"' in pulp
+    assert '{from: "src/reg_intf.sv", to: "src/reg_intf.sv"}' in pulp
+    assert '{from: "src/axi_lite_to_reg.sv", to: "src/axi_lite_to_reg.sv"}' in pulp
+
+
+def test_vendor_mapping_patch_applies_inside_git_worktree(tmp_path: Path) -> None:
+    import importlib.util
+    import types
+
+    tool = ROOT / "src" / "util" / "vendor.py"
+    spec = importlib.util.spec_from_file_location("flexsoc_vendor_test", tool)
+    assert spec and spec.loader
+    vendor = importlib.util.module_from_spec(spec)
+    missing_hjson = "hjson" not in sys.modules
+    if missing_hjson:
+        sys.modules["hjson"] = types.ModuleType("hjson")
+    try:
+        spec.loader.exec_module(vendor)
+    finally:
+        if missing_hjson:
+            sys.modules.pop("hjson", None)
+
+    repo = tmp_path / "repo"
+    target = repo / "vendor" / "mapped"
+    target.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+
+    sources = {
+        "gen_dv.py": (
+            "# Copyright lowRISC contributors.\n"
+            "# Licensed under the Apache License, Version 2.0, see LICENSE for details.\n"
+            "# SPDX-License-Identifier: Apache-2.0\n"
+            "'''Generate DV code for an IP block'''\n\n"
+            "import logging as log\n"
+            "import os\n"
+            "from typing import List\n\n"
+            "import yaml\n\n"
+            "from mako import exceptions  # type: ignore\n"
+            "from mako.lookup import TemplateLookup  # type: ignore\n"
+            "from pkg_resources import resource_filename\n\n"
+            "from .ip_block import IpBlock\n"
+            "from .register import Register\n"
+            "from .window import Window\n\n"
+            + "\n" * 55
+            + "def gen_dv(block: IpBlock, dv_base_prefix: str, outdir: str) -> int:\n"
+            "    '''Generate DV files for an IpBlock'''\n\n"
+            "    lookup = TemplateLookup(directories=[resource_filename('reggen', '.')])\n"
+            "    uvm_reg_tpl = lookup.get_template('uvm_reg.sv.tpl')\n\n"
+            "    # Generate the RAL package(s). For a device interface with no name we\n"
+        ),
+        "gen_fpv.py": (
+            '# Copyright lowRISC contributors.\n'
+            '# Licensed under the Apache License, Version 2.0, see LICENSE for details.\n'
+            '# SPDX-License-Identifier: Apache-2.0\n'
+            '# # Lint as: python3\n'
+            '#\n'
+            '"""Generate FPV CSR read and write assertions from IpBlock\n'
+            '"""\n'
+            '\n'
+            'import logging as log\n'
+            'import os.path\n'
+            '\n'
+            'import yaml\n'
+            'from mako import exceptions\n'
+            'from mako.template import Template\n'
+            'from pkg_resources import resource_filename\n'
+            '\n'
+            'from .ip_block import IpBlock\n'
+            '\n'
+            '\n'
+            'def gen_fpv(block: IpBlock, outdir):\n'
+            '    # Read Register templates\n'
+            '    fpv_csr_tpl = Template(\n'
+            "        filename=resource_filename('reggen', 'fpv_csr.sv.tpl'))\n"
+            '\n'
+            '    # Generate a module with CSR assertions for each device interface. For a\n'
+            '    # device interface with no name, we generate <block>_csr_assert_fpv. For a\n'
+            '    # named interface, we generate <block>_<ifname>_csr_assert_fpv.\n'
+            '    lblock = block.name.lower()\n'
+        ),
+        "gen_rtl.py": (
+            '# Copyright lowRISC contributors.\n'
+            '# Licensed under the Apache License, Version 2.0, see LICENSE for details.\n'
+            '# SPDX-License-Identifier: Apache-2.0\n'
+            '"""Generate SystemVerilog designs from IpBlock object"""\n'
+            '\n'
+            'import logging as log\n'
+            'import os\n'
+            'from typing import Dict, Optional, Tuple\n'
+            '\n'
+            'from mako import exceptions  # type: ignore\n'
+            'from mako.template import Template  # type: ignore\n'
+            'from pkg_resources import resource_filename\n'
+            '\n'
+            'from .ip_block import IpBlock\n'
+            'from .multi_register import MultiRegister\n'
+            'from .reg_base import RegBase\n'
+            'from .register import Register\n'
+            '\n'
+            '\n'
+            '\n'
+            '\n'
+            '\n'
+            'def gen_rtl(block: IpBlock, outdir: str) -> int:\n'
+            '    # Read Register templates\n'
+            '    reg_top_tpl = Template(\n'
+            "        filename=resource_filename('reggen', 'reg_top.sv.tpl'))\n"
+            '    reg_pkg_tpl = Template(\n'
+            "        filename=resource_filename('reggen', 'reg_pkg.sv.tpl'))\n"
+            '\n'
+            '    # Generate <block>_reg_pkg.sv\n'
+            '    #\n'
+            '    # This defines the various types used to interface between the *_reg_top\n'
+            '    # module(s) and the block itself.\n'
+            '    reg_pkg_path = os.path.join(outdir, block.name.lower() + "_reg_pkg.sv")\n'
+        ),
+        "version.py": (
+            '# Copyright lowRISC contributors.\n'
+            '# Licensed under the Apache License, Version 2.0, see LICENSE for details.\n'
+            '# SPDX-License-Identifier: Apache-2.0\n'
+            'r"""Standard version printing\n'
+            '"""\n'
+            'import os\n'
+            'import subprocess\n'
+            'import sys\n'
+            '\n'
+            'import pkg_resources  # part of setuptools\n'
+            '\n'
+            '\n'
+            'def show_and_exit(clitool, packages):\n'
+            '    util_path = os.path.dirname(os.path.realpath(clitool))\n'
+            '    os.chdir(util_path)\n'
+            '    ver = subprocess.run(\n'
+            '        ["git", "describe", "--always", "--dirty", "--broken"],\n'
+            "        stdout=subprocess.PIPE).stdout.strip().decode('ascii')\n"
+            "    if (ver == ''):\n"
+            "        ver = 'not found (not in Git repository?)'\n"
+            '    sys.stderr.write(clitool + " Git version " + ver + \'\\n\')\n'
+            '    for p in packages:\n'
+            "        sys.stderr.write(p + ' ' + pkg_resources.require(p)[0].version + '\\n')\n"
+            '    exit(0)\n'
+        ),
+    }
+    for name, source in sources.items():
+        (target / name).write_text(source, encoding="utf-8")
+
+    patch = (
+        ROOT
+        / "vendor/patches/pulp_register_interface/reggen/0001-Use-importlib-resources.patch"
+    )
+    patch_text = patch.read_text(encoding="utf-8")
+    for name in sources:
+        assert f"diff --git a/{name} b/{name}" in patch_text
+    vendor.Mapping1.apply_patch(target, patch)
+
+    patched = {name: (target / name).read_text(encoding="utf-8") for name in sources}
+    assert all("pkg_resources" not in text for text in patched.values())
+    assert all("resource_filename" not in text for text in patched.values())
+    for name in ("gen_dv.py", "gen_fpv.py", "gen_rtl.py"):
+        assert "import importlib.resources" in patched[name]
+        assert "importlib.resources.files('reggen')" in patched[name]
+    assert "from importlib.metadata import version" in patched["version.py"]
+    assert "version(p)" in patched["version.py"]
+    for name, text in patched.items():
+        compile(text, name, "exec")
 
 def test_regs_flow_uses_vendored_regtool_and_exports_systemrdl(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -2090,6 +2269,19 @@ def test_regs_flow_uses_vendored_regtool_and_exports_systemrdl(
     assert outputs == (tmp_path / "rdl" / "demo.rdl",)
     assert requests[0].argv[1] == str(tool)
     assert requests[0].argv[2:4] == ("--systemrdl", "-o")
+
+
+def test_regtool_failure_reports_root_cause_and_log(tmp_path: Path) -> None:
+    from flexsoc.backend.design.regs import RegsFlow
+
+    log = tmp_path / ".demo_regtool.log"
+    log.write_text(
+        "Traceback\nModuleNotFoundError: No module named 'pkg_resources'\n", encoding="utf-8"
+    )
+    error = RegsFlow._regtool_failure("RTL generation", tmp_path / "demo.hjson", log)
+    text = str(error)
+    assert "ModuleNotFoundError: No module named 'pkg_resources'" in text
+    assert str(log.resolve()) in text
 
 
 def test_package_flow_exports_deterministic_ipxact(

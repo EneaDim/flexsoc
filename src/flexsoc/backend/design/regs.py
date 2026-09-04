@@ -1103,6 +1103,18 @@ class RegsFlow:
             )
         return tool
 
+    @staticmethod
+    def _regtool_failure(action: str, source: Path, log: Path) -> RuntimeError:
+        lines = (
+            log.read_text(encoding="utf-8", errors="replace").splitlines()
+            if log.is_file()
+            else []
+        )
+        detail = lines[-1] if lines else "no regtool log output"
+        return RuntimeError(
+            f"regtool {action} failed: {source} · {detail} · log: {log.resolve()}"
+        )
+
     def _run_regtool(
         self,
         argv: list[str],
@@ -1138,7 +1150,7 @@ class RegsFlow:
             log = rtl_dir / f".{source.stem}_regtool.log"
             argv = ["-r", "-t", str(rtl_dir), str(source)]
             if self._run_regtool(argv, cwd=self.project_root, log=log, on=on):
-                raise RuntimeError(f"regtool RTL generation failed: {source}")
+                raise self._regtool_failure("RTL generation", source, log)
             add_axi_lite_types(rtl_dir / f"{source.stem}_reg_pkg.sv")
             outputs.append(source)
         return tuple(outputs)
@@ -1166,7 +1178,7 @@ class RegsFlow:
             )
             for argv in commands:
                 if self._run_regtool(argv, cwd=self.project_root, log=log, on=on):
-                    raise RuntimeError(f"regtool documentation failed: {source}")
+                    raise self._regtool_failure("documentation", source, log)
             outputs.extend((doc, interfaces))
         return tuple(outputs)
 
@@ -1188,7 +1200,7 @@ class RegsFlow:
             log = output_dir / f".{source.stem}_regtool.log"
             argv = ["--systemrdl", "-o", str(output), str(source)]
             if self._run_regtool(argv, cwd=self.project_root, log=log, on=on):
-                raise RuntimeError(f"regtool SystemRDL export failed: {source}")
+                raise self._regtool_failure("SystemRDL export", source, log)
             outputs.append(output)
         return tuple(outputs)
 
@@ -1207,7 +1219,7 @@ class RegsFlow:
         log = output_dir / f".{module_name}_regtool.log"
         argv = ["--cdefines", "-o", str(header), str(hjson_file)]
         if self._run_regtool(argv, cwd=self.project_root, log=log):
-            raise RuntimeError(f"regtool C header generation failed: {hjson_file}")
+            raise self._regtool_failure("C header generation", hjson_file, log)
         return generate_driver(hjson_file, output_dir, base_address)
 
     def setup_regmap_py(
