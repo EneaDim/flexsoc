@@ -577,17 +577,24 @@ class RegisterSpec:
 
 
 def _reggen_ip_block() -> Any:
-    """Return the bundled reggen ``IpBlock`` class."""
+    """Return ``IpBlock`` from the pinned PULP/OpenTitan reggen vendor."""
 
-    util_dir = Path(__file__).resolve().parents[3] / "util"
-    if util_dir.is_dir() and str(util_dir) not in sys.path:
+    util_dir = (
+        Path(__file__).resolve().parents[4]
+        / "vendor" / "pulp" / "register_interface" / "util"
+    )
+    if not (util_dir / "reggen").is_dir():
+        raise SystemExit(
+            "missing vendored reggen; run `fx fetch --set VENDOR=pulp_register_interface`"
+        )
+    if str(util_dir) not in sys.path:
         sys.path.insert(0, str(util_dir))
     try:
         from reggen.ip_block import IpBlock  # type: ignore
     except ModuleNotFoundError as exc:
         missing = exc.name or "reggen dependency"
         raise SystemExit(
-            f"cannot load bundled reggen ({missing!r} missing); run `uv sync` first"
+            f"cannot load vendored reggen ({missing!r} missing); run `uv sync` first"
         ) from exc
     return IpBlock
 
@@ -1086,6 +1093,16 @@ class RegsFlow:
             raise FileNotFoundError(f"no HJSON register maps for {top} under {data_dir}")
         return selected
 
+    def _regtool(self) -> Path:
+        """Return the pinned PULP/OpenTitan regtool used for generated collateral."""
+
+        tool = self.project_root / "vendor" / "pulp" / "register_interface" / "util" / "regtool.py"
+        if not tool.is_file():
+            raise FileNotFoundError(
+                "missing vendored regtool; run `fx fetch --set VENDOR=pulp_register_interface`"
+            )
+        return tool
+
     def _run_regtool(
         self,
         argv: list[str],
@@ -1096,9 +1113,8 @@ class RegsFlow:
     ) -> int:
         from flexsoc.backend.core.execution import CommandRequest
 
-        tool = self.project_root / "src" / "util" / "regtool.py"
         request = CommandRequest(
-            (sys.executable, str(tool), *argv),
+            (sys.executable, str(self._regtool()), *argv),
             cwd,
             {},
             log,
@@ -1152,6 +1168,28 @@ class RegsFlow:
                 if self._run_regtool(argv, cwd=self.project_root, log=log, on=on):
                     raise RuntimeError(f"regtool documentation failed: {source}")
             outputs.extend((doc, interfaces))
+        return tuple(outputs)
+
+    def setup_systemrdl(
+        self,
+        top: str,
+        data_dir: Path,
+        output_dir: Path,
+        *,
+        regmap: str | None = None,
+        on: str = "local",
+    ) -> tuple[Path, ...]:
+        """Export one SystemRDL view for every authored HJSON register map."""
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        outputs = []
+        for source in self._maps(top, data_dir, regmap):
+            output = output_dir / f"{source.stem}.rdl"
+            log = output_dir / f".{source.stem}_regtool.log"
+            argv = ["--systemrdl", "-o", str(output), str(source)]
+            if self._run_regtool(argv, cwd=self.project_root, log=log, on=on):
+                raise RuntimeError(f"regtool SystemRDL export failed: {source}")
+            outputs.append(output)
         return tuple(outputs)
 
     def setup_driver(

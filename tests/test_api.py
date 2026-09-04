@@ -1786,16 +1786,13 @@ def test_register_interface_intent_uses_one_canonical_regfile_transport() -> Non
     assert 'protocol: "reg_iface"' in multi["axi_lite"]
 
 
-def test_reggen_reg_iface_uses_tool_aware_prim_assert_macros() -> None:
-    template = (Path(__file__).parents[1] / "src" / "util" / "reggen" / "reg_top.sv.tpl").read_text(encoding="utf-8")
+def test_reggen_runtime_uses_pinned_pulp_vendor() -> None:
+    from flexsoc.backend.design import regs
 
-    assert '`include "prim_assert.sv"' in template
-    assert '`include "assertions.svh"' not in template
-    assert "reg_req_i.addr[AW-1:0]" in template
-    assert "reg_req_i.addr[BlockAw-1:0]" not in template
-
-    generator = (Path(__file__).parents[1] / "src" / "util" / "reggen" / "gen_rtl.py").read_text(encoding="utf-8")
-    assert "mod_name = mod_base + alias_impl + '_reg_core'" in generator
+    source = inspect.getsource(regs._reggen_ip_block)
+    assert 'vendor" / "pulp" / "register_interface" / "util"' in source
+    assert 'parents[3] / "util"' not in source
+    assert "missing vendored reggen" in source
 
 
 def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp_path: Path) -> None:
@@ -2045,13 +2042,46 @@ def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> N
 
 
 
-def test_lowrisc_vendor_pins_register_tooling() -> None:
-    manifest = (ROOT / "vendor" / "lowrisc_ip.vendor.hjson").read_text(encoding="utf-8")
-    assert 'rev: "ddc6f6144995624f2c7f181cfb4a3ce7e675b373"' in manifest
-    assert '{from: "hw/ip/tlul",         to: "ip/tlul", patch_dir: "tlul"}' in manifest
-    assert '"hw/ip/tlul/rtl/tlul_lc_gate.sv"' in manifest
-    assert '{from: "util/reggen",        to: "util/reggen", patch_dir: "reggen"}' in manifest
-    assert '{from: "util/regtool.py",    to: "util/regtool.py"}' in manifest
+def test_register_tooling_is_owned_by_pulp_vendor() -> None:
+    lowrisc = (ROOT / "vendor" / "lowrisc_ip.vendor.hjson").read_text(encoding="utf-8")
+    pulp = (ROOT / "vendor" / "pulp_register_interface.vendor.hjson").read_text(encoding="utf-8")
+    assert 'rev: "ddc6f6144995624f2c7f181cfb4a3ce7e675b373"' in lowrisc
+    assert '{from: "hw/ip/tlul",         to: "ip/tlul", patch_dir: "tlul"}' in lowrisc
+    assert '"hw/ip/tlul/rtl/tlul_lc_gate.sv"' in lowrisc
+    assert 'util/reggen' not in lowrisc
+    assert 'util/regtool.py' not in lowrisc
+    assert 'rev: "d6e1d4c"' in pulp
+    assert '{from: "vendor/lowrisc_opentitan/util/regtool.py", to: "util/regtool.py"}' in pulp
+    assert '{from: "vendor/lowrisc_opentitan/util/reggen", to: "util/reggen"}' in pulp
+
+
+def test_regs_flow_uses_vendored_regtool_and_exports_systemrdl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flexsoc.backend.core import CommandResult
+    from flexsoc.backend.design.regs import RegsFlow
+
+    project = tmp_path / "project"
+    tool = project / "vendor" / "pulp" / "register_interface" / "util" / "regtool.py"
+    tool.parent.mkdir(parents=True)
+    tool.write_text("# vendored regtool\n", encoding="utf-8")
+    data = tmp_path / "data"
+    data.mkdir()
+    source = data / "demo.hjson"
+    source.write_text('{name: "demo"}\n', encoding="utf-8")
+    flow = RegsFlow(project)
+    requests = []
+
+    def capture(request, *, on: str = "local") -> CommandResult:
+        requests.append(request)
+        Path(request.argv[request.argv.index("-o") + 1]).write_text("addrmap demo {};\n", encoding="utf-8")
+        return CommandResult(0, request.log, 0.0)
+
+    monkeypatch.setattr(flow.runner, "run", capture)
+    outputs = flow.setup_systemrdl("demo", data, tmp_path / "rdl")
+    assert outputs == (tmp_path / "rdl" / "demo.rdl",)
+    assert requests[0].argv[1] == str(tool)
+    assert requests[0].argv[2:4] == ("--systemrdl", "-o")
 
 
 def test_vendor_fetch_imports_by_default_and_updates_when_forced(
@@ -2119,9 +2149,12 @@ def test_e2e_register_transport_matrix_and_vendor_bootstrap_contract() -> None:
     assert 'fx fetch --set VENDOR=lowrisc_ip' in text
     assert 'fx fetch --set VENDOR=pulp_common_cells' in text
     assert 'fx fetch --set VENDOR=pulp_axi' in text
-    assert 'fx fetch --set VENDOR=pulp_register_interface' in text
-    assert 'if config.run_signoff and reg_itf == "tlul":' in text
-    assert 'run_technology = False  # Keep multi-clock E2E technology-independent for now.' in text
+    assert text.count('fx fetch --set VENDOR=pulp_register_interface') >= 3
+    assert text.count('fx systemrdl --force') == 2
+    assert 'if config.run_signoff and reg_itf == "tlul":' not in text
+    assert 'run_technology = False' not in text
+    assert 'Qualify each register transport through the full single-clock lifecycle.' in text
+    assert 'Qualify each register transport through the full multi-clock lifecycle.' in text
     assert text.count('REG_ITF={reg_itf}') >= 4
     assert "_require_active_venv()" in text
     assert "uv run --no-sync fx" not in text

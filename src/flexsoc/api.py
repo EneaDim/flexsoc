@@ -192,6 +192,7 @@ TARGETS: dict[str, TargetSpec] = {
     "tb": ("DV functional", "Generate a SystemVerilog testbench scaffold", SIM),
     "reg": ("IP flow", "Generate register RTL from HJSON", IP_DEV),
     "doc": ("IP flow", "Generate register documentation", IP_DEV),
+    "systemrdl": ("Interchange", "Export register maps as SystemRDL", IP_DEV),
     "rtl_stub": ("IP flow", "Generate RTL core and aligned top wrapper", IP_DEV),
     "top_from_core": ("IP flow", "Regenerate top wrapper from edited core ports", IP_DEV),
     "flist": ("IP flow", "Generate Slang-ordered common/IP RTL filelists", IP_DEV),
@@ -1556,6 +1557,11 @@ class FlexSoCTarget:
             return b.design.regs.setup_rtl(top, p.data, p.rtl, regmap=v.get("REGMAP"), on=self.on)
         if target == "doc":
             return b.design.regs.setup_docs(top, p.data, p.doc, regmap=v.get("REGMAP"), on=self.on)
+        if target == "systemrdl":
+            return b.design.regs.setup_systemrdl(
+                top, p.data, p.run / "interchange" / "systemrdl",
+                regmap=v.get("REGMAP"), on=self.on,
+            )
         if target == "driver":
             return b.design.regs.setup_driver(p.data / f"{top}.hjson", p.drivers, base_address=v.get("BASE_ADDRESS", "0x0"))
         if target == "regmap_py":

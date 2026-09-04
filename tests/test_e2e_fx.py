@@ -49,12 +49,15 @@ def _fetch_register_vendors(
     """Fetch the external RTL dependencies required by one register transport."""
 
     commands = {
-        "tlul": ("fx fetch --set VENDOR=lowrisc_ip",),
-        "reg_iface": (),
+        "tlul": (
+            "fx fetch --set VENDOR=pulp_register_interface",
+            "fx fetch --set VENDOR=lowrisc_ip",
+        ),
+        "reg_iface": ("fx fetch --set VENDOR=pulp_register_interface",),
         "axi_lite": (
+            "fx fetch --set VENDOR=pulp_register_interface",
             "fx fetch --set VENDOR=pulp_common_cells",
             "fx fetch --set VENDOR=pulp_axi",
-            "fx fetch --set VENDOR=pulp_register_interface",
         ),
     }
     try:
@@ -1051,11 +1054,7 @@ def _assert_saved_multitech_layout(library_root: Path, top: str) -> None:
 def test_fx_single_clock_flow_debug(
     request: pytest.FixtureRequest, reg_itf: str
 ) -> None:
-    """Qualify each register transport on the single-clock technology-independent flow.
-
-    TL-UL is additionally the sole register transport used for technology-dependent
-    sign-off while that matrix remains intentionally narrow.
-    """
+    """Qualify each register transport through the full single-clock lifecycle."""
     print(f"\n=== E2E · single-clock scaffold · REG_ITF={reg_itf} ===", flush=True)
 
     config = _e2e_config(request)
@@ -1102,6 +1101,10 @@ def test_fx_single_clock_flow_debug(
         )
         _run(
             f"fx doc --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"fx systemrdl --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
@@ -1218,7 +1221,7 @@ def test_fx_single_clock_flow_debug(
             workspace=workspace, top=top, run_id=run_id,
         )
 
-        if config.run_signoff and reg_itf == "tlul":
+        if config.run_signoff:
             # sky130: rerun only technology-bound synthesis/sign-off stages.
             _run(
                 f"fx pdk use sky130 --workdir {workdir}",
@@ -1535,11 +1538,10 @@ def test_fx_single_clock_flow_debug(
 def test_fx_multi_clock_flow_debug(
     request: pytest.FixtureRequest, reg_itf: str
 ) -> None:
-    """Qualify every register transport on the multi-clock technology-independent flow."""
+    """Qualify each register transport through the full multi-clock lifecycle."""
     print(f"\n=== E2E · multi-clock scaffold · REG_ITF={reg_itf} ===", flush=True)
 
     config = _e2e_config(request)
-    run_technology = False  # Keep multi-clock E2E technology-independent for now.
     top = os.environ.get("FLEXSOC_MULTI_TOP", "tri_stream_dsp")
     run_id = os.environ.get("FLEXSOC_RUN_ID", DEFAULT_RUN_ID)
     host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
@@ -1583,6 +1585,10 @@ def test_fx_multi_clock_flow_debug(
         )
         _run(
             f"fx doc --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"fx systemrdl --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
@@ -1706,7 +1712,7 @@ def test_fx_multi_clock_flow_debug(
             workspace=workspace, top=top, run_id=run_id,
         )
 
-        if run_technology:
+        if config.run_signoff:
             # sky130: rerun only technology-bound synthesis/sign-off stages.
             _run(
                 f"fx pdk use sky130 --workdir {workdir}",
