@@ -1838,8 +1838,6 @@ class EquivalenceFlow:
                 cell_models=cell_models,
                 clock_gate_model=clock_gate_model,
                 formal_pdk_proc=formal_pdk_proc,
-                engine=engine,
-                depth=depth,
                 sat_depth=sat_depth,
                 output=config,
                 pdr_engine=pdr_engine,
