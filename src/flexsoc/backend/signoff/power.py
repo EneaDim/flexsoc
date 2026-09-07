@@ -289,6 +289,100 @@ def _valid_vcd(path: Path) -> bool:
         header = stream.read(limit)
     return b"$enddefinitions" in header and (b"$scope" in header or b"$var" in header)
 
+def _vcd_value_identifier(line: str) -> str | None:
+    """Return the identifier code targeted by one VCD value-change line."""
+
+    stripped = line.strip()
+    if not stripped or stripped[0] in "$#":
+        return None
+    if stripped[0] in "01xXzZ":
+        return stripped[1:].strip() or None
+    if stripped[0] in "bBrRsS":
+        fields = stripped.split()
+        return fields[-1] if len(fields) >= 2 else None
+    return None
+
+
+def _sanitize_vcd_for_opensta(source: Path, output: Path) -> tuple[Path, int, int, int]:
+    """Normalize simulator VCD syntax that OpenSTA cannot parse reliably."""
+
+    blocked: set[str] = set()
+    used: set[str] = set()
+    unsafe: list[str] = []
+    with source.open("r", encoding="utf-8", errors="replace") as src:
+        for line in src:
+            stripped = line.strip()
+            if stripped.startswith("$var "):
+                fields = stripped.split()
+                if len(fields) >= 5:
+                    identifier = fields[3]
+                    used.add(identifier)
+                    if fields[1].lower() == "event":
+                        blocked.add(identifier)
+                    elif identifier.startswith(("#", "$")):
+                        unsafe.append(identifier)
+            if "$enddefinitions" in stripped:
+                break
+
+    remap: dict[str, str] = {}
+    for identifier in dict.fromkeys(unsafe):
+        index = len(remap)
+        candidate = f"__flexsoc_vcd_{index}"
+        while candidate in used:
+            index += 1
+            candidate = f"__flexsoc_vcd_{index}"
+        used.add(candidate)
+        remap[identifier] = candidate
+
+    if not blocked and not remap:
+        return source, 0, 0, 0
+
+    removed_changes = 0
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_name(f".{output.name}.opensta.tmp")
+    temporary.unlink(missing_ok=True)
+    try:
+        with source.open("r", encoding="utf-8", errors="replace") as src, temporary.open(
+            "w", encoding="utf-8", newline=""
+        ) as dst:
+            for line in src:
+                stripped = line.strip()
+                if stripped.startswith("$var "):
+                    fields = stripped.split()
+                    if len(fields) >= 5:
+                        identifier = fields[3]
+                        if identifier in blocked:
+                            continue
+                        replacement = remap.get(identifier)
+                        if replacement is not None:
+                            start = line.find(identifier)
+                            line = line[:start] + replacement + line[start + len(identifier):]
+                            stripped = line.strip()
+
+                identifier = _vcd_value_identifier(stripped)
+                if blocked and identifier in blocked:
+                    removed_changes += 1
+                    continue
+                replacement = remap.get(identifier or "")
+                if replacement is not None:
+                    body = line.rstrip("\r\n")
+                    ending = line[len(body):]
+                    if stripped[0] in "01xXzZ":
+                        leading = body[: len(body) - len(body.lstrip())]
+                        line = leading + stripped[0] + replacement + ending
+                    else:
+                        start = body.rfind(identifier)
+                        line = body[:start] + replacement + body[start + len(identifier):] + ending
+                dst.write(line)
+
+        if not _valid_vcd(temporary):
+            raise ValueError(f"OpenSTA-compatible VCD sanitization produced an invalid file: {temporary}")
+        temporary.replace(output)
+        return output, len(blocked), removed_changes, len(remap)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _vcd_scopes(path: Path) -> tuple[str, ...]:
     """Return VCD hierarchy scopes using OpenSTA's slash separator."""
 
@@ -424,7 +518,16 @@ def _activity_vcd(
     if spec.wave.suffix.lower() == ".vcd":
         if not _valid_vcd(spec.wave):
             raise ValueError(f"qualified activity VCD is invalid: {spec.wave}")
-        return spec.wave, None, "native-vcd"
+        capture_dir.mkdir(parents=True, exist_ok=True)
+        capture, events, changes, remapped = _sanitize_vcd_for_opensta(
+            spec.wave, capture_dir / f"{spec.stem}.vcd"
+        )
+        method = "native-vcd"
+        if events:
+            method += f"+opensta-event-filter(events={events},changes={changes})"
+        if remapped:
+            method += f"+opensta-id-remap(ids={remapped})"
+        return capture, None, method
     if spec.wave.suffix.lower() != ".fst":
         raise ValueError(f"unsupported activity waveform format: {spec.wave}")
     converter = values.get("FST2VCD", "fst2vcd")
@@ -450,6 +553,11 @@ def _activity_vcd(
         if result.returncode or not _valid_vcd(output):
             raise ValueError(f"fst2vcd conversion failed; log: {log}")
         method = "named-output"
+    output, events, changes, remapped = _sanitize_vcd_for_opensta(output, output)
+    if events:
+        method += f"+opensta-event-filter(events={events},changes={changes})"
+    if remapped:
+        method += f"+opensta-id-remap(ids={remapped})"
     return output, None, method
 
 def _power_values(text: str) -> dict[str, float]:

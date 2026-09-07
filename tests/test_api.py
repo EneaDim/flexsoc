@@ -2996,6 +2996,117 @@ def test_compact_activity_percent_parser() -> None:
     assert signoff_power_module._activity_percent("Unannotated pins: none\n") is None
 
 
+def test_opensta_vcd_filter_removes_event_declarations_and_changes(tmp_path: Path) -> None:
+    source = tmp_path / "source.vcd"
+    output = tmp_path / "capture.vcd"
+    source.write_text(
+        "$timescale 1ns $end\n"
+        "$scope module demo_tb $end\n"
+        "$scope module u_dut $end\n"
+        "$var wire 1 ! clk $end\n"
+        "$var event 1 \" drive_phase $end\n"
+        "$upscope $end\n"
+        "$upscope $end\n"
+        "$enddefinitions $end\n"
+        "$dumpvars\n"
+        "0!\n"
+        "0\"\n"
+        "$end\n"
+        "#5\n"
+        "1!\n"
+        "1\"\n",
+        encoding="utf-8",
+    )
+
+    capture, events, changes, remapped = signoff_power_module._sanitize_vcd_for_opensta(source, output)
+
+    assert capture == output
+    assert events == 1
+    assert changes == 2
+    assert remapped == 0
+    text = output.read_text(encoding="utf-8")
+    assert "$var event" not in text
+    assert "0\"" not in text
+    assert "1\"" not in text
+    assert "$var wire 1 ! clk $end" in text
+    assert "0!" in text and "1!" in text
+    assert source.read_text(encoding="utf-8").count("$var event") == 1
+
+
+def test_opensta_vcd_filter_remaps_parser_ambiguous_identifier_codes(tmp_path: Path) -> None:
+    source = tmp_path / "source.vcd"
+    output = tmp_path / "capture.vcd"
+    source.write_text(
+        "$timescale 1ns $end\n"
+        "$scope module demo_tb $end\n"
+        "$scope module u_dut $end\n"
+        "$var real 64 #[& low_delay_ns $end\n"
+        "$var wire 4 $bus payload [3:0] $end\n"
+        "$var wire 1 ! clk $end\n"
+        "$upscope $end\n$upscope $end\n"
+        "$enddefinitions $end\n"
+        "$dumpvars\n"
+        "r0 #[&\n"
+        "b1010 $bus\n"
+        "0!\n"
+        "$end\n"
+        "#5\n"
+        "r8.063 #[&\n"
+        "b0101 $bus\n"
+        "1!\n",
+        encoding="utf-8",
+    )
+
+    capture, events, changes, remapped = signoff_power_module._sanitize_vcd_for_opensta(
+        source, output
+    )
+
+    assert capture == output
+    assert events == 0
+    assert changes == 0
+    assert remapped == 2
+    text = output.read_text(encoding="utf-8")
+    assert "$var real 64 #[&" not in text
+    assert "$var wire 4 $bus" not in text
+    assert "r0 #[&" not in text
+    assert "r8.063 #[&" not in text
+    assert "b1010 $bus" not in text
+    assert "b0101 $bus" not in text
+    assert "$var real 64 __flexsoc_vcd_0 low_delay_ns $end" in text
+    assert "$var wire 4 __flexsoc_vcd_1 payload [3:0] $end" in text
+    assert "r0 __flexsoc_vcd_0" in text
+    assert "r8.063 __flexsoc_vcd_0" in text
+    assert "b1010 __flexsoc_vcd_1" in text
+    assert "b0101 __flexsoc_vcd_1" in text
+    assert "0!" in text and "1!" in text
+
+
+def test_native_activity_vcd_is_filtered_only_when_opensta_needs_it(tmp_path: Path) -> None:
+    wave = tmp_path / "wave.vcd"
+    wave.write_text(
+        "$scope module demo_tb $end\n"
+        "$scope module u_dut $end\n"
+        "$var wire 1 ! clk $end\n"
+        "$var event 1 \" sample_phase $end\n"
+        "$upscope $end\n$upscope $end\n"
+        "$enddefinitions $end\n#0\n0!\n0\"\n",
+        encoding="utf-8",
+    )
+    spec = signoff_power_module.ActivitySpec(
+        top="demo", pdk="sky130", test="smoke", backend="sv", mode="typ",
+        report=tmp_path / "gls.json", wave=wave,
+    )
+
+    capture, conversion_log, method = signoff_power_module._activity_vcd(
+        spec, {}, tmp_path / "captures"
+    )
+
+    assert capture != wave
+    assert conversion_log is None
+    assert method == "native-vcd+opensta-event-filter(events=1,changes=1)"
+    assert "$var event" not in capture.read_text(encoding="utf-8")
+
+
 def test_opensta_signal_returncode_is_actionable() -> None:
     assert signoff_sta_module._returncode_text(-11) == "signal 11 (SIGSEGV)"
     assert signoff_sta_module._returncode_text(2) == "exit 2"
