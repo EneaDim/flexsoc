@@ -2987,7 +2987,6 @@ def _sv_driver_text_string(top: str, clocks: ClockConfig, io_delay_pct: float = 
         rx_sample_i = '0;
         rx_coeff_i = '0;
         dsp_ready_i = 1'b1;
-        test_en_i = 1'b1;
       endtask
 
       task automatic reset_dut(input string selector, input integer cycles);
@@ -3429,7 +3428,6 @@ def _sv_reg_iface_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float
         rx_sample_i = '0;
         rx_coeff_i = '0;
         dsp_ready_i = 1'b1;
-        test_en_i = 1'b1;
       endtask
 
     """)
@@ -3479,7 +3477,7 @@ def _sv_axi_lite_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float)
                 "      task automatic apply_defaults();"]
     defaults += [f"        {domain}_axi_lite_i = '0;" for domain in ("cfg", "dsp")]
     defaults += ["        rx_valid_i = 1'b0;", "        rx_sample_i = '0;", "        rx_coeff_i = '0;",
-                 "        dsp_ready_i = 1'b1;", "        test_en_i = 1'b1;", "      endtask", ""]
+                 "        dsp_ready_i = 1'b1;", "      endtask", ""]
     tasks = []
     for domain in ("cfg", "dsp"):
         pkg = f"{top}_{domain}_reg_pkg"
@@ -3707,7 +3705,7 @@ def _render_nclock_dut_pins(clocks: ClockConfig, bus_pins: Sequence[str]) -> str
     """Render deterministic DUT connections shared by both N-clock DV backends."""
 
     pins = [signal for domain in clocks.domains for signal in (domain.signal, domain.reset)]
-    pins += ["test_en_i", *bus_pins, "rx_valid_i", "rx_ready_o", "rx_sample_i", "rx_coeff_i",
+    pins += [*bus_pins, "rx_valid_i", "rx_ready_o", "rx_sample_i", "rx_coeff_i",
              "dsp_valid_o", "dsp_ready_i", "dsp_result_o", "dsp_above_threshold_o", "dsp_overflow_o"]
     return ",\n".join(f"    .{name:<25}({name})" for name in pins)
 
@@ -3748,7 +3746,6 @@ def sv_tb_text(
 
     module {testbench};
     __CLOCK_DECLS__
-      logic test_en_i;
     __BUS_DECLS__
 
       logic rx_valid_i;
@@ -5688,7 +5685,6 @@ def cocotb_sv_text(top: str, clocks: ClockConfig, interface: str = "tlul") -> st
 
     module {top}_tb;
     __CLOCK_DECLS__
-      logic test_en_i;
     __BUS_DECLS__
 
       logic rx_valid_i;
@@ -5952,7 +5948,6 @@ def cocotb_reg_driver_py_text(
         dut.rx_sample_i.value = 0
         dut.rx_coeff_i.value = 0
         dut.dsp_ready_i.value = 1
-        dut.test_en_i.value = 1
 
 
     def _selected_resets(selector: str):

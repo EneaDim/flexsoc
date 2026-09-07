@@ -1480,7 +1480,8 @@ class FlexSoCTarget:
         )
 
     def _orfs(self) -> tuple[Path, Path]:
-        ors = Path(self.values.get("ORS", "")).expanduser()
+        raw = self.values.get("ORS", "").strip()
+        ors = Path(raw).expanduser() if raw else Path.home() / "OpenROAD-flow-scripts" / "flow"
         makefile = ors / "Makefile"
         return makefile.resolve(), self.paths.impl / "config.mk"
 

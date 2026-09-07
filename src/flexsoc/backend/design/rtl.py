@@ -223,7 +223,6 @@ def render_nclock_core(top: str) -> str:
       input  logic                     rx_rst_ni,
       input  logic                     dsp_clk_i,
       input  logic                     dsp_rst_ni,
-      input  logic                     test_en_i,
 
       input  {top}_cfg_reg2hw_t        cfg_reg2hw_i,
       output {top}_cfg_hw2reg_t        cfg_hw2reg_o,
@@ -250,19 +249,19 @@ def render_nclock_core(top: str) -> str:
       // --------------------------------------------------------------------
       logic               cfg_enable;
       logic               cfg_soft_reset;
-      logic               cfg_clk_gate_en;
       logic signed [15:0] cfg_gain;
       logic [1:0]         dsp_op;
       logic               dsp_saturate;
+      logic               dsp_clk_req_en;
       logic [31:0]        dsp_threshold;
 
-      assign cfg_enable      = cfg_reg2hw_i.ctrl.enable.q;
-      assign cfg_soft_reset  = cfg_reg2hw_i.ctrl.soft_reset.q;
-      assign cfg_clk_gate_en = cfg_reg2hw_i.ctrl.clk_gate_en.q;
-      assign cfg_gain        = cfg_reg2hw_i.gain.q[15:0];
-      assign dsp_op          = dsp_reg2hw_i.dsp_ctrl.op.q;
-      assign dsp_saturate    = dsp_reg2hw_i.dsp_ctrl.saturate.q;
-      assign dsp_threshold   = dsp_reg2hw_i.threshold.q;
+      assign cfg_enable     = cfg_reg2hw_i.ctrl.enable.q;
+      assign cfg_soft_reset = cfg_reg2hw_i.ctrl.soft_reset.q;
+      assign cfg_gain       = cfg_reg2hw_i.gain.q[15:0];
+      assign dsp_op         = dsp_reg2hw_i.dsp_ctrl.op.q;
+      assign dsp_saturate   = dsp_reg2hw_i.dsp_ctrl.saturate.q;
+      assign dsp_clk_req_en = dsp_reg2hw_i.dsp_ctrl.clk_en.q;
+      assign dsp_threshold  = dsp_reg2hw_i.threshold.q;
 
       // --------------------------------------------------------------------
       // Single-bit CDC controls
@@ -270,7 +269,6 @@ def render_nclock_core(top: str) -> str:
       logic enable_rx;
       logic enable_dsp;
       logic soft_reset_dsp;
-      logic clk_gate_en_dsp;
       logic signed [15:0] gain_dsp_q;
 
       prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_enable_rx_sync (
@@ -292,13 +290,6 @@ def render_nclock_core(top: str) -> str:
         .rst_ni (dsp_rst_ni),
         .d_i    (cfg_soft_reset),
         .q_o    (soft_reset_dsp)
-      );
-
-      prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_clk_gate_en_dsp_sync (
-        .clk_i  (dsp_clk_i),
-        .rst_ni (dsp_rst_ni),
-        .d_i    (cfg_clk_gate_en),
-        .q_o    (clk_gate_en_dsp)
       );
 
       always_ff @(posedge dsp_clk_i or negedge dsp_rst_ni) begin
@@ -323,10 +314,29 @@ def render_nclock_core(top: str) -> str:
       logic        dsp_pipe_valid_q;
       logic        dsp_pipe_ready;
       logic        dsp_out_ready;
+      logic        dsp_clk_gated;
+      logic        dsp_clk_active;
 
       assign fifo_wdata  = {{rx_sample_i, rx_coeff_i}};
       assign rx_ready_o  = enable_rx & fifo_wready;
-      assign fifo_rready = enable_dsp & fifo_rvalid & dsp_pipe_ready;
+      assign fifo_rready = enable_dsp & dsp_clk_req_en & fifo_rvalid & dsp_pipe_ready;
+
+      // --------------------------------------------------------------------
+      // DSP datapath clock gate
+      // --------------------------------------------------------------------
+      // DSP_CTRL.CLK_EN is implemented in the always-clocked DSP register
+      // window, which uses dsp_clk_i. The FIFO read side and datapath share the
+      // gated clock so a physical ICG delay cannot advance the FIFO head before
+      // the datapath captures it. Software can still always write CLK_EN=1 to
+      // resume because the register window remains on the ungated parent clock.
+      assign dsp_clk_active = (enable_dsp & dsp_clk_req_en) | soft_reset_dsp | dsp_pipe_valid_q | dsp_valid_o;
+
+      prim_clk_gate u_dsp_clk_gate (
+        .clk_i     (dsp_clk_i),
+        .en_i      (dsp_clk_active),
+        .test_en_i (1'b0),
+        .clk_o     (dsp_clk_gated)
+      );
 
       prim_fifo_async #(
         .Width(32),
@@ -340,30 +350,12 @@ def render_nclock_core(top: str) -> str:
         .wready_o  (fifo_wready),
         .wdata_i   (fifo_wdata),
         .wdepth_o  (fifo_wdepth),
-        .clk_rd_i  (dsp_clk_i),
+        .clk_rd_i  (dsp_clk_gated),
         .rst_rd_ni (dsp_rst_ni),
         .rvalid_o  (fifo_rvalid),
         .rready_i  (fifo_rready),
         .rdata_o   (fifo_rdata),
         .rdepth_o  (fifo_rdepth)
-      );
-
-      // --------------------------------------------------------------------
-      // DSP clock gate intent
-      // --------------------------------------------------------------------
-      // The scaffold keeps computation on dsp_clk_i for broad tool support and
-      // still instantiates prim_clk_gate so the intended enable is visible to
-      // lint/timing review. Replace this with a gated-clock implementation only
-      // after your constraints and gate-level checks are ready.
-      logic dsp_clk_gated;
-      logic dsp_clk_active;
-      assign dsp_clk_active = enable_dsp & (!clk_gate_en_dsp | fifo_rvalid | dsp_pipe_valid_q | dsp_valid_o);
-
-      prim_clk_gate u_dsp_clk_gate (
-        .clk_i     (dsp_clk_i),
-        .en_i      (dsp_clk_active),
-        .test_en_i (test_en_i),
-        .clk_o     (dsp_clk_gated)
       );
 
       // --------------------------------------------------------------------
@@ -409,7 +401,7 @@ def render_nclock_core(top: str) -> str:
         above_threshold_d = $unsigned(clipped_result_d) > dsp_threshold_q;
       end
 
-      always_ff @(posedge dsp_clk_i or negedge dsp_rst_ni) begin
+      always_ff @(posedge dsp_clk_gated or negedge dsp_rst_ni) begin
         if (!dsp_rst_ni) begin
           raw_result_q         <= '0;
           dsp_saturate_q       <= 1'b0;
@@ -480,7 +472,7 @@ def render_nclock_core(top: str) -> str:
 
       // Debug visibility and lint quieting for intentionally unused scaffold nets.
       logic unused_debug;
-      assign unused_debug = ^{{fifo_wdepth, fifo_rdepth, dsp_clk_gated}};
+      assign unused_debug = ^{{fifo_wdepth, fifo_rdepth}};
 
     endmodule
     """)

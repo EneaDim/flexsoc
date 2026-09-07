@@ -588,6 +588,7 @@ def render_sta_tcl(ctx: SignoffContext) -> str:
 def render_sdf_tcl(ctx: SignoffContext) -> str:
     limitations = ("SDF reflects the linked netlist and timing model for the selected corner.",)
     sdf = ctx.report_dir / f"{ctx.top}_{ctx.corner}.sdf"
+    divider = "/" if ctx.stage == "post_syn" else "."
     return "\n".join(
         [
             _header(ctx, limitations),
@@ -596,7 +597,7 @@ def render_sdf_tcl(ctx: SignoffContext) -> str:
             "# write_sdf serializes the linked timing model for gate-level simulation.",
             f"set sdf_file {_quote(sdf)}",
             'puts "sdf=$sdf_file"',
-            "write_sdf -divider . -include_typ -no_timestamp -no_version $sdf_file",
+            f"write_sdf -divider {divider} -include_typ -no_timestamp -no_version $sdf_file",
             "proc flexsoc_complete_sdf_typ_header {path} {",
             "  set fp [open $path r]",
             "  set text [read $fp]",

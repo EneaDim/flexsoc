@@ -53,6 +53,196 @@ class SynthesisConfig:
     min_buffer: tuple[str, str, str] | None = None
 
 
+
+
+@dataclass(frozen=True, slots=True)
+class ClockGateCell:
+    """One positive-edge integrated clock-gating cell described by Liberty."""
+
+    name: str
+    clock_pin: str
+    enable_pin: str
+    output_pin: str
+    test_pin: str | None
+    tie_lo_pins: tuple[str, ...]
+    area: float
+
+
+def _matching_brace(text: str, start: int) -> int:
+    """Return the matching closing brace while ignoring strings and comments."""
+
+    depth = 0
+    quote = False
+    escape = False
+    line_comment = False
+    block_comment = False
+    i = start
+    while i < len(text):
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < len(text) else ""
+        if line_comment:
+            if ch == "\n":
+                line_comment = False
+            i += 1
+            continue
+        if block_comment:
+            if ch == "*" and nxt == "/":
+                block_comment = False
+                i += 2
+            else:
+                i += 1
+            continue
+        if quote:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                quote = False
+            i += 1
+            continue
+        if ch == "/" and nxt == "/":
+            line_comment = True
+            i += 2
+            continue
+        if ch == "/" and nxt == "*":
+            block_comment = True
+            i += 2
+            continue
+        if ch == '"':
+            quote = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    raise ValueError("unterminated Liberty group")
+
+
+def _liberty_groups(text: str, keyword: str):
+    """Yield ``(name, body)`` for named Liberty groups of one kind."""
+
+    pattern = re.compile(rf"\b{re.escape(keyword)}\s*\(\s*(?:\"([^\"]+)\"|([^\s)]+))\s*\)\s*\{{")
+    pos = 0
+    while True:
+        match = pattern.search(text, pos)
+        if match is None:
+            return
+        brace = text.find("{", match.start())
+        end = _matching_brace(text, brace)
+        yield (match.group(1) or match.group(2), text[brace + 1:end])
+        pos = end + 1
+
+
+def _liberty_attr(body: str, name: str) -> str | None:
+    match = re.search(rf"\b{re.escape(name)}\s*:\s*(?:\"([^\"]*)\"|([^;\s]+))\s*;", body)
+    if match is None:
+        return None
+    return match.group(1) if match.group(1) is not None else match.group(2)
+
+
+def select_clock_gate_cell(liberty: Path) -> ClockGateCell:
+    """Select a positive-edge ICG generically from Liberty metadata.
+
+    The priority mirrors Yosys' native ``clockgate -liberty`` policy used by
+    FlexSoC probes: prefer cells requiring fewer auxiliary low ties, then the
+    smaller-area implementation.  No PDK cell or pin name is encoded here.
+    """
+
+    text = liberty.read_text(encoding="utf-8", errors="replace")
+    candidates: list[tuple[tuple[int, float, str], ClockGateCell]] = []
+    for cell_name, cell_body in _liberty_groups(text, "cell"):
+        kind = (_liberty_attr(cell_body, "clock_gating_integrated_cell") or "").lower()
+        if not kind.startswith("latch_posedge"):
+            continue
+        clock_pin = enable_pin = output_pin = test_pin = None
+        input_pins: list[str] = []
+        for pin_name, pin_body in _liberty_groups(cell_body, "pin"):
+            direction = (_liberty_attr(pin_body, "direction") or "").lower()
+            if direction == "input":
+                input_pins.append(pin_name)
+            if (_liberty_attr(pin_body, "clock_gate_clock_pin") or "").lower() == "true":
+                clock_pin = pin_name
+            if (_liberty_attr(pin_body, "clock_gate_enable_pin") or "").lower() == "true":
+                enable_pin = pin_name
+            if (_liberty_attr(pin_body, "clock_gate_out_pin") or "").lower() == "true":
+                output_pin = pin_name
+            if (_liberty_attr(pin_body, "clock_gate_test_pin") or "").lower() == "true":
+                test_pin = pin_name
+        if not (clock_pin and enable_pin and output_pin):
+            continue
+        role_inputs = {clock_pin, enable_pin}
+        if test_pin:
+            role_inputs.add(test_pin)
+        tie_lo = tuple(pin for pin in input_pins if pin not in role_inputs)
+        try:
+            area = float(_liberty_attr(cell_body, "area") or "inf")
+        except ValueError:
+            area = float("inf")
+        cell = ClockGateCell(
+            cell_name, clock_pin, enable_pin, output_pin, test_pin, tie_lo, area,
+        )
+        # Yosys prefers ICGs needing fewer tied-low auxiliary/test inputs.
+        low_ties = len(tie_lo) + (1 if test_pin else 0)
+        candidates.append(((low_ties, area, cell_name), cell))
+    if not candidates:
+        raise ValueError(f"Liberty has no positive-edge integrated clock-gating cell: {liberty}")
+    candidates.sort(key=lambda item: item[0])
+    return candidates[0][1]
+
+
+def render_clock_gate_techmap(cell: ClockGateCell) -> str:
+    """Map the readable RTL ``prim_clk_gate`` abstraction to one Liberty ICG."""
+
+    connections: list[tuple[str, str]] = [
+        (cell.clock_pin, "clk_i"),
+        (cell.enable_pin, "en_i" if cell.test_pin else "gate_en"),
+        (cell.output_pin, "clk_o"),
+    ]
+    if cell.test_pin:
+        connections.append((cell.test_pin, "test_en_i"))
+    connections.extend((pin, "1'b0") for pin in cell.tie_lo_pins)
+    lines = [
+        '(* techmap_celltype = "prim_clk_gate" *)',
+        "module _flexsoc_prim_clk_gate_map (",
+        "  input  wire clk_i,",
+        "  input  wire en_i,",
+        "  input  wire test_en_i,",
+        "  output wire clk_o",
+        ");",
+    ]
+    if not cell.test_pin:
+        lines += [
+            "  wire gate_en;",
+            "  assign gate_en = en_i | test_en_i;",
+        ]
+    lines.append(f"  {cell.name} _TECHMAP_REPLACE_ (")
+    for index, (pin, signal) in enumerate(connections):
+        comma = "," if index + 1 < len(connections) else ""
+        lines.append(f"    .{pin} ({signal}){comma}")
+    lines += ["  );", "endmodule", ""]
+    return "\n".join(lines)
+
+
+def _uses_explicit_clock_gate(topdir: Path) -> bool:
+    """Return true when generated design RTL explicitly instantiates prim_clk_gate."""
+
+    if not topdir.is_dir():
+        return False
+    for suffix in ("*.sv", "*.v"):
+        for path in topdir.rglob(suffix):
+            if path.name == "prim_clk_gate.sv":
+                continue
+            try:
+                if re.search(r"\bprim_clk_gate\b", path.read_text(encoding="utf-8", errors="replace")):
+                    return True
+            except OSError:
+                continue
+    return False
+
+
 def pjoin(*parts: str | Path) -> str:
     """Join path fragments and return a POSIX string for generated scripts."""
 
@@ -274,6 +464,8 @@ def _asic_tail(cfg: SynthesisConfig, script_name: str) -> list[str]:
             if cfg.min_buffer
             else []
         ),
+        "# keep final public identifiers portable across Verilog, SDF and P&R consumers",
+        "rename -unescape",
         "check -assert -mapped",
         f"write_rtlil {pjoin(cfg.output, cfg.top + '_clean.il')}",
         "",
@@ -334,6 +526,7 @@ def yosys_synth_asic_slang(
     tie_hi: tuple[str, str] | None = None,
     tie_lo: tuple[str, str] | None = None,
     min_buffer: tuple[str, str, str] | None = None,
+    clock_gate_map: Path | None = None,
 ) -> str:
     """Render a SystemVerilog ASIC Yosys script through slang."""
 
@@ -353,9 +546,22 @@ def yosys_synth_asic_slang(
         "           -I ../hw/ips/prim_opentitan \\",
         "           -D SYNTHESIS \\",
         "           --ignore-assertions \\",
+        *(
+            ["           --blackboxed-module prim_clk_gate \\"]
+            if clock_gate_map is not None else []
+        ),
         *(f"           -f {Path(filelist).resolve().as_posix()} \\" for filelist in filelists),
         f"           --top {top}",
         "",
+        *(
+            [
+                "# preserve explicit RTL clock-gating intent but legalize it to the active Liberty",
+                f"hierarchy -top {top}",
+                f"techmap -map {clock_gate_map.resolve().as_posix()}",
+                "select -assert-count 0 t:prim_clk_gate",
+                "",
+            ] if clock_gate_map is not None else []
+        ),
         "# basic synth",
         f"synth -top {top} -noabc",
         *_asic_tail(cfg, script_name),
@@ -437,6 +643,14 @@ def generate_synthesis_scripts(cfg: SynthesisConfig) -> tuple[Path, ...]:
                 ),
             )
         )
+        clock_gate_map: Path | None = None
+        if _uses_explicit_clock_gate(cfg.topdir):
+            clock_gate_cell = select_clock_gate_cell(cfg.liberty)
+            clock_gate_map = write_text(
+                cfg.output / "clock_gate_map.v",
+                render_clock_gate_techmap(clock_gate_cell),
+            )
+            written.append(clock_gate_map)
         written.append(write_text(
             cfg.output / "synth.ys",
             yosys_synth_asic_verilog(
@@ -449,6 +663,7 @@ def generate_synthesis_scripts(cfg: SynthesisConfig) -> tuple[Path, ...]:
             yosys_synth_asic_slang(
                 cfg.top, cfg.liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output, cfg.filelists,
                 tie_hi=cfg.tie_hi, tie_lo=cfg.tie_lo, min_buffer=cfg.min_buffer,
+                clock_gate_map=clock_gate_map,
             ),
         ))
     elif cfg.target == "xilinx":

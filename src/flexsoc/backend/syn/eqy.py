@@ -449,6 +449,8 @@ def render_eqy(cfg: EquivalenceConfig) -> str:
             f"hierarchy -check -top {cfg.top}",
             "proc",
             f"prep -top {cfg.top} -flatten",
+            "# Normalize inferred clock gating to clock enables for formal engines.",
+            "formalff -declockgate",
             "memory -nomap",
             "memory_map -formal",
             *([] if cfg.multiclock else ["async2sync"]),
@@ -542,6 +544,17 @@ def write_text(path: Path, content: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return path
+
+
+def _ensure_formal_view_artifact(config: Path, view: Path) -> Path:
+    """Keep the EQY profile artifact complete without masking a required wrapper."""
+
+    if view.is_file():
+        return view
+    text = config.read_text(encoding="utf-8", errors="replace")
+    if view.name in text:
+        raise FileNotFoundError(f"missing EQY formal view: {view}")
+    return write_text(view, "// No protocol-specific EQY formal view required.\n")
 
 
 def generate_equivalence_config(cfg: EquivalenceConfig, *, runner=None, on: str = "local") -> Path:
@@ -1846,8 +1859,7 @@ class EquivalenceFlow:
                 reset_domains=reset_domains,
             )
             generate_equivalence_config(cfg, runner=self.runner, on=on)
-        if not view.is_file():
-            raise FileNotFoundError(f"missing EQY formal view: {view}")
+        _ensure_formal_view_artifact(config, view)
         return config, view
 
     def run(

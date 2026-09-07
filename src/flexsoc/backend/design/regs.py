@@ -182,8 +182,7 @@ def cfg_hjson(top: str, itf: str = "tlul") -> str:
           hwaccess: "hro",
           fields: [
             {{ bits: "0", name: "ENABLE", desc: "Enable RX input and DSP processing." }},
-            {{ bits: "1", name: "SOFT_RESET", desc: "Synchronous datapath clear request." }},
-            {{ bits: "2", name: "CLK_GATE_EN", desc: "Allow the DSP clock gate to close when idle." }}
+            {{ bits: "1", name: "SOFT_RESET", desc: "Synchronous datapath clear request." }}
           ]
         }},
         {{
@@ -243,7 +242,8 @@ def dsp_hjson(top: str, itf: str = "tlul") -> str:
           hwaccess: "hro",
           fields: [
             {{ bits: "1:0", name: "OP", desc: "0=MAC plus gain, 1=absolute difference, 2=energy estimate." }},
-            {{ bits: "2", name: "SATURATE", desc: "Clamp overflowing results to signed 32-bit limits." }}
+            {{ bits: "2", name: "SATURATE", desc: "Clamp overflowing results to signed 32-bit limits." }},
+            {{ bits: "3", name: "CLK_EN", resval: "1", desc: "Enable the gated DSP datapath clock. The DSP register interface remains clocked by clk_i so software can always re-enable the datapath." }}
           ]
         }},
         {{

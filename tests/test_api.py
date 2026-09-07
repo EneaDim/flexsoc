@@ -412,6 +412,8 @@ def test_synthesis_defaults_to_delay1_and_finishes_for_physical_implementation(t
         min_buffer=("BUF", "A", "Y"),
     )
     assert DEFAULT_SETTINGS["TARGET_OPT"] == "delay1"
+    assert "CLOCK_GATING" not in DEFAULT_SETTINGS
+    assert "CLOCK_GATE_MIN_NET_SIZE" not in DEFAULT_SETTINGS
     assert cfg.opt == "delay1"
     script = syn_module.yosys_synth_asic_verilog(
         cfg.top, cfg.topdir, liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output,
@@ -419,6 +421,8 @@ def test_synthesis_defaults_to_delay1_and_finishes_for_physical_implementation(t
     )
     assert f"read_liberty -overwrite -setattr liberty_cell -lib {liberty}" in script
     assert script.index("read_liberty") < script.index("read_verilog")
+    assert "clockgate -liberty" not in script
+    assert "clock_gate_map.v" not in script
     assert "dfflibmap -prepare" in script
     assert "abc -keepff" in script
     assert "dfflibmap -map-only" in script
@@ -426,6 +430,8 @@ def test_synthesis_defaults_to_delay1_and_finishes_for_physical_implementation(t
     assert "splitnets" in script
     assert "hilomap -singleton -hicell TIEHI Y -locell TIELO Y" in script
     assert "insbuf -buf BUF A Y" in script
+    assert "rename -unescape" in script
+    assert script.index("insbuf -buf BUF A Y") < script.index("rename -unescape") < script.index("check -assert -mapped")
     assert "check -assert -mapped" in script
     assert "write_verilog -nohex -nodec" in script
     assert "delay1.abc" in script
@@ -433,7 +439,92 @@ def test_synthesis_defaults_to_delay1_and_finishes_for_physical_implementation(t
         cfg.top, liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output,
     )
     assert "delay1.abc" in slang_script
+    assert "clockgate -liberty" not in slang_script
+    assert "techmap -map" not in slang_script
     assert "hw/ips/tlul" not in slang_script
+
+
+def test_asic_synthesis_maps_explicit_primitive_from_liberty_metadata(tmp_path: Path) -> None:
+    from flexsoc.backend.core.core import pdk_settings
+
+    liberty = tmp_path / "cells.lib"
+    sdc = tmp_path / "demo.sdc"
+    topdir = tmp_path / "rtl"
+    topdir.mkdir()
+    (topdir / "demo_core.sv").write_text(
+        "prim_clk_gate u_gate (.clk_i(clk_i), .en_i(en_i), .test_en_i(1'b0), .clk_o(gclk));\n",
+        encoding="utf-8",
+    )
+    liberty.write_text(
+        '''
+capacitive_load_unit (1.0000000000, "pf");
+cell (ICG_SCAN_SMALL) {
+  area : 1.0;
+  clock_gating_integrated_cell : "latch_posedge_precontrol";
+  pin (C) { direction : input; clock_gate_clock_pin : true; }
+  pin (E) { direction : input; clock_gate_enable_pin : true; }
+  pin (T) { direction : input; clock_gate_test_pin : true; }
+  pin (Q) { direction : output; clock_gate_out_pin : true; }
+}
+cell (ICG_PLAIN) {
+  area : 2.0;
+  clock_gating_integrated_cell : "latch_posedge";
+  pin (CLK) { direction : input; clock_gate_clock_pin : true; }
+  pin (GATE) { direction : input; clock_gate_enable_pin : true; }
+  pin (GCLK) { direction : output; clock_gate_out_pin : true; }
+}
+''',
+        encoding="utf-8",
+    )
+    sdc.write_text("set_load 0.01 [all_outputs]\n", encoding="utf-8")
+
+    cell = syn_module.select_clock_gate_cell(liberty)
+    assert cell.name == "ICG_PLAIN"
+    assert (cell.clock_pin, cell.enable_pin, cell.output_pin) == ("CLK", "GATE", "GCLK")
+    assert cell.test_pin is None
+    techmap = syn_module.render_clock_gate_techmap(cell)
+    assert 'techmap_celltype = "prim_clk_gate"' in techmap
+    assert "ICG_PLAIN _TECHMAP_REPLACE_" in techmap
+    assert "assign gate_en = en_i | test_en_i;" in techmap
+    assert ".CLK (clk_i)" in techmap
+    assert ".GATE (gate_en)" in techmap
+    assert ".GCLK (clk_o)" in techmap
+
+    cfg = syn_module.SynthesisConfig(
+        "demo", topdir, "asic", 10.0, tmp_path / "syn", liberty, sdc=sdc,
+    )
+    generated = syn_module.generate_synthesis_scripts(cfg)
+    map_path = cfg.output / "clock_gate_map.v"
+    script = (cfg.output / "synth_sv.ys").read_text(encoding="utf-8")
+    assert map_path in generated
+    assert "ICG_PLAIN _TECHMAP_REPLACE_" in map_path.read_text(encoding="utf-8")
+    assert "--blackboxed-module prim_clk_gate" in script
+    assert "blackbox prim_clk_gate" not in script
+    assert f"techmap -map {map_path.resolve().as_posix()}" in script
+    assert "select -assert-count 0 t:prim_clk_gate" in script
+    assert script.index("--blackboxed-module prim_clk_gate") < script.index("--top demo")
+    assert script.index("--top demo") < script.index("techmap -map") < script.index("synth -top demo -noabc")
+    assert "clockgate -liberty" not in script
+
+    settings = pdk_settings(tmp_path, "sky130", root=tmp_path / "missing-pdk")
+    assert "CLOCK_GATE_CELL_AND_PORTS" not in settings
+
+
+def test_asic_synthesis_ignores_clock_gate_mapping_when_design_has_no_primitive(tmp_path: Path) -> None:
+    liberty = tmp_path / "cells.lib"
+    sdc = tmp_path / "demo.sdc"
+    topdir = tmp_path / "rtl"
+    topdir.mkdir()
+    (topdir / "demo.sv").write_text("module demo; endmodule\n", encoding="utf-8")
+    liberty.write_text('capacitive_load_unit (1.0000000000, "pf");\n', encoding="utf-8")
+    sdc.write_text("set_load 0.01 [all_outputs]\n", encoding="utf-8")
+    cfg = syn_module.SynthesisConfig("demo", topdir, "asic", 10.0, tmp_path / "syn", liberty, sdc=sdc)
+    syn_module.generate_synthesis_scripts(cfg)
+    script = (cfg.output / "synth_sv.ys").read_text(encoding="utf-8")
+    assert not (cfg.output / "clock_gate_map.v").exists()
+    assert "--blackboxed-module prim_clk_gate" not in script
+    assert "blackbox prim_clk_gate" not in script
+    assert "techmap -map" not in script
 
 
 def test_setup_pnr_consumes_only_mapped_netlist_and_sdc(tmp_path: Path) -> None:
@@ -1129,6 +1220,25 @@ def test_eqy_bind_uses_sky130_liberty_fallback_without_adapter(
     assert "read_verilog -formal -sv sky130_clock_gates_formal.v" in bound
 
 
+
+
+def test_eqy_optional_formal_view_artifact_does_not_mask_required_wrapper(tmp_path: Path) -> None:
+    from flexsoc.backend.syn.eqy import _ensure_formal_view_artifact
+
+    config = tmp_path / "demo.eqy"
+    view = tmp_path / "demo_eqy_view.sv"
+
+    config.write_text("[gold]\nprep -top demo\n", encoding="utf-8")
+    assert _ensure_formal_view_artifact(config, view) == view
+    assert view.read_text(encoding="utf-8") == "// No protocol-specific EQY formal view required.\n"
+
+    view.unlink()
+    config.write_text(
+        f"[gold]\nread_verilog -formal -sv {view}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(FileNotFoundError, match="missing EQY formal view"):
+        _ensure_formal_view_artifact(config, view)
 
 
 def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
@@ -1834,6 +1944,53 @@ def test_register_interface_intent_uses_one_canonical_regfile_transport() -> Non
     }
     assert len(set(multi.values())) == 1
     assert 'protocol: "reg_iface"' in multi["axi_lite"]
+
+
+def test_nclock_dsp_clock_gate_is_regmap_controlled_and_reenable_safe(tmp_path: Path) -> None:
+    from flexsoc.backend.design.model import render_nclock_model, render_nclock_tests
+    from flexsoc.backend.design.regs import render_nclock_hjson
+    from flexsoc.backend.design.rtl import render_nclock_core, render_nclock_top
+
+    cfg_hjson = render_nclock_hjson("tri_stream_dsp", "cfg", "reg_iface")
+    dsp_hjson = render_nclock_hjson("tri_stream_dsp", "dsp", "reg_iface")
+    core = render_nclock_core("tri_stream_dsp")
+
+    assert "CLK_GATE_EN" not in cfg_hjson
+    assert 'name: "CLK_EN"' in dsp_hjson
+    assert 'resval: "1"' in dsp_hjson
+    assert "input  logic                     test_en_i" not in core
+    assert "assign dsp_clk_req_en = dsp_reg2hw_i.dsp_ctrl.clk_en.q;" in core
+    assert "assign fifo_rready = enable_dsp & dsp_clk_req_en & fifo_rvalid & dsp_pipe_ready;" in core
+    assert ".clk_rd_i  (dsp_clk_gated)" in core
+    assert ".clk_rd_i  (dsp_clk_i)" not in core
+    assert "assign dsp_clk_active = (enable_dsp & dsp_clk_req_en) | soft_reset_dsp | dsp_pipe_valid_q | dsp_valid_o;" in core
+    assert "prim_clk_gate u_dsp_clk_gate" in core
+    assert ".test_en_i (1'b0)" in core
+    assert "dsp_clk_gated;" in core
+    assert "always_ff @(posedge dsp_clk_gated or negedge dsp_rst_ni)" in core
+    assert "u_clk_gate_en_dsp_sync" not in core
+
+    core_path = tmp_path / "tri_stream_dsp_core.sv"
+    core_path.write_text(core, encoding="utf-8")
+    clocks = ClockConfig((
+        ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 20.0),
+        ClockDomain("rx", "rx_clk_i", "rx_rst_ni", 16.0),
+        ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 30.0),
+    ))
+    wrapper = render_nclock_top("tri_stream_dsp", core_path, clocks, "reg_iface")
+    assert "test_en_i" not in wrapper
+    assert ".clk_i     (dsp_clk_i)" in wrapper
+    assert ".dsp_reg2hw_i          (dsp_reg2hw)" in wrapper
+
+    model = render_nclock_model("tri_stream_dsp")
+    tests = render_nclock_tests("tri_stream_dsp")
+    compile(model, "<tri-stream-model>", "exec")
+    compile(tests, "<tri-stream-tests>", "exec")
+    assert "clk_en: bool = True" in model
+    assert '"clock_gate"' in tests
+    assert "clk_en=False" in tests
+    assert "int(config.clk_en) << 3" in tests
+    assert "CLK_GATE_EN" not in tests
 
 
 def test_reggen_runtime_uses_pinned_opentitan_vendor() -> None:
@@ -2667,6 +2824,10 @@ def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> N
         assert cocotb_sv.startswith("`timescale 1ns/1ps\n")
         assert "\n  logic cfg_clk_i;\n  logic cfg_rst_ni;\n" in sv
         assert "\n  logic cfg_clk_i;\n  logic cfg_rst_ni;\n" in cocotb_sv
+        assert "test_en_i" not in sv
+        assert "test_en_i" not in driver
+        assert "test_en_i" not in cocotb_sv
+        assert "test_en_i" not in cocotb_driver
 
     with pytest.raises(ValueError, match="REG_ITF must be one of"):
         sv_tb_text("tri_stream_dsp", "tri_stream_dsp_tb", clocks, "unknown")
@@ -2896,7 +3057,7 @@ def test_sdf_writer_uses_pinned_opensta_command_contract(tmp_path: Path) -> None
     from flexsoc.backend.signoff.sta import render_sdf_tcl
 
     script = render_sdf_tcl(_context(tmp_path, analysis="sdf", mode=""))
-    assert "write_sdf -divider . -include_typ -no_timestamp -no_version $sdf_file" in script
+    assert "write_sdf -divider / -include_typ -no_timestamp -no_version $sdf_file" in script
     assert "proc flexsoc_complete_sdf_typ_header {path}" in script
     assert "flexsoc_complete_sdf_typ_header $sdf_file" in script
     assert "proc flexsoc_strip_sdf_interconnect_cell {path}" in script
@@ -4089,6 +4250,10 @@ def test_formal_scaffold_uses_explicit_multiclock_context(tmp_path: Path) -> Non
     cover_text = cover.read_text(encoding="utf-8")
     assert "dsp_clk_i" in prove_text
     assert "fifo_rready" in prove_text
+    assert "dsp_clk_req_en" in prove_text
+    assert "dsp_clk_gated" in prove_text
+    assert "always_ff @(posedge dsp_clk_gated)" in prove_text
+    assert "clk_gate_en_dsp" not in prove_text
     assert "pipe_q1" not in prove_text
     assert "cfg_clk_i" in cover_text
     assert "rx_clk_i" in cover_text
@@ -4179,7 +4344,7 @@ def test_multiclock_sdc_async_relationship_is_canonical(tmp_path: Path) -> None:
 
     bootstrap = clock_config({
         "N_CLOCKS": "2",
-        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,io:io_clk_i:io_rst_ni:20:low",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,io:io_clk_i:io_rst_ni:20:high",
         "CLOCK_RELATIONSHIPS": "async:core:io",
     })
     path = tmp_path / "run/constraints/demo.sdc"
@@ -4187,6 +4352,8 @@ def test_multiclock_sdc_async_relationship_is_canonical(tmp_path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     assert "set_clock_groups -asynchronous -group [get_clocks core] -group [get_clocks io]" in text
     assert "Multi-clock I/O timing is interface-specific and must be authored explicitly." in text
+    assert "set_case_analysis 1 [get_ports {rst_ni}]" in text
+    assert "set_case_analysis 0 [get_ports {io_rst_ni}]" in text
     assert "foreach " not in text
     assert "remove_from_collection" not in text
     parsed = read_clock_config(path, bootstrap)
@@ -4227,7 +4394,14 @@ def test_tri_stream_dsp_sdc_scaffold_is_explicit_and_complete(tmp_path: Path) ->
         "set_output_delay -max 6 -clock dsp "
         "[get_ports {dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o dsp_tl_o}]"
     ) in text
-    assert "set_case_analysis 0 [get_ports test_en_i]" in text
+    assert "set_case_analysis 1 [get_ports {cfg_rst_ni rx_rst_ni dsp_rst_ni}]" in text
+    assert "test_en_i" not in text
+    assert all(
+        reset not in line
+        for line in text.splitlines()
+        if line.startswith("set_input_delay")
+        for reset in ("cfg_rst_ni", "rx_rst_ni", "dsp_rst_ni")
+    )
     assert "set_drive 0.1 [all_inputs -no_clocks]" in text
     assert "set_load 0.01 [all_outputs]" in text
 
@@ -5104,6 +5278,32 @@ def test_eqy_explicit_pdk_and_multiclock_contract(tmp_path: Path, monkeypatch: p
     assert all(reset != "rst_ni" for _, reset, _ in cfg.reset_domains)
 
 
+def test_eqy_declocks_inferred_gates_for_formal_engines(tmp_path: Path) -> None:
+    from flexsoc.backend.syn.eqy import EquivalenceConfig, render_eqy
+
+    filelist = tmp_path / "rtl.f"
+    netlist = tmp_path / "netlist.v"
+    liberty = tmp_path / "library.lib"
+    filelist.write_text("demo.sv\n", encoding="utf-8")
+    netlist.write_text(
+        "module demo(input wire clk_i, input wire en_i, output wire q_o);\n"
+        "  assign q_o = en_i;\n"
+        "endmodule\n",
+        encoding="utf-8",
+    )
+    liberty.write_text("library(test) {}\n", encoding="utf-8")
+    cfg = EquivalenceConfig(
+        top="demo", filelists=(filelist,), netlist=netlist, liberty=liberty,
+        cell_models=(), sky130_clock_gate_model=tmp_path / "clock_gates.v",
+        sat_depth=20, output=tmp_path / "demo.eqy", multiclock=True,
+    )
+
+    rendered = render_eqy(cfg)
+    assert rendered.count("formalff -declockgate") == 1
+    assert rendered.index("prep -top demo -flatten") < rendered.index("formalff -declockgate")
+    assert rendered.index("formalff -declockgate") < rendered.index("memory -nomap")
+
+
 def test_eqy_pdr_engine_is_explicit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from flexsoc.backend.syn.eqy import EquivalenceFlow
 
@@ -5152,6 +5352,52 @@ def test_router_setup_pnr_leaves_platform_physical_views_to_orfs(tmp_path: Path)
     assert "KLAYOUT" not in text
     assert "SYNTH_NETLIST_FILES" in text
     assert "SDC_FILE" in text
+
+
+def test_router_pnr_defaults_to_standard_orfs_flow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import flexsoc.api as api_module
+
+    home = tmp_path / "home"
+    flow = home / "OpenROAD-flow-scripts" / "flow"
+    flow.mkdir(parents=True)
+    (flow / "Makefile").write_text("all:\n\t@true\n", encoding="utf-8")
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "Makefile").write_text("help:\n\t@echo wrong\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
+        "PDK": "sky130", "ORS_TECH": "sky130hd",
+    }
+    router = api_module.FlexSoCTarget(client, values)
+
+    makefile, _ = router._orfs()
+    assert makefile == (flow / "Makefile").resolve()
+    assert makefile != (project / "Makefile").resolve()
+
+
+def test_router_pnr_explicit_orfs_overrides_default(tmp_path: Path) -> None:
+    import flexsoc.api as api_module
+
+    project = tmp_path / "project"
+    project.mkdir()
+    flow = tmp_path / "custom-orfs" / "flow"
+    flow.mkdir(parents=True)
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
+        "PDK": "sky130", "ORS_TECH": "sky130hd", "ORS": str(flow),
+    }
+    router = api_module.FlexSoCTarget(client, values)
+
+    makefile, _ = router._orfs()
+    assert makefile == (flow / "Makefile").resolve()
 
 
 def test_orfs_config_does_not_override_platform_cdl(tmp_path: Path) -> None:

@@ -120,7 +120,18 @@ def _e2e_ors(request: pytest.FixtureRequest) -> Path:
     """Return the configured ORFS flow root without touching external tools."""
 
     configured = request.config.getoption("--e2e-ors") or os.environ.get("FLEXSOC_E2E_ORS")
-    return Path(configured or (Path.home() / "OpenROAD-flow-scripts" / "flow")).expanduser().resolve()
+    if configured:
+        return Path(configured).expanduser().resolve()
+
+    embedded = os.environ.get("ORFS_ROOT")
+    if embedded:
+        root = Path(embedded).expanduser().resolve()
+        for candidate in (root, root / "flow"):
+            if (candidate / "Makefile").is_file():
+                return candidate
+        return root
+
+    return (Path.home() / "OpenROAD-flow-scripts" / "flow").resolve()
 
 
 def _e2e_root(request: pytest.FixtureRequest) -> Path:
@@ -1005,6 +1016,65 @@ def _assert_saved_signoff_scripts(
     assert not forbidden, f"unexpected saved sign-off artifacts for {pdk}: {forbidden}"
 
 
+def _assert_saved_post_pnr_branch(
+    library_root: Path, top: str, pdk: str, platform: str
+) -> None:
+    """Require ip_save to preserve routed implementation and post-PnR evidence."""
+
+    root = library_root / top
+    results = root / "impl" / pdk / "results" / platform / top / "base"
+    for name in ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds"):
+        artifact = results / name
+        assert artifact.is_file() and artifact.stat().st_size > 0, (
+            f"missing saved post-PnR artifact: {artifact}"
+        )
+
+    post = root / "signoff" / pdk / "post_pnr"
+    physical = post / "physical" / "summary.json"
+    assert physical.is_file() and physical.stat().st_size > 0, (
+        f"missing saved physical sign-off evidence: {physical}"
+    )
+    for corner in ("ss", "tt", "ff"):
+        sdf = post / "sdf" / corner / f"{top}_{corner}.sdf"
+        assert sdf.is_file() and sdf.stat().st_size > 0, f"missing saved routed SDF: {sdf}"
+    assert (post / "sta" / "sta.rpt").is_file(), f"missing saved routed STA QoR: {post}"
+    assert (post / "sta" / "sta.json").is_file(), f"missing saved routed STA JSON: {post}"
+    assert (post / "power" / "estimate" / "tt" / "power.rpt").is_file(), (
+        f"missing saved routed power estimate: {post}"
+    )
+
+
+def _save_scaffold_ip(
+    *, workspace: Path, top: str, run_id: str, workdir: str, library_root: Path,
+    pdk: str, platform: str, config: E2EConfig,
+) -> None:
+    """Save one qualified scaffold PDK branch into the isolated E2E library."""
+
+    target = shlex.quote(str(library_root))
+    _run(
+        (
+            f"fx ip_save --force --set IP_NAME={top} "
+            f"--set IP_LIBRARY_ROOT={target} --workdir {workdir}"
+        ),
+        workspace=workspace, top=top, run_id=run_id,
+    )
+    root = library_root / top
+    assert (root / "syn" / pdk).is_dir(), f"missing saved synthesis branch: {pdk}"
+    assert (root / "signoff" / pdk / "equivalence" / "rtl_vs_syn").is_dir(), (
+        f"missing saved equivalence branch: {pdk}"
+    )
+    if config.run_pnr:
+        _assert_saved_post_pnr_branch(library_root, top, pdk, platform)
+        if config.run_post_syn:
+            post = root / "signoff" / pdk / "post_pnr"
+            assert (post / "power" / "analysis" / "summary.json").is_file(), (
+                f"missing saved routed activity-power summary: {post}"
+            )
+            assert (post / "fusion" / "summary.json").is_file(), (
+                f"missing saved routed fusion summary: {post}"
+            )
+
+
 def _assert_saved_multitech_layout(library_root: Path, top: str) -> None:
     """Require load -> two complete technology flows -> save to preserve both branches."""
 
@@ -1066,6 +1136,7 @@ def test_fx_single_clock_flow_debug(
         f"flexsoc-single-{reg_itf}-e2e-", _e2e_root(request)
     ) as workspace:
         workdir = shlex.quote(str(workspace))
+        saved_library = workspace / "saved-ip"
         run = workspace / "runs" / top / run_id
         slang_root, slang_top, slang_search = _slang_values(top, run)
         _run(
@@ -1258,7 +1329,7 @@ def test_fx_single_clock_flow_debug(
             )
             _run(
                 f"fx eqy --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id, required=False,
+                workspace=workspace, top=top, run_id=run_id,
             )
             _run(
                 f"fx signoff --setup --workdir {workdir}",
@@ -1376,6 +1447,11 @@ def test_fx_single_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _assert_technology_closure(top, run, "sky130")
+            _save_scaffold_ip(
+                workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                library_root=saved_library, pdk="sky130", platform="sky130hd",
+                config=config,
+            )
 
             # ihp-sg13g2: rerun only technology-bound synthesis/sign-off stages.
             _run(
@@ -1412,7 +1488,7 @@ def test_fx_single_clock_flow_debug(
             )
             _run(
                 f"fx eqy --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id, required=False,
+                workspace=workspace, top=top, run_id=run_id,
             )
             _run(
                 f"fx signoff --setup --workdir {workdir}",
@@ -1530,6 +1606,11 @@ def test_fx_single_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _assert_technology_closure(top, run, "ihp-sg13g2")
+            _save_scaffold_ip(
+                workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                library_root=saved_library, pdk="ihp-sg13g2", platform="ihp-sg13g2",
+                config=config,
+            )
         test_root = run / "dv" / "functional" / "tests"
         for test_name in SHARED_VECTOR_TESTS:
             assert (test_root / test_name).is_dir()
@@ -1554,6 +1635,7 @@ def test_fx_multi_clock_flow_debug(
         f"flexsoc-multiclock-{reg_itf}-e2e-", _e2e_root(request)
     ) as workspace:
         workdir = shlex.quote(str(workspace))
+        saved_library = workspace / "saved-ip"
         run = workspace / "runs" / top / run_id
         slang_root, slang_top, slang_search = _slang_values(top, run)
         _run(
@@ -1753,7 +1835,7 @@ def test_fx_multi_clock_flow_debug(
             )
             _run(
                 f"fx eqy --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id, required=False,
+                workspace=workspace, top=top, run_id=run_id,
             )
             _run(
                 f"fx signoff --setup --workdir {workdir}",
@@ -1907,6 +1989,11 @@ def test_fx_multi_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _assert_technology_closure(top, run, "sky130")
+            _save_scaffold_ip(
+                workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                library_root=saved_library, pdk="sky130", platform="sky130hd",
+                config=config,
+            )
 
             # ihp-sg13g2: rerun only technology-bound synthesis/sign-off stages.
             _run(
@@ -1943,7 +2030,7 @@ def test_fx_multi_clock_flow_debug(
             )
             _run(
                 f"fx eqy --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id, required=False,
+                workspace=workspace, top=top, run_id=run_id,
             )
             _run(
                 f"fx signoff --setup --workdir {workdir}",
@@ -2097,6 +2184,11 @@ def test_fx_multi_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _assert_technology_closure(top, run, "ihp-sg13g2")
+            _save_scaffold_ip(
+                workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                library_root=saved_library, pdk="ihp-sg13g2", platform="ihp-sg13g2",
+                config=config,
+            )
         test_root = run / "dv" / "functional" / "tests"
         for test_name in (*SHARED_VECTOR_TESTS, *NCLOCK_DESIGN_TESTS):
             assert (test_root / test_name).is_dir()

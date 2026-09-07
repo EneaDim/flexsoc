@@ -254,10 +254,10 @@ def render_design_prove(top: str, *, multiclock: bool) -> str:
         // Generated starter assertions for {top}_core.
         // This file becomes designer-owned after creation and is never overwritten.
         module {top}_scaffold_prove (
-          input logic dsp_clk_i, dsp_rst_ni,
+          input logic dsp_clk_i, dsp_clk_gated, dsp_rst_ni,
           input logic enable_rx, fifo_wready, rx_ready_o,
           input logic enable_dsp, fifo_rvalid, dsp_pipe_valid_q, dsp_valid_o, dsp_ready_i, fifo_rready,
-          input logic clk_gate_en_dsp, dsp_clk_active, soft_reset_dsp,
+          input logic dsp_clk_req_en, dsp_clk_active, soft_reset_dsp,
           input logic signed [31:0] dsp_result_o,
           input logic dsp_above_threshold_o, dsp_overflow_o
         );
@@ -265,11 +265,11 @@ def render_design_prove(top: str, *, multiclock: bool) -> str:
 
           always_comb begin
             assert (rx_ready_o == (enable_rx & fifo_wready));
-            assert (fifo_rready == (enable_dsp & fifo_rvalid & (!dsp_pipe_valid_q | !dsp_valid_o | dsp_ready_i)));
-            assert (dsp_clk_active == (enable_dsp & (!clk_gate_en_dsp | fifo_rvalid | dsp_pipe_valid_q | dsp_valid_o)));
+            assert (fifo_rready == (enable_dsp & dsp_clk_req_en & fifo_rvalid & (!dsp_pipe_valid_q | !dsp_valid_o | dsp_ready_i)));
+            assert (dsp_clk_active == ((enable_dsp & dsp_clk_req_en) | soft_reset_dsp | dsp_pipe_valid_q | dsp_valid_o));
           end
 
-          always_ff @(posedge dsp_clk_i) begin
+          always_ff @(posedge dsp_clk_gated) begin
             if (past_valid && (!$past(dsp_rst_ni) || $past(soft_reset_dsp))) begin
               assert (!dsp_valid_o);
               assert (dsp_result_o == '0);
@@ -281,11 +281,11 @@ def render_design_prove(top: str, *, multiclock: bool) -> str:
         endmodule
 
         bind {top}_core {top}_scaffold_prove {top}_scaffold_prove_i (
-          .dsp_clk_i(dsp_clk_i), .dsp_rst_ni(dsp_rst_ni),
+          .dsp_clk_i(dsp_clk_i), .dsp_clk_gated(dsp_clk_gated), .dsp_rst_ni(dsp_rst_ni),
           .enable_rx(enable_rx), .fifo_wready(fifo_wready), .rx_ready_o(rx_ready_o),
           .enable_dsp(enable_dsp), .fifo_rvalid(fifo_rvalid), .dsp_pipe_valid_q(dsp_pipe_valid_q),
           .dsp_valid_o(dsp_valid_o), .dsp_ready_i(dsp_ready_i), .fifo_rready(fifo_rready),
-          .clk_gate_en_dsp(clk_gate_en_dsp), .dsp_clk_active(dsp_clk_active),
+          .dsp_clk_req_en(dsp_clk_req_en), .dsp_clk_active(dsp_clk_active),
           .soft_reset_dsp(soft_reset_dsp), .dsp_result_o(dsp_result_o),
           .dsp_above_threshold_o(dsp_above_threshold_o), .dsp_overflow_o(dsp_overflow_o)
         );

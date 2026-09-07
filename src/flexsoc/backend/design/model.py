@@ -19,7 +19,7 @@ SHARED_SCENARIO_TESTS = (
     "reconfig",
 )
 SHARED_VECTOR_TESTS = (*SHARED_SCENARIO_TESTS, "auto_toggle")
-NCLOCK_DESIGN_TESTS = ("mac_smoke", "absdiff", "energy")
+NCLOCK_DESIGN_TESTS = ("mac_smoke", "absdiff", "energy", "clock_gate")
 
 
 def _ports(rtl_dir: Path | None, top: str) -> tuple[list[str], list[str]]:
@@ -714,6 +714,7 @@ def render_nclock_model(top: str) -> str:
         op: int = 0
         saturate: bool = False
         threshold: int = 0
+        clk_en: bool = True
 
 
     @dataclass(frozen=True)
@@ -838,9 +839,13 @@ def render_nclock_tests(top: str) -> str:
 
         return [
             CFG.GAIN.write(VALUE=int(config.gain) & 0xFFFF),
-            DSP.DSP_CTRL.write(OP=int(config.op), SATURATE=int(config.saturate)),
+            DSP.DSP_CTRL.write(
+                OP=int(config.op),
+                SATURATE=int(config.saturate),
+                CLK_EN=int(config.clk_en),
+            ),
             DSP.THRESHOLD.write(VALUE=int(config.threshold) & 0xFFFF_FFFF),
-            CFG.CTRL.write(ENABLE=1, SOFT_RESET=0, CLK_GATE_EN=0),
+            CFG.CTRL.write(ENABLE=1, SOFT_RESET=0),
         ]
 
 
@@ -848,7 +853,7 @@ def render_nclock_tests(top: str) -> str:
         """Write and read back one runtime configuration."""
 
         gain = int(config.gain) & 0xFFFF
-        ctrl = int(config.op) | (int(config.saturate) << 2)
+        ctrl = int(config.op) | (int(config.saturate) << 2) | (int(config.clk_en) << 3)
         threshold = int(config.threshold) & 0xFFFF_FFFF
         return [
             CFG.GAIN.vector_write(step, gain),
@@ -958,6 +963,18 @@ def render_nclock_tests(top: str) -> str:
                 steps=(
                     Step(inputs=model.DspInput(3, 4)),
                     Step(inputs=model.DspInput(5, 12)),
+                ),
+            ),
+            "clock_gate": TestCase(
+                config=smoke,
+                steps=(
+                    Step(config=model.DspConfig(gain=1, op=0, threshold=0x10, clk_en=False)),
+                    # Queue one RX payload while the DSP datapath clock is stopped.
+                    Step(inputs=model.DspInput(3, 4)),
+                    # The DSP register window remains on dsp_clk_i, so this write
+                    # must always be able to reopen the gate and drain the FIFO.
+                    Step(config=smoke),
+                    Step(inputs=model.DspInput(7, 2)),
                 ),
             ),
         }}

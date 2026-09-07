@@ -213,9 +213,6 @@ def render_sdc_scaffold(
             "set_output_delay -min 0.0 -clock rx [get_ports {rx_ready_o}]",
             f"set_output_delay -max {dsp_delay:g} -clock dsp [get_ports {{dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o {dsp_bus_o}}}]",
             f"set_output_delay -min 0.0 -clock dsp [get_ports {{dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o {dsp_bus_o}}}]",
-            "",
-            "# Functional timing mode: scan/test clock-gate override is inactive.",
-            "set_case_analysis 0 [get_ports test_en_i]",
         ]
     else:
         lines += [
@@ -228,12 +225,34 @@ def render_sdc_scaffold(
     lines += [
         "",
         "# ============================================================",
-        "# 8. OUTPUT LOAD",
+        "# 8. FUNCTIONAL MODE CONTROLS",
+        "# ============================================================",
+    ]
+    if clocks.multiclock:
+        reset_ports: dict[int, list[str]] = {0: [], 1: []}
+        for domain in clocks.domains:
+            deasserted = 1 if domain.reset_polarity == "low" else 0
+            reset_ports[deasserted].append(domain.reset)
+        lines += [
+            "# External resets assert asynchronously; functional STA holds them deasserted.",
+            "# Generated RTL synchronizes reset release per clock domain; RDC qualifies that structure.",
+        ]
+        for value in (1, 0):
+            ports = reset_ports[value]
+            if ports:
+                lines.append(f"set_case_analysis {value} [get_ports {{{' '.join(ports)}}}]")
+    else:
+        lines.append("# No additional functional-mode controls are required by the single-clock scaffold.")
+
+    lines += [
+        "",
+        "# ============================================================",
+        "# 9. OUTPUT LOAD",
         "# ============================================================",
         f"set_load {output_load:g} [all_outputs]",
         "",
         "# ============================================================",
-        "# 9. TIMING EXCEPTIONS",
+        "# 10. TIMING EXCEPTIONS",
         "# ============================================================",
         "# False paths and multicycle paths are architectural intent and are never inferred.",
         "# Example false path:",
@@ -243,7 +262,7 @@ def render_sdc_scaffold(
         "# set_multicycle_path 1 -hold  -from <startpoints> -to <endpoints>",
         "",
         "# ============================================================",
-        "# 10. OPTIONAL DESIGN-RULE CONSTRAINTS",
+        "# 11. OPTIONAL DESIGN-RULE CONSTRAINTS",
         "# ============================================================",
         "# Enable only when these limits are part of the intended interface/technology contract.",
         "# set_max_transition <value> [current_design]",
