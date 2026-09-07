@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import re
 import shlex
 import shutil
@@ -1504,17 +1505,63 @@ class RtlFlow:
         force: bool = False,
         on: str = "local",
     ) -> int:
-        """Fetch one vendored RTL dependency through the canonical utility."""
+        """Fetch one vendored dependency, reusing an intact pinned import."""
 
         import sys
         from flexsoc.backend.core import CommandRequest
 
         tool = self.project_root / "src" / "util" / "vendor.py"
+        data = _load_hjson(manifest)
+        vendor_dir = manifest.parent / str(data["target_dir"])
+        marker = vendor_dir / ".flexsoc_fetch.sha256"
+        lock = manifest.with_name(manifest.name.replace(".vendor.hjson", ".lock.hjson"))
+        patch_root = manifest.parent / str(data["patch_dir"]) if data.get("patch_dir") else None
+        inputs = [manifest, tool, *([lock] if lock.is_file() else [])]
+        if patch_root is not None and patch_root.is_dir():
+            inputs.extend(sorted(path for path in patch_root.rglob("*") if path.is_file()))
+
+        digest = hashlib.sha256(b"flexsoc-vendor-input-v1\0")
+        for path in inputs:
+            try:
+                label = path.relative_to(self.project_root).as_posix()
+            except ValueError:
+                label = path.relative_to(manifest.parent).as_posix()
+            digest.update(label.encode())
+            digest.update(b"\0")
+            digest.update(path.read_bytes())
+            digest.update(b"\0")
+        input_hash = digest.hexdigest()
+
+        def output_hash() -> str:
+            tree = hashlib.sha256(b"flexsoc-vendor-output-v1\0")
+            for path in sorted(vendor_dir.rglob("*")):
+                if (not path.is_file() or path == marker or "__pycache__" in path.parts
+                        or path.suffix in {".pyc", ".pyo"}):
+                    continue
+                tree.update(path.relative_to(vendor_dir).as_posix().encode())
+                tree.update(b"\0")
+                tree.update(path.read_bytes())
+                tree.update(b"\0")
+            return tree.hexdigest()
+
+        if not force and marker.is_file():
+            state = dict(line.split("=", 1) for line in marker.read_text().splitlines() if "=" in line)
+            if state.get("INPUT_SHA256") == input_hash and state.get("OUTPUT_SHA256") == output_hash():
+                print(f"[vendor] reuse {vendor_dir}")
+                return 0
+
         update = ("--update",) if force else ()
         argv = (sys.executable, str(tool), *update, str(manifest))
         log = target_dir / ".flexsoc_vendor.log"
-        request = CommandRequest(argv, self.project_root, {}, log, inputs=(manifest, tool), outputs=(target_dir,))
-        return self.runner.run(request, on=on).returncode
+        request = CommandRequest(argv, self.project_root, {}, log, inputs=tuple(inputs), outputs=(vendor_dir,))
+        result = self.runner.run(request, on=on)
+        if result.returncode == 0 and vendor_dir.is_dir():
+            safe_write_file(
+                marker,
+                f"INPUT_SHA256={input_hash}\nOUTPUT_SHA256={output_hash()}\n",
+                overwrite=True,
+            )
+        return result.returncode
 
     def flow(
         self,
