@@ -737,7 +737,49 @@ def test_sdf_gls_enables_icarus_interconnect_for_all_timing_stages(
     assert "GLS_INTERCONNECT=0" in post_sim_module.cocotb_command(
         "compile", cocotb, "post_syn", cocotb_paths
     )
+
+    rtl = tmp_path / "rtl"
+    rtl.mkdir()
+    packages = [rtl / "demo_cfg_reg_pkg.sv", rtl / "demo_dsp_reg_pkg.sv"]
+    type_text = """
+  parameter int BlockAw = 6;
+  parameter logic [3:0] UnsupportedPermit[2] = '{4'b1111, 4'b1111};
+  parameter int AW = BlockAw;
+  parameter int DW = 32;
+  parameter int DBW = DW / 8;
+  parameter type reg_req_t = struct packed { logic valid; logic write; logic [AW-1:0] addr; logic [DW-1:0] wdata; logic [DBW-1:0] wstrb; };
+  parameter type reg_rsp_t = struct packed { logic [DW-1:0] rdata; logic error; logic ready; };
+  typedef struct packed { logic [AW-1:0] addr; logic [2:0] prot; } axi_lite_aw_t;
+  typedef struct packed { logic [DW-1:0] data; logic [DBW-1:0] strb; } axi_lite_w_t;
+  typedef struct packed { logic [1:0] resp; } axi_lite_b_t;
+  typedef struct packed { logic [AW-1:0] addr; logic [2:0] prot; } axi_lite_ar_t;
+  typedef struct packed { logic [DW-1:0] data; logic [1:0] resp; } axi_lite_r_t;
+  typedef struct packed { axi_lite_aw_t aw; logic aw_valid; axi_lite_w_t w; logic w_valid; logic b_ready; axi_lite_ar_t ar; logic ar_valid; logic r_ready; } axi_lite_req_t;
+  typedef struct packed { logic aw_ready; logic w_ready; axi_lite_b_t b; logic b_valid; logic ar_ready; axi_lite_r_t r; logic r_valid; } axi_lite_rsp_t;
+"""
+    for package in packages:
+        package.write_text(f"package {package.stem};\n{type_text}endpackage\n", encoding="utf-8")
+    for interface in ("reg_iface", "axi_lite"):
+        structured = {**values, "REG_ITF": interface}
+        command = post_sim_module.compile_command(tmp_path, structured, "post_syn", paths)
+        staged = [stage / "iverilog_reg_pkg" / package.name for package in packages]
+        assert all(str(package) not in command for package in packages)
+        assert all(str(package) in command for package in staged)
+        assert max(command.index(str(package)) for package in staged) < command.index(str(tb))
+        for package in staged:
+            shim = package.read_text(encoding="utf-8")
+            assert "UnsupportedPermit" not in shim
+            assert "parameter int AW = 6;" in shim
+            assert "parameter type" not in shim
+        cocotb_structured = {**cocotb, "REG_ITF": interface}
+        cocotb_compile = post_sim_module.cocotb_command(
+            "compile", cocotb_structured, "post_syn", cocotb_paths
+        )
+        assert f"GLS_PACKAGES={' '.join(str(package) for package in staged)}" in cocotb_compile
+    assert all(str(package) not in post_syn for package in packages)
+
     block = render_gls_make_block(str(netlist))
+    assert "VERILOG_SOURCES += $(GLS_PACKAGES)" in block
     assert "ifeq ($(GLS_INTERCONNECT),1)" in block
     assert "COMPILE_ARGS += -ginterconnect" in block
 
@@ -2614,6 +2656,9 @@ def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> N
         compile(cocotb_driver, f"<{interface}-driver>", "exec")
         assert wrapper_marker in sv and wrapper_marker in driver
         assert cocotb_marker in cocotb_sv and driver_marker in cocotb_driver
+        if interface == "reg_iface":
+            assert "cfg_reg_req_i.valid = 1'b1;" in driver
+            assert "cfg_reg_req_i = '{" not in driver
         for other, (other_wrapper, other_cocotb, other_driver) in markers.items():
             if other != interface:
                 assert other_wrapper not in sv and other_wrapper not in driver

@@ -3435,12 +3435,14 @@ def _sv_reg_iface_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float
     """)
     tasks = []
     for domain in ("cfg", "dsp"):
-        pkg = f"{top}_{domain}_reg_pkg"
         tasks.append(dedent(f"""\
           task automatic {domain}_write(input logic [31:0] addr, input logic [31:0] data);
             {domain}_drive_cycle();
-            {domain}_reg_req_i = '{{valid: 1'b1, write: 1'b1,
-              addr: addr[{pkg}::AW-1:0], wdata: data, wstrb: '1}};
+            {domain}_reg_req_i.valid = 1'b1;
+            {domain}_reg_req_i.write = 1'b1;
+            {domain}_reg_req_i.addr = addr;
+            {domain}_reg_req_i.wdata = data;
+            {domain}_reg_req_i.wstrb = '1;
             do {domain}_sample_cycle(); while (!{domain}_reg_rsp_o.ready);
             if ({domain}_reg_rsp_o.error) errors++;
             {domain}_drive_cycle();
@@ -3449,8 +3451,11 @@ def _sv_reg_iface_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float
 
           task automatic {domain}_read(input logic [31:0] addr, output logic [31:0] data);
             {domain}_drive_cycle();
-            {domain}_reg_req_i = '{{valid: 1'b1, write: 1'b0,
-              addr: addr[{pkg}::AW-1:0], wdata: '0, wstrb: '0}};
+            {domain}_reg_req_i.valid = 1'b1;
+            {domain}_reg_req_i.write = 1'b0;
+            {domain}_reg_req_i.addr = addr;
+            {domain}_reg_req_i.wdata = '0;
+            {domain}_reg_req_i.wstrb = '0;
             do {domain}_sample_cycle(); while (!{domain}_reg_rsp_o.ready);
             data = {domain}_reg_rsp_o.rdata;
             if ({domain}_reg_rsp_o.error) errors++;
@@ -4081,9 +4086,11 @@ def render_gls_make_block(default_netlist: str) -> str:
         "  GLS_UNIT_DELAY_DEFINE ?= 1",
         "  GLS_INTERCONNECT ?= 0",
         "  SDF_FILE ?=",
+        "  GLS_PACKAGES ?=",
         "  GLS_MODELS ?=",
         f"  GLS_NETLIST ?= {default_netlist}",
         "",
+        "  VERILOG_SOURCES += $(GLS_PACKAGES)",
         "  VERILOG_SOURCES += $(GLS_MODELS)",
         "  VERILOG_SOURCES += $(GLS_NETLIST)",
         "  COMPILE_ARGS += -g2012 -DSIM -DSYN -DFLEXSOC_GLS_EXTERNAL_MODELS -DFLEXSOC_COCOTB_WAVE_OWNER",

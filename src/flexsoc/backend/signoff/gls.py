@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from flexsoc.backend.signoff.sta import scenario_corner
+from flexsoc.backend.design.regs import normalize_register_interface
 from flexsoc.backend.core import layout_from_values
 from flexsoc.backend.impl.impl import resolve_orfs_artifact
 
@@ -483,6 +484,76 @@ def _compile_timing_args(
     return ["-gspecify", f"-T{timing.mode}", "-DFLEXSOC_ENABLE_SDF", f"-D{define}"]
 
 
+def _packed_type(text: str, name: str) -> str:
+    """Extract one packed interface type, normalizing type parameters for Icarus."""
+
+    for match in re.finditer(
+        r"parameter\s+type\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"
+        r"struct\s+packed\s*\{(.*?)\}\s*;",
+        text,
+        re.S,
+    ):
+        if match.group(1) == name:
+            body = match.group(2).strip("\n")
+            return f"  typedef struct packed {{\n{body}\n  }} {name};"
+    for match in re.finditer(
+        r"typedef\s+struct\s+packed\s*\{(.*?)\}\s*"
+        r"([A-Za-z_][A-Za-z0-9_]*)\s*;",
+        text,
+        re.S,
+    ):
+        if match.group(2) == name:
+            return "  " + match.group(0).strip()
+    raise ValueError(f"register package is missing packed type {name}")
+
+
+def _icarus_register_package(source: Path, interface: str) -> str:
+    """Render the minimal register-interface package needed by GLS testbenches."""
+
+    text = source.read_text(encoding="utf-8")
+    package = re.search(r"(?m)^\s*package\s+([A-Za-z_][A-Za-z0-9_]*)\s*;", text)
+    block_aw = re.search(r"\bparameter\s+int\s+BlockAw\s*=\s*(\d+)\s*;", text)
+    dw = re.search(r"\bparameter\s+int\s+DW\s*=\s*(\d+)\s*;", text)
+    if not package or not block_aw or not dw:
+        raise ValueError(f"cannot resolve GLS interface widths from register package: {source}")
+
+    names = (
+        ("reg_req_t", "reg_rsp_t")
+        if interface == "reg_iface"
+        else (
+            "axi_lite_aw_t", "axi_lite_w_t", "axi_lite_b_t",
+            "axi_lite_ar_t", "axi_lite_r_t", "axi_lite_req_t", "axi_lite_rsp_t",
+        )
+    )
+    types = "\n\n".join(_packed_type(text, name) for name in names)
+    return (
+        f"package {package.group(1)};\n\n"
+        f"  parameter int AW = {block_aw.group(1)};\n"
+        f"  parameter int DW = {dw.group(1)};\n"
+        "  parameter int DBW = DW / 8;\n\n"
+        f"{types}\n\nendpackage\n"
+    )
+
+
+def _register_packages(values: Mapping[str, str], paths: GateSimPaths) -> tuple[Path, ...]:
+    """Stage minimal Icarus-compatible packages for structured GLS testbenches."""
+
+    interface = normalize_register_interface(values.get("REG_ITF", "tlul"))
+    if interface == "tlul":
+        return ()
+    sources = tuple(sorted((paths.run_root / "rtl").glob("*_reg_pkg.sv")))
+    if not sources:
+        raise ValueError("structured GLS requires generated *_reg_pkg.sv files; run `fx reg` first")
+    target_dir = paths.stage_dir / "iverilog_reg_pkg"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    staged = []
+    for source in sources:
+        target = target_dir / source.name
+        target.write_text(_icarus_register_package(source, interface), encoding="utf-8")
+        staged.append(target.resolve())
+    return tuple(staged)
+
+
 def compile_command(project_root: Path, values: Mapping[str, str], stage: str, paths: GateSimPaths) -> list[str]:
     """Build the direct SystemVerilog/Icarus GLS compile command."""
 
@@ -540,6 +611,7 @@ def compile_command(project_root: Path, values: Mapping[str, str], stage: str, p
     for directory in dict.fromkeys(path.resolve() for path in include_dirs if path.is_dir()):
         command += ["-I", str(directory)]
     command += ["-o", str(paths.executable)]
+    command += [str(path) for path in _register_packages(values, paths)]
     command += [str(path) for path in models if path.is_file()]
     helpers = [paths.tb.parent / name for name in ("tlul_if.sv", "reg_if.sv", "reg_utils.sv")]
     command += [str(path) for path in helpers if path.is_file()]
@@ -637,6 +709,7 @@ def cocotb_command(
     inputs = resolve_test_inputs(values, paths)
     model_paths = _simulation_models(values, paths, timing)
     models = " ".join(str(path) for path in model_paths)
+    packages = " ".join(str(path) for path in _register_packages(values, paths))
     unit_delay = _unit_delay_resolution(values, model_paths) if timing.unit_delay else None
     target = "compile" if action == "compile" else "sim"
     command = [
@@ -650,6 +723,7 @@ def cocotb_command(
         f"SIM_BUILD={paths.stage_dir / 'cocotb_build'}",
         f"COCOTB_RESULTS_FILE={paths.stage_dir / 'cocotb_results.xml'}",
         f"GLS_NETLIST={paths.netlist}",
+        f"GLS_PACKAGES={packages}",
         f"GLS_MODELS={models}",
         f"TIMING_MODE={timing.mode}",
         f"GLS_INTERCONNECT={int(stage == 'post_pnr' and timing.uses_sdf)}",
