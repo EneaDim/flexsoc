@@ -1,0 +1,42 @@
+analysis=power_estimate activity_source=input_assumption
+activity_model=input
+activity=0.1
+duty=0.5
+corner=ff stage=post_syn
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib
+netlist=/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/syn/sky130/uart_master_synth.v
+sdc=/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/constraints/uart_master.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1mA
+ power 1nW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             3.13e-03   2.72e-04   8.69e-09   3.41e-03  65.5%
+Combinational          8.16e-04   9.82e-04   9.28e-09   1.80e-03  34.5%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  3.95e-03   1.25e-03   1.80e-08   5.20e-03 100.0%
+                          75.9%      24.1%       0.0%
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.00395
+switching_power=0.00125
+dynamic_power=0.005200000000000001
+leakage_power=1.8e-08
+total_power=0.0052

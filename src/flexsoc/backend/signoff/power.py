@@ -355,8 +355,20 @@ def _sanitize_vcd_for_opensta(source: Path, output: Path) -> tuple[Path, int, in
                             continue
                         replacement = remap.get(identifier)
                         if replacement is not None:
-                            start = line.find(identifier)
-                            line = line[:start] + replacement + line[start + len(identifier):]
+                            # Replace only the identifier-code token (the 4th $var field).
+                            # Identifier codes such as "$" or "$v" are valid VCD but also
+                            # prefix the "$var" keyword, so raw substring replacement can
+                            # corrupt the declaration itself.
+                            leading = line[: len(line) - len(line.lstrip())]
+                            body = line.rstrip("\r\n")
+                            ending = line[len(body):]
+                            tokens = body.strip().split()
+                            if len(tokens) < 5 or tokens[0] != "$var" or tokens[3] != identifier:
+                                raise ValueError(
+                                    f"malformed VCD variable declaration during OpenSTA sanitization: {body!r}"
+                                )
+                            tokens[3] = replacement
+                            line = leading + " ".join(tokens) + ending
                             stripped = line.strip()
 
                 identifier = _vcd_value_identifier(stripped)

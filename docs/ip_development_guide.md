@@ -22,14 +22,18 @@ The current PDK adds technology-scoped branches without duplicating the common d
 
 ```text
 runs/<RUN_TOP>/<RUN_ID>/
-├── data/                         CSR/HJSON inputs
+├── csr/                          canonical CSR/HJSON inputs
+│   └── systemrdl/                generated SystemRDL views
 ├── rtl/                          core/top/filelists
 ├── doc/                          generated register docs
 ├── constraints/<TOP>.sdc         authored timing contract
 ├── dv/
 │   ├── functional/
 │   └── formal/
-├── analysis/cdc_rdc/             technology-independent crossing analysis
+├── analysis/
+│   ├── slang/                    parsing/elaboration artifacts
+│   ├── lint/{slang,verilator}/
+│   └── cdc_rdc/                  technology-independent CDC/RDC analysis
 ├── syn/<pdk>/                    mapped synthesis branch
 ├── impl/<pdk>/                   physical implementation branch
 ├── signoff/<pdk>/                technology sign-off
@@ -48,7 +52,7 @@ runs/<RUN_TOP>/<RUN_ID>/
 Normally preserve and review these rather than blindly regenerating them:
 
 ```text
-data/<top>*.hjson
+csr/<top>*.hjson
 rtl/<top>_core.sv
 constraints/<TOP>.sdc
 dv/functional/model/<top>_model.py
@@ -126,7 +130,7 @@ fx flist --force
 Then edit the real sources of truth:
 
 ```text
-data/<top>.hjson
+csr/<top>.hjson
 rtl/<top>_core.sv
 ```
 
@@ -775,7 +779,7 @@ Repeat the technology branch with `fx pdk use ihp-sg13g2` when both PDKs must be
 ### 18.1 CSR-only change
 
 ```bash
-# edit data/<top>*.hjson
+# edit csr/<top>*.hjson
 fx reg doc regmap_py --force
 fx top_from_core flist --force
 fx lint_suite

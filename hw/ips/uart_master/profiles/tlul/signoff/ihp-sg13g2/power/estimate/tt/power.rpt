@@ -1,0 +1,42 @@
+analysis=power_estimate activity_source=input_assumption
+activity_model=input
+activity=0.1
+duty=0.5
+corner=tt stage=post_syn
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
+netlist=/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/syn/ihp-sg13g2/uart_master_synth.v
+sdc=/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/constraints/uart_master.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1uA
+ power 1pW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             5.32e-03   2.95e-04   7.00e-07   5.61e-03  76.9%
+Combinational          8.01e-04   8.82e-04   6.99e-07   1.68e-03  23.1%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  6.12e-03   1.18e-03   1.40e-06   7.30e-03 100.0%
+                          83.8%      16.1%       0.0%
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.00612
+switching_power=0.00118
+dynamic_power=0.007299999999999999
+leakage_power=1.4e-06
+total_power=0.0073

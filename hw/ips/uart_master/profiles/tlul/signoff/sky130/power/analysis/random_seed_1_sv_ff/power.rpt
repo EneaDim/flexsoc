@@ -1,0 +1,46 @@
+analysis=power_analysis corner=ff stage=post_syn
+workload=random_seed_1_sv_ff
+gls_report=/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/dv/functional/sim/post_syn/sky130/uart_master_post_syn_random_seed_1_sv_ff.json
+activity_file=/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/signoff/sky130/power/activity/captures/uart_master_sky130_random_seed_1_sv_ff.vcd
+activity_scope=uart_master_tb/u_uart_master
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib
+netlist=/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/syn/sky130/uart_master_synth.v
+sdc=/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/constraints/uart_master.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1mA
+ power 1nW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Activity annotation ===
+annotated_percent=100.00%
+Unannotated pins: none
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             2.51e-03   6.46e-06   9.17e-09   2.52e-03  99.0%
+Combinational          1.15e-05   1.50e-05   8.64e-09   2.65e-05   1.0%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  2.52e-03   2.14e-05   1.78e-08   2.54e-03 100.0%
+                          99.2%       0.8%       0.0%
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.00252
+switching_power=2.14e-05
+dynamic_power=0.0025414
+leakage_power=1.78e-08
+total_power=0.00254

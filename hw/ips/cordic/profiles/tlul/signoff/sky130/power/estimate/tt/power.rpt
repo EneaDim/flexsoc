@@ -1,0 +1,42 @@
+analysis=power_estimate activity_source=input_assumption
+activity_model=input
+activity=0.1
+duty=0.5
+corner=tt stage=post_syn
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
+netlist=/home/eneadim/github/flexsoc/runs/cordic/refresh_tlul/syn/sky130/cordic_synth.v
+sdc=/home/eneadim/github/flexsoc/runs/cordic/refresh_tlul/constraints/cordic.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1mA
+ power 1nW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             1.63e-03   2.97e-04   1.19e-06   1.93e-03  29.7%
+Combinational          2.08e-03   2.50e-03   1.65e-06   4.57e-03  70.3%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  3.71e-03   2.79e-03   2.83e-06   6.51e-03 100.0%
+                          57.0%      42.9%       0.0%
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.00371
+switching_power=0.00279
+dynamic_power=0.006500000000000001
+leakage_power=2.83e-06
+total_power=0.00651

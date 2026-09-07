@@ -77,10 +77,12 @@ class DvFlow:
         if part not in {"ip", "common", "all"}:
             raise ValueError("lint part must be ip, common, or all")
 
-        logdir = paths.logs / "lint"
+        analysis_dir = paths.lint_analysis / tool
+        logdir = paths.logs / "analysis" / "lint" / tool
         raw = logdir / "raw" / f"{paths.top}_lint_{tool}_{kind}_raw.log"
-        full = logdir / f"{paths.top}_lint_{tool}_{kind}.log"
+        full = analysis_dir / f"{paths.top}_lint_{tool}_{kind}.log"
         raw.parent.mkdir(parents=True, exist_ok=True)
+        full.parent.mkdir(parents=True, exist_ok=True)
         print_label("lint", f"tool={tool} · kind={kind} · part={part}")
         print_path_label("log", full)
         print_path_label("raw-log", raw)

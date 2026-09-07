@@ -1,0 +1,46 @@
+analysis=power_analysis corner=ss stage=post_syn
+workload=smoke_sv_ss
+gls_report=/home/eneadim/github/flexsoc/runs/cordic/refresh_tlul/dv/functional/sim/post_syn/sky130/cordic_post_syn_smoke_sv_ss.json
+activity_file=/home/eneadim/github/flexsoc/runs/cordic/refresh_tlul/signoff/sky130/power/activity/captures/cordic_sky130_smoke_sv_ss.vcd
+activity_scope=cordic_tb/u_cordic
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib
+netlist=/home/eneadim/github/flexsoc/runs/cordic/refresh_tlul/syn/sky130/cordic_synth.v
+sdc=/home/eneadim/github/flexsoc/runs/cordic/refresh_tlul/constraints/cordic.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1mA
+ power 1nW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Activity annotation ===
+annotated_percent=100.00%
+Unannotated pins: none
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             1.22e-03   1.18e-05   1.49e-09   1.24e-03  88.8%
+Combinational          6.69e-05   8.91e-05   3.60e-09   1.56e-04  11.2%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  1.29e-03   1.01e-04   5.09e-09   1.39e-03 100.0%
+                          92.7%       7.3%       0.0%
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.00129
+switching_power=0.000101
+dynamic_power=0.0013909999999999999
+leakage_power=5.09e-09
+total_power=0.00139

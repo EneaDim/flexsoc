@@ -1,0 +1,128 @@
+addrmap uart {
+    addrmap {
+        reg {
+            field {
+                sw = rw;
+                hw = r;
+                desc = "TX enable";
+            } TX[0:0] = 0x0;
+            field {
+                sw = rw;
+                hw = r;
+                desc = "RX enable";
+            } RX[1:1] = 0x0;
+            field {
+                sw = rw;
+                hw = r;
+                desc = "RX noise filter enable.
+                If the noise filter is enabled, RX line goes through the 3-tap
+                repetition code. It ignores single IP clock period noise.";
+            } NF[2:2] = 0x0;
+            field {
+                sw = rw;
+                hw = r;
+                desc = "System loopback enable.
+
+                If this bit is turned on, any outgoing bits to TX are received through RX.
+                See Block Diagram. Note that the TX line goes 1 if System loopback is enabled.";
+            } SLPBK[4:4] = 0x0;
+            field {
+                sw = rw;
+                hw = r;
+                desc = "Line loopback enable.
+
+                If this bit is turned on, incoming bits are forwarded to TX for testing purpose.
+                See Block Diagram. Note that the internal design sees RX value as 1 always if line
+                loopback is enabled.";
+            } LLPBK[5:5] = 0x0;
+            field {
+                sw = rw;
+                hw = r;
+                desc = "If true, parity is enabled in both RX and TX directions.";
+            } PARITY_EN[6:6] = 0x0;
+            field {
+                sw = rw;
+                hw = r;
+                desc = "If PARITY_EN is true, this determines the type, 1 for odd parity, 0 for even.";
+            } PARITY_ODD[7:7] = 0x0;
+            field {
+                sw = rw;
+                hw = r;
+                desc = "BAUD clock rate control. Reset value for 115200 baud at 100MHz";
+            } NCO[31:16] = 0x4B7F;
+        } CTRL @ 0x0;
+        reg {
+            hwre = true;
+            field {
+                sw = r;
+                hw = rw;
+                desc = "TX buffer is full";
+            } external TXFULL[0:0];
+            field {
+                sw = r;
+                hw = rw;
+                desc = "RX buffer is full";
+            } external RXFULL[1:1];
+            field {
+                sw = r;
+                hw = rw;
+                desc = "TX FIFO is empty";
+            } external TXEMPTY[2:2] = 0x1;
+            field {
+                sw = r;
+                hw = rw;
+                desc = "TX FIFO is empty and all bits have been transmitted";
+            } external TXIDLE[3:3] = 0x1;
+            field {
+                sw = r;
+                hw = rw;
+                desc = "RX is idle";
+            } external RXIDLE[4:4] = 0x1;
+            field {
+                sw = r;
+                hw = rw;
+                desc = "RX FIFO is empty";
+            } external RXEMPTY[5:5] = 0x1;
+        } external STATUS @ 0x4;
+        reg {
+            hwre = true;
+            field {
+                sw = r;
+                hw = rw;
+            } external RDATA[7:0];
+        } external RDATA @ 0x8;
+        reg {
+            field {
+                sw = w;
+                hw = r;
+                swmod = true;
+            } WDATA[7:0] = 0x0;
+        } WDATA @ 0xC;
+        reg {
+            field {
+                sw = w;
+                hw = r;
+                swmod = true;
+                desc = "RX fifo reset. Write 1 to the register resets RX_FIFO. Read returns 0";
+            } RXRST[0:0] = 0x0;
+            field {
+                sw = w;
+                hw = r;
+                swmod = true;
+                desc = "TX fifo reset. Write 1 to the register resets TX_FIFO. Read returns 0";
+            } TXRST[1:1] = 0x0;
+        } FIFO_CTRL @ 0x10;
+        reg {
+            field {
+                sw = r;
+                hw = w;
+                desc = "Current fill level of TX fifo";
+            } external TXLVL[7:0];
+            field {
+                sw = r;
+                hw = w;
+                desc = "Current fill level of RX fifo";
+            } external RXLVL[23:16];
+        } external FIFO_STATUS @ 0x14;
+    } none @ 0x0;
+};

@@ -78,7 +78,8 @@ fx flist --force
 Edit the authored sources:
 
 ```text
-data/<top>.hjson                 CSR/register specification
+csr/<top>.hjson                  canonical CSR/register specification
+csr/systemrdl/                    generated SystemRDL views
 rtl/<top>_core.sv                RTL behavior and interfaces
 dv/functional/model/<top>_model.py
 dv/functional/model/<top>_tests.py

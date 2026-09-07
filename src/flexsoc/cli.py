@@ -212,6 +212,7 @@ Use `fx commands` to list every backend target.
         "COMPILER": "RTL simulation compiler/backend.",
         "REGRESSION_BACKENDS": "Simulation backends included in regression.",
         "SEED": "Deterministic simulation or vector-generation seed.",
+        "RESET_SETTLE_CYCLES": "Post-reset cocotb settling cycles before register traffic.",
         "WAVE_FORMAT": "Waveform format: fst or vcd.",
         "WAVE_FILE": "Explicit waveform output path.",
         "WAVE_VIEWER": "Waveform viewer executable, normally surfer or gtkwave.",

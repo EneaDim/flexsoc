@@ -57,7 +57,7 @@ def _candidate_hjson_path(rtldir: str | Path, top: str) -> Path | None:
     """Infer the copied/generated HJSON path for a run directory."""
 
     rtl = Path(rtldir).resolve()
-    candidates = [rtl.parent / "data" / f"{top}.hjson", rtl.parent.parent / "data" / f"{top}.hjson"]
+    candidates = [rtl.parent / "csr" / f"{top}.hjson", rtl.parent.parent / "csr" / f"{top}.hjson"]
     return next((path for path in candidates if path.exists()), None)
 
 def _hex(value: int, width: int = 8) -> str:
@@ -461,6 +461,7 @@ class FunctionalFlow:
         test_name: str = "smoke",
         simulator: str = "verilator",
         seed: int = 1,
+        reset_settle_cycles: int = 8,
         waves: bool = True,
         coverage_file: Path | None = None,
         wave_file: Path | None = None,
@@ -485,6 +486,7 @@ class FunctionalFlow:
         argv = (
             "make", "--no-print-dir", "-C", str(cocotb_dir),
             f"SIM={simulator}", f"TEST_NAME={test_name}", f"SEED={seed}",
+            f"RESET_SETTLE_CYCLES={max(0, int(reset_settle_cycles))}",
             f"HDL_COVERAGE={1 if coverage_file else 0}",
             f"COVERAGE_FILE={coverage_file or ''}", f"WAVE_FILE={wave}",
             f"WAVES={1 if waves else 0}",
@@ -507,6 +509,7 @@ class FunctionalFlow:
         compiler: str = "verilator",
         backends: tuple[str, ...] = ("sv", "cocotb"),
         seed: int = 1,
+        reset_settle_cycles: int = 8,
         coverage_dir: Path | None = None,
         log_dir: Path,
         on: str = "local",
@@ -566,7 +569,8 @@ class FunctionalFlow:
                 print_label("follow", f"tail -f {shlex.quote(str(run_log.resolve()))}")
                 result = self.run_cocotb(
                     top=top, test_root=test_root, tb_dir=tb_dir, rtl_sources=rtl_sources,
-                    test_name=name, simulator=compiler, seed=seed, coverage_file=cov,
+                    test_name=name, simulator=compiler, seed=seed,
+                    reset_settle_cycles=reset_settle_cycles, coverage_file=cov,
                     log=run_log, on=on,
                 )
                 results.append(result)
@@ -594,7 +598,9 @@ class FunctionalFlow:
             common_filelist=paths.rtl_common, ip_filelist=paths.rtl_ip, rtl_sources=rtl_sources,
             compiler=values.get("COMPILER", "verilator"),
             backends=tuple(values.get("REGRESSION_BACKENDS", "sv cocotb").split()),
-            seed=int(values.get("SEED", "1")), coverage_dir=paths.coverage,
+            seed=int(values.get("SEED", "1")),
+            reset_settle_cycles=int(values.get("RESET_SETTLE_CYCLES", "8")),
+            coverage_dir=paths.coverage,
             log_dir=paths.logs / "dv" / "functional" / "regression", on=on,
         )
 

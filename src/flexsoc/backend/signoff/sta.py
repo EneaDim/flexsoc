@@ -471,6 +471,8 @@ def _common_init(ctx: SignoffContext, *, activity: bool) -> str:
             "    }",
             "    if {$in_unannotated && [string trim $line] ne \"\"} {lappend unannotated_pins [string trim $line]}",
             "  }",
+            "  # Some OpenSTA versions omit zero-count origin rows and report only unannotated N.",
+            "  if {!$have_annotated && $have_unannotated} {set annotated 0; set have_annotated 1}",
             "  if {!$have_annotated || !$have_unannotated} {error {could not parse OpenSTA activity annotation summary}}",
             "  set total [expr {$annotated + $unannotated}]",
             "  set percent [expr {$total > 0 ? 100.0 * $annotated / $total : 0.0}]",

@@ -82,16 +82,17 @@ def marked_section(text: str, start: str, end: str) -> str:
 def collect_lint_tool(top: str, run_dir: Path, tool: str) -> dict[str, Any] | None:
     """Collect one lint backend from its tool-specific logs."""
 
-    log_dir = run_dir / "logs" / "lint"
-    full_log = log_dir / f"{top}_lint_{tool}_all.log"
-    raw_log = log_dir / "raw" / f"{top}_lint_{tool}_all_raw.log"
+    analysis_dir = run_dir / "analysis" / "lint" / tool
+    raw_dir = run_dir / "logs" / "analysis" / "lint" / tool / "raw"
+    full_log = analysis_dir / f"{top}_lint_{tool}_all.log"
+    raw_log = raw_dir / f"{top}_lint_{tool}_all_raw.log"
     if not full_log.is_file():
         return None
 
     text = read_text(full_log)
     diagnostics: dict[str, int] = {}
     for kind in LINT_KINDS:
-        path = log_dir / f"{top}_lint_{tool}_{kind}_all.log"
+        path = analysis_dir / f"{top}_lint_{tool}_{kind}.log"
         kind_text = read_text(path) if path.is_file() else ""
         diagnostics[kind] = 0 if kind_text.startswith("No ") else line_count(path)
 
@@ -2267,7 +2268,7 @@ def _analysis_evidence(run_root: Path) -> dict[str, object]:
     """Return lightweight post-lint analysis evidence for the run manifest."""
 
     result: dict[str, object] = {}
-    lint_dir = run_root / "logs" / "lint"
+    lint_dir = run_root / "analysis" / "lint"
     if lint_dir.is_dir():
         result["lint"] = {"path": lint_dir.relative_to(run_root).as_posix()}
     summary = run_root / "analysis" / "cdc_rdc" / "summary.json"

@@ -9,7 +9,7 @@ register map, and C driver collateral.
 For an IP named `<top>`, the authored file is:
 
 ```text
-data/<top>.hjson
+csr/<top>.hjson
 ```
 
 Once the scaffold has been replaced with the real register description, treat
@@ -29,7 +29,7 @@ fx hjson --force
 Then edit:
 
 ```text
-runs/<top>/<run-id>/data/<top>.hjson
+runs/<top>/<run-id>/csr/<top>.hjson
 ```
 
 The scaffold is important because it captures the HJSON shape accepted by the
@@ -483,7 +483,7 @@ The normal lifecycle is:
 ```text
 fx hjson / scaffold
         ↓
-designer edits data/<top>.hjson
+designer edits csr/<top>.hjson
         ↓
 HJSON becomes authored intent
         ↓

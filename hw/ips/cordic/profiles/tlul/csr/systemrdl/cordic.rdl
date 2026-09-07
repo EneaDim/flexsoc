@@ -1,0 +1,128 @@
+addrmap cordic {
+    addrmap {
+        reg {
+            field {
+                sw = rw;
+                hw = r;
+                desc = "Start a new CORDIC operation.";
+            } START[0:0] = 0x0;
+            field {
+                sw = rw;
+                hw = r;
+                desc = "Operation mode: 0 = rotation, 1 = vectoring.";
+            } MODE[1:1] = 0x0;
+            field {
+                sw = rw;
+                hw = r;
+                desc = "Software reset pulse for the internal control logic.";
+            } SOFT_RST[2:2] = 0x0;
+            field {
+                sw = rw;
+                hw = r;
+                desc = "Reserved.";
+            } RSVD[7:3] = 0x0;
+            field {
+                sw = rw;
+                hw = r;
+                desc = "Number of iterations requested for the current operation.
+                A value of 0 may be interpreted by hardware as the implementation default.";
+            } N_ITER[15:8] = 0x0;
+            field {
+                sw = rw;
+                hw = r;
+                desc = "Reserved.";
+            } RSVD2[31:16] = 0x0;
+        } CTRL @ 0x0;
+        reg {
+            hwre = true;
+            field {
+                sw = r;
+                hw = rw;
+                desc = "CORDIC core is busy processing an operation.";
+            } external BUSY[0:0];
+            field {
+                sw = r;
+                hw = rw;
+                desc = "Output data are valid.";
+            } external VALID[1:1];
+            field {
+                sw = r;
+                hw = rw;
+                desc = "Sticky or pulse error indication from hardware.";
+            } external ERROR[2:2];
+            field {
+                sw = r;
+                hw = rw;
+                desc = "Reserved.";
+            } external RSVD[31:3];
+        } external STATUS @ 0x4;
+        reg {
+            field {
+                sw = rw;
+                hw = r;
+                desc = "Signed fixed-point X input value.";
+            } VALUE[31:0] = 0x0;
+        } X_IN @ 0x8;
+        reg {
+            field {
+                sw = rw;
+                hw = r;
+                desc = "Signed fixed-point Y input value.";
+            } VALUE[31:0] = 0x0;
+        } Y_IN @ 0xC;
+        reg {
+            field {
+                sw = rw;
+                hw = r;
+                desc = "Signed fixed-point Z input value.";
+            } VALUE[31:0] = 0x0;
+        } Z_IN @ 0x10;
+        reg {
+            hwre = true;
+            field {
+                sw = r;
+                hw = rw;
+                desc = "Signed fixed-point X output value.";
+            } external VALUE[31:0];
+        } external X_OUT @ 0x14;
+        reg {
+            hwre = true;
+            field {
+                sw = r;
+                hw = rw;
+                desc = "Signed fixed-point Y output value.";
+            } external VALUE[31:0];
+        } external Y_OUT @ 0x18;
+        reg {
+            hwre = true;
+            field {
+                sw = r;
+                hw = rw;
+                desc = "Signed fixed-point Z output value.";
+            } external VALUE[31:0];
+        } external Z_OUT @ 0x1C;
+        reg {
+            hwre = true;
+            field {
+                sw = r;
+                hw = rw;
+                desc = "Implemented datapath width in bits.";
+            } external DATA_WIDTH[7:0];
+            field {
+                sw = r;
+                hw = rw;
+                desc = "Implemented number of fractional bits.";
+            } external FRAC_WIDTH[15:8];
+            field {
+                sw = r;
+                hw = rw;
+                desc = "Maximum supported iteration count.";
+            } external MAX_ITER[23:16];
+            field {
+                sw = r;
+                hw = rw;
+                desc = "Reserved.";
+            } external RSVD[31:24];
+        } external CFG @ 0x20;
+    } none @ 0x0;
+};

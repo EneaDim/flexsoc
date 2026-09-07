@@ -358,7 +358,7 @@ Create the run layout and initialize IP or SoC workspaces.
 
 Enter the IP specification, generate register collateral, maintain the RTL wrapper, and run composite IP flows.
 
-**Main result:** `data/`, `rtl/`, `doc/`, generated drivers, and flow reports.
+**Main result:** `csr/`, `rtl/`, `doc/`, generated drivers, and flow reports.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
@@ -763,12 +763,12 @@ Separate evidence collection from human rendering. Technology-scoped metadata li
 
 Move authored IP sources between the reusable library and an isolated run workspace.
 
-**Main result:** `hw/ips/<IP_NAME>/` and the selected run directories.
+**Main result:** `hw/ips/<IP_NAME>/profiles/<REG_ITF>/` and the selected run directories.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx ip_load` | Load an IP into a run workspace. | `IP_NAME` | Use `--info` for accepted overrides. |
-| `fx ip_save` | Save the current PDK reusable implementation/sign-off collateral and qualification metadata into the IP package. | `IP_NAME`, `IP_LIBRARY_ROOT`; use `--force` to replace existing destinations | Without `--force`, performs an atomic preflight and refuses to overwrite any existing destination, listing every conflicting package path and changing nothing. With `--force`, replaces the current-PDK/source-backed destinations while preserving unrelated PDK branches and any optional branch unavailable in the current run. Results stay in their native hierarchy: post-synthesis GLS JSON under `dv/functional/sim/post_syn/<pdk>/`, coverage `summary.txt/json` under `dv/functional/coverage/`, final `.rpt`/`.json`/`.sdf` under `signoff/<pdk>/`, reusable `syn/<pdk>`, optional `impl/<pdk>`, EQY/SDC, exactly one canonical Tcl per sign-off family, and `meta/<pdk>` including `settings.json`; common `meta/design_intent.json` is retained once. Qualification also retains normalized lint evidence under `logs/lint/` and the compact CDC/RDC package contract `analysis/cdc_rdc/summary.json` + `cdc_rdc.rpt`; extraction/runtime logs are not duplicated into the reusable package. Scenario/corner/workload-local Tcl copies are runtime collateral and are not packaged. Logs, waveforms, hidden transient sign-off reports, diagnostic RTLIL checkpoints, `__pycache__`, and `*.pyc`/`*.pyo` are excluded. |
+| `fx ip_load` | Load one frozen IP profile into a run workspace. | `IP_NAME`, `REG_ITF` | `REG_ITF` selects `profiles/<REG_ITF>/`; use `--info` for accepted overrides. |
+| `fx ip_save` | Save the current PDK reusable implementation/sign-off collateral and qualification metadata into one frozen IP profile. | `IP_NAME`, `REG_ITF`, `IP_LIBRARY_ROOT`; use `--force` to replace existing destinations | Without `--force`, performs an atomic preflight and refuses to overwrite any existing destination, listing every conflicting package path and changing nothing. With `--force`, replaces the current-PDK/source-backed destinations while preserving unrelated PDK branches and any optional branch unavailable in the current run. Results stay in their native hierarchy: post-synthesis GLS JSON under `dv/functional/sim/post_syn/<pdk>/`, coverage `summary.txt/json` under `dv/functional/coverage/`, final `.rpt`/`.json`/`.sdf` under `signoff/<pdk>/`, reusable `syn/<pdk>`, optional `impl/<pdk>`, EQY/SDC, exactly one canonical Tcl per sign-off family, and `meta/<pdk>` including `settings.json`; common `meta/design_intent.json` is retained once. Qualification also retains normalized lint evidence under `analysis/lint/<tool>/` and the compact CDC/RDC package contract `analysis/cdc_rdc/summary.json` + `cdc_rdc.rpt`; extraction/runtime logs are not duplicated into the reusable package. Scenario/corner/workload-local Tcl copies are runtime collateral and are not packaged. Logs, waveforms, hidden transient sign-off reports, diagnostic RTLIL checkpoints, `__pycache__`, and `*.pyc`/`*.pyo` are excluded. |
 
 `ip_save` is intentionally non-destructive by default. A first save into missing destinations succeeds; if any destination that the current run would update already exists, the command exits before staging or replacing the package and prints the conflicting relative paths. Use `fx ip_save --force ...` only when those destinations are intended to be refreshed.
 
@@ -777,9 +777,14 @@ E2E tests set `IP_LIBRARY_ROOT` inside their temporary workspace and hash the re
 The saved technology branches mirror the PDK-first run layout:
 
 ```text
-hw/ips/<IP_NAME>/
+hw/ips/<IP_NAME>/profiles/<REG_ITF>/
+├── ip.json
+├── csr/
+├── rtl/
 ├── constraints/<TOP>.sdc
-├── analysis/cdc_rdc/
+├── analysis/
+│   ├── lint/{slang,verilator}/
+│   └── cdc_rdc/
 ├── syn/<pdk>/
 ├── impl/<pdk>/
 └── signoff/<pdk>/
@@ -792,8 +797,7 @@ hw/ips/<IP_NAME>/
     └── fusion/fusion_analysis.tcl
 ```
 
-Each invocation replaces only the selected PDK branch and preserves scripts
-already saved for other technologies. The Tcl files are exact generated script
+Each invocation updates only the selected `REG_ITF` profile and PDK branch, preserving other profiles and technologies. The Tcl files are exact generated script
 snapshots; after `ip_load`, rerun the corresponding setup/analysis command to
 bind paths to the new workspace and PDK installation.
 
@@ -1351,7 +1355,7 @@ After normal HJSON edits, regenerate `reg`, `doc`, and `regmap_py`; do not rerun
 
 | Failure | Inspect | Repair command |
 | --- | --- | --- |
-| HJSON syntax/access error | `data/*.hjson`, `reg` log | fix HJSON, then `fx reg doc regmap_py --force` |
+| HJSON syntax/access error | `csr/*.hjson`, `reg` log | fix HJSON, then `fx reg doc regmap_py --force` |
 | stale CSR addresses in tests | generated `<top>_regmap.py` | remove handwritten constants, then `fx tests_gen --force` |
 | wrapper lacks a register window | core ports and generated top | `fx top_from_core flist --force` |
 | reset/access semantic mismatch | CSR formal counterexample | repair HJSON/RTL ownership, regenerate, rerun `fx formal_csr` |
@@ -1527,7 +1531,7 @@ pulls the recorded digest and intentionally does not rebuild the EDA toolchain.
 | Command | Main output | Editable? | Regenerate when |
 | --- | --- | --- | --- |
 | `setup` | run directory tree | no | new run identity/workspace |
-| `hjson` | `data/*.hjson` starter | yes after bootstrap | only when intentionally replacing the starter |
+| `hjson` | `csr/*.hjson` starter | yes after bootstrap | only when intentionally replacing the starter |
 | `reg` | generated register RTL/packages | no | HJSON/interface changes |
 | `doc` | generated register Markdown | no | HJSON changes |
 | `regmap_py` | generated Python CSR API | no | HJSON changes |

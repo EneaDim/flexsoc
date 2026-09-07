@@ -66,7 +66,7 @@ implemented hardware still matches its specification and RTL intent.
 - editable RTL core plus generated top wrapper;
 - single-clock and arbitrary N-clock configuration;
 - per-domain asynchronous-assert/synchronous-release reset integration;
-- reusable IP loading and multi-PDK saving under `hw/ips/<top>/`.
+- reusable frozen-IP profiles under `hw/ips/<top>/profiles/<REG_ITF>/`, with multi-PDK qualification per profile.
 
 ### Design verification
 
@@ -240,12 +240,18 @@ A run is isolated by `RUN_TOP` and `RUN_ID`:
 
 ```text
 <WORKDIR>/runs/<RUN_TOP>/<RUN_ID>/
-├── data/                  register specifications
+├── csr/                   canonical CSR/register specifications
+│   └── systemrdl/         generated SystemRDL views
 ├── rtl/                   RTL and ordered filelists
 ├── doc/                   generated register documentation
 ├── constraints/<TOP>.sdc  authored timing contract
 ├── dv/                    functional and property-formal collateral
-├── analysis/cdc_rdc/      compact structural CDC/RDC evidence
+├── analysis/
+│   ├── slang/             parsing/elaboration artifacts
+│   ├── lint/
+│   │   ├── slang/
+│   │   └── verilator/
+│   └── cdc_rdc/           structural CDC/RDC evidence
 ├── syn/<pdk>/             synthesis branch
 ├── impl/<pdk>/            physical implementation branch
 ├── signoff/<pdk>/         pre/post-route sign-off evidence

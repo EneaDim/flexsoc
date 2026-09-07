@@ -5269,8 +5269,10 @@ def _selected_resets(selector):
     raise AssertionError(f"unknown reset selector: {{clean}}")
 
 
-async def apply_reset(dut, selector="all", cycles=5):
+async def apply_reset(dut, selector="all", cycles=5, settle_cycles=None):
     selected = _selected_resets(selector)
+    if settle_cycles is None:
+        settle_cycles = max(0, int(os.environ.get("RESET_SETTLE_CYCLES", "8")))
     for name in ("cio_rx_i", "uart_rx_i", "serial_rx_i"):
         if hasattr(dut, name):
             getattr(dut, name).value = 1
@@ -5282,6 +5284,8 @@ async def apply_reset(dut, selector="all", cycles=5):
     for _, reset, polarity in selected:
         getattr(dut, reset).value = int(polarity == "low")
     await Timer(1, unit="ns")
+    for _ in range(max(0, int(settle_cycles))):
+        await RisingEdge(dut.{clk})
 
 
 @cocotb.test()
@@ -5291,10 +5295,11 @@ async def {top}_generated_test(dut):
         getattr(dut, reset).value = int(polarity == "low")
     await init_register_bus(dut, dut.{clk})
     reset_cycles = max(1, int(os.environ.get("INITIAL_RESET_CYCLES", "5")))
-    dut._log.info("initial reset cycles=%d", reset_cycles)
-    await apply_reset(dut, "all", reset_cycles)
-    for _ in range(2):
-        await RisingEdge(dut.{clk})
+    settle_cycles = max(0, int(os.environ.get("RESET_SETTLE_CYCLES", "8")))
+    dut._log.info(
+        "initial reset cycles=%d settle_cycles=%d", reset_cycles, settle_cycles
+    )
+    await apply_reset(dut, "all", reset_cycles, settle_cycles)
 
     test_name = os.environ.get("TEST_NAME", "smoke")
     test_root = Path(os.environ.get("TEST_ROOT", "tests"))

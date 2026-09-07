@@ -309,6 +309,15 @@ def test_ip_save_preview_keeps_user_parameters_and_derives_artifacts_in_backend(
 
 
 
+
+def test_ip_save_requires_real_pnr_and_physical_signoff_before_packaging_impl() -> None:
+    source = (ROOT / "src" / "flexsoc" / "api.py").read_text(encoding="utf-8")
+    assert "collect_implementation(top, p.run, p.pdk)" in source
+    assert "collect_physical_signoff(p.run, p.pdk)" in source
+    assert 'implementation.get("status") == "pass"' in source
+    assert 'physical.get("status") == "pass"' in source
+    assert "impl_dir=p.impl if impl_qualified else None" in source
+
 def test_view_selects_named_gls_waveform_and_avoids_wayland_on_wsl(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -575,6 +584,20 @@ def test_run_exception_is_visible_and_persisted_in_command_log(
     assert log.read_text(encoding="utf-8") == "[error] missing routed SDF\n"
 
 
+def test_setup_creates_canonical_csr_and_analysis_layout(tmp_path: Path) -> None:
+    fx = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work")
+    fx.run("setup", TOP="demo", RUN_ID="api")
+
+    run = tmp_path / "work" / "runs" / "demo" / "api"
+    for relative in (
+        "csr", "analysis/slang", "analysis/lint/slang",
+        "analysis/lint/verilator", "analysis/cdc_rdc",
+    ):
+        assert (run / relative).is_dir(), relative
+    assert not (run / "data").exists()
+    assert not (run / "interchange" / "systemrdl").exists()
+
+
 def test_run_capture_executes_direct_backend_and_writes_log(tmp_path: Path) -> None:
     result, = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work").run(
         "hjson", capture=True, TOP="demo", RUN_ID="api"
@@ -582,7 +605,7 @@ def test_run_capture_executes_direct_backend_and_writes_log(tmp_path: Path) -> N
 
     assert isinstance(result, FlexSoCResult)
     assert result.ok
-    assert (tmp_path / "work/runs/demo/api/data/demo.hjson").is_file()
+    assert (tmp_path / "work/runs/demo/api/csr/demo.hjson").is_file()
     assert result.log_path is not None and result.log_path.is_file()
     assert "make" not in result.command.argv
 
@@ -1241,6 +1264,51 @@ def test_eqy_optional_formal_view_artifact_does_not_mask_required_wrapper(tmp_pa
         _ensure_formal_view_artifact(config, view)
 
 
+def test_ip_load_requires_exact_frozen_profile_layout(tmp_path: Path) -> None:
+    from flexsoc.backend.core.package import PackageFlow
+
+    project = tmp_path / "project"
+    source = project / "hw" / "ips" / "demo" / "profiles" / "axi_lite"
+    (source / "csr" / "systemrdl").mkdir(parents=True)
+    (source / "csr" / "demo.hjson").write_text('{name: "demo"}\n', encoding="utf-8")
+    (source / "csr" / "systemrdl" / "demo.rdl").write_text(
+        "addrmap demo {};\n", encoding="utf-8"
+    )
+    lint = source / "analysis" / "lint"
+    (lint / "slang").mkdir(parents=True)
+    (lint / "verilator").mkdir(parents=True)
+    (lint / "slang" / "demo_lint_slang_all.log").write_text("slang pass\n", encoding="utf-8")
+    (lint / "verilator" / "demo_lint_verilator_all.log").write_text(
+        "verilator pass\n", encoding="utf-8"
+    )
+    (source / "ip.json").write_text(
+        json.dumps({
+            "schema": 1, "format": "flexsoc-ip", "name": "demo", "top": "demo",
+            "profile": "axi_lite", "reg_interface": "axi_lite",
+        }) + "\n",
+        encoding="utf-8",
+    )
+
+    workspace = tmp_path / "work"
+    destination = PackageFlow(project, {}).load(
+        ip_name="demo", profile="axi_lite", run_top="demo", run_id="dev", workspace=workspace,
+    )
+
+    assert (destination / "csr" / "demo.hjson").is_file()
+    assert (destination / "csr" / "systemrdl" / "demo.rdl").is_file()
+    assert (destination / "analysis" / "lint" / "slang" / "demo_lint_slang_all.log").is_file()
+    assert (destination / "analysis" / "lint" / "verilator" / "demo_lint_verilator_all.log").is_file()
+
+    flat = project / "hw" / "ips" / "legacy"
+    flat.mkdir(parents=True)
+    (flat / "ip.json").write_text('{}\n', encoding="utf-8")
+    with pytest.raises(FileNotFoundError, match="missing source IP profile"):
+        PackageFlow(project, {}).load(
+            ip_name="legacy", profile="tlul", run_top="legacy", run_id="dev", workspace=workspace,
+        )
+
+
+
 def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     """Packaging stays atomic, PDK-first, and anchored to canonical run artifacts."""
     top, pdk = "demo", "sky130"
@@ -1296,28 +1364,38 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     provenance_json.write_text(json.dumps({"schema_version": 1, "stages": {}}) + "\n", encoding="utf-8")
     design_intent_json = meta / "design_intent.json"
     design_intent_json.write_text(json.dumps({"schema": 1, "design_intent": {"TOP": top}}) + "\n", encoding="utf-8")
-    lint = run / "logs" / "lint"
+    csr = run / "csr"
+    csr.mkdir()
+    (csr / f"{top}.hjson").write_text('{name: "demo"}\n', encoding="utf-8")
+    lint = run / "analysis" / "lint" / "slang"
     lint.mkdir(parents=True)
     (lint / f"{top}_lint_slang_all.log").write_text("lint pass\n", encoding="utf-8")
-    raw = lint / "raw"
-    raw.mkdir()
+    raw = run / "logs" / "analysis" / "lint" / "slang" / "raw"
+    raw.mkdir(parents=True)
     (raw / f"{top}_lint_slang_all_raw.log").write_text("raw command\n", encoding="utf-8")
     cdc = run / "analysis" / "cdc_rdc"
     cdc.mkdir(parents=True)
     (cdc / "summary.json").write_text(json.dumps({"top": top, "status": "pass"}) + "\n", encoding="utf-8")
     (cdc / "cdc_rdc.rpt").write_text("cdc pass\n", encoding="utf-8")
     (run / "component.xml").write_text("<component/>\n", encoding="utf-8")
-    rdl = run / "interchange" / "systemrdl"
+    rdl = run / "csr" / "systemrdl"
     rdl.mkdir(parents=True)
     (rdl / f"{top}.rdl").write_text("addrmap demo {};\n", encoding="utf-8")
     library = tmp_path / "library"
-    stale_logs = library / top / "logs" / "lint"
+    stale_impl = library / top / "profiles" / "tlul" / "impl" / pdk
+    stale_impl.mkdir(parents=True)
+    (stale_impl / "config.mk").write_text("# setup-only, not PnR evidence\n", encoding="utf-8")
+    stale_logs = library / top / "profiles" / "tlul" / "logs" / "lint"
     stale_logs.mkdir(parents=True)
     (stale_logs / "stale.log").write_text("old package log\n", encoding="utf-8")
+    sibling = library / top / "profiles" / "axi_lite"
+    sibling.mkdir(parents=True)
+    (sibling / "sentinel.txt").write_text("keep sibling profile\n", encoding="utf-8")
 
     flow = PackageFlow(tmp_path, {})
     saved = flow.save(
         ip_name=top,
+        profile="tlul",
         top=top,
         pdk=pdk,
         library_root=library,
@@ -1338,16 +1416,21 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     assert (saved / "meta" / "design_intent.json").is_file()
     assert (saved / "meta" / pdk / "settings.json").is_file()
     package_index = json.loads((saved / "ip.json").read_text(encoding="utf-8"))
+    assert saved == library / top / "profiles" / "tlul"
+    assert (sibling / "sentinel.txt").read_text(encoding="utf-8") == "keep sibling profile\n"
+    assert package_index["profile"] == "tlul"
+    assert package_index["reg_interface"] == "tlul"
     assert package_index["content"]["design_intent"] == "meta/design_intent.json"
+    assert package_index["content"]["registers"] == "csr"
     assert package_index["content"]["ipxact"] == "component.xml"
-    assert package_index["content"]["systemrdl"] == "interchange/systemrdl"
+    assert package_index["content"]["systemrdl"] == "csr/systemrdl"
     assert (saved / "component.xml").is_file()
-    assert (saved / "interchange" / "systemrdl" / f"{top}.rdl").is_file()
+    assert (saved / "csr" / "systemrdl" / f"{top}.rdl").is_file()
     assert package_index["qualification"][pdk]["settings"] == f"meta/{pdk}/settings.json"
     assert (saved / "constraints" / f"{top}.sdc").is_file()
     assert not (saved / "signoff" / pdk / f"{top}.sdc").exists()
-    assert (saved / "analysis" / "lint" / f"{top}_lint_slang_all.log").is_file()
-    assert not (saved / "analysis" / "lint" / "raw").exists()
+    assert (saved / "analysis" / "lint" / "slang" / f"{top}_lint_slang_all.log").is_file()
+    assert not (saved / "analysis" / "lint" / "slang" / "raw").exists()
     assert not (saved / "logs").exists()
     assert (saved / "analysis" / "cdc_rdc" / "summary.json").is_file()
     assert (saved / "analysis" / "cdc_rdc" / "cdc_rdc.rpt").is_file()
@@ -1368,6 +1451,7 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     (implementation / "config.mk").write_text("DESIGN_NAME := demo\n", encoding="utf-8")
     flow.save(
         ip_name=top,
+        profile="tlul",
         top=top,
         pdk=pdk,
         library_root=library,
@@ -1390,6 +1474,7 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     stale_runtime.write_text("# stale runtime copy\n", encoding="utf-8")
     flow.save(
         ip_name=top,
+        profile="tlul",
         top=top,
         pdk=pdk,
         library_root=library,
@@ -1946,6 +2031,36 @@ def test_register_interface_intent_uses_one_canonical_regfile_transport() -> Non
     assert 'protocol: "reg_iface"' in multi["axi_lite"]
 
 
+def test_frozen_profile_csr_sources_use_canonical_reg_iface_transport() -> None:
+    from flexsoc.backend.design.regs import reggen_device_protocols
+
+    root = Path(__file__).resolve().parents[1] / "hw" / "ips"
+    sources = sorted(root.glob("*/profiles/*/csr/*.hjson"))
+    assert sources
+
+    for source in sources:
+        assert reggen_device_protocols(source) == ("reg_iface",), source
+
+
+def test_reg_rtl_rejects_noncanonical_internal_transport(tmp_path: Path) -> None:
+    from flexsoc.backend.design.regs import RegsFlow
+
+    csr = tmp_path / "csr"
+    rtl = tmp_path / "rtl"
+    csr.mkdir()
+    (csr / "demo.hjson").write_text(
+        "{\n"
+        "  name: \"demo\"\n"
+        "  bus_interfaces: [{ protocol: \"tlul\", direction: \"device\" }]\n"
+        "  registers: []\n"
+        "}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="protocol='reg_iface'"):
+        RegsFlow(project_root=tmp_path).setup_rtl("demo", csr, rtl)
+
+
 def test_nclock_dsp_clock_gate_is_regmap_controlled_and_reenable_safe(tmp_path: Path) -> None:
     from flexsoc.backend.design.model import render_nclock_model, render_nclock_tests
     from flexsoc.backend.design.regs import render_nclock_hjson
@@ -2028,8 +2143,12 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
     assert ".rst_ni(rst_ni)" in single
     assert ".d_i   (1'b1)" in single
     assert ".q_o   (core_rst_sync_ni)" in single
-    assert ".rst_ni(core_rst_sync_ni)" in single
-    assert ".rst_ni(core_rst_sync_ni)" in single.split("demo_core u_demo_core", 1)[1]
+    assert single.count("prim_flop #(") == 2
+    assert ".q_o   (reg_rst_ni)" in single
+    assert ".q_o   (core_rst_ni)" in single
+    assert ".rst_ni(reg_rst_ni)" in single.split("demo_reg_top u_demo_reg", 1)[1]
+    assert ".rst_ni(core_rst_ni)" in single.split("demo_core u_demo_core", 1)[1]
+    assert 'keep = "true"' not in single
 
     tlul = render_top_from_core(
         "demo",
@@ -2098,6 +2217,8 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
     multi = render_nclock_top("multi", multi_core, clocks)
     assert "prim_reset_sync" not in multi
     assert multi.count("prim_ff_2sync #(") == 2
+    assert multi.count("prim_flop #(") == 4
+    assert 'keep = "true"' not in multi
 
     multi_reg = render_nclock_top("multi", multi_core, clocks, "reg_iface")
     assert "multi_cfg_reg_pkg::reg_req_t cfg_reg_req_i" in multi_reg
@@ -2120,10 +2241,10 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
     assert "axi_lite_to_reg #( " in multi_axi_reg_top
     assert "multi_cfg_reg_core u_reg_core" in multi_axi_reg_top
     core_instance = "".join(multi.split("multi_core u_core", 1)[1].split())
-    assert ".cfg_rst_ni(cfg_rst_sync_ni)" in core_instance
-    assert ".dsp_rst_ni(dsp_rst_sync_ni)" in core_instance
-    assert ".rst_ni    (cfg_rst_sync_ni)" in multi
-    assert ".rst_ni    (dsp_rst_sync_ni)" in multi
+    assert ".cfg_rst_ni(cfg_core_rst_ni)" in core_instance
+    assert ".dsp_rst_ni(dsp_core_rst_ni)" in core_instance
+    assert ".rst_ni    (cfg_reg_rst_ni)" in multi
+    assert ".rst_ni    (dsp_reg_rst_ni)" in multi
 
     rtl_root = tmp_path / "rtl"
     rtl_root.mkdir()
@@ -2135,6 +2256,50 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
     assert {"prim_ff_2sync", "prim_flop"} <= stems
     assert "prim_reset_sync" not in stems
     assert not (ROOT / "hw/ips/prim/prim_reset_sync.sv").exists()
+
+    partial_core = tmp_path / "partial_core.sv"
+    partial_core.write_text(
+        "module partial_core(\n"
+        "  input logic cfg_clk_i,\n"
+        "  input logic cfg_rst_ni,\n"
+        "  input logic dsp_clk_i,\n"
+        "  input logic dsp_rst_ni,\n"
+        "  input logic [31:0] cfg_reg2hw_i,\n"
+        "  output logic [31:0] cfg_hw2reg_o\n"
+        "); endmodule\n",
+        encoding="utf-8",
+    )
+    partial = render_nclock_top("partial", partial_core, clocks)
+    assert partial.count("prim_ff_2sync #(") == 2
+    assert partial.count("prim_flop #(") == 3
+    assert "cfg_reg_rst_ni" in partial
+    assert "cfg_core_rst_ni" in partial
+    assert "dsp_core_rst_ni" in partial
+    assert "dsp_reg_rst_ni" not in partial
+
+
+def test_top_from_core_reset_branches_preserve_active_high_core_polarity(tmp_path: Path) -> None:
+    from flexsoc.backend.design.rtl import render_top_from_core
+
+    core = tmp_path / "demo_core.sv"
+    core.write_text(
+        "module demo_core(\n"
+        "  input logic clk_i,\n"
+        "  input logic rst_i,\n"
+        "  input logic [31:0] reg2hw,\n"
+        "  output logic [31:0] hw2reg\n"
+        "); endmodule\n",
+        encoding="utf-8",
+    )
+    text = render_top_from_core(
+        "demo",
+        core,
+        "reg_iface",
+        clocks=ClockConfig((ClockDomain("core", "clk_i", "rst_i", 10.0, "high"),)),
+    )
+    assert ".rst_ni(~rst_i)" in text
+    assert ".rst_ni(reg_rst_ni)" in text.split("demo_reg_top u_demo_reg", 1)[1]
+    assert ".rst_i(~core_rst_ni)" in text.split("demo_core u_demo_core", 1)[1]
 
 
 
@@ -2525,11 +2690,11 @@ def test_package_flow_exports_deterministic_ipxact(
     output = run / "component.xml"
     flow = PackageFlow(tmp_path, {})
     first = flow.export_ipxact(
-        top="demo", data_dir=data, rtl_dir=rtl, output=output,
+        top="demo", csr_dir=data, rtl_dir=rtl, output=output,
         vendor="example.org", library="demo", version="2.0.0",
     ).read_bytes()
     second = flow.export_ipxact(
-        top="demo", data_dir=data, rtl_dir=rtl, output=output,
+        top="demo", csr_dir=data, rtl_dir=rtl, output=output,
         vendor="example.org", library="demo", version="2.0.0",
     ).read_bytes()
     assert first == second
@@ -2706,7 +2871,7 @@ def test_register_transport_ports_are_not_functional_vectors(tmp_path: Path) -> 
 
 
 def test_saved_cordic_registers_atan_before_z_arithmetic() -> None:
-    core = (ROOT / "hw/ips/cordic/rtl/cordic_core.sv").read_text(encoding="utf-8")
+    core = (ROOT / "hw/ips/cordic/profiles/tlul/rtl/cordic_core.sv").read_text(encoding="utf-8")
 
     assert "logic signed [ANGLE_W-1:0] atan_q, atan_d;" in core
     assert "atan_d         = AtanLut[0];" in core
@@ -3145,6 +3310,7 @@ def test_activity_power_reads_trace_into_one_primary_report(tmp_path: Path) -> N
     assert "report_activity_annotation -report_unannotated" in script
     assert "-report_annotated" not in script
     assert "annotated_percent=%.2f%%" in script
+    assert "if {!$have_annotated && $have_unannotated} {set annotated 0; set have_annotated 1}" in script
     assert "Unannotated pins:" in script
     assert "flexsoc_append_activity_coverage $report" in script
     assert "report_power -highest_power_instances" not in script
@@ -3242,6 +3408,49 @@ def test_opensta_vcd_filter_remaps_parser_ambiguous_identifier_codes(tmp_path: P
     assert "0!" in text and "1!" in text
 
 
+
+def test_opensta_vcd_filter_remaps_identifier_codes_that_prefix_var_keyword(tmp_path: Path) -> None:
+    source = tmp_path / "source.vcd"
+    output = tmp_path / "capture.vcd"
+    source.write_text(
+        "$timescale 1ns $end\n"
+        "$scope module demo_tb $end\n"
+        "$scope module u_dut $end\n"
+        "$var parameter 32 $ FLEXSOC_TB_LINE_BYTES $end\n"
+        "$var wire 1 $v VNB $end\n"
+        "$var wire 1 ! clk $end\n"
+        "$upscope $end\n$upscope $end\n"
+        "$enddefinitions $end\n"
+        "$dumpvars\n"
+        "b1010 $\n"
+        "0$v\n"
+        "0!\n"
+        "$end\n"
+        "#5\n"
+        "b0101 $\n"
+        "1$v\n"
+        "1!\n",
+        encoding="utf-8",
+    )
+
+    capture, events, changes, remapped = signoff_power_module._sanitize_vcd_for_opensta(
+        source, output
+    )
+
+    assert capture == output
+    assert events == 0
+    assert changes == 0
+    assert remapped == 2
+    rendered = output.read_text(encoding="utf-8")
+    assert "$var parameter 32 __flexsoc_vcd_0 FLEXSOC_TB_LINE_BYTES $end" in rendered
+    assert "$var wire 1 __flexsoc_vcd_1 VNB $end" in rendered
+    assert "b1010 __flexsoc_vcd_0" in rendered
+    assert "b0101 __flexsoc_vcd_0" in rendered
+    assert "0__flexsoc_vcd_1" in rendered
+    assert "1__flexsoc_vcd_1" in rendered
+    assert "__flexsoc_vcd_0var" not in rendered
+    assert "__flexsoc_vcd_1ar" not in rendered
+
 def test_native_activity_vcd_is_filtered_only_when_opensta_needs_it(tmp_path: Path) -> None:
     wave = tmp_path / "wave.vcd"
     wave.write_text(
@@ -3277,6 +3486,9 @@ def test_fusion_discovers_worst_met_or_violated_paths_with_public_reports(tmp_pa
     ctx = _context(tmp_path, analysis="fusion_analysis")
     script = render_fusion_analysis_tcl(ctx)
 
+    assert "flexsoc_section $report {Activity annotation}" in script
+    assert "flexsoc_append_activity_coverage $report" in script
+    assert script.index("flexsoc_append_activity_coverage $report") < script.index("flexsoc_append_opensta $report report_power")
     assert script.index("flexsoc_append_opensta $report report_power") < script.index("Worst timing paths")
     assert "fusion.rpt" in script
     assert "methodology=staged_public_opensta" in script
@@ -4218,28 +4430,35 @@ def test_eqy_and_opensta_modules_are_separated() -> None:
 
 
 def test_checked_in_ip_technology_roots_are_pdk_first() -> None:
-    """Checked-in IPs may evolve, but technology artifacts stay under PDK roots."""
+    """Checked-in IP technology artifacts stay below their package/profile root."""
 
     root = Path(__file__).resolve().parents[1] / "hw/ips"
-    technology_packages = []
+    technology_packages = set()
     for package in sorted(path for path in root.iterdir() if path.is_dir()):
-        if not any((package / stage).is_dir() for stage in ("syn", "impl", "signoff")):
-            continue
-        technology_packages.append(package.name)
-        for stage in ("syn", "impl", "signoff"):
-            directory = package / stage
-            if directory.is_dir():
-                assert not any(path.is_file() for path in directory.iterdir()), (
-                    package.name,
-                    stage,
-                )
-        signoff = package / "signoff"
-        if signoff.is_dir():
-            assert not (signoff / "equivalence").exists(), package.name
+        profiles = package / "profiles"
+        candidates = (
+            sorted(path for path in profiles.iterdir() if path.is_dir())
+            if profiles.is_dir()
+            else [package]
+        )
+        for candidate in candidates:
+            if not any((candidate / stage).is_dir() for stage in ("syn", "impl", "signoff")):
+                continue
+            technology_packages.add(package.name)
+            for stage in ("syn", "impl", "signoff"):
+                directory = candidate / stage
+                if directory.is_dir():
+                    assert not any(path.is_file() for path in directory.iterdir()), (
+                        package.name, candidate.name, stage,
+                    )
+            signoff = candidate / "signoff"
+            if signoff.is_dir():
+                assert not (signoff / "equivalence").exists(), (package.name, candidate.name)
 
     assert {"cordic", "uart", "cache_wrapper", "fft_core", "gpio", "pwm"}.issubset(
         technology_packages
     )
+
 
 
 def test_formal_scaffold_uses_explicit_multiclock_context(tmp_path: Path) -> None:
@@ -5892,7 +6111,7 @@ def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tm
     }
     sky = api_module.FlexSoCTarget(client, sky_values)
     sky.paths.ensure()
-    (sky.paths.data / "demo.hjson").write_text("{ name: demo }\n", encoding="utf-8")
+    (sky.paths.csr / "demo.hjson").write_text("{ name: demo }\n", encoding="utf-8")
     sky.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
     (sky.paths.rtl / "demo_core.sv").write_text("module demo_core; endmodule\n", encoding="utf-8")
     (sky.paths.rtl / "demo.sv").write_text("// Auto-generated by flexsoc.backend.design.rtl.\n", encoding="utf-8")
@@ -5919,7 +6138,7 @@ def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tm
     assert "RUN_TOP" not in intent["design_intent"]
     assert "TARGET_OPT" not in intent["design_intent"]
     assert {item["path"] for item in intent["sources"]} == {
-        "constraints/demo.sdc", "data/demo.hjson", "dv/functional/model/demo_model.py",
+        "constraints/demo.sdc", "csr/demo.hjson", "dv/functional/model/demo_model.py",
         "rtl/demo_core.sv",
     }
     assert sky_json["pdk"] == "sky130"
@@ -6049,6 +6268,9 @@ def test_functional_tb_clock_waveform_comes_from_clock_config() -> None:
     assert 'os.environ.get("FLEXSOC_SEED", "1")' in single_py
     assert "jitter_state = (base_seed ^ 3713949822)" in single_py
     assert "cocotb.start_soon(_flexsoc_clock(dut.clk_i))" in single_py
+    assert 'os.environ.get("RESET_SETTLE_CYCLES", "8")' in single_py
+    assert 'await apply_reset(dut, "all", reset_cycles, settle_cycles)' in single_py
+    assert "for _ in range(2):" not in single_py
     assert "_flexsoc_clock(getattr(dut, 'clk_i'), 10, 0.3, 4.7, 0.15, 100, 3713949822)" in multi_py
 
 
@@ -6084,3 +6306,34 @@ def test_systemverilog_functional_seed_drives_clock_jitter(tmp_path: Path) -> No
     assert result.returncode == 0
     assert "+FLEXSOC_SEED=17" in runner.request.argv
     assert "+verilator+seed+17" in runner.request.argv
+
+
+def test_uart_authored_formal_bind_tracks_real_core_io() -> None:
+    root = Path(__file__).resolve().parents[1]
+    prove = (
+        root
+        / "hw/ips/uart/profiles/tlul/dv/formal/properties/prove/uart_prove.sv"
+    ).read_text(encoding="utf-8")
+
+    assert "input logic rx_i, tx_o" in prove
+    assert "assert (tx_o == (line_loopback ? rx_i : tx_out_q));" in prove
+    assert ".rx_i(rx_i), .tx_o(tx_o)" in prove
+    assert ".rx(rx)" not in prove
+    assert ".tx(tx)" not in prove
+
+
+def test_uart_master_host_bridge_splits_reset_by_functional_island() -> None:
+    root = Path(__file__).resolve().parents[1]
+    bridge = (
+        root
+        / "hw/ips/uart_master/profiles/tlul/rtl/uart_host_bridge.sv"
+    ).read_text(encoding="utf-8")
+
+    for branch in ("parser_rst_ni", "bus_rst_ni", "response_rst_ni"):
+        assert f"logic {branch};" in bridge
+        assert f".q_o   ({branch})" in bridge
+        assert f"or negedge {branch}" in bridge
+        assert f"if (!{branch})" in bridge
+
+    assert bridge.count(".rst_ni(rst_ni)") == 3
+    assert "always_ff @(posedge clk_i or negedge rst_ni)" not in bridge

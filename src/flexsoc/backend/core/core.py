@@ -1610,7 +1610,9 @@ class FlowPaths:
     @property
     def run(self) -> Path: return self.workspace / "runs" / self.run_top / self.run_id
     @property
-    def data(self) -> Path: return self.run / "data"
+    def csr(self) -> Path: return self.run / "csr"
+    @property
+    def csr_systemrdl(self) -> Path: return self.csr / "systemrdl"
     @property
     def rtl(self) -> Path: return self.run / "rtl"
     @property
@@ -1619,6 +1621,14 @@ class FlowPaths:
     def drivers(self) -> Path: return self.run / "drivers"
     @property
     def logs(self) -> Path: return self.run / "logs"
+    @property
+    def analysis(self) -> Path: return self.run / "analysis"
+    @property
+    def slang_analysis(self) -> Path: return self.analysis / "slang"
+    @property
+    def lint_analysis(self) -> Path: return self.analysis / "lint"
+    @property
+    def cdc_rdc_analysis(self) -> Path: return self.analysis / "cdc_rdc"
     @property
     def dv(self) -> Path: return self.run / "dv"
     @property
@@ -1660,7 +1670,9 @@ class FlowPaths:
     def ensure(self) -> "FlowPaths":
         """Create the canonical run directories and return this layout."""
         for path in (
-            self.data, self.rtl, self.doc, self.drivers, self.logs,
+            self.csr, self.rtl, self.doc, self.drivers, self.logs,
+            self.slang_analysis, self.lint_analysis / "slang",
+            self.lint_analysis / "verilator", self.cdc_rdc_analysis,
             self.model, self.tests, self.tb, self.sim, self.coverage,
             self.formal, self.constraints, self.syn, self.signoff, self.impl, self.meta,
         ):

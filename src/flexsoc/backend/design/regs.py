@@ -31,6 +31,45 @@ def reggen_interface(value: str) -> str:
     return "reg_iface"
 
 
+def reggen_device_protocols(path: str | Path) -> tuple[str, ...]:
+    """Return device-side protocols declared by one register HJSON source."""
+
+    data = load_hjson(path)
+    interfaces = data.get("bus_interfaces")
+    if isinstance(interfaces, list):
+        protocols = tuple(
+            str(item.get("protocol", "")).strip().lower()
+            for item in interfaces
+            if hasattr(item, "get") and str(item.get("direction", "")).strip().lower() == "device"
+        )
+        if protocols:
+            return protocols
+
+    # Keep the lightweight no-hjson fallback useful for static/unit checks.
+    import re
+
+    text = Path(path).read_text(encoding="utf-8")
+    protocols: list[str] = []
+    for body in re.findall(r"\{([^{}]*)\}", text, re.S):
+        direction = re.search(r"\bdirection\s*:\s*[\"']?([A-Za-z0-9_]+)", body)
+        protocol = re.search(r"\bprotocol\s*:\s*[\"']?([A-Za-z0-9_]+)", body)
+        if direction and protocol and direction.group(1).lower() == "device":
+            protocols.append(protocol.group(1).lower())
+    return tuple(protocols)
+
+
+def validate_reggen_transport(path: str | Path) -> None:
+    """Require the one canonical reggen device transport used by FlexSoC."""
+
+    protocols = reggen_device_protocols(path)
+    if protocols != ("reg_iface",):
+        raise ValueError(
+            f"{Path(path)}: canonical register RTL requires exactly one device "
+            f"bus_interface with protocol='reg_iface'; found {list(protocols)!r}. "
+            "REG_ITF selects the external FlexSoC wrapper, not reggen transport."
+        )
+
+
 HJSON_TEMPLATE = r"""{{ 
   name:               "{top}",
   human_name:         "{top}",
@@ -1144,6 +1183,7 @@ class RegsFlow:
         rtl_dir.mkdir(parents=True, exist_ok=True)
         outputs: list[Path] = []
         for source in self._maps(top, data_dir, regmap):
+            validate_reggen_transport(source)
             log = rtl_dir / f".{source.stem}_regtool.log"
             argv = ["-r", "-t", str(rtl_dir), str(source)]
             if self._run_regtool(argv, cwd=self.project_root, log=log, on=on):

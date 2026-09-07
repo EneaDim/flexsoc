@@ -714,17 +714,46 @@ def _reset_sync_name(domain: ClockDomain) -> str:
     return f"{_id(domain.name)}_rst_sync_ni"
 
 
+def _reset_branch_name(domain: ClockDomain, branch: str, *, single: bool = False) -> str:
+    """Return one active-low reset distribution branch signal."""
+
+    prefix = "" if single else f"{_id(domain.name)}_"
+    return f"{prefix}{_id(branch)}_rst_ni"
+
+
+def _domain_branch_reset_signal(domain: ClockDomain, branch: str, *, single: bool = False) -> str:
+    """Return a distributed reset branch with the core port's original polarity."""
+
+    signal = _reset_branch_name(domain, branch, single=single)
+    return signal if domain.reset_polarity == "low" else f"~{signal}"
+
+
+def _render_reset_branch(domain: ClockDomain, branch: str, *, single: bool = False) -> list[str]:
+    """Render one reset launch stage fed by the synchronized domain reset."""
+
+    signal = _reset_branch_name(domain, branch, single=single)
+    instance = (
+        f"u_{_id(domain.name)}_{_id(branch)}_reset_branch"
+        if not single
+        else f"u_{_id(branch)}_reset_branch"
+    )
+    return [
+        "  prim_flop #(",
+        "    .Width      (1),",
+        "    .ResetValue (1'b0)",
+        f"  ) {instance} (",
+        f"    .clk_i ({domain.signal}),",
+        f"    .rst_ni({_reset_sync_name(domain)}),",
+        "    .d_i   (1'b1),",
+        f"    .q_o   ({signal})",
+        "  );",
+    ]
+
+
 def _raw_reset_ni(domain: ClockDomain) -> str:
     """Normalize one external reset to the active-low primitive convention."""
 
     return domain.reset if domain.reset_polarity == "low" else f"~{domain.reset}"
-
-
-def _domain_reset_signal(domain: ClockDomain) -> str:
-    """Return the synchronized reset with the domain's original polarity."""
-
-    signal = _reset_sync_name(domain)
-    return signal if domain.reset_polarity == "low" else f"~{signal}"
 
 
 def render_top_from_core(
@@ -750,14 +779,14 @@ def render_top_from_core(
     top_ports = _external_core_ports(ports) + (_axi_lite_ports(pkg) if itf == "axi_lite" else _bus_ports(itf))
     reg_pins = [
         f".clk_i({domain.signal})",
-        f".rst_ni({_reset_sync_name(domain)})",
+        f".rst_ni({_reset_branch_name(domain, 'reg', single=True)})",
         *_register_top_bus_pins(itf),
         ".reg2hw(reg2hw)",
         ".hw2reg(hw2reg)",
         ".devmode_i(1'b1)",
     ]
     core_pins = [
-        f".{port.name}({_domain_reset_signal(domain) if port.name == domain.reset else port.name})"
+        f".{port.name}({_domain_branch_reset_signal(domain, 'core', single=True) if port.name == domain.reset else port.name})"
         for port in ports
     ]
     lines = [
@@ -772,6 +801,9 @@ def render_top_from_core(
         f"  {top}_hw2reg_t hw2reg;",
         "",
         f"  logic {_reset_sync_name(domain)};",
+        f"  logic {_reset_branch_name(domain, 'reg', single=True)};",
+        f"  logic {_reset_branch_name(domain, 'core', single=True)};",
+        "",
         "  prim_ff_2sync #(",
         "    .Width      (1),",
         "    .ResetValue (1'b0)",
@@ -781,6 +813,10 @@ def render_top_from_core(
         "    .d_i   (1'b1),",
         f"    .q_o   ({_reset_sync_name(domain)})",
         "  );",
+        "",
+        *_render_reset_branch(domain, "reg", single=True),
+        "",
+        *_render_reset_branch(domain, "core", single=True),
         "",
         *_instance(f"{top}_reg", f"{top}_reg_top", reg_pins),
         "",
@@ -803,7 +839,7 @@ class RegisterWindow:
 
     @property
     def reset_ni(self) -> str:
-        return _reset_sync_name(self.domain)
+        return _reset_branch_name(self.domain, "reg")
 
 
 def _register_windows(ports: list[Port], clocks: ClockConfig) -> tuple[RegisterWindow, ...]:
@@ -875,9 +911,16 @@ def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig, itf:
         *[line + ("," if i + 1 < len(declarations) else "") for i, line in enumerate(declarations)],
         ");", "",
     ]
+    register_domains = {window.domain.name for window in windows}
     for domain in clocks.domains:
         lines += [
             f"  logic {_reset_sync_name(domain)};",
+            f"  logic {_reset_branch_name(domain, 'core')};",
+        ]
+        if domain.name in register_domains:
+            lines.append(f"  logic {_reset_branch_name(domain, 'reg')};")
+        lines += [
+            "",
             "  prim_ff_2sync #(",
             "    .Width      (1),",
             "    .ResetValue (1'b0)",
@@ -888,7 +931,11 @@ def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig, itf:
             f"    .q_o   ({_reset_sync_name(domain)})",
             "  );",
             "",
+            *_render_reset_branch(domain, "core"),
+            "",
         ]
+        if domain.name in register_domains:
+            lines += [*_render_reset_branch(domain, "reg"), ""]
     for window in windows:
         name, domain = window.name, window.domain
         prefix = name
@@ -911,7 +958,7 @@ def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig, itf:
         if match:
             signal = f"{match['name']}_{match['kind'][:-2]}"
         elif port.name in reset_by_port:
-            signal = _domain_reset_signal(reset_by_port[port.name])
+            signal = _domain_branch_reset_signal(reset_by_port[port.name], "core")
         else:
             signal = port.name
         pins.append(f"    .{port.name:<22}({signal})")

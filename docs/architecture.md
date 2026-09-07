@@ -169,14 +169,18 @@ Typical contents are:
 
 ```text
 runs/<top>/<run_id>/
-├── data/                      register/design input collateral
+├── csr/                       canonical CSR/register input collateral
+│   └── systemrdl/             generated SystemRDL views
 ├── rtl/                       generated/copied RTL and ordered filelists
 ├── doc/                       generated documentation
 ├── constraints/<TOP>.sdc      authored timing contract
 ├── dv/
 │   ├── functional/            model, tests, testbenches, simulation
 │   └── formal/                SBY/property collateral and results
-├── analysis/cdc_rdc/          compact structural CDC/RDC evidence
+├── analysis/
+│   ├── slang/                 parsing/elaboration artifacts
+│   ├── lint/{slang,verilator}/
+│   └── cdc_rdc/               structural CDC/RDC evidence
 ├── syn/<pdk>/                 synthesis scripts, logs, mapped netlist
 ├── impl/<pdk>/                ORFS/OpenROAD implementation handoff/results
 ├── signoff/<pdk>/             EQY, STA, SDF, GLS, power, fusion
@@ -824,7 +828,7 @@ Toolchain construction and project testing are separate. A normal source push re
 `hw/ips/` contains reusable/saved IP and common RTL support. A saved IP commonly contains subsets of:
 
 ```text
-data/       register/design specification
+csr/        canonical CSR/register specification
 rtl/        authored/generated RTL and filelists
 dv/         model, tests, formal and TB collateral
 syn/        portable synthesis collateral/results

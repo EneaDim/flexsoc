@@ -365,10 +365,14 @@ A package has one common design identity and may accumulate multiple PDK branche
 ```text
 <ip>/
 ├── constraints/<TOP>.sdc
-├── data/
+├── csr/
+│   └── systemrdl/
 ├── rtl/
 ├── dv/
-├── analysis/cdc_rdc/
+├── analysis/
+│   ├── slang/
+│   ├── lint/{slang,verilator}/
+│   └── cdc_rdc/
 ├── syn/
 │   ├── sky130/
 │   └── ihp-sg13g2/

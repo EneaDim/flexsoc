@@ -321,11 +321,24 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _ip_protected_sources(top: str) -> tuple[Path, ...]:
+def _repo_ip_profile(top: str, profile: str) -> Path:
+    """Return one repository-owned frozen IP profile root."""
+
+    return REPO_ROOT / "hw" / "ips" / top / "profiles" / profile
+
+
+def _saved_ip_profile(library_root: Path, top: str, profile: str) -> Path:
+    """Return one saved frozen IP profile root."""
+
+    return library_root / top / "profiles" / profile
+
+
+def _ip_protected_sources(top: str, profile: str) -> tuple[Path, ...]:
     """Return authored HJSON, RTL, and model artifacts that must stay immutable."""
 
-    root = REPO_ROOT / "hw" / "ips" / top
-    protected = [*sorted((root / "data").rglob("*.hjson"))]
+    root = _repo_ip_profile(top, profile)
+    csr = root / "csr"
+    protected = [*sorted(csr.rglob("*.hjson"))]
     protected.extend(
         sorted(
             path
@@ -350,18 +363,22 @@ def _ip_protected_sources(top: str) -> tuple[Path, ...]:
     return tuple(protected)
 
 
-def _validate_ip_layout(top: str) -> None:
+def _validate_ip_layout(top: str, profile: str) -> None:
     """Check one saved IP package without launching a hidden subprocess."""
 
-    root = REPO_ROOT / "hw" / "ips" / top
+    root = _repo_ip_profile(top, profile)
+    csr_dir = "csr"
+    manifest = json.loads((root / "ip.json").read_text(encoding="utf-8"))
+    assert manifest["profile"] == profile
+    assert manifest["reg_interface"] == profile
     required_dirs = (
-        "data", "doc", "drivers", "rtl", "dv/functional/model",
+        csr_dir, "doc", "drivers", "rtl", "dv/functional/model",
         "dv/functional/tests", "dv/functional/tb/sv", "dv/functional/tb/cocotb",
         "dv/formal/properties/prove", "dv/formal/properties/cover",
         "constraints", "syn/sky130", "signoff/sky130/equivalence",
     )
     required_files = (
-        f"data/{top}.hjson", f"doc/{top}.md", f"doc/{top}_interfaces.md",
+        f"{csr_dir}/{top}.hjson", f"doc/{top}.md", f"doc/{top}_interfaces.md",
         f"drivers/{top}.c", f"drivers/{top}.h", f"rtl/{top}.sv",
         f"rtl/{top}_core.sv", "rtl/rtl_common.f", "rtl/rtl_ip.f",
         f"dv/functional/model/{top}_model.py",
@@ -398,22 +415,23 @@ def _validate_ip_layout(top: str) -> None:
 
 
 @contextmanager
-def _protect_ip_sources(top: str) -> Iterator[dict[Path, str]]:
+def _protect_ip_sources(top: str, profile: str) -> Iterator[dict[Path, str]]:
     """Fail if ip_load/ip_save changes the repository-owned IP package."""
 
-    _validate_ip_layout(top)
-    root = REPO_ROOT / "hw" / "ips" / top
-    snapshot = {path: _sha256(path) for path in _ip_protected_sources(top)}
+    _validate_ip_layout(top, profile)
+    package_root = REPO_ROOT / "hw" / "ips" / top
+    root = _repo_ip_profile(top, profile)
+    snapshot = {path: _sha256(path) for path in _ip_protected_sources(top, profile)}
     package_snapshot = {
-        path.relative_to(root): _sha256(path)
-        for path in sorted(root.rglob("*"))
+        path.relative_to(package_root): _sha256(path)
+        for path in sorted(package_root.rglob("*"))
         if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
     }
     yield snapshot
     changed = [path for path, digest in snapshot.items() if _sha256(path) != digest]
     current_package = {
-        path.relative_to(root): _sha256(path)
-        for path in sorted(root.rglob("*"))
+        path.relative_to(package_root): _sha256(path)
+        for path in sorted(package_root.rglob("*"))
         if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
     }
     assert current_package == package_snapshot, (
@@ -429,11 +447,11 @@ def _seed_saved_ip_library(library_root: Path, top: str) -> None:
 
 
 def _assert_loaded_sources_match(
-    top: str, run_id: str, workspace: Path, snapshot: dict[Path, str]
+    top: str, profile: str, run_id: str, workspace: Path, snapshot: dict[Path, str]
 ) -> None:
     """Verify loaded authored HJSON, RTL, and model files remain byte-identical."""
 
-    source_root = REPO_ROOT / "hw" / "ips" / top
+    source_root = _repo_ip_profile(top, profile)
     run_root = workspace / "runs" / top / run_id
     changed = []
     for source, digest in snapshot.items():
@@ -783,7 +801,7 @@ def _run_post_pnr_signoff(
 
 def _run_implementation(
     *, workspace: Path, top: str, run_id: str, run: Path, workdir: str,
-    pdk: str, platform: str, config: E2EConfig,
+    profile: str, pdk: str, platform: str, config: E2EConfig,
 ) -> None:
     """Run physical implementation from the FlexSoC netlist and shared SDC."""
 
@@ -962,12 +980,12 @@ def _assert_pre_impl_ip_branch(top: str, run: Path, pdk: str) -> None:
 
 
 def _assert_saved_signoff_scripts(
-    library_root: Path, top: str, pdk: str, *, activity_count: int
+    library_root: Path, top: str, profile: str, pdk: str, *, activity_count: int
 ) -> None:
     """Require one canonical Tcl per sign-off family in the saved PDK branch."""
 
     del activity_count  # Workload/corner multiplicity belongs to reports, not Tcl files.
-    root = library_root / top
+    root = _saved_ip_profile(library_root, top, profile)
     syn = root / "syn" / pdk
     assert syn.is_dir()
     debug_checkpoints = [syn / f"{top}_{stage}.il" for stage in ("generic", "dffmap", "abc", "clean")]
@@ -1017,11 +1035,11 @@ def _assert_saved_signoff_scripts(
 
 
 def _assert_saved_post_pnr_branch(
-    library_root: Path, top: str, pdk: str, platform: str
+    library_root: Path, top: str, profile: str, pdk: str, platform: str
 ) -> None:
     """Require ip_save to preserve routed implementation and post-PnR evidence."""
 
-    root = library_root / top
+    root = _saved_ip_profile(library_root, top, profile)
     results = root / "impl" / pdk / "results" / platform / top / "base"
     for name in ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds"):
         artifact = results / name
@@ -1058,13 +1076,13 @@ def _save_scaffold_ip(
         ),
         workspace=workspace, top=top, run_id=run_id,
     )
-    root = library_root / top
+    root = _saved_ip_profile(library_root, top, profile)
     assert (root / "syn" / pdk).is_dir(), f"missing saved synthesis branch: {pdk}"
     assert (root / "signoff" / pdk / "equivalence" / "rtl_vs_syn").is_dir(), (
         f"missing saved equivalence branch: {pdk}"
     )
     if config.run_pnr:
-        _assert_saved_post_pnr_branch(library_root, top, pdk, platform)
+        _assert_saved_post_pnr_branch(library_root, top, profile, pdk, platform)
         if config.run_post_syn:
             post = root / "signoff" / pdk / "post_pnr"
             assert (post / "power" / "analysis" / "summary.json").is_file(), (
@@ -1075,17 +1093,21 @@ def _save_scaffold_ip(
             )
 
 
-def _assert_saved_multitech_layout(library_root: Path, top: str) -> None:
+def _assert_saved_multitech_layout(library_root: Path, top: str, profile: str) -> None:
     """Require load -> two complete technology flows -> save to preserve both branches."""
 
-    root = library_root / top
-    for common in ("data", "doc", "drivers", "rtl", "dv"):
+    root = _saved_ip_profile(library_root, top, profile)
+    package_index = json.loads((root / "ip.json").read_text(encoding="utf-8"))
+    assert package_index["profile"] == profile
+    assert package_index["reg_interface"] == profile
+    for common in ("csr", "doc", "drivers", "rtl", "dv"):
         assert (root / common).is_dir(), f"missing saved {top}/{common}"
-    assert (root / "logs" / "lint").is_dir(), f"missing saved {top} lint evidence"
+    assert (root / "analysis" / "lint" / "slang").is_dir(), f"missing saved {top} Slang lint evidence"
+    assert (root / "analysis" / "lint" / "verilator").is_dir(), f"missing saved {top} Verilator lint evidence"
     assert (root / "analysis" / "cdc_rdc" / "summary.json").is_file(), f"missing saved {top} CDC/RDC summary"
     assert (root / "analysis" / "cdc_rdc" / "cdc_rdc.rpt").is_file(), f"missing saved {top} CDC/RDC report"
     assert not (root / "logs" / "analysis" / "cdc_rdc").exists(), "CDC/RDC raw logs must not be packaged"
-    assert not (root / "logs" / "lint" / "raw").exists(), "raw lint logs must not be packaged"
+    assert not (root / "logs" / "analysis" / "lint").exists(), "raw lint logs must not be packaged"
     design_intent = root / "meta" / "design_intent.json"
     assert design_intent.is_file(), f"missing saved {top} design intent"
     intent = json.loads(design_intent.read_text(encoding="utf-8"))["design_intent"]
@@ -1103,9 +1125,9 @@ def _assert_saved_multitech_layout(library_root: Path, top: str) -> None:
         assert settings_by_pdk[pdk]["pdk"] == pdk
         assert settings_by_pdk[pdk]["effective"]["PDK"] == pdk
         assert settings_by_pdk[pdk]["design_intent"] == intent
-        profile = root / "signoff" / pdk / "equivalence" / "rtl_vs_syn"
-        assert (profile / f"{top}_rtl_vs_syn.eqy").is_file()
-        assert (profile / f"{top}_eqy_view.sv").is_file()
+        equivalence = root / "signoff" / pdk / "equivalence" / "rtl_vs_syn"
+        assert (equivalence / f"{top}_rtl_vs_syn.eqy").is_file()
+        assert (equivalence / f"{top}_eqy_view.sv").is_file()
     assert (root / "impl").is_dir()
     for implementation in (root / "impl").iterdir():
         if implementation.is_dir():
@@ -1328,10 +1350,6 @@ def test_fx_single_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"fx eqy --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
                 f"fx signoff --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
@@ -1449,7 +1467,7 @@ def test_fx_single_clock_flow_debug(
             _assert_technology_closure(top, run, "sky130")
             _save_scaffold_ip(
                 workspace=workspace, top=top, run_id=run_id, workdir=workdir,
-                library_root=saved_library, pdk="sky130", platform="sky130hd",
+                library_root=saved_library, profile=reg_itf, pdk="sky130", platform="sky130hd",
                 config=config,
             )
 
@@ -1484,10 +1502,6 @@ def test_fx_single_clock_flow_debug(
             )
             _run(
                 f"fx eqy --setup --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
-                f"fx eqy --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1608,7 +1622,7 @@ def test_fx_single_clock_flow_debug(
             _assert_technology_closure(top, run, "ihp-sg13g2")
             _save_scaffold_ip(
                 workspace=workspace, top=top, run_id=run_id, workdir=workdir,
-                library_root=saved_library, pdk="ihp-sg13g2", platform="ihp-sg13g2",
+                library_root=saved_library, profile=reg_itf, pdk="ihp-sg13g2", platform="ihp-sg13g2",
                 config=config,
             )
         test_root = run / "dv" / "functional" / "tests"
@@ -1834,10 +1848,6 @@ def test_fx_multi_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"fx eqy --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
                 f"fx signoff --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
@@ -1991,7 +2001,7 @@ def test_fx_multi_clock_flow_debug(
             _assert_technology_closure(top, run, "sky130")
             _save_scaffold_ip(
                 workspace=workspace, top=top, run_id=run_id, workdir=workdir,
-                library_root=saved_library, pdk="sky130", platform="sky130hd",
+                library_root=saved_library, profile=reg_itf, pdk="sky130", platform="sky130hd",
                 config=config,
             )
 
@@ -2026,10 +2036,6 @@ def test_fx_multi_clock_flow_debug(
             )
             _run(
                 f"fx eqy --setup --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
-                f"fx eqy --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -2186,7 +2192,7 @@ def test_fx_multi_clock_flow_debug(
             _assert_technology_closure(top, run, "ihp-sg13g2")
             _save_scaffold_ip(
                 workspace=workspace, top=top, run_id=run_id, workdir=workdir,
-                library_root=saved_library, pdk="ihp-sg13g2", platform="ihp-sg13g2",
+                library_root=saved_library, profile=reg_itf, pdk="ihp-sg13g2", platform="ihp-sg13g2",
                 config=config,
             )
         test_root = run / "dv" / "functional" / "tests"
@@ -2217,7 +2223,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
         saved_library_arg = shlex.quote(str(saved_library))
         _seed_saved_ip_library(saved_library, top)
         slang_root, slang_top, slang_search = _slang_values(top, run)
-        with _protect_ip_sources("cordic") as source_snapshot:
+        with _protect_ip_sources("cordic", reg_itf) as source_snapshot:
             _run(
                 (
                     f"fx settings --reset TOP={top} RUN_TOP={top} "
@@ -2238,7 +2244,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 f"fx ip_load --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
-            _assert_loaded_sources_match(top, run_id, workspace, source_snapshot)
+            _assert_loaded_sources_match(top, reg_itf, run_id, workspace, source_snapshot)
             _assert_loaded_ip_tests(top, run_id, workspace)
 
             # Rebuild machine-owned collateral with the current package contract.
@@ -2388,10 +2394,6 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 )
                 _run(
                     f"fx eqy --setup --force --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx eqy --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2562,7 +2564,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _assert_saved_signoff_scripts(
-                    saved_library, top, "sky130", activity_count=30
+                    saved_library, top, reg_itf, "sky130", activity_count=30
                 )
 
                 # ihp-sg13g2: rerun only technology-bound synthesis/sign-off stages.
@@ -2596,10 +2598,6 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 )
                 _run(
                     f"fx eqy --setup --force --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx eqy --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2770,10 +2768,10 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _assert_saved_signoff_scripts(
-                    saved_library, top, "ihp-sg13g2", activity_count=30
+                    saved_library, top, reg_itf, "ihp-sg13g2", activity_count=30
                 )
-                _assert_saved_multitech_layout(saved_library, top)
-            _assert_loaded_sources_match(top, run_id, workspace, source_snapshot)
+                _assert_saved_multitech_layout(saved_library, top, reg_itf)
+            _assert_loaded_sources_match(top, reg_itf, run_id, workspace, source_snapshot)
 
 @pytest.mark.e2e
 def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
@@ -2799,7 +2797,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
         saved_library_arg = shlex.quote(str(saved_library))
         _seed_saved_ip_library(saved_library, top)
         slang_root, slang_top, slang_search = _slang_values(top, run)
-        with _protect_ip_sources("uart") as source_snapshot:
+        with _protect_ip_sources("uart", reg_itf) as source_snapshot:
             _run(
                 (
                     f"fx settings --reset TOP={top} RUN_TOP={top} "
@@ -2820,10 +2818,10 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 f"fx ip_load --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
-            _assert_loaded_sources_match(top, run_id, workspace, source_snapshot)
+            _assert_loaded_sources_match(top, reg_itf, run_id, workspace, source_snapshot)
             _assert_loaded_ip_tests(top, run_id, workspace)
             ihp_eqy = Path("signoff/ihp-sg13g2/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy")
-            assert _sha256(run / ihp_eqy) == _sha256(REPO_ROOT / "hw" / "ips" / top / ihp_eqy)
+            assert _sha256(run / ihp_eqy) == _sha256(_repo_ip_profile(top, reg_itf) / ihp_eqy)
 
             # Rebuild machine-owned collateral with the current package contract.
             _run(
@@ -2972,10 +2970,6 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 )
                 _run(
                     f"fx eqy --setup --force --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx eqy --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -3146,7 +3140,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _assert_saved_signoff_scripts(
-                    saved_library, top, "sky130", activity_count=30
+                    saved_library, top, reg_itf, "sky130", activity_count=30
                 )
 
                 # ihp-sg13g2: rerun only technology-bound synthesis/sign-off stages.
@@ -3180,10 +3174,6 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 )
                 _run(
                     f"fx eqy --setup --force --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx eqy --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -3354,10 +3344,10 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _assert_saved_signoff_scripts(
-                    saved_library, top, "ihp-sg13g2", activity_count=30
+                    saved_library, top, reg_itf, "ihp-sg13g2", activity_count=30
                 )
-                _assert_saved_multitech_layout(saved_library, top)
-            _assert_loaded_sources_match(top, run_id, workspace, source_snapshot)
+                _assert_saved_multitech_layout(saved_library, top, reg_itf)
+            _assert_loaded_sources_match(top, reg_itf, run_id, workspace, source_snapshot)
 
 
 @pytest.mark.e2e
@@ -3476,13 +3466,9 @@ def test_fx_provenance_lifecycle_debug(request: pytest.FixtureRequest) -> None:
             f"fx eqy --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
-        _exercise_stage_override(
-            workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-            stage="eqy.setup",
-            artifact=run / "signoff/sky130/equivalence/rtl_vs_syn" / f"{top}_rtl_vs_syn.eqy",
-            command=f"fx eqy --workdir {workdir}",
-            required=False,
-        )
+        assert (
+            run / "signoff/sky130/equivalence/rtl_vs_syn" / f"{top}_rtl_vs_syn.eqy"
+        ).is_file()
 
         _run(
             f"fx signoff --setup --force --workdir {workdir}",

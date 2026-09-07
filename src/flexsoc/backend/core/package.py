@@ -100,6 +100,41 @@ def _copy_contents(source: Path, destination: Path) -> None:
             shutil.copy2(entry, target)
 
 
+
+
+
+def _package_profile(value: str) -> str:
+    """Map REG_ITF to the canonical frozen-IP profile name."""
+
+    from flexsoc.backend.design.regs import normalize_register_interface
+
+    return normalize_register_interface(value)
+
+
+def _validate_package_manifest(source: Path, *, ip_name: str, profile: str) -> None:
+    """Reject packages whose identity does not match their profile path."""
+
+    manifest = source / "ip.json"
+    if not manifest.is_file():
+        raise FileNotFoundError(f"missing FlexSoC IP manifest: {manifest}")
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    expected = {
+        "format": "flexsoc-ip",
+        "name": ip_name,
+        "profile": profile,
+        "reg_interface": profile,
+    }
+    mismatches = [
+        f"{key}={data.get(key)!r} (expected {value!r})"
+        for key, value in expected.items()
+        if data.get(key) != value
+    ]
+    if mismatches:
+        raise ValueError(
+            f"invalid FlexSoC IP profile manifest {manifest}: " + ", ".join(mismatches)
+        )
+
+
 def _clean_python_cache(root: Path) -> None:
     for path in list(root.rglob("__pycache__")):
         shutil.rmtree(path, ignore_errors=True)
@@ -196,16 +231,19 @@ class PackageFlow:
         self,
         *,
         ip_name: str,
+        profile: str,
         run_top: str,
         run_id: str,
         workspace: Path,
         load_as: str | None = None,
     ) -> Path:
-        """Load one packaged IP into a canonical run workspace."""
+        """Load one frozen IP profile into a canonical run workspace."""
 
-        source = self.project_root / "hw" / "ips" / ip_name
+        profile = _package_profile(profile)
+        source = self.project_root / "hw" / "ips" / ip_name / "profiles" / profile
         if not source.is_dir():
-            raise FileNotFoundError(f"missing source IP directory: {source}")
+            raise FileNotFoundError(f"missing source IP profile: {source}")
+        _validate_package_manifest(source, ip_name=ip_name, profile=profile)
         run = Path(workspace) / "runs" / run_top / run_id
         destination = run if run_top == ip_name else run / "ips" / (load_as or ip_name)
         if destination.exists() and destination != run:
@@ -219,7 +257,7 @@ class PackageFlow:
         self,
         *,
         top: str,
-        data_dir: Path,
+        csr_dir: Path,
         rtl_dir: Path,
         output: Path,
         vendor: str = "flexsoc",
@@ -234,7 +272,7 @@ class PackageFlow:
         top_file = Path(rtl_dir) / f"{top}.sv"
         if not top_file.is_file():
             raise FileNotFoundError(f"missing generated top RTL: {top_file}")
-        _, registers = _collect(top, Path(data_dir))
+        _, registers = _collect(top, Path(csr_dir))
         output = Path(output)
         output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -324,6 +362,7 @@ class PackageFlow:
         self,
         *,
         ip_name: str,
+        profile: str,
         top: str,
         pdk: str,
         library_root: Path,
@@ -354,7 +393,9 @@ class PackageFlow:
             raise FileNotFoundError("required ip_save input not found: " + ", ".join(map(str, missing)))
 
         library_root = Path(library_root)
-        target = library_root / ip_name
+        profile = _package_profile(profile)
+        profile_root = library_root / ip_name / "profiles"
+        target = profile_root / profile
         conflicts = [target / "syn" / pdk, target / "signoff" / pdk]
         if impl_dir and Path(impl_dir).is_dir():
             conflicts.append(target / "impl" / pdk)
@@ -363,9 +404,11 @@ class PackageFlow:
             names = ", ".join(str(path.relative_to(target)) for path in existing)
             raise FileExistsError(f"ip_save would overwrite existing package content: {names}")
 
-        library_root.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix=f".ip-save.{ip_name}.", dir=library_root) as tmp:
-            staged = Path(tmp) / ip_name
+        profile_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(
+            prefix=f".ip-save.{ip_name}.{profile}.", dir=profile_root
+        ) as tmp:
+            staged = Path(tmp) / profile
             if target.is_dir():
                 shutil.copytree(target, staged, symlinks=True)
             else:
@@ -380,8 +423,14 @@ class PackageFlow:
                 staged, pdk, top, eqy_config, eqy_view, filelists,
                 netlist, liberty, cell_models, clock_gate_model,
             )
+            packaged_impl = staged / "impl" / pdk
             if impl_dir and Path(impl_dir).is_dir():
-                self._replace_tree(Path(impl_dir), staged / "impl" / pdk)
+                self._replace_tree(Path(impl_dir), packaged_impl)
+            else:
+                shutil.rmtree(packaged_impl, ignore_errors=True)
+                impl_root = staged / "impl"
+                if impl_root.is_dir() and not any(impl_root.iterdir()):
+                    impl_root.rmdir()
             self._stage_optional_reports(
                 staged, pdk, post_syn_sim_dir, coverage_dir,
                 manifest_json, metrics_json, run / "meta" / pdk / "provenance.json",
@@ -390,9 +439,9 @@ class PackageFlow:
             _portable_filelists(staged, self.project_root, run)
             _clean_python_cache(staged)
             _clean_hidden_paths(staged)
-            self._write_package_manifest(staged, ip_name, top)
+            self._write_package_manifest(staged, ip_name, top, profile)
 
-            backup = library_root / f".{ip_name}.backup"
+            backup = profile_root / f".{profile}.backup"
             if backup.exists():
                 shutil.rmtree(backup)
             if target.exists():
@@ -417,7 +466,7 @@ class PackageFlow:
         """Copy reusable source and generated collateral from the current run."""
 
         for relative in (
-            "data", "rtl", "doc", "drivers", "interchange/systemrdl",
+            "csr", "rtl", "doc", "drivers",
             "dv/formal/properties",
             "dv/functional/model", "dv/functional/tests", "dv/functional/tb",
         ):
@@ -432,14 +481,14 @@ class PackageFlow:
 
         shutil.rmtree(staged / "logs", ignore_errors=True)
 
-        lint = run / "logs" / "lint"
+        lint = run / "analysis" / "lint"
         destination = staged / "analysis" / "lint"
         shutil.rmtree(destination, ignore_errors=True)
         if lint.is_dir():
-            destination.mkdir(parents=True, exist_ok=True)
-            for source in sorted(lint.glob("*.log")):
-                if source.is_file() and not source.name.startswith("."):
-                    shutil.copy2(source, destination / source.name)
+            for tool in ("slang", "verilator"):
+                source = lint / tool
+                if source.is_dir():
+                    self._replace_tree(source, destination / tool)
 
         cdc = run / "analysis" / "cdc_rdc"
         if cdc.is_dir():
@@ -450,12 +499,14 @@ class PackageFlow:
                 if source.is_file():
                     shutil.copy2(source, destination / name)
 
-    def _write_package_manifest(self, staged: Path, ip_name: str, top: str) -> None:
+    def _write_package_manifest(
+        self, staged: Path, ip_name: str, top: str, profile: str
+    ) -> None:
         """Write the minimal native package index without duplicating design intent."""
 
         content = {}
         for key, relative in (
-            ("registers", "data"), ("rtl", "rtl"), ("documentation", "doc"),
+            ("registers", "csr"), ("rtl", "rtl"), ("documentation", "doc"),
             ("drivers", "drivers"), ("functional_model", "dv/functional/model"),
             ("functional_tests", "dv/functional/tests"),
             ("functional_tb", "dv/functional/tb"),
@@ -473,8 +524,8 @@ class PackageFlow:
             content["design_intent"] = "meta/design_intent.json"
         if (staged / "component.xml").is_file():
             content["ipxact"] = "component.xml"
-        if (staged / "interchange" / "systemrdl").is_dir():
-            content["systemrdl"] = "interchange/systemrdl"
+        if (staged / "csr" / "systemrdl").is_dir():
+            content["systemrdl"] = "csr/systemrdl"
 
         qualification = {}
         meta = staged / "meta"
@@ -496,6 +547,8 @@ class PackageFlow:
             "format": "flexsoc-ip",
             "name": ip_name,
             "top": top,
+            "profile": profile,
+            "reg_interface": profile,
             "content": content,
             "qualification": qualification,
         }

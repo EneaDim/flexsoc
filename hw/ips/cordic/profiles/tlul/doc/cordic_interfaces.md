@@ -1,0 +1,11 @@
+Referring to the [Comportable guideline for peripheral device functionality](https://opentitan.org/book/doc/contributing/hw/comportability), the module **`cordic`** has the following hardware interfaces defined
+- Primary Clock: **`clk_i`**
+- Other Clocks: *none*
+- Bus Device Interfaces (TL-UL): **`tl`**
+- Bus Host Interfaces (TL-UL): *none*
+- Peripheral Pins for Chip IO: *none*
+- Inter-Module Signals: *none*
+- Interrupts: *none*
+- Security Alerts: *none*
+- Security Countermeasures: *none*
+
