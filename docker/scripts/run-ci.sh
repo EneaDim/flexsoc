@@ -17,6 +17,10 @@ if [[ ${FULL_E2E:-0} == 1 ]]; then
   extra+=(--env FLEXSOC_RUN_E2E=1)
 fi
 
+if [[ ${SCAFFOLD_E2E:-0} == 1 ]]; then
+  extra+=(--env FLEXSOC_RUN_SCAFFOLD_E2E=1)
+fi
+
 printf 'Running project CI with:\n  %s\n' "$image_ref"
 
 docker run --rm \
@@ -46,11 +50,16 @@ docker run --rm \
     make test-api
     uv run --no-sync pytest --collect-only -q tests/test_e2e_fx.py
 
-    if [[ ${FLEXSOC_RUN_E2E:-0} == 1 ]]; then
+    if [[ ${FLEXSOC_RUN_E2E:-0} == 1 || ${FLEXSOC_RUN_SCAFFOLD_E2E:-0} == 1 ]]; then
       for pdk in sky130 ihp-sg13g2; do
         fx pdk info "$pdk" --json | jq -e .views.usable >/dev/null ||
           fx pdk fetch "$pdk" --force
       done
+    fi
+
+    if [[ ${FLEXSOC_RUN_E2E:-0} == 1 ]]; then
       make test E2E_ORS="$ORFS_ROOT/flow"
+    elif [[ ${FLEXSOC_RUN_SCAFFOLD_E2E:-0} == 1 ]]; then
+      make test-scaffolds E2E_ORS="$ORFS_ROOT/flow"
     fi
   '

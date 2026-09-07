@@ -27,6 +27,7 @@ help: ## Show this help
 		'  make test TESTS=cordic                 Run only the matching CORDIC E2E' \
 		'  make test TESTS="cordic uart"          Run only CORDIC + UART E2E' \
 		'  make test TESTS=cordic TARGET_OPT=delay1  Override the CORDIC synthesis profile' \
+		'  make test-scaffolds                    Run six scaffold closure E2Es' \
 		'  make test-smoke                        Run E2E without formal/synthesis/signoff' \
 		'  make test E2E_ROOT=~/flexsoc-e2e       Choose where E2E workspaces are created' \
 		'  make test E2E_ORS=~/OpenROAD-flow-scripts/flow  Select the ORFS flow root' \
@@ -69,7 +70,7 @@ check: lint test ## Run Ruff + full E2E closure
 # test qualifies SKY130 and IHP. SIGNOFF=0 is an explicit smoke/debug opt-out.
 # TESTS selects one or more E2E names by substring (for example: cordic uart).
 # The workspace root can be moved outside /tmp when a run should be inspected.
-.PHONY: test test-smoke test-api
+.PHONY: test test-scaffolds test-smoke test-api
 
 E2E_ROOT ?= /tmp
 E2E_ORS ?=
@@ -84,8 +85,13 @@ E2E_SIGNOFF_ARG := $(if $(filter 1 true yes on,$(SIGNOFF)),,--no-signoff)
 E2E_ORS_ARG := $(if $(strip $(E2E_ORS)),--e2e-ors "$(E2E_ORS)",)
 E2E_TARGET_OPT_ENV := $(if $(strip $(TARGET_OPT)),FLEXSOC_E2E_TARGET_OPT="$(TARGET_OPT)",)
 
+E2E_SCAFFOLD_TESTS := tests/test_e2e_fx.py::test_fx_single_clock_flow_debug tests/test_e2e_fx.py::test_fx_multi_clock_flow_debug
+
 test: ## Run full E2E closure on SKY130 and IHP (SIGNOFF=1, E2E_ROOT=/tmp)
 	$(E2E_TARGET_OPT_ENV) $(PYTEST) -s -m e2e tests/test_e2e_fx.py $(E2E_TEST_ARG) $(E2E_SIGNOFF_ARG) $(E2E_ORS_ARG) --e2e-root "$(E2E_ROOT)"
+
+test-scaffolds: ## Run six scaffold E2Es: single/multi × tlul/reg_iface/axi_lite
+	$(E2E_TARGET_OPT_ENV) $(PYTEST) -s -m e2e $(E2E_SCAFFOLD_TESTS) $(E2E_SIGNOFF_ARG) $(E2E_ORS_ARG) --e2e-root "$(E2E_ROOT)"
 
 test-smoke: ## Run E2E without formal/synthesis/signoff
 	$(MAKE) test SIGNOFF=0 E2E_ROOT="$(E2E_ROOT)"

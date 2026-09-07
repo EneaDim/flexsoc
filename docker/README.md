@@ -88,9 +88,10 @@ It:
 3. runs both the locked dependency doctor and `fx doctor`;
 4. runs `make lint` and `make test-api`;
 5. collects the E2E tests;
-6. runs `make test E2E_ORS="$ORFS_ROOT/flow"` for full CI.
+6. with `FULL_E2E=1`, runs `make test E2E_ORS="$ORFS_ROOT/flow"`;
+7. with `SCAFFOLD_E2E=1`, runs the exact six-test scaffold certification matrix through `make test-scaffolds E2E_ORS="$ORFS_ROOT/flow"`.
 
-This is the only Docker script that runs project tests.
+The scaffold matrix is `single/multi × tlul/reg_iface/axi_lite`; each case runs the same ordered lifecycle as on the host, including implementation, post-PnR sign-off evidence, and isolated `ip_save`. This is the only Docker script that runs project tests.
 
 ### `common.sh`
 
