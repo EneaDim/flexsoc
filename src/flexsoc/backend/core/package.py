@@ -103,16 +103,16 @@ def _copy_contents(source: Path, destination: Path) -> None:
 
 
 
-def _package_profile(value: str) -> str:
-    """Map REG_ITF to the canonical frozen-IP profile name."""
+def _package_interface(value: str) -> str:
+    """Return the canonical external register-interface package key."""
 
     from flexsoc.backend.design.regs import normalize_register_interface
 
     return normalize_register_interface(value)
 
 
-def _validate_package_manifest(source: Path, *, ip_name: str, profile: str) -> None:
-    """Reject packages whose identity does not match their profile path."""
+def _validate_package_manifest(source: Path, *, ip_name: str, reg_interface: str) -> None:
+    """Reject packages whose identity does not match their interface path."""
 
     manifest = source / "ip.json"
     if not manifest.is_file():
@@ -121,8 +121,7 @@ def _validate_package_manifest(source: Path, *, ip_name: str, profile: str) -> N
     expected = {
         "format": "flexsoc-ip",
         "name": ip_name,
-        "profile": profile,
-        "reg_interface": profile,
+        "reg_interface": reg_interface,
     }
     mismatches = [
         f"{key}={data.get(key)!r} (expected {value!r})"
@@ -131,7 +130,7 @@ def _validate_package_manifest(source: Path, *, ip_name: str, profile: str) -> N
     ]
     if mismatches:
         raise ValueError(
-            f"invalid FlexSoC IP profile manifest {manifest}: " + ", ".join(mismatches)
+            f"invalid FlexSoC IP interface manifest {manifest}: " + ", ".join(mismatches)
         )
 
 
@@ -231,24 +230,44 @@ class PackageFlow:
         self,
         *,
         ip_name: str,
-        profile: str,
+        reg_interface: str,
         run_top: str,
         run_id: str,
         workspace: Path,
         load_as: str | None = None,
     ) -> Path:
-        """Load one frozen IP profile into a canonical run workspace."""
+        """Load one frozen register-interface release into a canonical run workspace."""
 
-        profile = _package_profile(profile)
-        source = self.project_root / "hw" / "ips" / ip_name / "profiles" / profile
+        reg_interface = _package_interface(reg_interface)
+        source = self.project_root / "hw" / "ips" / ip_name / "interfaces" / reg_interface
         if not source.is_dir():
-            raise FileNotFoundError(f"missing source IP profile: {source}")
-        _validate_package_manifest(source, ip_name=ip_name, profile=profile)
+            raise FileNotFoundError(f"missing source IP interface release: {source}")
+        _validate_package_manifest(source, ip_name=ip_name, reg_interface=reg_interface)
+        from .qualification import validate_release_package
+        validate_release_package(source)
         run = Path(workspace) / "runs" / run_top / run_id
         destination = run if run_top == ip_name else run / "ips" / (load_as or ip_name)
         if destination.exists() and destination != run:
             shutil.rmtree(destination)
         _copy_contents(source, destination)
+        # Release packages group technology evidence under signoff/<pdk>/post_syn
+        # and physical evidence under signoff/<pdk>/post_pnr. The operational
+        # run layout keeps post-synthesis evidence directly under signoff/<pdk>/,
+        # so materialize that view without changing the frozen package contract.
+        packaged_signoff = destination / "signoff"
+        if packaged_signoff.is_dir():
+            staged_signoff = destination / ".packaged_signoff"
+            packaged_signoff.rename(staged_signoff)
+            packaged_signoff.mkdir(parents=True, exist_ok=True)
+            for pdk_dir in sorted(path for path in staged_signoff.iterdir() if path.is_dir()):
+                run_pdk = packaged_signoff / pdk_dir.name
+                post_syn = pdk_dir / "post_syn"
+                post_pnr = pdk_dir / "post_pnr"
+                if post_syn.is_dir():
+                    _copy_contents(post_syn, run_pdk)
+                if post_pnr.is_dir():
+                    self._replace_tree(post_pnr, run_pdk / "post_pnr")
+            shutil.rmtree(staged_signoff)
         _clean_python_cache(destination)
         _rebind_filelists(destination, self.project_root)
         return destination
@@ -362,7 +381,7 @@ class PackageFlow:
         self,
         *,
         ip_name: str,
-        profile: str,
+        reg_interface: str,
         top: str,
         pdk: str,
         library_root: Path,
@@ -383,9 +402,11 @@ class PackageFlow:
         metrics_json: Path | None = None,
         settings_json: Path | None = None,
         design_intent_json: Path | None = None,
+        qualification_json: Path | None = None,
+        spec_root: Path | None = None,
         force: bool = False,
     ) -> Path:
-        """Atomically update one PDK branch in the reusable IP library."""
+        """Atomically update one PDK branch in the reusable interface release."""
 
         required = (synth_dir, signoff_dir, sdc_file, eqy_config, eqy_view, netlist, liberty)
         missing = [path for path in required if not Path(path).exists()]
@@ -393,10 +414,10 @@ class PackageFlow:
             raise FileNotFoundError("required ip_save input not found: " + ", ".join(map(str, missing)))
 
         library_root = Path(library_root)
-        profile = _package_profile(profile)
-        profile_root = library_root / ip_name / "profiles"
-        target = profile_root / profile
-        conflicts = [target / "syn" / pdk, target / "signoff" / pdk]
+        reg_interface = _package_interface(reg_interface)
+        interface_root = library_root / ip_name / "interfaces"
+        target = interface_root / reg_interface
+        conflicts = [target / "syn" / pdk, target / "signoff" / pdk / "post_syn"]
         if impl_dir and Path(impl_dir).is_dir():
             conflicts.append(target / "impl" / pdk)
         existing = [path for path in conflicts if path.exists()]
@@ -404,11 +425,11 @@ class PackageFlow:
             names = ", ".join(str(path.relative_to(target)) for path in existing)
             raise FileExistsError(f"ip_save would overwrite existing package content: {names}")
 
-        profile_root.mkdir(parents=True, exist_ok=True)
+        interface_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(
-            prefix=f".ip-save.{ip_name}.{profile}.", dir=profile_root
+            prefix=f".ip-save.{ip_name}.{reg_interface}.", dir=interface_root
         ) as tmp:
-            staged = Path(tmp) / profile
+            staged = Path(tmp) / reg_interface
             if target.is_dir():
                 shutil.copytree(target, staged, symlinks=True)
             else:
@@ -418,7 +439,7 @@ class PackageFlow:
             self._stage_sources(staged, run)
             self._stage_analysis_evidence(staged, run)
             self._stage_synthesis(staged, pdk, synth_dir, top)
-            self._stage_signoff(staged, pdk, signoff_dir, sdc_file, top)
+            self._stage_post_syn_signoff(staged, pdk, signoff_dir, sdc_file, top)
             self._stage_equivalence(
                 staged, pdk, top, eqy_config, eqy_view, filelists,
                 netlist, liberty, cell_models, clock_gate_model,
@@ -426,22 +447,33 @@ class PackageFlow:
             packaged_impl = staged / "impl" / pdk
             if impl_dir and Path(impl_dir).is_dir():
                 self._replace_tree(Path(impl_dir), packaged_impl)
+                self._stage_physical_signoff(staged, pdk, Path(signoff_dir) / "post_pnr")
             else:
                 shutil.rmtree(packaged_impl, ignore_errors=True)
                 impl_root = staged / "impl"
                 if impl_root.is_dir() and not any(impl_root.iterdir()):
                     impl_root.rmdir()
+                shutil.rmtree(staged / "signoff" / pdk / "post_pnr", ignore_errors=True)
             self._stage_optional_reports(
                 staged, pdk, post_syn_sim_dir, coverage_dir,
                 manifest_json, metrics_json, run / "meta" / pdk / "provenance.json",
-                settings_json, design_intent_json,
+                settings_json, design_intent_json, qualification_json,
+            )
+            if spec_root is None:
+                spec_root = self.project_root / "hw" / "ips" / ip_name / "spec"
+            from .qualification import write_contract_snapshot
+            write_contract_snapshot(
+                staged=staged, spec_root=Path(spec_root), ip_name=ip_name,
+                reg_interface=reg_interface,
             )
             _portable_filelists(staged, self.project_root, run)
             _clean_python_cache(staged)
             _clean_hidden_paths(staged)
-            self._write_package_manifest(staged, ip_name, top, profile)
+            self._write_package_manifest(staged, ip_name, top, reg_interface)
+            from .qualification import validate_release_package
+            validate_release_package(staged)
 
-            backup = profile_root / f".{profile}.backup"
+            backup = interface_root / f".{reg_interface}.backup"
             if backup.exists():
                 shutil.rmtree(backup)
             if target.exists():
@@ -500,7 +532,7 @@ class PackageFlow:
                     shutil.copy2(source, destination / name)
 
     def _write_package_manifest(
-        self, staged: Path, ip_name: str, top: str, profile: str
+        self, staged: Path, ip_name: str, top: str, reg_interface: str
     ) -> None:
         """Write the minimal native package index without duplicating design intent."""
 
@@ -526,7 +558,8 @@ class PackageFlow:
             content["ipxact"] = "component.xml"
         if (staged / "csr" / "systemrdl").is_dir():
             content["systemrdl"] = "csr/systemrdl"
-
+        if (staged / "contract" / "contract.json").is_file():
+            content["contract"] = "contract/contract.json"
         qualification = {}
         meta = staged / "meta"
         if meta.is_dir():
@@ -535,22 +568,40 @@ class PackageFlow:
                 for key, name in (
                     ("manifest", "manifest.json"), ("metrics", "metrics.json"),
                     ("provenance", "provenance.json"), ("settings", "settings.json"),
-                    ("check", "check.rpt"),
+                    ("check", "check.rpt"), ("qualification", "qualification.json"),
                 ):
                     if (branch / name).is_file():
                         evidence[key] = f"meta/{branch.name}/{name}"
+                report_path = branch / "qualification.json"
+                if report_path.is_file():
+                    report = json.loads(report_path.read_text(encoding="utf-8"))
+                    evidence["maximum_level"] = report.get("maximum_level", 0)
+                    evidence["maximum_qualification"] = report.get(
+                        "maximum_qualification", "Not Qualified"
+                    )
                 if evidence:
                     qualification[branch.name] = evidence
 
+        levels = [
+            int(item.get("maximum_level", 0))
+            for item in qualification.values()
+            if isinstance(item, dict)
+        ]
+        contract_level = 1 if (staged / "contract" / "contract.json").is_file() else 0
+        maximum = max([contract_level, *levels])
+        from .qualification import qualification_name
+        summary = {
+            "maximum_level": maximum,
+            "maximum_qualification": qualification_name(maximum),
+        }
         data = {
-            "schema": 1,
+            "schema": 2,
             "format": "flexsoc-ip",
             "name": ip_name,
             "top": top,
-            "profile": profile,
-            "reg_interface": profile,
+            "reg_interface": reg_interface,
             "content": content,
-            "qualification": qualification,
+            "qualification": {"summary": summary, "technologies": qualification},
         }
         (staged / "ip.json").write_text(
             json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -577,7 +628,7 @@ class PackageFlow:
     ) -> None:
         from flexsoc.backend.syn.eqy import export_equivalence_profile
 
-        output = staged / "signoff" / pdk / "equivalence" / "rtl_vs_syn"
+        output = staged / "signoff" / pdk / "post_syn" / "equivalence" / "rtl_vs_syn"
         export_equivalence_profile(
             config=config,
             view=view,
@@ -590,14 +641,14 @@ class PackageFlow:
         )
 
     @staticmethod
-    def _stage_signoff(staged: Path, pdk: str, source: Path, sdc: Path, top: str) -> None:
-        """Save canonical setup scripts plus final sign-off evidence.
+    def _stage_post_syn_signoff(staged: Path, pdk: str, source: Path, sdc: Path, top: str) -> None:
+        """Save canonical post-synthesis signoff evidence.
 
         Scenario-local Tcl files are runtime copies of setup-owned collateral;
         they are useful inside a run but must not become reusable package state.
         """
 
-        destination = staged / "signoff" / pdk
+        destination = staged / "signoff" / pdk / "post_syn"
         if destination.exists():
             shutil.rmtree(destination)
         destination.mkdir(parents=True, exist_ok=True)
@@ -615,6 +666,8 @@ class PackageFlow:
             if not path.is_file() or path.name.startswith("."):
                 continue
             relative = path.relative_to(source)
+            if relative.parts and relative.parts[0] == "post_pnr":
+                continue
             if path.suffix == ".tcl" and relative not in canonical_tcl:
                 continue
             if path.name == "timing.rpt" and len(relative.parts) >= 4 and relative.parts[0] == "sta":
@@ -624,6 +677,15 @@ class PackageFlow:
             target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, target)
+
+    @classmethod
+    def _stage_physical_signoff(cls, staged: Path, pdk: str, source: Path) -> None:
+        """Package Level-5 physical/signoff evidence only when it actually exists."""
+
+        destination = staged / "signoff" / pdk / "post_pnr"
+        shutil.rmtree(destination, ignore_errors=True)
+        if Path(source).is_dir():
+            cls._replace_tree(Path(source), destination)
 
     @staticmethod
     def _stage_optional_reports(
@@ -636,6 +698,7 @@ class PackageFlow:
         provenance_json: Path | None,
         settings_json: Path | None,
         design_intent_json: Path | None,
+        qualification_json: Path | None,
     ) -> None:
         if post_syn_sim_dir and Path(post_syn_sim_dir).is_dir():
             reports = list(Path(post_syn_sim_dir).glob("*.json"))
@@ -654,11 +717,11 @@ class PackageFlow:
                     shutil.copy2(report, target / report.name)
         if not any(
             path and Path(path).is_file()
-            for path in (manifest_json, metrics_json, provenance_json, settings_json, design_intent_json)
+            for path in (manifest_json, metrics_json, provenance_json, settings_json, design_intent_json, qualification_json)
         ):
             return
+        common_meta = staged / "meta"
         if design_intent_json and Path(design_intent_json).is_file():
-            common_meta = staged / "meta"
             common_meta.mkdir(parents=True, exist_ok=True)
             shutil.copy2(design_intent_json, common_meta / "design_intent.json")
         target = staged / "meta" / pdk
@@ -676,3 +739,5 @@ class PackageFlow:
             shutil.copy2(provenance_json, target / "provenance.json")
         if settings_json and Path(settings_json).is_file():
             shutil.copy2(settings_json, target / "settings.json")
+        if qualification_json and Path(qualification_json).is_file():
+            shutil.copy2(qualification_json, target / "qualification.json")

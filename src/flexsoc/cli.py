@@ -275,6 +275,7 @@ Use `fx commands` to list every backend target.
         "CDC_RDC_STRICT": "Return non-zero when structural ERROR findings make CDC/RDC status FAIL.",
         "IP_NAME": "Saved or loaded IP package name.",
         "IP_LIBRARY_ROOT": "IP package library root.",
+        "QUAL_LEVEL": "Qualification target: auto, contract, rtl, netlist, technology, or physical_signoff.",
         "HOST": "Selected SoC host integration.",
         "SOC_CFG_MODE": "SoC configuration mode.",
         "DEVLIST": "SoC device/IP list.",
@@ -344,8 +345,12 @@ Use `fx commands` to list every backend target.
             "fx validate_override --set STAGE=syn.setup",
             "fx check",
         ),
-        "ip_load": ("fx ip_load --set TOP=cordic --set RUN_TOP=cordic",),
-        "ip_save": ("fx ip_save --set IP_NAME=cordic_release", "fx ip_save --force --set IP_NAME=cordic_release"),
+        "ip_load": ("fx ip_load --set IP_NAME=cordic --set REG_ITF=tlul",),
+        "ip_save": (
+            "fx ip_save --set IP_NAME=cordic --set REG_ITF=tlul --set QUAL_LEVEL=auto",
+            "fx ip_save --force --set IP_NAME=cordic --set REG_ITF=tlul --set QUAL_LEVEL=technology",
+        ),
+        "qualify": ("fx qualify --set QUAL_LEVEL=rtl", "fx qualify --set QUAL_LEVEL=technology"),
     }
 
     PSEUDO_HELP = {

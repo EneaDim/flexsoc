@@ -1,0 +1,64 @@
+schema: 1
+ip: uart
+baseline: as-built
+requirements:
+  - id: UART-RST-001
+    statement: >-
+      Reset shall clear the NCO accumulator and place the transmitted and synchronized receive
+      line state in the implemented idle state.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: UART-LOOP-001
+    statement: >-
+      When line loopback is enabled, tx_o shall reflect rx_i; otherwise tx_o shall reflect the
+      internal transmitted line state.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: UART-STAT-001
+    statement: >-
+      RXEMPTY and TXEMPTY shall reflect the corresponding FIFO read-valid state.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: UART-STAT-002
+    statement: >-
+      RXFULL and TXFULL shall reflect the corresponding FIFO write-ready state.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: UART-RX-001
+    statement: >-
+      Received UART data shall be made available through the implemented RX FIFO path.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: UART-PAR-001
+    statement: >-
+      Parity enable/selection configuration shall be reprogrammable through the CSR contract
+      and shall affect subsequent UART operation.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: UART-FILT-001
+    statement: >-
+      The programmable receive noise filter shall implement the behavior exercised by the
+      input-noise/filter verification scenario.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: UART-LOOP-002
+    statement: >-
+      The implemented system-loopback mode shall preserve the documented internal TX idle
+      behavior.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: UART-REG-001
+    statement: >-
+      The same UART CSR semantics shall be accessible through each qualified REG_ITF
+      implementation.
+    scope: reg_interface
+    origin: derived
+    status: baselined

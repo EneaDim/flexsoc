@@ -321,22 +321,22 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _repo_ip_profile(top: str, profile: str) -> Path:
-    """Return one repository-owned frozen IP profile root."""
+def _repo_ip_interface(top: str, reg_interface: str) -> Path:
+    """Return one repository-owned frozen register-interface release root."""
 
-    return REPO_ROOT / "hw" / "ips" / top / "profiles" / profile
+    return REPO_ROOT / "hw" / "ips" / top / "interfaces" / reg_interface
 
 
-def _saved_ip_profile(library_root: Path, top: str, profile: str) -> Path:
-    """Return one saved frozen IP profile root."""
+def _saved_ip_interface(library_root: Path, top: str, reg_interface: str) -> Path:
+    """Return one saved frozen register-interface release root."""
 
-    return library_root / top / "profiles" / profile
+    return library_root / top / "interfaces" / reg_interface
 
 
 def _ip_protected_sources(top: str, profile: str) -> tuple[Path, ...]:
     """Return authored HJSON, RTL, and model artifacts that must stay immutable."""
 
-    root = _repo_ip_profile(top, profile)
+    root = _repo_ip_interface(top, profile)
     csr = root / "csr"
     protected = [*sorted(csr.rglob("*.hjson"))]
     protected.extend(
@@ -364,18 +364,18 @@ def _ip_protected_sources(top: str, profile: str) -> tuple[Path, ...]:
 
 
 def _validate_ip_layout(top: str, profile: str) -> None:
-    """Check one saved IP package without launching a hidden subprocess."""
+    """Check one saved interface release without launching a hidden subprocess."""
 
-    root = _repo_ip_profile(top, profile)
+    root = _repo_ip_interface(top, profile)
     csr_dir = "csr"
     manifest = json.loads((root / "ip.json").read_text(encoding="utf-8"))
-    assert manifest["profile"] == profile
+    assert "profile" not in manifest
     assert manifest["reg_interface"] == profile
     required_dirs = (
         csr_dir, "doc", "drivers", "rtl", "dv/functional/model",
         "dv/functional/tests", "dv/functional/tb/sv", "dv/functional/tb/cocotb",
         "dv/formal/properties/prove", "dv/formal/properties/cover",
-        "constraints", "syn/sky130", "signoff/sky130/equivalence",
+        "constraints", "syn/sky130", "signoff/sky130/post_syn/equivalence",
     )
     required_files = (
         f"{csr_dir}/{top}.hjson", f"doc/{top}.md", f"doc/{top}_interfaces.md",
@@ -420,7 +420,7 @@ def _protect_ip_sources(top: str, profile: str) -> Iterator[dict[Path, str]]:
 
     _validate_ip_layout(top, profile)
     package_root = REPO_ROOT / "hw" / "ips" / top
-    root = _repo_ip_profile(top, profile)
+    root = _repo_ip_interface(top, profile)
     snapshot = {path: _sha256(path) for path in _ip_protected_sources(top, profile)}
     package_snapshot = {
         path.relative_to(package_root): _sha256(path)
@@ -451,7 +451,7 @@ def _assert_loaded_sources_match(
 ) -> None:
     """Verify loaded authored HJSON, RTL, and model files remain byte-identical."""
 
-    source_root = _repo_ip_profile(top, profile)
+    source_root = _repo_ip_interface(top, profile)
     run_root = workspace / "runs" / top / run_id
     changed = []
     for source, digest in snapshot.items():
@@ -985,7 +985,7 @@ def _assert_saved_signoff_scripts(
     """Require one canonical Tcl per sign-off family in the saved PDK branch."""
 
     del activity_count  # Workload/corner multiplicity belongs to reports, not Tcl files.
-    root = _saved_ip_profile(library_root, top, profile)
+    root = _saved_ip_interface(library_root, top, profile)
     syn = root / "syn" / pdk
     assert syn.is_dir()
     debug_checkpoints = [syn / f"{top}_{stage}.il" for stage in ("generic", "dffmap", "abc", "clean")]
@@ -1039,7 +1039,7 @@ def _assert_saved_post_pnr_branch(
 ) -> None:
     """Require ip_save to preserve routed implementation and post-PnR evidence."""
 
-    root = _saved_ip_profile(library_root, top, profile)
+    root = _saved_ip_interface(library_root, top, profile)
     results = root / "impl" / pdk / "results" / platform / top / "base"
     for name in ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds"):
         artifact = results / name
@@ -1076,9 +1076,9 @@ def _save_scaffold_ip(
         ),
         workspace=workspace, top=top, run_id=run_id,
     )
-    root = _saved_ip_profile(library_root, top, profile)
+    root = _saved_ip_interface(library_root, top, profile)
     assert (root / "syn" / pdk).is_dir(), f"missing saved synthesis branch: {pdk}"
-    assert (root / "signoff" / pdk / "equivalence" / "rtl_vs_syn").is_dir(), (
+    assert (root / "signoff" / pdk / "post_syn" / "equivalence" / "rtl_vs_syn").is_dir(), (
         f"missing saved equivalence branch: {pdk}"
     )
     if config.run_pnr:
@@ -1096,9 +1096,9 @@ def _save_scaffold_ip(
 def _assert_saved_multitech_layout(library_root: Path, top: str, profile: str) -> None:
     """Require load -> two complete technology flows -> save to preserve both branches."""
 
-    root = _saved_ip_profile(library_root, top, profile)
+    root = _saved_ip_interface(library_root, top, profile)
     package_index = json.loads((root / "ip.json").read_text(encoding="utf-8"))
-    assert package_index["profile"] == profile
+    assert "profile" not in package_index
     assert package_index["reg_interface"] == profile
     for common in ("csr", "doc", "drivers", "rtl", "dv"):
         assert (root / common).is_dir(), f"missing saved {top}/{common}"
@@ -1125,7 +1125,7 @@ def _assert_saved_multitech_layout(library_root: Path, top: str, profile: str) -
         assert settings_by_pdk[pdk]["pdk"] == pdk
         assert settings_by_pdk[pdk]["effective"]["PDK"] == pdk
         assert settings_by_pdk[pdk]["design_intent"] == intent
-        equivalence = root / "signoff" / pdk / "equivalence" / "rtl_vs_syn"
+        equivalence = root / "signoff" / pdk / "post_syn" / "equivalence" / "rtl_vs_syn"
         assert (equivalence / f"{top}_rtl_vs_syn.eqy").is_file()
         assert (equivalence / f"{top}_eqy_view.sv").is_file()
     assert (root / "impl").is_dir()
@@ -2820,8 +2820,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
             )
             _assert_loaded_sources_match(top, reg_itf, run_id, workspace, source_snapshot)
             _assert_loaded_ip_tests(top, run_id, workspace)
-            ihp_eqy = Path("signoff/ihp-sg13g2/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy")
-            assert _sha256(run / ihp_eqy) == _sha256(_repo_ip_profile(top, reg_itf) / ihp_eqy)
+            run_ihp_eqy = Path("signoff/ihp-sg13g2/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy")
+            pkg_ihp_eqy = Path("technology/ihp-sg13g2/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy")
+            assert _sha256(run / run_ihp_eqy) == _sha256(_repo_ip_interface(top, reg_itf) / pkg_ihp_eqy)
 
             # Rebuild machine-owned collateral with the current package contract.
             _run(

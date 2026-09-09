@@ -1,0 +1,59 @@
+schema: 1
+ip: gpio
+baseline: as-built
+requirements:
+  - id: GPIO-RST-001
+    statement: >-
+      Reset shall place GPIO output values and output enables in the inactive zero state.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: GPIO-OUT-001
+    statement: >-
+      A software write to DIRECT.GPIO_O shall update cio_gpio_o on the following implemented
+      state update.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: GPIO-OE-001
+    statement: >-
+      A software write to DIRECT.GPIO_OE shall update cio_gpio_en_o on the following
+      implemented state update.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: GPIO-HOLD-001
+    statement: >-
+      When the corresponding direct-output write enable is not asserted, GPIO output/output-
+      enable state shall hold its previous value.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: GPIO-IN-001
+    statement: >-
+      The sampled GPIO input value shall be exposed through the DATA_IN hardware-to-register
+      path.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: GPIO-INT-001
+    statement: >-
+      Interrupt outputs shall implement the configured rising, falling, high-level and low-
+      level input conditions.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: GPIO-FILT-001
+    statement: >-
+      The programmable input filter shall implement the behavior exercised by the input_filter
+      verification scenario.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: GPIO-REG-001
+    statement: >-
+      The same GPIO CSR semantics shall be accessible through each qualified REG_ITF
+      implementation.
+    scope: reg_interface
+    origin: derived
+    status: baselined

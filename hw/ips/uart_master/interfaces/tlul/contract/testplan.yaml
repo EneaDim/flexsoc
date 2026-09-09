@@ -1,0 +1,29 @@
+schema: 1
+ip: uart_master
+qualification:
+  required_evidence: [lint, functional, traceability, cdc_rdc, formal]
+items:
+  - id: UM-TP-001
+    requirements: [UM-RST-001, UM-HOST-003, UM-HOST-005, UM-HOST-006, UM-TX-001]
+    methods: [formal]
+    properties: [uart_master_prove]
+  - id: UM-TP-002
+    requirements: [UM-HOST-001]
+    methods: [simulation]
+    tests: [host_read]
+  - id: UM-TP-003
+    requirements: [UM-HOST-002]
+    methods: [simulation]
+    tests: [host_write]
+  - id: UM-TP-004
+    requirements: [UM-HOST-003]
+    methods: [simulation]
+    tests: [host_alignment]
+  - id: UM-TP-005
+    requirements: [UM-HOST-004]
+    methods: [simulation]
+    tests: [host_byte_enable]
+  - id: UM-TP-006
+    requirements: [UM-REG-001]
+    methods: [simulation]
+    tests: [smoke, reconfig, corners, auto_toggle, random_seed_1, random_seed_2]

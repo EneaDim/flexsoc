@@ -759,47 +759,42 @@ Separate evidence collection from human rendering. Technology-scoped metadata li
 | `fx validate_override` | Accept an intentional manual edit to generated setup collateral for the current lineage. | `STAGE=<keyword|stage-id>` | Only `MODIFIED` can be accepted. `STALE` means rerun `fx <keyword> --setup --force` with the intended effective settings; `INVALID` means repair missing/inconsistent inputs and rerun setup. |
 | `fx check` | Render the saved metrics snapshot as the lifecycle-ordered colored dashboard. | `PDK` plus common run/clock settings | Read-only with respect to `metrics.json`; run `fx metrics` first whenever you want a new snapshot. |
 
-### 3.14 IP load/save
+### 3.14 IP qualification and load/save
 
-Move authored IP sources between the reusable library and an isolated run workspace.
-
-**Main result:** `hw/ips/<IP_NAME>/profiles/<REG_ITF>/` and the selected run directories.
+The authoritative IP specification lives at `hw/ips/<IP_NAME>/spec/`; frozen register-interface releases live at `hw/ips/<IP_NAME>/interfaces/<REG_ITF>/`. `REG_ITF` is the only register-interface selector.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx ip_load` | Load one frozen IP profile into a run workspace. | `IP_NAME`, `REG_ITF` | `REG_ITF` selects `profiles/<REG_ITF>/`; use `--info` for accepted overrides. |
-| `fx ip_save` | Save the current PDK reusable implementation/sign-off collateral and qualification metadata into one frozen IP profile. | `IP_NAME`, `REG_ITF`, `IP_LIBRARY_ROOT`; use `--force` to replace existing destinations | Without `--force`, performs an atomic preflight and refuses to overwrite any existing destination, listing every conflicting package path and changing nothing. With `--force`, replaces the current-PDK/source-backed destinations while preserving unrelated PDK branches and any optional branch unavailable in the current run. Results stay in their native hierarchy: post-synthesis GLS JSON under `dv/functional/sim/post_syn/<pdk>/`, coverage `summary.txt/json` under `dv/functional/coverage/`, final `.rpt`/`.json`/`.sdf` under `signoff/<pdk>/`, reusable `syn/<pdk>`, optional `impl/<pdk>`, EQY/SDC, exactly one canonical Tcl per sign-off family, and `meta/<pdk>` including `settings.json`; common `meta/design_intent.json` is retained once. Qualification also retains normalized lint evidence under `analysis/lint/<tool>/` and the compact CDC/RDC package contract `analysis/cdc_rdc/summary.json` + `cdc_rdc.rpt`; extraction/runtime logs are not duplicated into the reusable package. Scenario/corner/workload-local Tcl copies are runtime collateral and are not packaged. Logs, waveforms, hidden transient sign-off reports, diagnostic RTLIL checkpoints, `__pycache__`, and `*.pyc`/`*.pyo` are excluded. |
+| `fx status` | Show live contract/evidence state and maximum demonstrated qualification level. | common settings | Read-only. |
+| `fx qualify` | Validate requirements traceability and evidence against the L1-L5 policy. | `IP_NAME`, `REG_ITF`, `QUAL_LEVEL` | Writes `meta/<pdk>/qualification.json`; returns non-zero when an explicit `QUAL_LEVEL` is not satisfied. |
+| `fx ip_load` | Load one frozen register-interface release into a run workspace. | `IP_NAME`, `REG_ITF` | Resolves exactly `interfaces/<REG_ITF>/`; there is no legacy profile fallback. |
+| `fx ip_save` | Atomically publish the selected interface/PDK release from the current run. | `IP_NAME`, `REG_ITF`, `IP_LIBRARY_ROOT`, `QUAL_LEVEL`; use `--force` to refresh an existing branch | Runs the unified validator first, snapshots the authoritative `spec/` under `contract/`, preserves unrelated technology branches, and packages only real implementation/signoff evidence. `QUAL_LEVEL=auto` records the maximum demonstrated level. |
 
-`ip_save` is intentionally non-destructive by default. A first save into missing destinations succeeds; if any destination that the current run would update already exists, the command exits before staging or replacing the package and prints the conflicting relative paths. Use `fx ip_save --force ...` only when those destinations are intended to be refreshed.
-
-E2E tests set `IP_LIBRARY_ROOT` inside their temporary workspace and hash the repository-owned package before and after execution. Therefore `make test` cannot write into `hw/ips`.
-
-The saved technology branches mirror the PDK-first run layout:
+Release layout:
 
 ```text
-hw/ips/<IP_NAME>/profiles/<REG_ITF>/
-├── ip.json
-├── csr/
-├── rtl/
-├── constraints/<TOP>.sdc
-├── analysis/
-│   ├── lint/{slang,verilator}/
-│   └── cdc_rdc/
-├── syn/<pdk>/
-├── impl/<pdk>/
-└── signoff/<pdk>/
-    ├── equivalence/rtl_vs_syn/
-    ├── sta/sta.tcl
-    ├── sdf/write_sdf.tcl
-    ├── power/
-    │   ├── estimate/power_estimate.tcl
-    │   └── analysis/power_analysis.tcl
-    └── fusion/fusion_analysis.tcl
+hw/ips/<IP_NAME>/
+├── spec/
+│   ├── ip.md
+│   ├── requirements.yaml
+│   └── testplan.yaml
+└── interfaces/<REG_ITF>/
+    ├── ip.json
+    ├── contract/
+    ├── csr/
+    ├── rtl/
+    ├── analysis/
+    ├── dv/
+    ├── constraints/
+    ├── syn/<pdk>/
+    ├── impl/<pdk>/
+    ├── signoff/<pdk>/
+    │   ├── post_syn/       # sta / power / fusion on synthesized netlist
+    │   └── post_pnr/       # sta / power / fusion + routed physical evidence
+    └── meta/<pdk>/
 ```
 
-Each invocation updates only the selected `REG_ITF` profile and PDK branch, preserving other profiles and technologies. The Tcl files are exact generated script
-snapshots; after `ip_load`, rerun the corresponding setup/analysis command to
-bind paths to the new workspace and PDK installation.
+`signoff/<pdk>/post_syn/` contains post-synthesis technology evidence such as equivalence setup/views, SDF, STA, GLS-correlated power/fusion and related reports. `signoff/<pdk>/post_pnr/` contains routed evidence and keeps the same canonical names for common analyses (`sta/`, `power/`, `fusion/`), plus physical-only checks where required. Presence of either directory does not by itself assert a qualification level; the unified validator applies the L1-L5 policy. The operational run workspace may keep post-synthesis evidence directly under `signoff/<pdk>/`; `ip_save`/`ip_load` translate between run and release layouts. See `docs/digital_ip_contract.md`.
 
 ### 3.15 SoC flow
 

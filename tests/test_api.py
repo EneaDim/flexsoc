@@ -135,6 +135,34 @@ def test_pnr_resolves_orfs_tools_from_active_path(monkeypatch: pytest.MonkeyPatc
     assert env["KLAYOUT_CMD"] == resolved["klayout"]
 
 
+def _write_minimal_ip_spec(root: Path, ip: str = "demo") -> Path:
+    """Write the smallest valid authoritative Digital IP specification bundle."""
+
+    spec = root / "spec"
+    spec.mkdir(parents=True, exist_ok=True)
+    (spec / "ip.md").write_text(f"# {ip}\n\nMinimal test specification.\n", encoding="utf-8")
+    (spec / "requirements.yaml").write_text(
+        f"schema: 1\nip: {ip}\nrequirements:\n"
+        "  - id: DEMO-FUNC-001\n"
+        "    statement: The implementation shall satisfy the demo functional contract.\n"
+        "    scope: common\n    origin: derived\n    status: baselined\n",
+        encoding="utf-8",
+    )
+    (spec / "testplan.yaml").write_text(
+        f"schema: 1\nip: {ip}\n"
+        "qualification:\n"
+        "  required_evidence: [lint, functional, traceability, cdc_rdc, formal]\n"
+        "items:\n"
+        "  - id: DEMO-TP-001\n"
+        "    requirements: [DEMO-FUNC-001]\n"
+        "    methods: [simulation, formal]\n"
+        "    tests: [smoke]\n"
+        f"    properties: [{ip}_prove]\n",
+        encoding="utf-8",
+    )
+    return spec
+
+
 # ---------------------------------------------------------------------------
 # Python API
 # ---------------------------------------------------------------------------
@@ -1264,11 +1292,11 @@ def test_eqy_optional_formal_view_artifact_does_not_mask_required_wrapper(tmp_pa
         _ensure_formal_view_artifact(config, view)
 
 
-def test_ip_load_requires_exact_frozen_profile_layout(tmp_path: Path) -> None:
+def test_ip_load_requires_exact_frozen_interface_layout(tmp_path: Path) -> None:
     from flexsoc.backend.core.package import PackageFlow
 
     project = tmp_path / "project"
-    source = project / "hw" / "ips" / "demo" / "profiles" / "axi_lite"
+    source = project / "hw" / "ips" / "demo" / "interfaces" / "axi_lite"
     (source / "csr" / "systemrdl").mkdir(parents=True)
     (source / "csr" / "demo.hjson").write_text('{name: "demo"}\n', encoding="utf-8")
     (source / "csr" / "systemrdl" / "demo.rdl").write_text(
@@ -1281,17 +1309,31 @@ def test_ip_load_requires_exact_frozen_profile_layout(tmp_path: Path) -> None:
     (lint / "verilator" / "demo_lint_verilator_all.log").write_text(
         "verilator pass\n", encoding="utf-8"
     )
+    spec_root = _write_minimal_ip_spec(project / "hw" / "ips" / "demo", "demo")
+    from flexsoc.backend.core.qualification import write_contract_snapshot
+
+    write_contract_snapshot(
+        staged=source,
+        spec_root=spec_root,
+        ip_name="demo",
+        reg_interface="axi_lite",
+    )
     (source / "ip.json").write_text(
         json.dumps({
-            "schema": 1, "format": "flexsoc-ip", "name": "demo", "top": "demo",
-            "profile": "axi_lite", "reg_interface": "axi_lite",
+            "schema": 2, "format": "flexsoc-ip", "name": "demo", "top": "demo",
+            "reg_interface": "axi_lite",
+            "content": {"contract": "contract/contract.json"},
+            "qualification": {
+                "summary": {"maximum_level": 1, "maximum_qualification": "Contract Valid"},
+                "technologies": {},
+            },
         }) + "\n",
         encoding="utf-8",
     )
 
     workspace = tmp_path / "work"
     destination = PackageFlow(project, {}).load(
-        ip_name="demo", profile="axi_lite", run_top="demo", run_id="dev", workspace=workspace,
+        ip_name="demo", reg_interface="axi_lite", run_top="demo", run_id="dev", workspace=workspace,
     )
 
     assert (destination / "csr" / "demo.hjson").is_file()
@@ -1299,12 +1341,18 @@ def test_ip_load_requires_exact_frozen_profile_layout(tmp_path: Path) -> None:
     assert (destination / "analysis" / "lint" / "slang" / "demo_lint_slang_all.log").is_file()
     assert (destination / "analysis" / "lint" / "verilator" / "demo_lint_verilator_all.log").is_file()
 
+    (source / "csr" / "demo.hjson").write_text('{name: "demo", changed: true}\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="source-of-truth artifact is stale"):
+        PackageFlow(project, {}).load(
+            ip_name="demo", reg_interface="axi_lite", run_top="demo", run_id="stale", workspace=workspace,
+        )
+
     flat = project / "hw" / "ips" / "legacy"
     flat.mkdir(parents=True)
     (flat / "ip.json").write_text('{}\n', encoding="utf-8")
-    with pytest.raises(FileNotFoundError, match="missing source IP profile"):
+    with pytest.raises(FileNotFoundError, match="missing source IP interface release"):
         PackageFlow(project, {}).load(
-            ip_name="legacy", profile="tlul", run_top="legacy", run_id="dev", workspace=workspace,
+            ip_name="legacy", reg_interface="tlul", run_top="legacy", run_id="dev", workspace=workspace,
         )
 
 
@@ -1382,20 +1430,21 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     rdl.mkdir(parents=True)
     (rdl / f"{top}.rdl").write_text("addrmap demo {};\n", encoding="utf-8")
     library = tmp_path / "library"
-    stale_impl = library / top / "profiles" / "tlul" / "impl" / pdk
+    spec_root = _write_minimal_ip_spec(tmp_path / "hw" / "ips" / top, top)
+    stale_impl = library / top / "interfaces" / "tlul" / "impl" / pdk
     stale_impl.mkdir(parents=True)
     (stale_impl / "config.mk").write_text("# setup-only, not PnR evidence\n", encoding="utf-8")
-    stale_logs = library / top / "profiles" / "tlul" / "logs" / "lint"
+    stale_logs = library / top / "interfaces" / "tlul" / "logs" / "lint"
     stale_logs.mkdir(parents=True)
     (stale_logs / "stale.log").write_text("old package log\n", encoding="utf-8")
-    sibling = library / top / "profiles" / "axi_lite"
+    sibling = library / top / "interfaces" / "axi_lite"
     sibling.mkdir(parents=True)
     (sibling / "sentinel.txt").write_text("keep sibling profile\n", encoding="utf-8")
 
     flow = PackageFlow(tmp_path, {})
     saved = flow.save(
         ip_name=top,
-        profile="tlul",
+        reg_interface="tlul",
         top=top,
         pdk=pdk,
         library_root=library,
@@ -1411,14 +1460,15 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
         clock_gate_model=gate,
         settings_json=settings_json,
         design_intent_json=design_intent_json,
+        spec_root=spec_root,
     )
     assert not (saved / "impl" / pdk).exists()
     assert (saved / "meta" / "design_intent.json").is_file()
     assert (saved / "meta" / pdk / "settings.json").is_file()
     package_index = json.loads((saved / "ip.json").read_text(encoding="utf-8"))
-    assert saved == library / top / "profiles" / "tlul"
+    assert saved == library / top / "interfaces" / "tlul"
     assert (sibling / "sentinel.txt").read_text(encoding="utf-8") == "keep sibling profile\n"
-    assert package_index["profile"] == "tlul"
+    assert "profile" not in package_index
     assert package_index["reg_interface"] == "tlul"
     assert package_index["content"]["design_intent"] == "meta/design_intent.json"
     assert package_index["content"]["registers"] == "csr"
@@ -1426,16 +1476,16 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     assert package_index["content"]["systemrdl"] == "csr/systemrdl"
     assert (saved / "component.xml").is_file()
     assert (saved / "csr" / "systemrdl" / f"{top}.rdl").is_file()
-    assert package_index["qualification"][pdk]["settings"] == f"meta/{pdk}/settings.json"
+    assert package_index["qualification"]["technologies"][pdk]["settings"] == f"meta/{pdk}/settings.json"
     assert (saved / "constraints" / f"{top}.sdc").is_file()
-    assert not (saved / "signoff" / pdk / f"{top}.sdc").exists()
+    assert not (saved / "signoff" / pdk / "post_syn" / f"{top}.sdc").exists()
     assert (saved / "analysis" / "lint" / "slang" / f"{top}_lint_slang_all.log").is_file()
     assert not (saved / "analysis" / "lint" / "slang" / "raw").exists()
     assert not (saved / "logs").exists()
     assert (saved / "analysis" / "cdc_rdc" / "summary.json").is_file()
     assert (saved / "analysis" / "cdc_rdc" / "cdc_rdc.rpt").is_file()
     assert not (saved / "syn" / pdk / f"{top}_generic.il").exists()
-    saved_signoff = saved / "signoff" / pdk
+    saved_signoff = saved / "signoff" / pdk / "post_syn"
     saved_tcl = {
         path.relative_to(saved_signoff).as_posix()
         for path in saved_signoff.rglob("*.tcl")
@@ -1451,7 +1501,7 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     (implementation / "config.mk").write_text("DESIGN_NAME := demo\n", encoding="utf-8")
     flow.save(
         ip_name=top,
-        profile="tlul",
+        reg_interface="tlul",
         top=top,
         pdk=pdk,
         library_root=library,
@@ -1466,15 +1516,16 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
         cell_models=(model,),
         clock_gate_model=gate,
         impl_dir=implementation,
+        spec_root=spec_root,
         force=True,
     )
     assert (saved / "impl" / pdk / "config.mk").is_file()
-    stale_runtime = saved / "signoff" / pdk / "fusion/stale/setup/fusion_analysis.tcl"
+    stale_runtime = saved / "signoff" / pdk / "post_syn" / "fusion/stale/setup/fusion_analysis.tcl"
     stale_runtime.parent.mkdir(parents=True)
     stale_runtime.write_text("# stale runtime copy\n", encoding="utf-8")
     flow.save(
         ip_name=top,
-        profile="tlul",
+        reg_interface="tlul",
         top=top,
         pdk=pdk,
         library_root=library,
@@ -1489,6 +1540,7 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
         cell_models=(model,),
         clock_gate_model=gate,
         impl_dir=implementation,
+        spec_root=spec_root,
         force=True,
     )
     assert not stale_runtime.exists()
@@ -2031,11 +2083,11 @@ def test_register_interface_intent_uses_one_canonical_regfile_transport() -> Non
     assert 'protocol: "reg_iface"' in multi["axi_lite"]
 
 
-def test_frozen_profile_csr_sources_use_canonical_reg_iface_transport() -> None:
+def test_frozen_interface_csr_sources_use_canonical_reg_iface_transport() -> None:
     from flexsoc.backend.design.regs import reggen_device_protocols
 
     root = Path(__file__).resolve().parents[1] / "hw" / "ips"
-    sources = sorted(root.glob("*/profiles/*/csr/*.hjson"))
+    sources = sorted(root.glob("*/interfaces/*/csr/*.hjson"))
     assert sources
 
     for source in sources:
@@ -2871,7 +2923,7 @@ def test_register_transport_ports_are_not_functional_vectors(tmp_path: Path) -> 
 
 
 def test_saved_cordic_registers_atan_before_z_arithmetic() -> None:
-    core = (ROOT / "hw/ips/cordic/profiles/tlul/rtl/cordic_core.sv").read_text(encoding="utf-8")
+    core = (ROOT / "hw/ips/cordic/interfaces/tlul/rtl/cordic_core.sv").read_text(encoding="utf-8")
 
     assert "logic signed [ANGLE_W-1:0] atan_q, atan_d;" in core
     assert "atan_d         = AtanLut[0];" in core
@@ -4430,15 +4482,15 @@ def test_eqy_and_opensta_modules_are_separated() -> None:
 
 
 def test_checked_in_ip_technology_roots_are_pdk_first() -> None:
-    """Checked-in IP technology artifacts stay below their package/profile root."""
+    """Checked-in IP technology artifacts stay below their interface release root."""
 
     root = Path(__file__).resolve().parents[1] / "hw/ips"
     technology_packages = set()
     for package in sorted(path for path in root.iterdir() if path.is_dir()):
-        profiles = package / "profiles"
+        interfaces = package / "interfaces"
         candidates = (
-            sorted(path for path in profiles.iterdir() if path.is_dir())
-            if profiles.is_dir()
+            sorted(path for path in interfaces.iterdir() if path.is_dir())
+            if interfaces.is_dir()
             else [package]
         )
         for candidate in candidates:
@@ -4452,8 +4504,13 @@ def test_checked_in_ip_technology_roots_are_pdk_first() -> None:
                         package.name, candidate.name, stage,
                     )
             signoff = candidate / "signoff"
-            if signoff.is_dir():
-                assert not (signoff / "equivalence").exists(), (package.name, candidate.name)
+            if interfaces.is_dir() and signoff.is_dir():
+                for pdk_dir in (path for path in signoff.iterdir() if path.is_dir()):
+                    assert not (pdk_dir / "equivalence").exists(), (package.name, candidate.name)
+                    assert all(
+                        child.is_dir() and child.name in {"post_syn", "post_pnr"}
+                        for child in pdk_dir.iterdir()
+                    ), (package.name, candidate.name, pdk_dir.name)
 
     assert {"cordic", "uart", "cache_wrapper", "fft_core", "gpio", "pwm"}.issubset(
         technology_packages
@@ -5934,27 +5991,29 @@ def test_contract_status_derives_release_level_without_running_eda(tmp_path: Pat
     router.paths.rtl_common.write_text("", encoding="utf-8")
     router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
     router.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
+    (router.paths.csr / "demo.hjson").write_text('{name: "demo"}\n', encoding="utf-8")
+    _write_minimal_ip_spec(project / "hw" / "ips" / "demo", "demo")
+    (router.paths.tests / "smoke").mkdir(parents=True)
+    prop = router.paths.formal / "properties" / "prove" / "demo_prove.sv"
+    prop.parent.mkdir(parents=True)
+    prop.write_text("module demo_prove; endmodule\n", encoding="utf-8")
 
-    rtl_required = set(api_module.RELEASE_LEVELS[1][1])
+    from flexsoc.backend.core.qualification import required_stages, validate_spec_bundle
+    spec = validate_spec_bundle(project / "hw" / "ips" / "demo" / "spec", ip_name="demo")
+    rtl_required = set(required_stages(spec, 2)) - {"requirements_traceability"}
     monkeypatch.setattr(router, "_contract_state", lambda stage: "CLEAN" if stage in rtl_required else "MISSING")
     status = router._contract_status()
     assert status["contract"] == "VALID"
-    assert status["release_level"] == 1
-    assert status["release"] == "RTL Qualified"
-    stage_order = tuple(status["stages"])
-    assert stage_order == tuple(
-        stage for stage in api_module.STAGE_CONTRACTS if stage in api_module.RUNTIME_STAGES
-    )
-    assert stage_order.index("regression") < stage_order.index("formal_bmc")
-    assert stage_order.index("formal_cover") < stage_order.index("syn")
-    assert stage_order.index("sim_post_syn_all") < stage_order.index("pnr")
-    assert stage_order.index("physical_signoff") < stage_order.index("sta_post_pnr")
+    assert status["maximum_level"] == 2
+    assert status["maximum_qualification"] == "RTL Qualified"
+    assert status["requirements"]["status"] == "PASS"
+    assert status["evidence"]["requirements_traceability"] == "PASS"
 
-    netlist_required = rtl_required | set(api_module.RELEASE_LEVELS[2][1])
+    netlist_required = set(required_stages(spec, 3)) - {"requirements_traceability"}
     monkeypatch.setattr(router, "_contract_state", lambda stage: "CLEAN" if stage in netlist_required else "MISSING")
     status = router._contract_status()
-    assert status["release_level"] == 2
-    assert status["release"] == "Netlist Qualified"
+    assert status["maximum_level"] == 3
+    assert status["maximum_qualification"] == "Netlist Qualified"
 
 
 def test_provenance_derives_override_and_parent_lineage_states(tmp_path: Path) -> None:
@@ -6312,7 +6371,7 @@ def test_uart_authored_formal_bind_tracks_real_core_io() -> None:
     root = Path(__file__).resolve().parents[1]
     prove = (
         root
-        / "hw/ips/uart/profiles/tlul/dv/formal/properties/prove/uart_prove.sv"
+        / "hw/ips/uart/interfaces/tlul/dv/formal/properties/prove/uart_prove.sv"
     ).read_text(encoding="utf-8")
 
     assert "input logic rx_i, tx_o" in prove
@@ -6326,7 +6385,7 @@ def test_uart_master_host_bridge_splits_reset_by_functional_island() -> None:
     root = Path(__file__).resolve().parents[1]
     bridge = (
         root
-        / "hw/ips/uart_master/profiles/tlul/rtl/uart_host_bridge.sv"
+        / "hw/ips/uart_master/interfaces/tlul/rtl/uart_host_bridge.sv"
     ).read_text(encoding="utf-8")
 
     for branch in ("parser_rst_ni", "bus_rst_ni", "response_rst_ni"):
@@ -6337,3 +6396,25 @@ def test_uart_master_host_bridge_splits_reset_by_functional_island() -> None:
 
     assert bridge.count(".rst_ni(rst_ni)") == 3
     assert "always_ff @(posedge clk_i or negedge rst_ni)" not in bridge
+
+
+def test_gpio_authored_formal_bind_tracks_state_reset_branch() -> None:
+    root = Path(__file__).resolve().parents[1]
+    prove = (
+        root
+        / "hw/ips/gpio/interfaces/tlul/dv/formal/properties/prove/gpio_prove.sv"
+    ).read_text(encoding="utf-8")
+
+    assert ".rst_ni        (state_rst_ni)," in prove
+    assert ".rst_ni        (rst_ni)," not in prove
+
+
+def test_rv_timer_authored_formal_bind_tracks_timer_reset_branch() -> None:
+    root = Path(__file__).resolve().parents[1]
+    prove = (
+        root
+        / "hw/ips/rv_timer/interfaces/tlul/dv/formal/properties/prove/rv_timer_prove.sv"
+    ).read_text(encoding="utf-8")
+
+    assert ".rst_ni(timer_rst_ni)," in prove
+    assert ".rst_ni(rst_ni)," not in prove

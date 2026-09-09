@@ -1,0 +1,483 @@
+"""Digital IP contract, requirement traceability, and release qualification."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import shutil
+from pathlib import Path
+from typing import Mapping, Sequence
+
+import yaml
+
+
+ARTIFACT_STATES = (
+    "MISSING",
+    "CLEAN",
+    "STALE",
+    "PASS",
+    "FAILED",
+    "WAIVED",
+    "INVALID",
+    "MODIFIED",
+    "VALIDATED_OVERRIDE",
+)
+
+QUALIFICATION_LEVELS = (
+    ("Not Qualified", "none"),
+    ("Contract Valid", "contract"),
+    ("RTL Qualified", "rtl"),
+    ("Netlist Qualified", "netlist"),
+    ("Technology Qualified", "technology"),
+    ("Physical / Signoff Complete Digital Macro", "physical_signoff"),
+)
+
+LEVEL_ALIASES = {
+    "auto": None,
+    "0": 0,
+    "none": 0,
+    "1": 1,
+    "contract": 1,
+    "contract_valid": 1,
+    "2": 2,
+    "rtl": 2,
+    "rtl_qualified": 2,
+    "3": 3,
+    "netlist": 3,
+    "netlist_qualified": 3,
+    "4": 4,
+    "technology": 4,
+    "technology_qualified": 4,
+    "5": 5,
+    "physical": 5,
+    "physical_signoff": 5,
+    "signoff": 5,
+}
+
+# Stage groups deliberately reuse the existing FlexSoC provenance graph.
+EVIDENCE_GROUPS: Mapping[str, tuple[str, ...]] = {
+    "lint": ("lint_slang_suite", "lint_verilator_suite"),
+    "functional": ("regression",),
+    "traceability": ("requirements_traceability",),
+    "cdc_rdc": ("cdc_rdc",),
+    "formal": (
+        "formal_csr_bmc",
+        "formal_bmc",
+        "formal_csr_prove",
+        "formal_prove",
+        "formal_csr_cover",
+        "formal_cover",
+    ),
+    "netlist": ("syn", "eqy", "sta"),
+    "technology": (
+        "sdf",
+        "power_estimate",
+        "sim_post_syn_all",
+        "power_analysis_all",
+        "fusion_analysis_all",
+    ),
+    "physical_signoff": (
+        "pnr",
+        "physical_signoff",
+        "sdf_post_pnr",
+        "sta_post_pnr",
+        "power_estimate_post_pnr",
+        "sim_post_pnr_all",
+        "power_analysis_post_pnr_all",
+        "fusion_analysis_post_pnr_all",
+    ),
+}
+
+SPEC_FILES = ("ip.md", "requirements.yaml", "testplan.yaml")
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def normalize_qualification_level(value: str | int | None) -> int | None:
+    """Return a requested qualification level; None means automatic maximum."""
+
+    if value is None:
+        return None
+    key = str(value).strip().lower().replace("-", "_").replace(" ", "_") or "auto"
+    if key not in LEVEL_ALIASES:
+        choices = "auto, contract, rtl, netlist, technology, physical_signoff"
+        raise ValueError(f"QUAL_LEVEL must be one of: {choices}")
+    return LEVEL_ALIASES[key]
+
+
+def qualification_name(level: int) -> str:
+    if not 0 <= level < len(QUALIFICATION_LEVELS):
+        raise ValueError(f"invalid qualification level: {level}")
+    return QUALIFICATION_LEVELS[level][0]
+
+
+def _load_yaml(path: Path) -> object:
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def validate_spec_bundle(spec_root: Path, *, ip_name: str | None = None) -> dict[str, object]:
+    """Validate the authoritative spec/requirements/test-plan bundle."""
+
+    root = Path(spec_root)
+    missing = [root / name for name in SPEC_FILES if not (root / name).is_file()]
+    if missing:
+        raise FileNotFoundError("missing Digital IP specification file(s): " + ", ".join(map(str, missing)))
+
+    requirements_doc = _load_yaml(root / "requirements.yaml")
+    testplan_doc = _load_yaml(root / "testplan.yaml")
+    if not isinstance(requirements_doc, dict) or not isinstance(testplan_doc, dict):
+        raise ValueError("requirements.yaml and testplan.yaml must contain mappings")
+
+    req_ip = str(requirements_doc.get("ip", "")).strip()
+    plan_ip = str(testplan_doc.get("ip", "")).strip()
+    if ip_name and (req_ip != ip_name or plan_ip != ip_name):
+        raise ValueError(
+            f"spec identity mismatch: requirements.ip={req_ip!r} testplan.ip={plan_ip!r} expected={ip_name!r}"
+        )
+
+    requirements = requirements_doc.get("requirements", [])
+    items = testplan_doc.get("items", [])
+    if not isinstance(requirements, list) or not isinstance(items, list):
+        raise ValueError("requirements and testplan items must be lists")
+
+    req_ids: list[str] = []
+    baselined: set[str] = set()
+    for entry in requirements:
+        if not isinstance(entry, dict):
+            raise ValueError("each requirement must be a mapping")
+        req_id = str(entry.get("id", "")).strip()
+        statement = str(entry.get("statement", "")).strip()
+        if not req_id or not statement:
+            raise ValueError("each requirement needs non-empty id and statement")
+        req_ids.append(req_id)
+        if str(entry.get("status", "baselined")).strip().lower() == "baselined":
+            baselined.add(req_id)
+    if len(set(req_ids)) != len(req_ids):
+        raise ValueError("duplicate requirement id")
+
+    plan_ids: list[str] = []
+    covered: set[str] = set()
+    test_names: set[str] = set()
+    properties: set[str] = set()
+    for entry in items:
+        if not isinstance(entry, dict):
+            raise ValueError("each test-plan item must be a mapping")
+        plan_id = str(entry.get("id", "")).strip()
+        if not plan_id:
+            raise ValueError("each test-plan item needs an id")
+        plan_ids.append(plan_id)
+        refs = entry.get("requirements", [])
+        if not isinstance(refs, list) or not refs:
+            raise ValueError(f"{plan_id}: requirements must be a non-empty list")
+        for ref in refs:
+            req_id = str(ref)
+            if req_id not in req_ids:
+                raise ValueError(f"{plan_id}: unknown requirement {req_id!r}")
+            covered.add(req_id)
+        for name in entry.get("tests", []) or []:
+            test_names.add(str(name))
+        for name in entry.get("properties", []) or []:
+            properties.add(str(name))
+    if len(set(plan_ids)) != len(plan_ids):
+        raise ValueError("duplicate test-plan item id")
+
+    uncovered = sorted(baselined - covered)
+    if uncovered:
+        raise ValueError("baselined requirements without test-plan coverage: " + ", ".join(uncovered))
+
+    qualification = testplan_doc.get("qualification", {}) or {}
+    if not isinstance(qualification, dict):
+        raise ValueError("testplan.qualification must be a mapping")
+    required_evidence = qualification.get(
+        "required_evidence", ["lint", "functional", "traceability", "cdc_rdc", "formal"]
+    )
+    if not isinstance(required_evidence, list):
+        raise ValueError("qualification.required_evidence must be a list")
+    unknown = [str(item) for item in required_evidence if str(item) not in EVIDENCE_GROUPS]
+    if unknown:
+        raise ValueError("unknown qualification evidence group(s): " + ", ".join(unknown))
+
+    hashes = {name: sha256_file(root / name) for name in SPEC_FILES}
+    fingerprint = hashlib.sha256(
+        json.dumps(hashes, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        "schema": 1,
+        "ip": req_ip or plan_ip or ip_name,
+        "requirements": len(req_ids),
+        "baselined_requirements": len(baselined),
+        "covered_requirements": len(baselined & covered),
+        "testplan_items": len(plan_ids),
+        "tests": sorted(test_names),
+        "properties": sorted(properties),
+        "required_evidence": [str(item) for item in required_evidence],
+        "hashes": hashes,
+        "fingerprint": fingerprint,
+    }
+
+
+def required_stages(spec: Mapping[str, object], level: int) -> tuple[str, ...]:
+    """Expand the policy for one qualification level into provenance stages."""
+
+    stages: list[str] = []
+    if level >= 2:
+        for group in spec.get("required_evidence", ("lint", "functional", "traceability", "cdc_rdc", "formal")):
+            stages.extend(EVIDENCE_GROUPS[str(group)])
+    if level >= 3:
+        stages.extend(EVIDENCE_GROUPS["netlist"])
+    if level >= 4:
+        stages.extend(EVIDENCE_GROUPS["technology"])
+    if level >= 5:
+        stages.extend(EVIDENCE_GROUPS["physical_signoff"])
+    return tuple(dict.fromkeys(stages))
+
+
+def evidence_state(provenance_state: str, *, waived: bool = False) -> str:
+    if waived:
+        return "WAIVED"
+    state = str(provenance_state).upper()
+    if state in {"CLEAN", "VALIDATED_OVERRIDE"}:
+        return "PASS"
+    if state == "STALE":
+        return "STALE"
+    if state == "MISSING":
+        return "MISSING"
+    if state in {"INVALID", "MODIFIED"}:
+        return "INVALID"
+    if state == "FAILED":
+        return "FAILED"
+    return "INVALID"
+
+
+def build_qualification_report(
+    *,
+    ip_name: str,
+    reg_interface: str,
+    pdk: str,
+    spec: Mapping[str, object],
+    stage_states: Mapping[str, str],
+    contract_ready: bool,
+    requested_level: str | int | None = None,
+) -> dict[str, object]:
+    """Derive the maximum release level from current evidence and policy."""
+
+    evidence = {stage: evidence_state(state) for stage, state in stage_states.items()}
+    maximum = 1 if contract_ready else 0
+    levels: dict[str, object] = {}
+    for level in range(1, 6):
+        required = required_stages(spec, level)
+        missing = [stage for stage in required if evidence.get(stage) not in {"PASS", "WAIVED"}]
+        passed = contract_ready and not missing and (level == 1 or maximum == level - 1)
+        if passed:
+            maximum = level
+        levels[str(level)] = {
+            "name": qualification_name(level),
+            "status": "PASS" if passed else "BLOCKED",
+            "required_evidence": list(required),
+            "blocking_evidence": missing,
+        }
+
+    requested = normalize_qualification_level(requested_level)
+    target_satisfied = True if requested is None else maximum >= requested
+    return {
+        "schema": 1,
+        "ip": ip_name,
+        "reg_interface": reg_interface,
+        "pdk": pdk,
+        "contract_fingerprint": spec.get("fingerprint"),
+        "requirements": {
+            "total": spec.get("baselined_requirements", 0),
+            "covered": spec.get("covered_requirements", 0),
+            "status": "PASS" if spec.get("baselined_requirements") == spec.get("covered_requirements") else "FAILED",
+        },
+        "maximum_level": maximum,
+        "maximum_qualification": qualification_name(maximum),
+        "requested_level": requested,
+        "target_satisfied": target_satisfied,
+        "levels": levels,
+        "evidence": evidence,
+    }
+
+
+def write_contract_snapshot(
+    *,
+    staged: Path,
+    spec_root: Path,
+    ip_name: str,
+    reg_interface: str,
+) -> Path:
+    """Copy the authoritative specification into a release and hash its sources."""
+
+    spec = validate_spec_bundle(spec_root, ip_name=ip_name)
+    target = Path(staged) / "contract"
+    if target.exists():
+        shutil.rmtree(target)
+    target.mkdir(parents=True)
+    for name in SPEC_FILES:
+        shutil.copy2(Path(spec_root) / name, target / name)
+
+    source_of_truth: dict[str, object] = {
+        "specification": {
+            name: {
+                "source": f"hw/ips/{ip_name}/spec/{name}",
+                "snapshot": f"contract/{name}",
+                "sha256": spec["hashes"][name],
+            }
+            for name in SPEC_FILES
+        }
+    }
+    csr = []
+    for path in sorted((Path(staged) / "csr").glob("*.hjson")):
+        csr.append({"path": path.relative_to(staged).as_posix(), "sha256": sha256_file(path)})
+    source_of_truth["registers"] = csr
+
+    authored_rtl = []
+    for path in sorted((Path(staged) / "rtl").glob("*.sv")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "Auto-generated by flexsoc" in text or "Generated by reggen" in text:
+            continue
+        authored_rtl.append({"path": path.relative_to(staged).as_posix(), "sha256": sha256_file(path)})
+    source_of_truth["authored_rtl"] = authored_rtl
+
+    constraints = []
+    for path in sorted((Path(staged) / "constraints").glob("*.sdc")):
+        constraints.append({
+            "path": path.relative_to(staged).as_posix(),
+            "sha256": sha256_file(path),
+        })
+    source_of_truth["constraints"] = constraints
+
+    formal_properties = []
+    properties_root = Path(staged) / "dv" / "formal" / "properties"
+    if properties_root.is_dir():
+        for path in sorted(properties_root.rglob("*.sv")):
+            formal_properties.append({
+                "path": path.relative_to(staged).as_posix(),
+                "sha256": sha256_file(path),
+            })
+    source_of_truth["formal_properties"] = formal_properties
+
+    contract = {
+        "schema": 1,
+        "ip": ip_name,
+        "reg_interface": reg_interface,
+        "spec_fingerprint": spec["fingerprint"],
+        "source_of_truth": source_of_truth,
+    }
+    output = target / "contract.json"
+    output.write_text(json.dumps(contract, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return output
+
+
+def validate_contract_snapshot(package_root: Path) -> dict[str, object]:
+    """Validate a packaged contract snapshot without trusting its recorded status."""
+
+    root = Path(package_root)
+    contract_file = root / "contract" / "contract.json"
+    if not contract_file.is_file():
+        raise FileNotFoundError(f"missing release contract: {contract_file}")
+    contract = json.loads(contract_file.read_text(encoding="utf-8"))
+    spec = validate_spec_bundle(root / "contract", ip_name=str(contract.get("ip", "")))
+    if contract.get("spec_fingerprint") != spec["fingerprint"]:
+        raise ValueError("release contract fingerprint does not match packaged specification")
+
+    source_of_truth = contract.get("source_of_truth", {}) or {}
+    if not isinstance(source_of_truth, dict):
+        raise ValueError("release contract source_of_truth must be a mapping")
+    for group in ("registers", "authored_rtl", "constraints", "formal_properties"):
+        entries = source_of_truth.get(group, []) or []
+        if not isinstance(entries, list):
+            raise ValueError(f"release contract source_of_truth.{group} must be a list")
+        for entry in entries:
+            if not isinstance(entry, dict):
+                raise ValueError(f"release contract {group} entry must be a mapping")
+            relative = str(entry.get("path", "")).strip()
+            expected = str(entry.get("sha256", "")).strip()
+            if not relative or not expected:
+                raise ValueError(f"release contract {group} entry is incomplete")
+            path = root / relative
+            try:
+                path.resolve().relative_to(root.resolve())
+            except ValueError as exc:
+                raise ValueError(f"release contract path escapes package: {relative}") from exc
+            if not path.is_file():
+                raise FileNotFoundError(f"release source-of-truth artifact missing: {relative}")
+            actual = sha256_file(path)
+            if actual != expected:
+                raise ValueError(
+                    f"release source-of-truth artifact is stale: {relative} "
+                    f"expected={expected} actual={actual}"
+                )
+
+    return {"contract": contract, "spec": spec}
+
+
+def validate_release_package(package_root: Path) -> dict[str, object]:
+    """Validate one frozen interface release and its recorded evidence references."""
+
+    root = Path(package_root)
+    manifest_path = root / "ip.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"missing release manifest: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("format") != "flexsoc-ip":
+        raise ValueError(f"invalid release format in {manifest_path}")
+    if "profile" in manifest:
+        raise ValueError("legacy profile identity is not allowed in interface releases")
+    reg_interface = str(manifest.get("reg_interface", "")).strip()
+    if not reg_interface or root.name != reg_interface:
+        raise ValueError(
+            f"release path/interface mismatch: path={root.name!r} reg_interface={reg_interface!r}"
+        )
+
+    contract_data = validate_contract_snapshot(root)
+    contract = contract_data["contract"]
+    if contract.get("reg_interface") != reg_interface:
+        raise ValueError("release manifest and contract snapshot disagree on reg_interface")
+    if contract.get("ip") != manifest.get("name"):
+        raise ValueError("release manifest and contract snapshot disagree on IP identity")
+
+    qualification = manifest.get("qualification", {}) or {}
+    if not isinstance(qualification, dict):
+        raise ValueError("ip.json qualification must be a mapping")
+    technologies = qualification.get("technologies", {}) or {}
+    if not isinstance(technologies, dict):
+        raise ValueError("ip.json qualification.technologies must be a mapping")
+
+    checked_refs = 0
+    for pdk, evidence in technologies.items():
+        if not isinstance(evidence, dict):
+            raise ValueError(f"qualification technology {pdk!r} must be a mapping")
+        for key, value in evidence.items():
+            if key in {"maximum_level", "maximum_qualification"}:
+                continue
+            if not isinstance(value, str):
+                continue
+            path = root / value
+            if not path.is_file() and not path.is_dir():
+                raise FileNotFoundError(f"qualification evidence reference missing: {value}")
+            checked_refs += 1
+        report_ref = evidence.get("qualification")
+        if isinstance(report_ref, str):
+            report = json.loads((root / report_ref).read_text(encoding="utf-8"))
+            if report.get("reg_interface") != reg_interface:
+                raise ValueError(f"{pdk}: qualification report has wrong reg_interface")
+            if str(report.get("pdk", "")) != str(pdk):
+                raise ValueError(f"{pdk}: qualification report has wrong PDK identity")
+            if report.get("contract_fingerprint") != contract.get("spec_fingerprint"):
+                raise ValueError(f"{pdk}: qualification report is stale against packaged contract")
+
+    return {
+        "schema": 1,
+        "ip": manifest.get("name"),
+        "reg_interface": reg_interface,
+        "contract_fingerprint": contract.get("spec_fingerprint"),
+        "technology_branches": sorted(str(item) for item in technologies),
+        "checked_evidence_refs": checked_refs,
+    }

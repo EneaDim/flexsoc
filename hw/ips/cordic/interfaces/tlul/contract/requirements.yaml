@@ -1,0 +1,59 @@
+schema: 1
+ip: cordic
+baseline: as-built
+requirements:
+  - id: CORDIC-CFG-001
+    statement: >-
+      The implemented configuration status shall report DATA_WIDTH=16, FRAC_WIDTH=14 and
+      MAX_ITER=16, with reserved configuration/status bits zero.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: CORDIC-STAT-001
+    statement: >-
+      STATUS.BUSY shall reflect the active CORDIC state.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: CORDIC-RST-001
+    statement: >-
+      Hardware reset or CTRL.SOFT_RST shall clear active state, VALID/ERROR status and X/Y/Z
+      output state as defined by the current RTL contract.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: CORDIC-FUNC-001
+    statement: >-
+      For supported requests, X/Y/Z results shall match the existing CORDIC reference model
+      for the configured operation.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: CORDIC-QUAD-001
+    statement: >-
+      Supported input quadrants shall execute without violating the functional reference
+      behavior.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: CORDIC-ZERO-001
+    statement: >-
+      The supported zero-input case shall produce the reference-model result without spurious
+      error state.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: CORDIC-RECFG-001
+    statement: >-
+      Software-visible control/input configuration shall be reprogrammable between operations
+      and subsequent operations shall use the updated values.
+    scope: common
+    origin: derived
+    status: baselined
+  - id: CORDIC-REG-001
+    statement: >-
+      The same CSR semantics shall be accessible through each qualified REG_ITF
+      implementation.
+    scope: reg_interface
+    origin: derived
+    status: baselined

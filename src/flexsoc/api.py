@@ -39,6 +39,7 @@ DEFAULT_SETTINGS = {
     "SIGNOFF_STAGE": "post_syn",
     "POWER_VCD_SCOPE": "auto",
     "POWER_DUT_INSTANCE": "auto",
+    "QUAL_LEVEL": "auto",
 }
 
 # Parameter bundles keep the target table compact; every value is still overrideable.
@@ -163,7 +164,8 @@ GATE_SIM = (
 GATE_SIM_ALL = tuple(dict.fromkeys((*GATE_SIM, "TEST_NAMES", "TIMING_MODES")))
 PNR = (*COMMON, "PDK", "PDK_ROOT", "CLK_PERIOD", "ORS", "ORS_TECH")
 IP_LOAD = (*COMMON, "REG_ITF", "IP_NAME")
-IP_SAVE = tuple(dict.fromkeys((*EQUIV, *SIGNOFF, "REG_ITF", "IP_NAME", "IP_LIBRARY_ROOT")))
+QUALIFY = (*COMMON, "REG_ITF", "IP_NAME", "QUAL_LEVEL")
+IP_SAVE = tuple(dict.fromkeys((*EQUIV, *SIGNOFF, "REG_ITF", "IP_NAME", "IP_LIBRARY_ROOT", "QUAL_LEVEL")))
 SOC = (*COMMON, "HOST", "SOC_CFG_MODE", "DEVLIST")
 FSM = (*BASE, "FSM", "FORCE")
 TUTORIAL = ("TUTORIAL_WS", "TUTORIAL_RUN_ID", *COMMON)
@@ -292,6 +294,7 @@ TARGETS: dict[str, TargetSpec] = {
     "manifest_show": ("Run metadata", "Show the current run manifest in color", COMMON),
     "check": ("Run metadata", "Show saved metrics as the complete technical closure dashboard", COMMON),
     "status": ("Run metadata", "Show live Digital IP Contract and release qualification status", COMMON),
+    "qualify": ("Run metadata", "Validate the current release against the Digital IP qualification policy", QUALIFY),
     "validate_override": (
         "Run metadata", "Accept modified generated collateral for the current lineage", PROVENANCE
     ),
@@ -730,19 +733,13 @@ PROVENANCE_SETUPS = frozenset(stage for stage in STAGE_CONTRACTS if stage.endswi
 RUNTIME_STAGES = frozenset(STAGE_CONTRACTS) - PROVENANCE_SETUPS
 
 RELEASE_LEVELS = (
-    ("Contract Valid", ()),
-    ("RTL Qualified", (
-        "lint_slang_suite", "lint_verilator_suite", "cdc_rdc", "regression",
-        "formal_csr_bmc", "formal_bmc", "formal_csr_prove", "formal_prove",
-        "formal_csr_cover", "formal_cover",
-    )),
-    ("Netlist Qualified", ("syn", "eqy", "sim_post_syn_all")),
-    ("Technology Qualified", ("sdf", "sta", "power_estimate", "sim_post_syn_all")),
-    ("Physical Qualified", (
-        "pnr", "physical_signoff", "sdf_post_pnr", "sta_post_pnr",
-        "power_estimate_post_pnr", "sim_post_pnr_all",
-    )),
+    ("Contract Valid", "contract"),
+    ("RTL Qualified", "rtl"),
+    ("Netlist Qualified", "netlist"),
+    ("Technology Qualified", "technology"),
+    ("Physical / Signoff Complete Digital Macro", "physical_signoff"),
 )
+
 
 
 DESIGN_INTENT_KEYS = (
@@ -1255,38 +1252,104 @@ class FlexSoCTarget:
 
         return "MISSING" if stage not in self._provenance().stages() else self._provenance_state(stage)
 
-    def _contract_status(self) -> dict[str, object]:
-        """Derive live contract state and the highest fully qualified release level."""
+    def _contract_status(self, *, write: bool = False) -> dict[str, object]:
+        """Validate the live Digital IP Contract and derive its maximum qualified level."""
 
-        _, _, intent = self._design_intent()
-        contract_valid = self.paths.sdc.is_file() and bool(self._rtl_sources())
+        from .backend.core.qualification import (
+            build_qualification_report,
+            required_stages,
+            validate_spec_bundle,
+        )
+
+        ip_name = self.values.get("IP_NAME", self.paths.top)
+        reg_interface = self.values.get("REG_ITF", "tlul")
+        spec_root = self.client.project_root / "hw" / "ips" / ip_name / "spec"
+        if not spec_root.is_dir() and (self.paths.run / "contract").is_dir():
+            spec_root = self.paths.run / "contract"
+
+        spec_error = None
+        try:
+            spec = validate_spec_bundle(spec_root, ip_name=ip_name)
+        except Exception as exc:
+            spec_error = str(exc)
+            spec = {
+                "fingerprint": None,
+                "baselined_requirements": 0,
+                "covered_requirements": 0,
+                "required_evidence": ["lint", "functional", "traceability", "cdc_rdc", "formal"],
+                "tests": [],
+                "properties": [],
+            }
+
         states = {
             stage: self._contract_state(stage)
             for stage in STAGE_CONTRACTS
             if stage in RUNTIME_STAGES
         }
-        clean = {stage for stage, state in states.items() if state in {"CLEAN", "VALIDATED_OVERRIDE"}}
-        level = 0 if contract_valid else -1
-        for index, (_, required) in enumerate(RELEASE_LEVELS[1:], 1):
-            if level == index - 1 and set(required) <= clean:
-                level = index
-            else:
-                break
-        result = {
-            "schema": 1,
-            "ip_intent_sha256": intent,
-            "contract": "VALID" if contract_valid else "INVALID",
-            "release_level": level,
-            "release": RELEASE_LEVELS[level][0] if level >= 0 else "Not Qualified",
-            "stages": states,
+
+        available_tests = {
+            path.name for path in self.paths.tests.iterdir() if path.is_dir()
+        } if self.paths.tests.is_dir() else set()
+        planned_tests = set(str(item) for item in spec.get("tests", ()))
+        missing_tests = sorted(planned_tests - available_tests)
+
+        prove = self.paths.formal / "properties" / "prove"
+        cover = self.paths.formal / "properties" / "cover"
+        available_properties = {path.stem for root in (prove, cover) if root.is_dir() for path in root.glob("*.sv")}
+        planned_properties = set(str(item) for item in spec.get("properties", ()))
+        missing_properties = sorted(
+            name for name in planned_properties
+            if not any(name == item or item.startswith(name) for item in available_properties)
+        )
+        states["requirements_traceability"] = (
+            "FAILED" if missing_tests or missing_properties or spec_error else "CLEAN"
+        )
+
+        contract_ready = (
+            spec_error is None
+            and self.paths.sdc.is_file()
+            and bool(self._rtl_sources())
+            and any(self.paths.csr.glob("*.hjson"))
+        )
+        report = build_qualification_report(
+            ip_name=ip_name,
+            reg_interface=reg_interface,
+            pdk=self.paths.pdk,
+            spec=spec,
+            stage_states=states,
+            contract_ready=contract_ready,
+            requested_level=self.values.get("QUAL_LEVEL", "auto"),
+        )
+        report["contract"] = "VALID" if contract_ready else "INVALID"
+        report["spec_error"] = spec_error
+        report["traceability"] = {
+            "missing_tests": missing_tests,
+            "missing_properties": missing_properties,
         }
-        print(f"[contract] {result['contract']} ip_intent_sha256={intent}")
-        print(f"[release] level={level} {result['release']}")
-        required_stages = set().union(*(set(required) for _, required in RELEASE_LEVELS[1:]))
-        for stage, state in result["stages"].items():
-            if state != "MISSING" or stage in required_stages:
-                print(f"[stage] {stage:<24} {state}")
-        return result
+
+        print(
+            f"[contract] {report['contract']} fingerprint={report.get('contract_fingerprint')} "
+            f"requirements={report['requirements']['covered']}/{report['requirements']['total']}"
+        )
+        print(
+            f"[release] level={report['maximum_level']} "
+            f"{report['maximum_qualification']} interface={reg_interface} pdk={self.paths.pdk}"
+        )
+        for level, item in report["levels"].items():
+            blocking = item["blocking_evidence"]
+            suffix = "" if not blocking else " blocking=" + ",".join(blocking)
+            print(f"[level] L{level} {item['name']}: {item['status']}{suffix}")
+        for stage in required_stages(spec, 5):
+            state = report["evidence"].get(stage, "MISSING")
+            if state != "MISSING":
+                print(f"[evidence] {stage:<26} {state}")
+
+        if write:
+            output = self.paths.meta / "qualification.json"
+            output.parent.mkdir(parents=True, exist_ok=True)
+            self._write_json_atomic(output, report)
+            print(f"[qualification] {output}")
+        return report
 
     def _record_provenance(self, stage: str, result: object) -> None:
         generated = self._generated_paths(stage, result)
@@ -1515,6 +1578,9 @@ class FlexSoCTarget:
             return report.show_manifest(self.paths.manifest)
         if target == "status":
             return self._contract_status()
+        if target == "qualify":
+            result = self._contract_status(write=True)
+            return 0 if result.get("target_satisfied", False) else 1
         raise ValueError(f"unsupported report target: {target}")
 
     def execute(self, target: str) -> object:
@@ -1812,17 +1878,25 @@ class FlexSoCTarget:
             )
 
         # Reporting, packaging and higher-level workflow helpers.
-        if target in {"metrics", "manifest", "manifest_show", "check", "status"}:
+        if target in {"metrics", "manifest", "manifest_show", "check", "status", "qualify"}:
             return self._report(target)
         if target == "ip_load":
             return b.package.load(
-                ip_name=v.get("IP_NAME", top), profile=interface,
+                ip_name=v.get("IP_NAME", top), reg_interface=interface,
                 run_top=p.run_top, run_id=p.run_id,
                 workspace=self.client.workdir, load_as=v.get("LOAD_AS") or None,
             )
         if target == "ip_save":
             from .backend.core.reporting import collect_implementation, collect_physical_signoff
+            from .backend.core.qualification import normalize_qualification_level
 
+            qualification = self._contract_status(write=True)
+            requested = normalize_qualification_level(v.get("QUAL_LEVEL", "auto"))
+            if requested is not None and not qualification.get("target_satisfied", False):
+                raise RuntimeError(
+                    f"requested qualification level L{requested} is not satisfied; "
+                    f"maximum is L{qualification.get('maximum_level', 0)}"
+                )
             eqy = self.context.layout.equivalence_dir
             model_paths = tuple(Path(item) for item in self._words("PRIM"))
             implementation = collect_implementation(top, p.run, p.pdk)
@@ -1834,7 +1908,7 @@ class FlexSoCTarget:
                 and physical.get("status") == "pass"
             )
             return b.package.save(
-                ip_name=v.get("IP_NAME", top), profile=interface, top=top, pdk=p.pdk,
+                ip_name=v.get("IP_NAME", top), reg_interface=interface, top=top, pdk=p.pdk,
                 library_root=Path(v.get("IP_LIBRARY_ROOT", self.client.project_root / "hw" / "ips")),
                 synth_dir=p.syn, signoff_dir=p.signoff, sdc_file=p.sdc,
                 eqy_config=eqy / f"{top}_rtl_vs_syn.eqy",
@@ -1847,6 +1921,8 @@ class FlexSoCTarget:
                 coverage_dir=p.coverage, manifest_json=p.manifest, metrics_json=p.metrics,
                 settings_json=p.meta / "settings.json",
                 design_intent_json=p.run / "meta" / "design_intent.json",
+                qualification_json=p.meta / "qualification.json",
+                spec_root=self.client.project_root / "hw" / "ips" / v.get("IP_NAME", top) / "spec",
                 force=force,
             )
 

@@ -1,0 +1,30 @@
+FlexSoC CDC/RDC structural analysis
+top=gpio
+status=fail
+clock_domains=1
+reset_domains=4
+sequential_elements=39
+dependencies=1194
+verification_obligations=1
+
+[CDC]
+
+[RDC]
+RDC-0001 ERROR uncontrolled_rdc $auto$ff.cc:337:slice$107[0] -> $driver$u_gpio_core.data_in_q[0] issues=different_reset_domains_without_recognized_protection obligations=- evidence=width=4
+RDC-0002 ERROR uncontrolled_rdc $auto$ff.cc:337:slice$108[0] -> $auto$ff.cc:337:slice$118[0] issues=different_reset_domains_without_recognized_protection obligations=- evidence=width=128
+RDC-0003 ERROR uncontrolled_rdc $auto$ff.cc:337:slice$109[0] -> $driver$u_gpio_reg.u_data_in.q[3] issues=different_reset_domains_without_recognized_protection obligations=- evidence=width=1
+RDC-0004 ERROR uncontrolled_rdc $auto$ff.cc:337:slice$111[0] -> $driver$u_gpio_reg.u_data_in.q[2] issues=different_reset_domains_without_recognized_protection obligations=- evidence=width=1
+RDC-0005 ERROR uncontrolled_rdc $auto$ff.cc:337:slice$121[0] -> $auto$ff.cc:337:slice$118[0] issues=different_reset_domains_without_recognized_protection obligations=- evidence=width=128
+RDC-0006 ERROR uncontrolled_rdc $auto$ff.cc:337:slice$122[0] -> $driver$u_gpio_reg.u_data_in.q[1] issues=different_reset_domains_without_recognized_protection obligations=- evidence=width=1
+RDC-0007 ERROR uncontrolled_rdc $auto$ff.cc:337:slice$125[0] -> $driver$u_gpio_reg.u_data_in.q[0] issues=different_reset_domains_without_recognized_protection obligations=- evidence=width=1
+RDC-0008 ERROR uncontrolled_rdc $driver$u_gpio_core.gen_input_filter[0].u_filter.gen_async.prim_flop_2sync.u_sync_2.q_o[0] -> $driver$u_gpio_reg.u_data_in.q[0] issues=different_reset_domains_without_recognized_protection obligations=- evidence=width=1
+RDC-0009 ERROR uncontrolled_rdc $driver$u_gpio_core.gen_input_filter[1].u_filter.gen_async.prim_flop_2sync.u_sync_2.q_o[0] -> $driver$u_gpio_reg.u_data_in.q[1] issues=different_reset_domains_without_recognized_protection obligations=- evidence=width=1
+RDC-0010 ERROR uncontrolled_rdc $driver$u_gpio_core.gen_input_filter[2].u_filter.gen_async.prim_flop_2sync.u_sync_2.q_o[0] -> $driver$u_gpio_reg.u_data_in.q[2] issues=different_reset_domains_without_recognized_protection obligations=- evidence=width=1
+RDC-0011 ERROR uncontrolled_rdc $driver$u_gpio_core.gen_input_filter[3].u_filter.gen_async.prim_flop_2sync.u_sync_2.q_o[0] -> $driver$u_gpio_reg.u_data_in.q[3] issues=different_reset_domains_without_recognized_protection obligations=- evidence=width=1
+RDC-0012 SAFE reset_synchronizer issues=- obligations=- evidence=clock_domain=core,reset=rst_ni,stages=2,consumers=1
+RDC-0013 REVIEW reset_sequence_or_control_required issues=- obligations=specify_reset_assertion_sequence_or_rdc_blocking_control evidence=-
+
+[setup]
+SETUP-0001 REVIEW multiple_reset_domains_on_clock issues=clock_domain=core obligations=- evidence=reg_rst_ni,rst_ni,rst_sync_ni,u_gpio_core.state_rst_ni
+
+[glitch]

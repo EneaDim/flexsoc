@@ -54,7 +54,9 @@ FlexSoC makes those dependencies explicit:
 - failed runs retain logs and tool workspaces for diagnosis.
 
 The final goal is a repeatable path from an IP requirement to evidence that the
-implemented hardware still matches its specification and RTL intent.
+implemented hardware still matches its specification and RTL intent. The concise
+contract, provenance, invalidation, evidence and L1-L5 qualification model is defined
+in [`docs/digital_ip_contract.md`](docs/digital_ip_contract.md).
 
 ## Main capabilities
 
@@ -66,7 +68,8 @@ implemented hardware still matches its specification and RTL intent.
 - editable RTL core plus generated top wrapper;
 - single-clock and arbitrary N-clock configuration;
 - per-domain asynchronous-assert/synchronous-release reset integration;
-- reusable frozen-IP profiles under `hw/ips/<top>/profiles/<REG_ITF>/`, with multi-PDK qualification per profile.
+- authoritative `spec/` requirements/test-plan shared across register interfaces;
+- reusable interface releases under `hw/ips/<top>/interfaces/<REG_ITF>/`, with explicit qualification levels and multi-PDK evidence.
 
 ### Design verification
 
@@ -254,7 +257,9 @@ A run is isolated by `RUN_TOP` and `RUN_ID`:
 │   └── cdc_rdc/           structural CDC/RDC evidence
 ├── syn/<pdk>/             synthesis branch
 ├── impl/<pdk>/            physical implementation branch
-├── signoff/<pdk>/         pre/post-route sign-off evidence
+├── signoff/<pdk>/         qualification evidence
+│   ├── post_syn/          sta / power / fusion on synthesized netlist
+│   └── post_pnr/          sta / power / fusion + physical checks after PnR
 ├── logs/                  raw command/tool logs
 └── meta/
     ├── design_intent.json
