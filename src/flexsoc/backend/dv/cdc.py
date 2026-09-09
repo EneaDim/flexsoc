@@ -508,6 +508,161 @@ def _sequential_dependencies(ir: DesignIR, clocks: ClockConfig) -> tuple[Crossin
     )
 
 
+def _reset_bit(seq: SequentialElement) -> NetBit | None:
+    """Return the effective reset bit of one sequential element."""
+
+    return seq.async_reset_bit if seq.async_reset_bit is not None else seq.sync_reset_bit
+
+def _reset_stage_deasserted_value(seq: SequentialElement) -> str | None:
+    """Return the constant D value expected for a pure reset-release stage."""
+
+    if seq.reset_polarity == "low":
+        return "1"
+    if seq.reset_polarity == "high":
+        return "0"
+    return None
+
+def _reset_tree_stage_names(
+    ir: DesignIR,
+    dependencies: Sequence[Crossing],
+) -> set[str]:
+    """Return sequential cells that are pure reset synchronizer/distribution stages.
+
+    Recognition is structural and depth-independent. A stage must be scalar, have
+    a reset, and either drive the deasserted constant while its parent reset is
+    asserted or continue a direct same-reset synchronizer chain. Arbitrary data
+    logic is deliberately excluded so reset controllers/gating remain separate
+    RDC families.
+    """
+
+    seq_by_name = {seq.name: seq for seq in ir.sequential}
+    direct_parent: dict[str, str] = {}
+    for dep in dependencies:
+        if dep.path or dep.destination.bit_index != 0 or dep.source.bit_index != 0:
+            continue
+        if dep.destination.name in direct_parent:
+            direct_parent[dep.destination.name] = ""
+        else:
+            direct_parent[dep.destination.name] = dep.source.name
+
+    stages: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for seq in ir.sequential:
+            if seq.name in stages or _reset_bit(seq) is None:
+                continue
+            if len(seq.data_bits) != 1 or len(seq.q_bits) != 1:
+                continue
+            expected = _reset_stage_deasserted_value(seq)
+            if expected is None:
+                continue
+            if seq.data_bits[0] == expected:
+                stages.add(seq.name)
+                changed = True
+                continue
+            parent = seq_by_name.get(direct_parent.get(seq.name, ""))
+            if parent is None or parent.name not in stages:
+                continue
+            if _reset_bit(parent) != _reset_bit(seq):
+                continue
+            if parent.reset_polarity != seq.reset_polarity:
+                continue
+            stages.add(seq.name)
+            changed = True
+    return stages
+
+def _reset_family_map(
+    ir: DesignIR,
+    dependencies: Sequence[Crossing] | None = None,
+) -> dict[str, str]:
+    """Map reset consumers to the root of their structural reset family.
+
+    A reset family follows the complete ancestry of a pure reset tree, not one
+    fixed split level. Alias/buffer/inverter paths and arbitrarily deep scalar
+    reset-release/distribution stages inherit the same declared reset root. When
+    lineage crosses dynamic logic or an unrecognized state element, tracing stops
+    conservatively and that derived reset remains a distinct family.
+    """
+
+    deps = tuple(dependencies) if dependencies is not None else _sequential_dependencies(ir, ClockConfig(ir.clocks))
+    declared: dict[NetBit, str] = {}
+    for domain in ir.clocks:
+        port = ir.module.get("ports", {}).get(domain.reset)
+        if port:
+            for bit in port.get("bits", ()):
+                declared[bit] = domain.reset
+
+    sources, drivers, cells = _graph(ir)
+    seq_by_name = {seq.name: seq for seq in ir.sequential}
+    tree_stages = _reset_tree_stage_names(ir, deps)
+    simple_reset_cells = {"$not", "$pos", "$_NOT_", "$_BUF_"}
+    inversion_cells = {"$not", "$_NOT_"}
+    domain_reset_polarity = {domain.reset: domain.reset_polarity for domain in ir.clocks}
+    memo: dict[str, str] = {}
+    active: set[str] = set()
+
+    def path_polarity(origin: str | None, path: tuple[str, ...]) -> str | None:
+        if origin not in {"low", "high"}:
+            return None
+        polarity = origin
+        for cell_name in path:
+            cell_type = str(cells.get(cell_name, {}).get("type", ""))
+            if cell_type not in simple_reset_cells:
+                return None
+            if cell_type in inversion_cells:
+                polarity = "high" if polarity == "low" else "low"
+        return polarity
+
+    def family(seq: SequentialElement) -> str:
+        cached = memo.get(seq.name)
+        if cached is not None:
+            return cached
+        fallback = seq.reset_signal or "-"
+        if seq.name in active:
+            return fallback
+        active.add(seq.name)
+        try:
+            bit = _reset_bit(seq)
+            if bit is None:
+                result = fallback
+            elif bit in declared:
+                result = declared[bit]
+            else:
+                upstream = _upstream_sources(
+                    bit, sources=sources, drivers=drivers, cells=cells, memo={}, active=set()
+                )
+                candidates: list[str] = []
+                for endpoint, path in upstream:
+                    if any(
+                        str(cells.get(name, {}).get("type", "")) not in simple_reset_cells
+                        for name in path
+                    ):
+                        continue
+                    if endpoint.kind == "input":
+                        port = ir.module.get("ports", {}).get(endpoint.name, {})
+                        bits = tuple(port.get("bits", ()))
+                        if endpoint.bit_index < len(bits) and bits[endpoint.bit_index] in declared:
+                            root = declared[bits[endpoint.bit_index]]
+                            if path_polarity(domain_reset_polarity.get(root), path) == seq.reset_polarity:
+                                candidates.append(root)
+                    elif endpoint.kind == "seq" and endpoint.name in tree_stages:
+                        parent = seq_by_name.get(endpoint.name)
+                        if parent is not None and path_polarity(parent.reset_polarity, path) == seq.reset_polarity:
+                            candidates.append(family(parent))
+                unique = sorted(set(candidates))
+                result = unique[0] if len(unique) == 1 else fallback
+            memo[seq.name] = result
+            return result
+        finally:
+            active.remove(seq.name)
+
+    return {
+        seq.name: family(seq)
+        for seq in ir.sequential
+        if _reset_bit(seq) is not None
+    }
+
 def analyze_domains(ir: DesignIR, clocks: ClockConfig) -> DomainAnalysis:
     """Build the dependency graph once and derive both CDC and RDC views."""
 
@@ -517,15 +672,16 @@ def analyze_domains(ir: DesignIR, clocks: ClockConfig) -> DomainAnalysis:
         for crossing in dependencies
         if crossing.source.clock_domain != crossing.destination.clock_domain
     )
+    reset_families = _reset_family_map(ir, dependencies)
     reset_crossings = tuple(
         crossing
         for crossing in dependencies
         if crossing.source.reset_signal is not None
         and crossing.destination.reset_signal is not None
-        and crossing.source.reset_signal != crossing.destination.reset_signal
+        and reset_families.get(crossing.source.name, crossing.source.reset_signal)
+        != reset_families.get(crossing.destination.name, crossing.destination.reset_signal)
     )
     return DomainAnalysis(dependencies, clock_crossings, reset_crossings)
-
 
 def find_clock_crossings(ir: DesignIR, clocks: ClockConfig) -> tuple[Crossing, ...]:
     """Return raw sequential CDC candidates before protocol classification."""
@@ -821,22 +977,32 @@ def _setup_and_glitch_findings(ir: DesignIR, analysis: DomainAnalysis) -> tuple[
             issues=(f"{source}->{destination}",),
         ))
 
-    resets_by_clock: dict[str, set[str]] = {}
+    reset_families = _reset_family_map(ir, analysis.dependencies)
+    families_by_clock: dict[str, set[str]] = {}
+    leaves_by_clock_family: dict[tuple[str, str], set[str]] = {}
     for seq in ir.sequential:
-        if seq.clock_domain and seq.reset_signal:
-            resets_by_clock.setdefault(seq.clock_domain, set()).add(seq.reset_signal)
-    for clock, resets in sorted(resets_by_clock.items()):
-        if len(resets) > 1:
-            # Multiple reset signals within one clock domain are structural intent,
-            # not by themselves an RDC violation. Unsafe reset interactions are
-            # classified separately from reset crossings/release/sequencing checks.
+        if not seq.clock_domain or not seq.reset_signal:
+            continue
+        family = reset_families.get(seq.name, seq.reset_signal)
+        families_by_clock.setdefault(seq.clock_domain, set()).add(family)
+        leaves_by_clock_family.setdefault((seq.clock_domain, family), set()).add(seq.reset_signal)
+    for clock, families in sorted(families_by_clock.items()):
+        if len(families) > 1:
             setup.append(DomainFinding(
                 "setup", "INFO", "multiple_reset_domains_on_clock",
                 issues=(f"clock_domain={clock}",),
-                evidence=tuple(sorted(resets)),
+                evidence=tuple(sorted(families)),
             ))
+        for family in sorted(families):
+            leaves = leaves_by_clock_family.get((clock, family), set())
+            if len(leaves) > 1:
+                setup.append(DomainFinding(
+                    "setup", "INFO", "distributed_reset_family",
+                    issues=(f"clock_domain={clock}", f"reset_family={family}"),
+                    evidence=tuple(sorted(leaves)),
+                    primary=False,
+                ))
     return tuple(setup), tuple(glitch)
-
 
 def _reset_synchronizer_findings(ir: DesignIR, analysis: DomainAnalysis) -> tuple[DomainFinding, ...]:
     """Recognize async-assert/synchronous-release reset synchronizer chains."""
@@ -1216,7 +1382,7 @@ def _check_reset_sequence(
     )
     if (
         unsafe
-        and len({seq.reset_signal for seq in ir.sequential if seq.reset_signal}) > 1
+        and len(set(_reset_family_map(ir, analysis.dependencies).values())) > 1
         and analysis.reset_crossings
     ):
         rdc.append(DomainFinding(
@@ -1224,7 +1390,6 @@ def _check_reset_sequence(
             obligations=("specify_reset_assertion_sequence_or_rdc_blocking_control",),
             primary=False,
         ))
-
 
 def _cdc_contract_findings(ir: DesignIR) -> tuple[list[DomainFinding], list[DomainFinding]]:
     """Validate explicit trusted CDC boundaries without naming implementation modules."""
@@ -1512,6 +1677,7 @@ def _overall_status(result: ComprehensiveAnalysis) -> str:
 
 def _summary(ir: DesignIR, analysis: DomainAnalysis, result: ComprehensiveAnalysis) -> dict[str, Any]:
     reset_names = {item.reset_signal for item in ir.sequential if item.reset_signal}
+    reset_family_roots = sorted(set(_reset_family_map(ir, analysis.dependencies).values()))
     cdc_counts = _status_counts(result.cdc)
     rdc_counts = _status_counts(result.rdc)
     setup_counts = _status_counts(result.setup)
@@ -1522,6 +1688,8 @@ def _summary(ir: DesignIR, analysis: DomainAnalysis, result: ComprehensiveAnalys
         "status": _overall_status(result),
         "clock_domains": len(ir.clocks),
         "reset_domains": len(reset_names),
+        "reset_families": len(reset_family_roots),
+        "reset_family_roots": reset_family_roots,
         "sequential_elements": len(ir.sequential),
         "dependencies": len(analysis.dependencies),
         "cdc": {
@@ -1543,7 +1711,6 @@ def _summary(ir: DesignIR, analysis: DomainAnalysis, result: ComprehensiveAnalys
             for item in (*result.cdc, *result.rdc, *result.setup, *result.glitch)
         ),
     }
-
 
 def _crossing_records(
     crossings: Sequence[Any], findings: Sequence[DomainFinding]
@@ -1977,6 +2144,8 @@ def collect_cdc_debug(
         "status": summary.get("status"),
         "clock_domains": summary.get("clock_domains"),
         "reset_domains": summary.get("reset_domains"),
+        "reset_families": summary.get("reset_families", summary.get("reset_domains")),
+        "reset_family_roots": list(summary.get("reset_family_roots") or ()),
         "sequential_elements": summary.get("sequential_elements"),
         "verification_obligations": obligation_checks,
         "obligation_findings": len(obligations),
@@ -2221,8 +2390,8 @@ def run_analysis(
     print_status_label(
         "cdc_rdc",
         summary["status"],
-        f"clocks={summary['clock_domains']} resets={summary['reset_domains']} "
-        f"sequential={summary['sequential_elements']} · "
+        f"clocks={summary['clock_domains']} reset_families={summary.get('reset_families', summary['reset_domains'])} "
+        f"reset_signals={summary['reset_domains']} sequential={summary['sequential_elements']} · "
         f"CDC raw={summary['cdc']['raw_crossings']} safe={summary['cdc']['safe']} "
         f"review={summary['cdc']['review']} warn={summary['cdc']['warnings']} "
         f"error={summary['cdc']['errors']} · "

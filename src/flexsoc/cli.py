@@ -1475,7 +1475,8 @@ Use `fx commands` to list every backend target.
             f"Top: [white]{payload.get('top')}[/white]\n"
             f"Analysis closure: [{status_color}]{status}[/{status_color}]\n"
             f"Clocks: [white]{payload.get('clock_domains')}[/white] · "
-            f"Resets: [white]{payload.get('reset_domains')}[/white] · "
+            f"Reset families: [white]{payload.get('reset_families', payload.get('reset_domains'))}[/white] · "
+            f"Reset signals: [white]{payload.get('reset_domains')}[/white] · "
             f"Sequential: [white]{payload.get('sequential_elements')}[/white]\n"
             f"Open obligations: [white]{obligation_checks} checks / {obligation_findings} findings[/white]\n"
             "Debug execution: [green]OK[/green] · read-only canonical-artifact inspection",

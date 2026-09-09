@@ -301,6 +301,49 @@ Do not distribute one synchronizer output across unrelated clock domains.
 Likewise, do not generate arbitrary combinational reset trees unless the reset
 composition itself is part of reviewed architecture.
 
+### Reset families and physical distribution trees
+
+Physical implementation may intentionally split one synchronized reset into
+multiple branches to control fanout, buffering, placement, or reset-tree load.
+Those branch signals are distinct nets, but they are not automatically distinct
+RDC domains. FlexSoC therefore distinguishes **reset signals** from **reset
+families**.
+
+A reset family is derived from structural ancestry, not from signal names or a
+fixed tree depth. A pure tree may be arbitrarily deep:
+
+```text
+external reset
+    └── synchronizer / release chain
+          ├── distribution stage
+          │     ├── distribution stage -> consumers
+          │     └── distribution stage -> consumers
+          └── distribution stage
+                └── distribution stage -> consumers
+```
+
+All leaves above belong to the same logical reset family when the checker can
+trace them to one root through conservative reset-tree structures. The accepted
+ancestry is intentionally narrow: simple aliases/polarity normalization and
+scalar reset-release/distribution state whose data path represents deassertion.
+
+The family trace must stop when it encounters dynamic reset logic, arbitrary
+combinational control, or an unrecognized state element. Such a derived reset
+remains a separate family and normal RDC analysis applies.
+
+This distinction preserves both goals:
+
+- synthesis/physical design may split reset networks for fanout and distribution;
+- CDC/RDC analysis still detects genuinely independent or functionally controlled
+  reset domains.
+
+The analysis/reporting should therefore expose both counts where useful:
+
+```text
+reset signals   = structural reset nets observed at sequential state
+reset families  = logical roots after conservative ancestry resolution
+```
+
 ### Independent resets
 
 An asynchronous FIFO or other CDC protocol may have independently reset source

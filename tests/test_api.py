@@ -7458,6 +7458,150 @@ def test_cdc_multiple_resets_on_one_clock_is_informational_without_crossings() -
     assert cdc_module._overall_status(result) == "pass"
 
 
+def test_cdc_reset_family_tracks_arbitrary_depth_distribution_tree() -> None:
+    from flexsoc.backend.core import ClockConfig, ClockDomain
+    from flexsoc.backend.dv import cdc as cdc_module
+
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+
+    def adff(arst: int, d: int | str, q: int, src: str) -> dict[str, object]:
+        return {
+            "type": "$adff",
+            "attributes": {"src": src},
+            "parameters": {"ARST_POLARITY": "0"},
+            "port_directions": {"CLK": "input", "ARST": "input", "D": "input", "Q": "output"},
+            "connections": {"CLK": [1], "ARST": [arst], "D": [d], "Q": [q]},
+        }
+
+    module = {
+        "ports": {
+            "clk_i": {"direction": "input", "bits": [1]},
+            "rst_ni": {"direction": "input", "bits": [2]},
+        },
+        "netnames": {
+            "clk_i": {"bits": [1]},
+            "rst_ni": {"bits": [2]},
+            "rst_sync_ni": {"bits": [3]},
+            "branch_a_ni": {"bits": [4]},
+            "branch_a_deep_ni": {"bits": [5]},
+            "branch_b_ni": {"bits": [6]},
+            "a_q": {"bits": [20]},
+            "b_q": {"bits": [21]},
+        },
+        "cells": {
+            "sync0": adff(2, "1", 3, "demo.sv:1"),
+            "branch_a": adff(3, "1", 4, "demo.sv:2"),
+            "branch_a_deep": adff(4, "1", 5, "demo.sv:3"),
+            "branch_b": adff(3, "1", 6, "demo.sv:4"),
+            "a": adff(5, "0", 20, "demo.sv:5"),
+            "b": adff(6, 20, 21, "demo.sv:6"),
+        },
+    }
+    ir = cdc_module.load_yosys_json({"modules": {"demo": module}}, "demo", clocks)
+    analysis = cdc_module.analyze_domains(ir, clocks)
+    families = cdc_module._reset_family_map(ir, analysis.dependencies)
+
+    assert families["a"] == "rst_ni"
+    assert families["b"] == "rst_ni"
+    assert families["branch_a_deep"] == "rst_ni"
+    assert analysis.reset_crossings == ()
+
+    setup, _ = cdc_module._setup_and_glitch_findings(ir, analysis)
+    distributed = [item for item in setup if item.classification == "distributed_reset_family"]
+    assert len(distributed) == 1
+    assert distributed[0].status == "INFO"
+    assert "branch_a_deep_ni" in distributed[0].evidence
+    assert "branch_b_ni" in distributed[0].evidence
+
+def test_cdc_reset_family_tracks_polarity_normalization_only_when_consistent() -> None:
+    from flexsoc.backend.core import ClockConfig, ClockDomain
+    from flexsoc.backend.dv import cdc as cdc_module
+
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0, "low"),))
+    module = {
+        "ports": {
+            "clk_i": {"direction": "input", "bits": [1]},
+            "rst_ni": {"direction": "input", "bits": [2]},
+        },
+        "netnames": {
+            "rst_ni": {"bits": [2]},
+            "rst_hi": {"bits": [3]},
+            "q_good": {"bits": [20]},
+            "q_bad": {"bits": [21]},
+        },
+        "cells": {
+            "invert_reset": {
+                "type": "$not",
+                "attributes": {},
+                "port_directions": {"A": "input", "Y": "output"},
+                "connections": {"A": [2], "Y": [3]},
+            },
+            "good": {
+                "type": "$adff",
+                "attributes": {},
+                "parameters": {"ARST_POLARITY": "1"},
+                "port_directions": {"CLK": "input", "ARST": "input", "D": "input", "Q": "output"},
+                "connections": {"CLK": [1], "ARST": [3], "D": ["0"], "Q": [20]},
+            },
+            "bad": {
+                "type": "$adff",
+                "attributes": {},
+                "parameters": {"ARST_POLARITY": "0"},
+                "port_directions": {"CLK": "input", "ARST": "input", "D": "input", "Q": "output"},
+                "connections": {"CLK": [1], "ARST": [3], "D": ["0"], "Q": [21]},
+            },
+        },
+    }
+    ir = cdc_module.load_yosys_json({"modules": {"demo": module}}, "demo", clocks)
+    families = cdc_module._reset_family_map(ir)
+
+    assert families["good"] == "rst_ni"
+    assert families["bad"] == "rst_hi"
+
+
+def test_cdc_reset_family_stops_at_dynamic_reset_logic() -> None:
+    from flexsoc.backend.core import ClockConfig, ClockDomain
+    from flexsoc.backend.dv import cdc as cdc_module
+
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+
+    def adff(arst: int, d: int | str, q: int) -> dict[str, object]:
+        return {
+            "type": "$adff",
+            "attributes": {},
+            "parameters": {"ARST_POLARITY": "0"},
+            "port_directions": {"CLK": "input", "ARST": "input", "D": "input", "Q": "output"},
+            "connections": {"CLK": [1], "ARST": [arst], "D": [d], "Q": [q]},
+        }
+
+    module = {
+        "ports": {
+            "clk_i": {"direction": "input", "bits": [1]},
+            "rst_ni": {"direction": "input", "bits": [2]},
+            "ctrl_i": {"direction": "input", "bits": [7]},
+        },
+        "netnames": {
+            "rst_ni": {"bits": [2]},
+            "derived_rst_ni": {"bits": [8]},
+            "a_q": {"bits": [20]},
+            "b_q": {"bits": [21]},
+        },
+        "cells": {
+            "dynamic_reset_control": adff(2, 7, 8),
+            "a": adff(2, "0", 20),
+            "b": adff(8, 20, 21),
+        },
+    }
+    ir = cdc_module.load_yosys_json({"modules": {"demo": module}}, "demo", clocks)
+    analysis = cdc_module.analyze_domains(ir, clocks)
+    families = cdc_module._reset_family_map(ir, analysis.dependencies)
+
+    assert families["a"] == "rst_ni"
+    assert families["b"] == "derived_rst_ni"
+    assert len(analysis.reset_crossings) == 1
+    assert analysis.reset_crossings[0].source.name == "a"
+    assert analysis.reset_crossings[0].destination.name == "b"
+
 def test_metrics_snapshots_provenance_and_check_does_not_refresh(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
