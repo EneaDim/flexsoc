@@ -76,6 +76,20 @@ interfaces/<REG_ITF>/
 
 For existing IPs, requirements may initially be marked `origin: derived` when reconstructed from the implemented RTL/CSR/tests/properties. Once reviewed and committed with `status: baselined`, they become authoritative for subsequent releases.
 
+## Scaffold specification
+
+`fx spec` creates the minimal authoritative `spec/ip.md`, `spec/requirements.yaml`, and `spec/testplan.yaml` bundle for the current scaffold. It is intentionally small: the single-clock scaffold covers the starter CSR/datapath/reset contract, while the multi-clock scaffold adds explicit clock/reset ownership, CDC/FIFO, ready/valid, DSP operation and clock-gating requirements. These files are designer-owned after generation and are not silently overwritten unless `--force` is requested.
+
+The generated test plan also defines the default qualification GLS sampling policy. GLS is not a replacement for RTL regression and is deliberately bounded:
+
+- at most three representative functional tests;
+- one SystemVerilog GLS backend (`sv`) only;
+- exactly the declared `ss`, `tt`, and `ff` timing scenarios;
+- the same selected GLS test/scenario matrix is the only activity source used by activity-based power and timing/power fusion;
+- the policy applies independently to `post_syn` and `post_pnr` when those stages are part of the requested qualification.
+
+The direct `sim_post_syn_all` / `sim_post_pnr_all` commands remain general-purpose selectors; qualification scripts consume the bounded policy recorded in `testplan.yaml` rather than running every RTL test at gate level.
+
 ## Save, load and validate
 
 - `fx ip_load --set IP_NAME=<ip> --set REG_ITF=<itf>` loads exactly `interfaces/<itf>/` into a run and materializes package `signoff/<pdk>/post_syn/` evidence into the operational run layout.
@@ -83,3 +97,12 @@ For existing IPs, requirements may initially be marked `origin: derived` when re
 - `fx ip_save` always runs the same validator first, snapshots the contract, writes provenance/qualification metadata, and atomically publishes only the selected interface/PDK branch. `QUAL_LEVEL=auto` records the maximum demonstrated level; an explicit target refuses publication if that level is not satisfied.
 
 A release is valid only when its required evidence is present, coherent with current intent, and non-stale. Presence of a directory is never sufficient qualification evidence.
+
+## Provenance scopes
+
+FlexSoC keeps one dependency model and two storage scopes:
+
+- RTL-scope evidence (lint, regression, CDC/RDC, formal, testbench setup) is stored once per run and is not invalidated by a PDK switch.
+- Technology-scope evidence (synthesis, equivalence, STA, GLS, power, PnR and physical checks) is stored per PDK.
+
+A stage fingerprint is meaningful only when it covers values actually consumed by the tool. Generated ORFS `config.mk` assignments are therefore passed as effective make overrides as well as hashed provenance inputs. Changing a PnR knob invalidates PnR and post-PnR descendants, not RTL or post-synthesis evidence.

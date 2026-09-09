@@ -242,7 +242,7 @@ def _run_physical(
     print_path_label("report", output, details={"kind": "post-signoff-physical"})
     for name, values in summary["checks"].items():
         print_label("post-signoff", f"{name}={values['status']}")
-    return 2 if returncode != 0 or summary["status"] == "fail" else 0
+    return 2 if returncode != 0 or summary["status"] != "pass" else 0
 
 
 _DEBUG_BAD = re.compile(r"(?:\b(?:warning|error|fatal)\b|\(VIOLATED\)|unconstrained)", re.IGNORECASE)

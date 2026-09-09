@@ -237,6 +237,17 @@ def collect_regression(top: str, run_dir: Path) -> dict[str, Any] | None:
         and (coverage_dir / "merged.dat").is_file()
         and coverage
     )
+    matrix: dict[str, dict[str, str]] = {test: {} for test in tests}
+    command_log = run_dir / "logs" / "commands" / "regression.log"
+    if command_log.is_file():
+        plain = re.sub(r"\x1b\[[0-9;]*m", "", command_log.read_text(encoding="utf-8", errors="replace"))
+        pattern = re.compile(
+            r"\[regression\]\s+(PASS|FAIL)\s+.*?backend=(sv|cocotb).*?test=([A-Za-z0-9_.-]+)"
+        )
+        for status, backend, test in pattern.findall(plain):
+            if test in matrix:
+                matrix[test][backend] = status.lower()
+
     if not tests and not any(data["logs"] for data in backends.values()) and not coverage:
         return None
     return {
@@ -244,6 +255,7 @@ def collect_regression(top: str, run_dir: Path) -> dict[str, Any] | None:
         "tests": tests,
         "test_count": expected,
         "backends": backends,
+        "matrix": matrix,
         "coverage": coverage,
         "coverage_matrix": coverage_matrix,
         "coverage_summary": relative(summary, run_dir) if summary.is_file() else None,
@@ -1887,6 +1899,20 @@ def show_check(path: Path) -> None:
                     f"{float(values.get('percent', 0.0) or 0.0):.2f}%",
                 )
         console.print(table)
+        matrix = regression.get("matrix", {})
+        if isinstance(matrix, dict) and matrix:
+            matrix_table = Table(box=None, pad_edge=False, header_style="bold bright_cyan")
+            matrix_table.add_column("Test")
+            matrix_table.add_column("SV")
+            matrix_table.add_column("cocotb")
+            for test in sorted(matrix):
+                values = matrix.get(test, {}) if isinstance(matrix.get(test), dict) else {}
+                matrix_table.add_row(
+                    test,
+                    status_markup(str(values.get("sv", "missing"))),
+                    status_markup(str(values.get("cocotb", "missing"))),
+                )
+            console.print(matrix_table)
 
     formal = data.get("formal")
     if isinstance(formal, dict):

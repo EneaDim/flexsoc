@@ -40,13 +40,14 @@ def render_config(
         export REPORT_CLOCK_SKEW := 1
         export GUI_TIMING := 1
         export SETUP_SLACK_MARGIN := 0
-        export HOLD_SLACK_MARGIN  := 0
+        export HOLD_SLACK_MARGIN  := 0.10
         export CELL_PAD_IN_SITES_GLOBAL_PLACEMENT := 0
         export CELL_PAD_IN_SITES_DETAIL_PLACEMENT := 0
         export DETAILED_ROUTE_END_ITERATION := 64
         export USE_FILL := 0
         export GPL_TIMING_DRIVEN := 1
         export GPL_ROUTABILITY_DRIVEN := 1
+        export CTS_CLUSTER_SIZE := 8
         """
     )
 
@@ -162,6 +163,24 @@ def _config_inputs(config: Path) -> tuple[Path, ...]:
 
 
 
+def _config_make_overrides(config: Path) -> tuple[str, ...]:
+    """Return generated ORFS assignments as command-line make overrides."""
+
+    if not config.is_file():
+        return ()
+    overrides: list[str] = []
+    pattern = re.compile(r"^\s*export\s+([A-Za-z_][A-Za-z0-9_]*)\s*(\?=|:=|=)\s*(.*?)\s*$")
+    for raw in config.read_text(encoding="utf-8").splitlines():
+        match = pattern.match(raw)
+        if not match:
+            continue
+        name, operator, value = match.groups()
+        if operator == "?=":
+            continue
+        overrides.append(f"{name}={value}")
+    return tuple(overrides)
+
+
 def orfs_make_argv(
     *,
     makefile: Path,
@@ -181,6 +200,7 @@ def orfs_make_argv(
         "--no-print-dir",
         f"DESIGN_CONFIG={config}",
         f"WORK_HOME={workdir}",
+        *_config_make_overrides(config),
         *targets,
     )
 

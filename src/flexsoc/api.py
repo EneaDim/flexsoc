@@ -50,6 +50,7 @@ COMMON = (*BASE, "RUN_TOP", "FORCE")
 IP_DEV = (*BASE, "REG_ITF", "FORCE")
 IPXACT = (*IP_DEV, "IPXACT_VENDOR", "IPXACT_LIBRARY", "IPXACT_VERSION")
 SDC_INTENT = (*BASE, "FORCE", "SDC_IO_DELAY_PCT")
+SPEC = (*BASE, "IP_NAME", "FORCE")
 FETCH = (*BASE, "VENDOR", "TARGET", "FORCE")
 IP_FULL = (*COMMON, "REG_ITF", "LINT_TOOL", "LINT_PART", "TARGET_SYN", "TARGET_OPT")
 LINT = (*COMMON, "LINT_TOOL", "LINT_PART", "VSV")
@@ -190,6 +191,7 @@ TARGETS: dict[str, TargetSpec] = {
     "sta_corners": ("Signoff", "Run STA setup/hold for each configured corner", SIGNOFF),
     "power_estimate_corners": ("Signoff", "Estimate power for each corner using global activity", SIGNOFF),
     "signoff": ("Signoff", "Run SDF, multi-corner STA and estimated power", SIGNOFF),
+    "spec": ("IP flow", "Generate the authoritative Digital IP spec/requirements/test-plan scaffold", SPEC),
     "hjson": ("IP flow", "Generate an HJSON register template", IP_DEV),
     "sdc": ("IP flow", "Initialize the canonical authored <TOP>.sdc timing intent", SDC_INTENT),
     "model": ("DV functional", "Generate Python model, CSR regmap, and test scaffolds", SIM),
@@ -718,7 +720,27 @@ STAGE_CONTRACTS = {
         ("tb.setup", "syn", "sdf"),
         ("dv/functional/sim/post_syn/{pdk}/summary_sv.json",),
     ),
-    "pnr": StageContract(("TOP", "PDK", "ORS", "ORS_TECH"), ("pnr.setup", "syn"), ("impl/{pdk}",)),
+    "power_analysis_all": StageContract(
+        ("TOP", "PDK", "POWER_TEST_NAMES", "POWER_GLS_BACKENDS", "POWER_TIMING_MODES"),
+        ("signoff.setup", "sim_post_syn_all"),
+        ("signoff/{pdk}/power/analysis/summary.json",),
+    ),
+    "fusion_analysis_all": StageContract(
+        ("TOP", "PDK", "POWER_TEST_NAMES", "POWER_GLS_BACKENDS", "POWER_TIMING_MODES"),
+        ("power_analysis_all",),
+        ("signoff/{pdk}/fusion/summary.json",),
+    ),
+    "pnr": StageContract(
+        ("TOP", "PDK", "ORS", "ORS_TECH"),
+        ("pnr.setup", "syn"),
+        (
+            "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.v",
+            "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.sdc",
+            "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.spef",
+            "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.odb",
+            "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.gds",
+        ),
+    ),
     "physical_signoff": StageContract(("TOP", "PDK", "ORS", "ORS_TECH"), ("pnr",), ("signoff/{pdk}/post_pnr/physical/summary.json",)),
     "sdf_post_pnr": StageContract(("TOP", "PDK"), ("signoff_post_pnr.setup", "pnr"), ("signoff/{pdk}/post_pnr/sdf",)),
     "sta_post_pnr": StageContract(("TOP", "PDK"), ("signoff_post_pnr.setup", "pnr"), ("signoff/{pdk}/post_pnr/sta/sta.json",)),
@@ -727,6 +749,16 @@ STAGE_CONTRACTS = {
         ("TOP", "PDK", "GLS_BACKEND", "TIMING_MODES", "TEST_NAMES", "SDF_STRICT"),
         ("tb.setup", "pnr", "sdf_post_pnr"),
         ("dv/functional/sim/post_pnr/{pdk}/summary_sv.json",),
+    ),
+    "power_analysis_post_pnr_all": StageContract(
+        ("TOP", "PDK", "POWER_TEST_NAMES", "POWER_GLS_BACKENDS", "POWER_TIMING_MODES"),
+        ("signoff_post_pnr.setup", "sim_post_pnr_all"),
+        ("signoff/{pdk}/post_pnr/power/analysis/summary.json",),
+    ),
+    "fusion_analysis_post_pnr_all": StageContract(
+        ("TOP", "PDK", "POWER_TEST_NAMES", "POWER_GLS_BACKENDS", "POWER_TIMING_MODES"),
+        ("power_analysis_post_pnr_all",),
+        ("signoff/{pdk}/post_pnr/fusion/summary.json",),
     ),
 }
 PROVENANCE_SETUPS = frozenset(stage for stage in STAGE_CONTRACTS if stage.endswith(".setup"))
@@ -1051,12 +1083,14 @@ class FlexSoCTarget:
             },
         )
 
-    def _provenance(self):
-        """Return the run-local provenance store."""
+    def _provenance(self, stage: str | None = None):
+        """Return the run-local provenance store for generic or PDK-scoped evidence."""
 
         from .backend.core.reporting import Provenance
 
-        return Provenance(self.paths.meta / "provenance.json", self.paths.run)
+        technology_scoped = stage in TECHNOLOGY_TARGETS if stage is not None else True
+        path = (self.paths.meta if technology_scoped else self.paths.run / "meta") / "provenance.json"
+        return Provenance(path, self.paths.run)
 
     def _provenance_config(self, stage: str) -> dict[str, str]:
         """Select only semantic values for one contract stage."""
@@ -1102,6 +1136,10 @@ class FlexSoCTarget:
                 inputs = self._execution_inputs("signoff.setup")
             elif stage == "sim_post_syn_all":
                 inputs = (*rtl, p.tests, *self._execution_inputs("tb.setup"), p.syn / f"{p.top}_synth.v", p.signoff / "sdf")
+            elif stage == "power_analysis_all":
+                inputs = (*self._execution_inputs("signoff.setup"), p.sim / "post_syn" / p.pdk)
+            elif stage == "fusion_analysis_all":
+                inputs = (p.signoff / "power" / "analysis",)
             elif stage == "pnr":
                 inputs = self._execution_inputs("pnr.setup")
             elif stage == "physical_signoff":
@@ -1109,7 +1147,15 @@ class FlexSoCTarget:
             elif stage in {"sdf_post_pnr", "sta_post_pnr", "power_estimate_post_pnr"}:
                 inputs = self._execution_inputs("signoff_post_pnr.setup")
             elif stage == "sim_post_pnr_all":
-                inputs = (*rtl, p.tests, *self._execution_inputs("tb.setup"), p.signoff / "post_pnr" / "sdf", p.impl)
+                inputs = (
+                    *rtl, p.tests, *self._execution_inputs("tb.setup"),
+                    *self._execution_inputs("signoff_post_pnr.setup"),
+                    p.signoff / "post_pnr" / "sdf",
+                )
+            elif stage == "power_analysis_post_pnr_all":
+                inputs = (*self._execution_inputs("signoff_post_pnr.setup"), p.sim / "post_pnr" / p.pdk)
+            elif stage == "fusion_analysis_post_pnr_all":
+                inputs = (p.signoff / "post_pnr" / "power" / "analysis",)
             else:
                 raise ValueError(f"provenance inputs are not defined for {stage}")
             return tuple(dict.fromkeys(Path(path).expanduser().resolve() for path in inputs))
@@ -1161,7 +1207,11 @@ class FlexSoCTarget:
     def _evidence_paths(self, stage: str) -> tuple[Path, ...]:
         """Resolve canonical runtime evidence declared by the stage contract."""
 
-        values = {"pdk": self.paths.pdk, "top": self.paths.top}
+        values = {
+            "pdk": self.paths.pdk,
+            "top": self.paths.top,
+            "ors_tech": self.values.get("ORS_TECH", self.paths.pdk),
+        }
         return tuple(self.paths.run / pattern.format(**values) for pattern in STAGE_CONTRACTS[stage].evidence)
 
     def _generated_paths(self, stage: str, result: object) -> tuple[Path, ...]:
@@ -1211,9 +1261,8 @@ class FlexSoCTarget:
         return tuple(found)
 
     def _provenance_parents(self, stage: str) -> dict[str, str | None]:
-        store = self._provenance()
         return {
-            parent: store.current_fingerprint(
+            parent: self._provenance(parent).current_fingerprint(
                 parent, inputs=self._provenance_inputs(parent),
                 config=self._provenance_config(parent),
                 parents=self._provenance_parents(parent),
@@ -1224,11 +1273,11 @@ class FlexSoCTarget:
     def _execution_inputs(self, stage: str) -> tuple[Path, ...]:
         """Return canonical setup artifacts plus their effective source inputs."""
 
-        paths = (*self._provenance_inputs(stage), *self._provenance().generated(stage))
+        paths = (*self._provenance_inputs(stage), *self._provenance(stage).generated(stage))
         return tuple(dict.fromkeys(path.absolute() for path in paths))
 
     def _provenance_state(self, stage: str) -> str:
-        return self._provenance().state(
+        return self._provenance(stage).state(
             stage, inputs=self._provenance_inputs(stage),
             config=self._provenance_config(stage),
             parents=self._provenance_parents(stage),
@@ -1239,18 +1288,17 @@ class FlexSoCTarget:
 
         from .backend.core.reporting import provenance_summary
 
-        store = self._provenance()
         states = {
             stage: self._provenance_state(stage)
-            for stage in store.stages()
-            if stage in STAGE_CONTRACTS
+            for stage in STAGE_CONTRACTS
+            if stage in self._provenance(stage).stages()
         }
         return provenance_summary(states)
 
     def _contract_state(self, stage: str) -> str:
         """Return CLEAN/STALE/... or MISSING for one contract stage."""
 
-        return "MISSING" if stage not in self._provenance().stages() else self._provenance_state(stage)
+        return "MISSING" if stage not in self._provenance(stage).stages() else self._provenance_state(stage)
 
     def _contract_status(self, *, write: bool = False) -> dict[str, object]:
         """Validate the live Digital IP Contract and derive its maximum qualified level."""
@@ -1355,16 +1403,15 @@ class FlexSoCTarget:
         generated = self._generated_paths(stage, result)
         if not generated:
             raise ValueError(f"{stage}: no contract evidence was produced")
-        self._provenance().record(
+        self._provenance(stage).record(
             stage, inputs=self._provenance_inputs(stage), generated=generated,
             config=self._provenance_config(stage),
             parents=self._provenance_parents(stage),
         )
 
     def _require_provenance(self, target: str) -> None:
-        store = self._provenance()
-        recorded = set(store.stages())
         for stage in self._setup_stages(target):
+            recorded = set(self._provenance(stage).stages())
             state = self._provenance_state(stage)
             if state in {"CLEAN", "VALIDATED_OVERRIDE"}:
                 continue
@@ -1383,7 +1430,7 @@ class FlexSoCTarget:
 
         if self._bool(self.values.get("FORCE")):
             return None
-        store = self._provenance()
+        store = self._provenance(stage)
         if stage not in store.stages():
             return None
         state = self._provenance_state(stage)
@@ -1413,7 +1460,7 @@ class FlexSoCTarget:
                 choices = ", ".join(sorted(PROVENANCE_SETUPS))
                 raise ValueError(f"STAGE must name one generated setup: {choices}")
             stage = candidates[0]
-        state = self._provenance().validate(
+        state = self._provenance(stage).validate(
             stage, inputs=self._provenance_inputs(stage),
             config=self._provenance_config(stage),
             parents=self._provenance_parents(stage),
@@ -1619,6 +1666,18 @@ class FlexSoCTarget:
             return 0
         if target == "setup":
             return p.ensure()
+        if target == "spec":
+            from .backend.core.qualification import write_spec_scaffold
+
+            ip_name = v.get("IP_NAME", top)
+            clocks = self.context.clocks
+            return write_spec_scaffold(
+                self.client.project_root / "hw" / "ips" / ip_name / "spec",
+                ip_name=ip_name,
+                clock_domains=tuple(domain.encode() for domain in clocks.domains),
+                clock_relationships=tuple(rel.encode() for rel in clocks.relationships),
+                force=force,
+            )
         if target == "sdc.setup":
             return b.signoff.pre.setup_sdc()
         if target == "hjson":
@@ -1887,7 +1946,7 @@ class FlexSoCTarget:
                 workspace=self.client.workdir, load_as=v.get("LOAD_AS") or None,
             )
         if target == "ip_save":
-            from .backend.core.reporting import collect_implementation, collect_physical_signoff
+            from .backend.core.reporting import collect_implementation
             from .backend.core.qualification import normalize_qualification_level
 
             qualification = self._contract_status(write=True)
@@ -1900,12 +1959,9 @@ class FlexSoCTarget:
             eqy = self.context.layout.equivalence_dir
             model_paths = tuple(Path(item) for item in self._words("PRIM"))
             implementation = collect_implementation(top, p.run, p.pdk)
-            physical = collect_physical_signoff(p.run, p.pdk)
-            impl_qualified = (
+            impl_available = (
                 isinstance(implementation, dict)
                 and implementation.get("status") == "pass"
-                and isinstance(physical, dict)
-                and physical.get("status") == "pass"
             )
             return b.package.save(
                 ip_name=v.get("IP_NAME", top), reg_interface=interface, top=top, pdk=p.pdk,
@@ -1916,7 +1972,7 @@ class FlexSoCTarget:
                 filelists=(p.rtl_common, p.rtl_ip), netlist=p.syn / f"{top}_synth.v",
                 liberty=Path(v["LIB_SYN"]), cell_models=model_paths,
                 clock_gate_model=eqy / "sky130_clock_gates_formal.v",
-                impl_dir=p.impl if impl_qualified else None,
+                impl_dir=p.impl if impl_available else None,
                 post_syn_sim_dir=self.context.layout.post_syn_sim_dir,
                 coverage_dir=p.coverage, manifest_json=p.manifest, metrics_json=p.metrics,
                 settings_json=p.meta / "settings.json",
@@ -2215,7 +2271,7 @@ class FlexSoCTarget:
         """Compose high-level IP flows from the new domain APIs."""
         if target == "ip_start":
             sequence = (
-                "setup", "hjson", "reg", "doc", "rtl_stub", "top_from_core",
+                "setup", "spec", "hjson", "reg", "doc", "rtl_stub", "top_from_core",
                 "flist", "driver", "model.setup", "tb.setup", "cocotb.setup",
                 "tests_gen",
             )

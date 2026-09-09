@@ -338,13 +338,12 @@ def test_ip_save_preview_keeps_user_parameters_and_derives_artifacts_in_backend(
 
 
 
-def test_ip_save_requires_real_pnr_and_physical_signoff_before_packaging_impl() -> None:
+def test_ip_save_packages_real_pnr_independently_of_physical_signoff() -> None:
     source = (ROOT / "src" / "flexsoc" / "api.py").read_text(encoding="utf-8")
     assert "collect_implementation(top, p.run, p.pdk)" in source
-    assert "collect_physical_signoff(p.run, p.pdk)" in source
+    assert "collect_physical_signoff(p.run, p.pdk)" not in source
     assert 'implementation.get("status") == "pass"' in source
-    assert 'physical.get("status") == "pass"' in source
-    assert "impl_dir=p.impl if impl_qualified else None" in source
+    assert "impl_dir=p.impl if impl_available else None" in source
 
 def test_view_selects_named_gls_waveform_and_avoids_wayland_on_wsl(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -577,6 +576,8 @@ def test_setup_pnr_consumes_only_mapped_netlist_and_sdc(tmp_path: Path) -> None:
     assert "ABC_AREA" not in text
     assert "STRATEGY" not in text
     assert "PLACE_DENSITY ?= 0.58" in text
+    assert "HOLD_SLACK_MARGIN  := 0.10" in text
+    assert "CTS_CLUSTER_SIZE := 8" in text
 
 
 def test_dry_run_returns_commands_without_spawning(
@@ -721,6 +722,36 @@ def test_terminal_rendering_uses_one_semantic_palette() -> None:
     assert "\x1b[38;5;208m[log]\x1b[0m \x1b[38;5;81m/tmp/sta.log\x1b[0m" in text
     assert "\x1b[38;5;208m[report]\x1b[0m \x1b[38;5;81m/tmp/timing.rpt\x1b[0m" in text
     assert "\x1b[92m✓\x1b[0m \x1b[38;5;208msta\x1b[0m: \x1b[92mdone\x1b[0m" in text
+
+
+def test_regression_metrics_include_per_test_backend_matrix(tmp_path: Path) -> None:
+    from flexsoc.backend.core.reporting import collect_regression
+
+    run = tmp_path / "run"
+    tests = run / "dv" / "functional" / "tests"
+    for name in ("smoke", "corners"):
+        (tests / name).mkdir(parents=True, exist_ok=True)
+    logs = run / "logs" / "dv" / "functional" / "regression"
+    for backend, prefix in (("sv", "demo_sv_sim_"), ("cocotb", "demo_cocotb_")):
+        for name in ("smoke", "corners"):
+            path = logs / backend / f"{prefix}{name}.log"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("ok\n", encoding="utf-8")
+    command = run / "logs" / "commands" / "regression.log"
+    command.parent.mkdir(parents=True, exist_ok=True)
+    command.write_text(
+        "[regression] PASS · backend=sv · compiler=iverilog · test=smoke\n"
+        "[regression] PASS · backend=cocotb · simulator=icarus · test=smoke\n"
+        "[regression] PASS · backend=sv · compiler=iverilog · test=corners\n"
+        "[regression] FAIL · backend=cocotb · simulator=icarus · test=corners\n",
+        encoding="utf-8",
+    )
+    result = collect_regression("demo", run)
+    assert result is not None
+    assert result["matrix"] == {
+        "corners": {"sv": "pass", "cocotb": "fail"},
+        "smoke": {"sv": "pass", "cocotb": "pass"},
+    }
 
 
 def test_check_status_contract_keeps_technical_and_provenance_independent() -> None:
@@ -1467,6 +1498,9 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     assert (saved / "meta" / pdk / "settings.json").is_file()
     package_index = json.loads((saved / "ip.json").read_text(encoding="utf-8"))
     assert saved == library / top / "interfaces" / "tlul"
+    saved_spec = library / top / "spec"
+    for name in ("ip.md", "requirements.yaml", "testplan.yaml"):
+        assert (saved_spec / name).read_bytes() == (spec_root / name).read_bytes()
     assert (sibling / "sentinel.txt").read_text(encoding="utf-8") == "keep sibling profile\n"
     assert "profile" not in package_index
     assert package_index["reg_interface"] == "tlul"
@@ -2834,10 +2868,11 @@ def test_tlul_package_is_owned_by_lowrisc_vendor() -> None:
 
 def test_tlul_verilator_include_uses_compiled_vendor_package() -> None:
     text = render_verilator_include(
-        "demo", Path("rtl"), Path("syn"), (), True, "tlul", "sv"
+        "demo", Path("rtl"), Path("syn"), ("sky130_prim.v",), True, "tlul", "sv"
     )
     assert '`include "tlul_pkg.sv"' not in text
     assert '`include "tlul_if.sv"' in text
+    assert "sky130_prim.v" not in text
 
 
 def test_e2e_register_transport_matrix_and_vendor_bootstrap_contract() -> None:
@@ -5275,6 +5310,27 @@ def test_pnr_request_declares_config_inputs_and_result_trees(tmp_path: Path) -> 
     assert rc == 1
     assert runner.request.inputs == (makefile.resolve(), config.resolve(), netlist.resolve(), sdc.resolve())
     assert runner.request.outputs == (workdir / "results", workdir / "reports", workdir / "logs")
+    assert "HOLD_SLACK_MARGIN=0.10" in runner.request.argv
+    assert "SETUP_SLACK_MARGIN=0" in runner.request.argv
+
+
+def test_pnr_generated_config_is_effective_make_configuration(tmp_path: Path) -> None:
+    from flexsoc.backend.impl.impl import orfs_make_argv
+
+    makefile = tmp_path / "orfs" / "flow" / "Makefile"
+    makefile.parent.mkdir(parents=True)
+    makefile.write_text("all:\n", encoding="utf-8")
+    config = tmp_path / "config.mk"
+    config.write_text(
+        "export HOLD_SLACK_MARGIN := 0.03\n"
+        "export CTS_CLUSTER_SIZE := 8\n"
+        "export PLACE_DENSITY ?= 0.58\n",
+        encoding="utf-8",
+    )
+    argv = orfs_make_argv(makefile=makefile, config=config, workdir=tmp_path / "work")
+    assert "HOLD_SLACK_MARGIN=0.03" in argv
+    assert "CTS_CLUSTER_SIZE=8" in argv
+    assert "PLACE_DENSITY=0.58" not in argv
 
 
 def test_eda_requests_declare_effective_inputs_and_outputs(tmp_path: Path) -> None:
@@ -5816,7 +5872,7 @@ def test_physical_signoff_reaches_summary_after_native_orfs_run(
         makefile=makefile, config=config, workdir=config.parent, top="demo",
         output=output, log=log, runner=runner,
     )
-    assert rc == 0
+    assert rc == 2
     assert output.is_file()
     assert json.loads(output.read_text(encoding="utf-8"))["orfs_returncode"] == 0
     argv = runner.requests[0].argv
@@ -5880,6 +5936,17 @@ def test_stage_contract_graph_is_single_source_and_acyclic() -> None:
     assert all(contracts[stage].evidence for stage in api_module.RUNTIME_STAGES)
     assert "REG_ITF" in contracts["signoff.setup"].config
     assert "REG_ITF" in contracts["signoff_post_pnr.setup"].config
+    assert contracts["power_analysis_all"].parents == ("signoff.setup", "sim_post_syn_all")
+    assert contracts["fusion_analysis_all"].parents == ("power_analysis_all",)
+    assert contracts["power_analysis_post_pnr_all"].parents == ("signoff_post_pnr.setup", "sim_post_pnr_all")
+    assert contracts["fusion_analysis_post_pnr_all"].parents == ("power_analysis_post_pnr_all",)
+    assert contracts["pnr"].evidence == (
+        "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.v",
+        "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.sdc",
+        "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.spef",
+        "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.odb",
+        "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.gds",
+    )
 
     def visit(stage: str, path: tuple[str, ...] = ()) -> None:
         assert stage not in path, f"stage dependency cycle: {' -> '.join((*path, stage))}"
@@ -5931,6 +5998,76 @@ def test_runtime_contract_evidence_invalidates_downstream_selectively(tmp_path: 
     netlist.write_text("module demo; wire changed; endmodule\n", encoding="utf-8")
     assert router._provenance_state("syn") == "MODIFIED"
     assert router._provenance_state("sta") == "STALE"
+
+
+def test_pnr_provenance_tracks_only_canonical_final_artifacts(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
+        "PDK": "sky130", "ORS_TECH": "sky130hd",
+    }
+    router = api_module.FlexSoCTarget(client, values)
+    router.paths.ensure()
+
+    root = router.paths.impl / "results" / "sky130hd" / "demo" / "base"
+    assert router._evidence_paths("pnr") == tuple(
+        root / f"6_final.{suffix}" for suffix in ("v", "sdc", "spef", "odb", "gds")
+    )
+
+
+def test_provenance_separates_rtl_and_pdk_scopes(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev", "PDK": "sky130"}
+    router = api_module.FlexSoCTarget(client, values)
+    router.paths.ensure()
+
+    assert router._provenance("regression").path == router.paths.run / "meta" / "provenance.json"
+    assert router._provenance("tb.setup").path == router.paths.run / "meta" / "provenance.json"
+    assert router._provenance("syn").path == router.paths.meta / "provenance.json"
+    assert router._provenance("sta_post_pnr").path == router.paths.meta / "provenance.json"
+
+
+def test_pdk_switch_keeps_rtl_provenance_and_isolates_technology(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    base = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev", "REG_ITF": "tlul"}
+    sky = api_module.FlexSoCTarget(client, {**base, "PDK": "sky130"})
+    sky.paths.ensure()
+
+    source = sky.paths.rtl / "demo.sv"
+    source.write_text("module demo(input clk_i); endmodule\n", encoding="utf-8")
+    sky.paths.rtl_common.write_text("", encoding="utf-8")
+    sky.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
+    sky.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
+    sky.paths.model.mkdir(parents=True, exist_ok=True)
+    sky.paths.tests.mkdir(parents=True, exist_ok=True)
+
+    for setup_stage in ("tb.setup", "cocotb.setup"):
+        generated = sky.paths.run / "generated" / setup_stage.replace(".", "_")
+        generated.parent.mkdir(parents=True, exist_ok=True)
+        generated.write_text(setup_stage + "\n", encoding="utf-8")
+        sky._provenance(setup_stage).record(
+            setup_stage, inputs=sky._provenance_inputs(setup_stage), generated=(generated,),
+            config=sky._provenance_config(setup_stage), parents=sky._provenance_parents(setup_stage),
+        )
+
+    log_dir, sv_cov, cocotb_cov = sky._evidence_paths("regression")
+    for path in (log_dir / "sv" / "demo.log", sv_cov / "smoke.dat", cocotb_cov / "smoke.dat"):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("evidence\n", encoding="utf-8")
+    sky._record_provenance("regression", 0)
+    assert sky._contract_state("regression") == "CLEAN"
+
+    ihp = api_module.FlexSoCTarget(client, {**base, "PDK": "ihp-sg13g2"})
+    ihp.paths.ensure()
+    assert ihp._contract_state("regression") == "CLEAN"
+    assert ihp._contract_state("syn") == "MISSING"
 
 
 def test_regression_provenance_ignores_derived_coverage_reports(tmp_path: Path) -> None:
@@ -6014,6 +6151,101 @@ def test_contract_status_derives_release_level_without_running_eda(tmp_path: Pat
     status = router._contract_status()
     assert status["maximum_level"] == 3
     assert status["maximum_qualification"] == "Netlist Qualified"
+
+
+def test_single_clock_spec_scaffold_is_minimal_and_gls_bounded(tmp_path: Path) -> None:
+    from flexsoc.backend.core.qualification import validate_spec_bundle, write_spec_scaffold
+
+    root = tmp_path / "hw" / "ips" / "scaffold_single_clock" / "spec"
+    outputs = write_spec_scaffold(
+        root,
+        ip_name="scaffold_single_clock",
+        clock_domains=("core:clk_i:rst_ni:10:low",),
+    )
+    assert all(path.is_file() for path in outputs)
+    spec = validate_spec_bundle(root, ip_name="scaffold_single_clock")
+    assert spec["requirements"] == 5
+    assert spec["covered_requirements"] == 5
+    assert spec["gls_policy"] == {
+        "backend": "sv",
+        "tests": ["smoke", "corners", "reconfig"],
+        "max_tests": 3,
+        "scenarios": ["ss", "tt", "ff"],
+        "timing_modes": ["max", "typ", "min"],
+        "stages": ["post_syn", "post_pnr"],
+    }
+    assert "single-clock" in (root / "ip.md").read_text(encoding="utf-8")
+
+
+def test_multi_clock_spec_scaffold_covers_cdc_dsp_and_clock_gate(tmp_path: Path) -> None:
+    from flexsoc.backend.core.qualification import validate_spec_bundle, write_spec_scaffold
+
+    root = tmp_path / "hw" / "ips" / "scaffold_multi_clock" / "spec"
+    write_spec_scaffold(
+        root,
+        ip_name="scaffold_multi_clock",
+        clock_domains=(
+            "cfg:cfg_clk_i:cfg_rst_ni:20:low",
+            "rx:rx_clk_i:rx_rst_ni:16:low",
+            "dsp:dsp_clk_i:dsp_rst_ni:30:low",
+        ),
+        clock_relationships=("async:cfg:rx", "async:cfg:dsp", "async:rx:dsp"),
+    )
+    spec = validate_spec_bundle(root, ip_name="scaffold_multi_clock")
+    assert spec["requirements"] == 7
+    assert spec["covered_requirements"] == 7
+    assert {"mac_smoke", "absdiff", "energy", "clock_gate"}.issubset(set(spec["tests"]))
+    assert spec["gls_policy"]["backend"] == "sv"
+    assert spec["gls_policy"]["tests"] == ["mac_smoke", "corners", "clock_gate"]
+    assert spec["gls_policy"]["scenarios"] == ["ss", "tt", "ff"]
+    text = (root / "ip.md").read_text(encoding="utf-8")
+    assert "asynchronous FIFO" in text
+    assert "clock gating" in text
+
+
+def test_scaffold_gls_policy_rejects_cocotb_or_more_than_three_tests(tmp_path: Path) -> None:
+    import yaml
+    from flexsoc.backend.core.qualification import validate_spec_bundle, write_spec_scaffold
+
+    root = tmp_path / "spec"
+    write_spec_scaffold(
+        root,
+        ip_name="demo",
+        clock_domains=("core:clk_i:rst_ni:10:low",),
+    )
+    path = root / "testplan.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data["qualification"]["gls"]["backend"] = "cocotb"
+    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    with pytest.raises(ValueError, match="backend must be 'sv'"):
+        validate_spec_bundle(root, ip_name="demo")
+
+    data["qualification"]["gls"]["backend"] = "sv"
+    data["qualification"]["gls"]["tests"] = ["smoke", "corners", "reconfig", "random_seed_1"]
+    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    with pytest.raises(ValueError, match="1..3 unique tests"):
+        validate_spec_bundle(root, ip_name="demo")
+
+
+def test_spec_target_is_first_class_ip_scaffold_target(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "scaffold_single_clock",
+        "RUN_TOP": "scaffold_single_clock",
+        "RUN_ID": "dev",
+        "N_CLOCKS": "1",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+    }
+    router = api_module.FlexSoCTarget(client, values)
+    router._execute_target("spec")
+    root = project / "hw" / "ips" / "scaffold_single_clock" / "spec"
+    assert (root / "ip.md").is_file()
+    assert (root / "requirements.yaml").is_file()
+    assert (root / "testplan.yaml").is_file()
+    assert TARGETS["spec"][0] == "IP flow"
 
 
 def test_provenance_derives_override_and_parent_lineage_states(tmp_path: Path) -> None:

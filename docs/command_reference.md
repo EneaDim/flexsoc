@@ -362,6 +362,7 @@ Enter the IP specification, generate register collateral, maintain the RTL wrapp
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
+| `fx spec` | Generate the authoritative Digital IP spec/requirements/test-plan scaffold. | `IP_NAME`, `N_CLOCKS`, `CLOCK_DOMAINS`, `CLOCK_RELATIONSHIPS`, `FORCE` | Creates `hw/ips/<IP>/spec/`; designer-owned after generation. |
 | `fx hjson` | Generate an HJSON register template. | `REG_ITF` | Use `--info` for accepted overrides. |
 | `fx reg` | Generate register RTL from HJSON. | `REG_ITF` | Use `--info` for accepted overrides. |
 | `fx doc` | Generate register documentation. | `REG_ITF` | Use `--info` for accepted overrides. |
@@ -1071,6 +1072,8 @@ dv/functional/sim/post_syn/<pdk>/summary_<backend>.json
 ```
 
 Use `TEST_NAMES` and `TIMING_MODES` to restrict the matrix; each selector accepts whitespace/comma-separated values or `all`. `GLS_BACKEND` selects exactly one driver (`sv` or `cocotb`) per invocation.
+
+For qualification, the scaffold `spec/testplan.yaml` intentionally narrows GLS to at most three representative tests, backend `sv`, and the `ss/tt/ff` scenarios (implemented by timing modes `max/typ/min`). Activity-based power and fusion use only that same selected GLS matrix. This bounded qualification policy applies to both post-synthesis and post-PnR evidence; direct GLS commands remain general-purpose and may still be explicitly overridden for debug.
 
 There is no E2E qualification matrix or `matrix.json`. For `min`, `typ`, and
 `max`, the E2E test immediately runs `fx power_analysis` for that exact GLS trace.

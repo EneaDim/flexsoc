@@ -461,11 +461,16 @@ class PackageFlow:
             )
             if spec_root is None:
                 spec_root = self.project_root / "hw" / "ips" / ip_name / "spec"
-            from .qualification import write_contract_snapshot
+            spec_root = Path(spec_root)
+            from .qualification import SPEC_FILES, write_contract_snapshot
             write_contract_snapshot(
-                staged=staged, spec_root=Path(spec_root), ip_name=ip_name,
+                staged=staged, spec_root=spec_root, ip_name=ip_name,
                 reg_interface=reg_interface,
             )
+            staged_spec = Path(tmp) / "spec"
+            staged_spec.mkdir()
+            for name in SPEC_FILES:
+                shutil.copy2(spec_root / name, staged_spec / name)
             _portable_filelists(staged, self.project_root, run)
             _clean_python_cache(staged)
             _clean_hidden_paths(staged)
@@ -474,17 +479,28 @@ class PackageFlow:
             validate_release_package(staged)
 
             backup = interface_root / f".{reg_interface}.backup"
-            if backup.exists():
-                shutil.rmtree(backup)
+            spec_target = library_root / ip_name / "spec"
+            spec_backup = library_root / ip_name / ".spec.backup"
+            for path in (backup, spec_backup):
+                if path.exists():
+                    shutil.rmtree(path)
             if target.exists():
                 target.rename(backup)
+            if spec_target.exists():
+                spec_target.rename(spec_backup)
             try:
                 staged.rename(target)
+                staged_spec.rename(spec_target)
             except Exception:
-                if backup.exists() and not target.exists():
+                shutil.rmtree(target, ignore_errors=True)
+                shutil.rmtree(spec_target, ignore_errors=True)
+                if backup.exists():
                     backup.rename(target)
+                if spec_backup.exists():
+                    spec_backup.rename(spec_target)
                 raise
             shutil.rmtree(backup, ignore_errors=True)
+            shutil.rmtree(spec_backup, ignore_errors=True)
         return target
 
     @staticmethod

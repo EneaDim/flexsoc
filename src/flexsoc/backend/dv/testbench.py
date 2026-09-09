@@ -1612,12 +1612,9 @@ def render_verilator_include(top: str, rtldir: str | Path, syndir: str | Path,
 
     inc.append("`else")
 
-    # Native GLS supplies active-PDK models through FLEXSOC_GLS_EXTERNAL_MODELS.
-    # Keep generated testbenches portable across PDK profiles.
-    inc.append("  `ifndef FLEXSOC_GLS_EXTERNAL_MODELS")
-    for p in prims:
-        inc.append(f'    `include "{Path(p).name}"')
-    inc.append("  `endif")
+    # Native GLS supplies active-PDK models externally. Keep the generated
+    # testbench itself technology-independent so RTL regression provenance is
+    # stable across PDK switches.
 
     # synth netlist: includi solo nome, assume +incdir+syndir nel comando
     inc.append(f'  `include "{top}_synth.v"')
