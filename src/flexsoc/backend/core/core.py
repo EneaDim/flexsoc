@@ -1610,6 +1610,8 @@ class FlowPaths:
     @property
     def run(self) -> Path: return self.workspace / "runs" / self.run_top / self.run_id
     @property
+    def spec(self) -> Path: return self.run / "spec"
+    @property
     def csr(self) -> Path: return self.run / "csr"
     @property
     def csr_systemrdl(self) -> Path: return self.csr / "systemrdl"

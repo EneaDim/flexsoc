@@ -16,6 +16,7 @@ try:  # Keep the entry point understandable if the new CLI deps are not installe
     import typer
     from rich import box
     from rich.console import Console
+    from rich.json import JSON
     from rich.panel import Panel
     from rich.table import Table
 except ModuleNotFoundError as exc:  # pragma: no cover - exercised only in incomplete envs.
@@ -41,7 +42,7 @@ if _MISSING:  # pragma: no cover - exercised only in incomplete envs.
 else:
     console = Console()
     error_console = Console(stderr=True)
-    PSEUDO_COMMANDS = ("help", "settings", "commands", "doctor", "pdk", "eqy_debug", "shell")
+    PSEUDO_COMMANDS = ("help", "settings", "commands", "show", "doctor", "pdk", "eqy_debug", "shell")
     OPTION_WORDS = (
         "--set",
         "--unset",
@@ -364,6 +365,11 @@ Use `fx commands` to list every backend target.
             ("fx commands", "fx commands --json"),
             ("--json",),
         ),
+        "show": (
+            "Render canonical machine-readable run reports by stable key.",
+            ("fx show keys", "fx show qualification", "fx show gls_post_syn", "fx show issues"),
+            ("--set KEY=VALUE", "--workdir PATH", "--json"),
+        ),
         "doctor": (
             "Check Python dependencies and the locally available EDA toolchain.",
             ("fx doctor", "fx doctor --json"),
@@ -553,6 +559,7 @@ Use `fx commands` to list every backend target.
                 (
                     ("default", "Print the colored closure summary and paths to the two canonical analysis artifacts."),
                     ("--live", "Show extraction progress, domains, checker counts, every finding and obligation while the same canonical reports are produced."),
+                    ("--debug", "Read existing artifacts only and render grouped blockers, contract survival, diagnosis, and open obligations without rerunning CDC/RDC."),
                     ("summary.json", "Complete machine-readable CDC/RDC analysis: counts, crossings, findings, and verification obligations."),
                     ("cdc_rdc.rpt", "Complete human-readable CDC/RDC finding report."),
                     ("raw evidence", "extract.ys, design.json, and extract.log retain the structural/tool evidence needed to reproduce or diagnose the analysis."),
@@ -818,6 +825,186 @@ Use `fx commands` to list every backend target.
         display["EQUIV_DIR"] = str(layout.equivalence_dir)
         display["IMPL_DIR"] = str(layout.pnr_dir)
         _print_settings(display, as_json)
+
+    def _show_status(value: object) -> str:
+        """Render one report/evidence state with consistent CLI colors."""
+
+        token = str(value).strip().upper()
+        color = {
+            "PASS": "green",
+            "WAIVED": "yellow",
+            "REVIEW": "orange1",
+            "MISSING": "grey70",
+            "FAILED": "red",
+            "FAIL": "red",
+            "STALE": "red",
+            "INVALID": "red",
+            "MODIFIED": "red",
+        }.get(token, "white")
+        return f"[{color}]{token}[/{color}]"
+
+    def _show_evidence_table(data: Mapping[str, Any]) -> None:
+        """Render qualification evidence including intentionally missing stages."""
+
+        evidence = data.get("evidence", {}) if isinstance(data, Mapping) else {}
+        freshness = data.get("freshness", {}) if isinstance(data, Mapping) else {}
+        outcomes = data.get("outcomes", {}) if isinstance(data, Mapping) else {}
+        levels = data.get("levels", {}) if isinstance(data, Mapping) else {}
+        order: list[str] = []
+        if isinstance(levels, Mapping):
+            for item in levels.values():
+                if not isinstance(item, Mapping):
+                    continue
+                for stage in item.get("required_evidence", ()):
+                    name = str(stage)
+                    if name not in order:
+                        order.append(name)
+        if isinstance(evidence, Mapping):
+            for stage in evidence:
+                name = str(stage)
+                if name not in order:
+                    order.append(name)
+        table = Table(title="Evidence", header_style="bold white", expand=True)
+        table.add_column("Stage", style="bright_cyan", no_wrap=True)
+        table.add_column("State", no_wrap=True)
+        table.add_column("Freshness", no_wrap=True)
+        table.add_column("Outcome", no_wrap=True)
+        for stage in order:
+            state = evidence.get(stage, "MISSING") if isinstance(evidence, Mapping) else "MISSING"
+            fresh = freshness.get(stage, "-") if isinstance(freshness, Mapping) else "-"
+            outcome = outcomes.get(stage) if isinstance(outcomes, Mapping) else None
+            table.add_row(stage, _show_status(state), str(fresh), str(outcome or "-"))
+        console.print(table)
+
+    def _show_qualification(document: Any) -> None:
+        """Render the compact human view of qualification.json."""
+
+        data = document.root
+        req = data.get("requirements", {}) if isinstance(data, Mapping) else {}
+        console.print(Panel.fit(
+            f"IP: [white]{data.get('ip', '-')}[/white]\n"
+            f"Interface: [white]{data.get('reg_interface', '-')}[/white]\n"
+            f"PDK: [white]{data.get('pdk', '-')}[/white]\n"
+            f"Contract: [white]{data.get('contract', 'VALID' if data.get('contract_fingerprint') else '-')}[/white]\n"
+            f"Requirements: [white]{req.get('covered', 0)}/{req.get('total', 0)}[/white]\n"
+            f"Maximum: [white]L{data.get('maximum_level', 0)} {data.get('maximum_qualification', '-')}[/white] · "
+            f"{_show_status(data.get('qualification_status', 'MISSING'))}",
+            title="Qualification",
+            border_style="orange1",
+        ))
+        levels = data.get("levels", {}) if isinstance(data, Mapping) else {}
+        if isinstance(levels, Mapping):
+            table = Table(title="Levels", header_style="bold white", expand=True)
+            table.add_column("Level", style="bright_cyan", no_wrap=True)
+            table.add_column("Name")
+            table.add_column("Status", no_wrap=True)
+            table.add_column("Blocking")
+            for level, item in levels.items():
+                if not isinstance(item, Mapping):
+                    continue
+                blocking = ", ".join(str(x) for x in item.get("blocking_evidence", ())) or "-"
+                table.add_row(f"L{level}", str(item.get("name", "-")), _show_status(item.get("status", "MISSING")), blocking)
+            console.print(table)
+        _show_evidence_table(data)
+
+    def _show_gls(document: Any) -> None:
+        """Render a GLS summary JSON as the test-by-scenario matrix it represents."""
+
+        data = document.data
+        tests = [str(item) for item in data.get("tests", ())]
+        reports = data.get("reports", ())
+        scenarios = [str(item) for item in data.get("scenarios", ())]
+        if not scenarios and isinstance(reports, list):
+            scenarios = list(dict.fromkeys(str(item.get("scenario", "-")) for item in reports if isinstance(item, Mapping)))
+        matrix: dict[tuple[str, str], str] = {}
+        if isinstance(reports, list):
+            for item in reports:
+                if not isinstance(item, Mapping):
+                    continue
+                test = str(item.get("test_name", item.get("test", "-")))
+                scenario = str(item.get("scenario", item.get("timing_mode", "-")))
+                matrix[(test, scenario)] = str(item.get("status", "missing")).upper()
+        table = Table(title=document.title, header_style="bold white")
+        table.add_column("Test", style="bright_cyan")
+        for scenario in scenarios:
+            table.add_column(scenario, justify="center")
+        for test in tests:
+            table.add_row(test, *(_show_status(matrix.get((test, scenario), "MISSING")) for scenario in scenarios))
+        console.print(table)
+        console.print(
+            f"[grey70]total[/grey70]=[white]{data.get('total', 0)}[/white] · "
+            f"[grey70]pass[/grey70]=[green]{data.get('passed', 0)}[/green] · "
+            f"[grey70]fail[/grey70]=[red]{data.get('failed', 0)}[/red]"
+        )
+
+    def _show(client: FlexSoC, args: tuple[str, ...], sets: tuple[str, ...], *, as_json: bool) -> int:
+        """Read canonical JSON reports without rerunning any flow stage."""
+
+        from .backend.core.show import issues, keys, load
+
+        overrides = _assignments(sets)
+        values = {**DEFAULT_SETTINGS, **client.settings, **overrides}
+        top = values.get("TOP", "test")
+        run_top = values.get("RUN_TOP") or top
+        run_id = values.get("RUN_ID", "default")
+        pdk = values.get("PDK", DEFAULT_SETTINGS["PDK"])
+        run = client.workdir / "runs" / run_top / run_id
+        action = (args[0] if args else "keys").strip().lower().replace("-", "_")
+        if len(args) > 1:
+            error_console.print("[red]fx show accepts one key; use `fx show keys` to list them[/red]")
+            return 2
+        if action in {"keys", "list"}:
+            rows = keys(run, top=top, pdk=pdk)
+            if as_json:
+                print(json.dumps(rows, indent=2))
+                return 0
+            table = Table(title=f"FlexSoC reports · {run_top}/{run_id} · {pdk}", header_style="bold white", expand=True)
+            table.add_column("Key", style="bright_cyan", no_wrap=True)
+            table.add_column("Available", no_wrap=True)
+            table.add_column("Source")
+            for item in rows:
+                state = "[green]yes[/green]" if item["available"] else "[grey70]no[/grey70]"
+                source = str(item["path"])
+                if item.get("selector"):
+                    source += f" : {item['selector']}"
+                table.add_row(str(item["key"]), state, source)
+            console.print(table)
+            return 0
+        if action in {"issues", "failures"}:
+            rows = issues(run, top=top, pdk=pdk)
+            if as_json:
+                print(json.dumps(rows, indent=2))
+                return 0
+            table = Table(title=f"Flow issues · {run_top}/{run_id} · {pdk}", header_style="bold white", expand=True)
+            table.add_column("Key", style="bright_cyan", no_wrap=True)
+            table.add_column("State", no_wrap=True)
+            table.add_column("Detail")
+            table.add_column("Source")
+            if not rows:
+                console.print("[green]No non-PASS canonical reports found.[/green]")
+                return 0
+            for item in rows:
+                table.add_row(str(item["key"]), _show_status(item["status"]), str(item["detail"]), str(item["source"]))
+            console.print(table)
+            return 0
+        try:
+            document = load(run, top=top, pdk=pdk, key=action)
+        except (FileNotFoundError, KeyError, ValueError) as exc:
+            error_console.print(f"[red]{exc}[/red]")
+            return 2
+        if as_json:
+            print(json.dumps(document.data, indent=2, sort_keys=True))
+            return 0
+        console.print(f"[grey70]source:[/grey70] [white]{document.path}[/white]")
+        if action == "qualification":
+            _show_qualification(document)
+        elif action == "evidence":
+            _show_evidence_table(document.root)
+        elif action in {"gls_post_syn", "gls_post_pnr"}:
+            _show_gls(document)
+        else:
+            console.print(JSON.from_data(document.data))
+        return 0
 
     # -----------------------------------------------------------------------
     # Technology and equivalence diagnostics
@@ -1252,6 +1439,178 @@ Use `fx commands` to list every backend target.
             print(text, end="" if text.endswith("\n") else "\n")
         return 0
 
+    def _cdc_rdc_debug(
+        client: FlexSoC, values: Mapping[str, str], *, as_json: bool, save_output: Path | None
+    ) -> int:
+        """Render root-cause-first CDC/RDC diagnosis from existing canonical artifacts."""
+
+        from collections import Counter
+        from .backend import BackendContext
+        from .backend.dv.cdc import CdcFlow
+
+        effective = client.values(values)
+        context = BackendContext(client.project_root, client.workdir, effective)
+        paths = context.paths
+        analysis = paths.cdc_rdc_analysis
+        payload = CdcFlow().debug_from_context(context)
+
+        if save_output is not None:
+            output = save_output.expanduser()
+            if output.suffix.lower() != ".json":
+                output.mkdir(parents=True, exist_ok=True)
+                output = output / "cdc_rdc_debug.json"
+            else:
+                output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+        if as_json:
+            print(json.dumps(payload, indent=2))
+            return 0
+
+        status = str(payload.get("status", "unknown")).upper()
+        status_color = "green" if status == "PASS" else "red" if status == "FAIL" else "orange1"
+        obligation_checks = int(payload.get("verification_obligations", 0) or 0)
+        obligation_findings = int(payload.get("obligation_findings", 0) or 0)
+        console.print(Panel.fit(
+            f"Top: [white]{payload.get('top')}[/white]\n"
+            f"Analysis closure: [{status_color}]{status}[/{status_color}]\n"
+            f"Clocks: [white]{payload.get('clock_domains')}[/white] · "
+            f"Resets: [white]{payload.get('reset_domains')}[/white] · "
+            f"Sequential: [white]{payload.get('sequential_elements')}[/white]\n"
+            f"Open obligations: [white]{obligation_checks} checks / {obligation_findings} findings[/white]\n"
+            "Debug execution: [green]OK[/green] · read-only canonical-artifact inspection",
+            title="CDC/RDC debug",
+            border_style=status_color,
+        ))
+
+        contracts = payload.get("contracts", {})
+        contract_table = Table(title="CDC contract survival", header_style="bold grey70", border_style="grey50")
+        contract_table.add_column("Layer", style="bright_cyan")
+        contract_table.add_column("Contracts", style="white")
+        src = contracts.get("source", {})
+        structural = contracts.get("structural_design", {})
+        contract_table.add_row("RTL source", ", ".join(f"{k}×{v}" for k, v in src.items()) or "none")
+        contract_table.add_row("design.json/top", ", ".join(f"{k}×{v}" for k, v in structural.items()) or "none")
+        frontend_hierarchy = bool(contracts.get("frontend_hierarchy_preserved"))
+        selective_guard = bool(contracts.get("selective_contract_guard"))
+        contract_table.add_row(
+            "Slang hierarchy",
+            "[green]preserved[/green]" if frontend_hierarchy else "[red]flattened in frontend[/red]",
+        )
+        contract_table.add_row(
+            "contract guard",
+            "[green]present[/green]" if selective_guard else "[red]missing[/red]",
+        )
+        guard_state = str(contracts.get("extract_guard_state") or ("present" if contracts.get("extract_guard") else "missing"))
+        guard_style = "green" if guard_state in {"effective", "not_applicable"} else "orange1" if "partial" in guard_state else "red"
+        contract_table.add_row("extract guard", f"[{guard_style}]{guard_state}[/{guard_style}]")
+        console.print(contract_table)
+
+        triage = payload.get("triage", {})
+        triage_state = str(triage.get("state", "UNKNOWN")).upper()
+        triage_color = "green" if triage_state == "PASS" else "orange1" if triage_state == "REVIEW" else "red"
+        console.print(Panel.fit(
+            f"Phase: [bright_cyan]{triage.get('phase', '-')}[/bright_cyan]\n"
+            f"State: [{triage_color}]{triage_state}[/{triage_color}]\n"
+            f"Next action: [white]{triage.get('next_action', '-')}[/white]",
+            title="Triage",
+            border_style=triage_color,
+        ))
+
+        scopes = payload.get("scopes", {})
+        downstream_deferred = str(triage.get("downstream", "active")) == "deferred"
+        scope_title = "Observed closure counts (downstream deferred)" if downstream_deferred else "Closure by scope"
+        table = Table(title=scope_title, header_style="bold grey70", border_style="grey50")
+        table.add_column("Scope", style="bright_cyan")
+        table.add_column("ERROR", justify="right")
+        table.add_column("WARN", justify="right")
+        table.add_column("REVIEW", justify="right")
+        table.add_column("SAFE", justify="right")
+        table.add_column("Non-PASS classes", style="white")
+        for name in ("setup", "glitch", "cdc", "rdc"):
+            item = scopes.get(name, {})
+            classes = item.get("classes", {})
+            class_text = ", ".join(f"{key}×{value}" for key, value in classes.items()) or "-"
+            table.add_row(
+                name.upper(),
+                str(item.get("errors", 0)),
+                str(item.get("warnings", 0)),
+                str(item.get("review", 0)),
+                str(item.get("safe", 0)),
+                class_text,
+            )
+        console.print(table)
+        if downstream_deferred:
+            console.print(
+                "[orange1]CDC/RDC protocol findings are downstream symptoms until extraction/clock setup closes; "
+                "do not waive or fix them individually yet.[/orange1]"
+            )
+
+        diagnoses = payload.get("diagnoses", [])
+        if diagnoses:
+            diag = Table(title="Root-cause diagnosis", header_style="bold grey70", border_style="grey50")
+            diag.add_column("Severity")
+            diag.add_column("Code", style="bright_cyan")
+            diag.add_column("Meaning", style="white")
+            for item in diagnoses:
+                sev = str(item.get("severity", "INFO"))
+                color = "red" if sev == "ERROR" else "orange1" if sev in {"WARN", "REVIEW"} else "green"
+                diag.add_row(f"[{color}]{sev}[/{color}]", str(item.get("code", "-")), str(item.get("message", "")))
+            console.print(diag)
+
+        blockers = Table(title="Representative active findings", header_style="bold grey70", border_style="grey50")
+        blockers.add_column("Scope", style="bright_cyan")
+        blockers.add_column("ID", style="white")
+        blockers.add_column("State")
+        blockers.add_column("Class", style="white")
+        blockers.add_column("Representative evidence", style="grey70")
+        rows = 0
+        active_scopes = ("setup", "glitch") if downstream_deferred else ("setup", "glitch", "cdc", "rdc")
+        for scope in active_scopes:
+            for item in scopes.get(scope, {}).get("samples", []):
+                evidence = list(item.get("issues") or ()) + list(item.get("evidence") or ())
+                blockers.add_row(
+                    scope.upper(),
+                    str(item.get("id") or "-"),
+                    str(item.get("status") or "-"),
+                    str(item.get("classification") or "-"),
+                    str(evidence[0] if evidence else "-"),
+                )
+                rows += 1
+        if rows:
+            console.print(blockers)
+
+        obligations = payload.get("obligations", [])
+        if obligations:
+            grouped: Counter[tuple[str, str, tuple[str, ...]]] = Counter()
+            for item in obligations:
+                key = (
+                    str(item.get("scope") or "-"),
+                    str(item.get("classification") or "-"),
+                    tuple(str(value) for value in (item.get("obligations") or ())),
+                )
+                grouped[key] += 1
+            title = "Downstream obligations (deferred)" if downstream_deferred else "Open verification obligations"
+            obligation_table = Table(title=title, header_style="bold grey70", border_style="grey50")
+            obligation_table.add_column("Count", justify="right")
+            obligation_table.add_column("Scope", style="bright_cyan")
+            obligation_table.add_column("Class", style="white")
+            obligation_table.add_column("Obligation checks", style="grey70")
+            for (scope, classification, texts), count in sorted(grouped.items()):
+                obligation_table.add_row(str(count), scope, classification, ", ".join(texts) or "-")
+            console.print(obligation_table)
+
+        artifacts = payload.get("artifacts", {})
+        console.print(
+            "[grey70]Artifacts:[/grey70] "
+            f"[white]{artifacts.get('summary')}[/white] · "
+            f"[white]{artifacts.get('design_json')}[/white] · "
+            f"[white]{artifacts.get('extract_script')}[/white]"
+        )
+        if save_output is not None:
+            console.print(f"[grey70]Saved:[/grey70] [white]{output}[/white]")
+        return 0
+
     def _run(
         client: FlexSoC,
         targets: tuple[str, ...],
@@ -1283,6 +1642,8 @@ Use `fx commands` to list every backend target.
             if debug:
                 if len(targets) != 1:
                     raise typer.BadParameter("--debug requires exactly one target")
+                if targets[0] == "cdc_rdc":
+                    return _cdc_rdc_debug(client, values, as_json=as_json, save_output=save_output)
                 if targets[0] not in DEBUG_TARGETS:
                     if save_output is not None:
                         raise typer.BadParameter("--save-output/-o requires a target with structured debug support")
@@ -1494,6 +1855,8 @@ Use `fx commands` to list every backend target.
         if args[0] == "settings":
             _settings(root, workdir, args[1:], set_args, unset_args, reset, as_json)
             return
+        if args[0] == "show":
+            raise typer.Exit(_show(client, args[1:], set_args, as_json=as_json))
         if args[0] == "doctor":
             from .backend.core.toolchain import run as run_doctor
 

@@ -248,16 +248,14 @@ def render_nclock_core(top: str) -> str:
       // Register extraction
       // --------------------------------------------------------------------
       logic               cfg_enable;
-      logic               cfg_soft_reset;
-      logic signed [15:0] cfg_gain;
+      logic signed [15:0] dsp_gain;
       logic [1:0]         dsp_op;
       logic               dsp_saturate;
       logic               dsp_clk_req_en;
       logic [31:0]        dsp_threshold;
 
-      assign cfg_enable     = cfg_reg2hw_i.ctrl.enable.q;
-      assign cfg_soft_reset = cfg_reg2hw_i.ctrl.soft_reset.q;
-      assign cfg_gain       = cfg_reg2hw_i.gain.q[15:0];
+      assign cfg_enable     = cfg_reg2hw_i.ctrl.q;
+      assign dsp_gain       = dsp_reg2hw_i.gain.q[15:0];
       assign dsp_op         = dsp_reg2hw_i.dsp_ctrl.op.q;
       assign dsp_saturate   = dsp_reg2hw_i.dsp_ctrl.saturate.q;
       assign dsp_clk_req_en = dsp_reg2hw_i.dsp_ctrl.clk_en.q;
@@ -269,7 +267,6 @@ def render_nclock_core(top: str) -> str:
       logic enable_rx;
       logic enable_dsp;
       logic soft_reset_dsp;
-      logic signed [15:0] gain_dsp_q;
 
       prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_enable_rx_sync (
         .clk_i  (rx_clk_i),
@@ -285,21 +282,9 @@ def render_nclock_core(top: str) -> str:
         .q_o    (enable_dsp)
       );
 
-      prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_soft_reset_dsp_sync (
-        .clk_i  (dsp_clk_i),
-        .rst_ni (dsp_rst_ni),
-        .d_i    (cfg_soft_reset),
-        .q_o    (soft_reset_dsp)
-      );
-
-      always_ff @(posedge dsp_clk_i or negedge dsp_rst_ni) begin
-        if (!dsp_rst_ni) begin
-          gain_dsp_q <= '0;
-        end else if (!enable_dsp) begin
-          // Safe scaffold policy: update multi-bit cfg while disabled.
-          gain_dsp_q <= cfg_gain;
-        end
-      end
+      // SOFT_RESET is owned by the always-clocked DSP CSR window, so it is
+      // domain-local and does not create an unnecessary cfg -> dsp crossing.
+      assign soft_reset_dsp = dsp_reg2hw_i.dsp_ctrl.soft_reset.q;
 
       // --------------------------------------------------------------------
       // RX -> DSP async FIFO
@@ -307,10 +292,9 @@ def render_nclock_core(top: str) -> str:
       logic        fifo_wready;
       logic        fifo_rvalid;
       logic        fifo_rready;
+      logic        fifo_pop;
       logic [31:0] fifo_wdata;
       logic [31:0] fifo_rdata;
-      logic [3:0]  fifo_wdepth;
-      logic [3:0]  fifo_rdepth;
       logic        dsp_pipe_valid_q;
       logic        dsp_pipe_ready;
       logic        dsp_out_ready;
@@ -319,7 +303,8 @@ def render_nclock_core(top: str) -> str:
 
       assign fifo_wdata  = {{rx_sample_i, rx_coeff_i}};
       assign rx_ready_o  = enable_rx & fifo_wready;
-      assign fifo_rready = enable_dsp & dsp_clk_req_en & fifo_rvalid & dsp_pipe_ready;
+      assign fifo_rready = enable_dsp & dsp_clk_req_en & dsp_pipe_ready;
+      assign fifo_pop    = fifo_rvalid & fifo_rready;
 
       // --------------------------------------------------------------------
       // DSP datapath clock gate
@@ -331,6 +316,13 @@ def render_nclock_core(top: str) -> str:
       // resume because the register window remains on the ungated parent clock.
       assign dsp_clk_active = (enable_dsp & dsp_clk_req_en) | soft_reset_dsp | dsp_pipe_valid_q | dsp_valid_o;
 
+`ifdef FLEXSOC_CDC_ANALYSIS
+      (* keep_hierarchy = "yes",
+         flexsoc_cdc_contract = "clock_gate",
+         flexsoc_cdc_domain = "dsp",
+         flexsoc_cdc_clock_in_port = "clk_i",
+         flexsoc_cdc_clock_out_port = "clk_o" *)
+`endif
       prim_clk_gate u_dsp_clk_gate (
         .clk_i     (dsp_clk_i),
         .en_i      (dsp_clk_active),
@@ -338,24 +330,34 @@ def render_nclock_core(top: str) -> str:
         .clk_o     (dsp_clk_gated)
       );
 
-      prim_fifo_async #(
-        .Width(32),
-        .Depth(8),
-        .OutputZeroIfEmpty(1'b1),
-        .OutputZeroIfInvalid(1'b1)
+      // A one-entry RZ handshake FIFO keeps the scaffold partial-reset-safe
+      // while still exercising a real asynchronous payload crossing.
+`ifdef FLEXSOC_CDC_ANALYSIS
+      (* keep_hierarchy = "yes",
+         flexsoc_cdc_contract = "async_fifo",
+         flexsoc_cdc_source_domain = "rx",
+         flexsoc_cdc_destination_domain = "dsp",
+         flexsoc_cdc_source_clock_port = "clk_wr_i",
+         flexsoc_cdc_destination_clock_port = "clk_rd_i",
+         flexsoc_cdc_source_reset_port = "rst_wr_ni",
+         flexsoc_cdc_destination_reset_port = "rst_rd_ni",
+         flexsoc_cdc_partial_reset_safe = "true" *)
+`endif
+      prim_fifo_async_simple #(
+        .Width     (32),
+        .EnRstChks (1'b1),
+        .EnRzHs    (1'b1)
       ) u_rx_to_dsp_fifo (
         .clk_wr_i  (rx_clk_i),
         .rst_wr_ni (rx_rst_ni),
-        .wvalid_i  (rx_valid_i & rx_ready_o),
+        .wvalid_i  (rx_valid_i & enable_rx),
         .wready_o  (fifo_wready),
         .wdata_i   (fifo_wdata),
-        .wdepth_o  (fifo_wdepth),
         .clk_rd_i  (dsp_clk_gated),
         .rst_rd_ni (dsp_rst_ni),
         .rvalid_o  (fifo_rvalid),
         .rready_i  (fifo_rready),
-        .rdata_o   (fifo_rdata),
-        .rdepth_o  (fifo_rdepth)
+        .rdata_o   (fifo_rdata)
       );
 
       // --------------------------------------------------------------------
@@ -378,7 +380,7 @@ def render_nclock_core(top: str) -> str:
       assign coeff_d    = fifo_rdata[15:0];
       assign sample_ext = {{{{48{{sample_d[15]}}}}, sample_d}};
       assign coeff_ext  = {{{{48{{coeff_d[15]}}}}, coeff_d}};
-      assign gain_ext   = {{{{48{{gain_dsp_q[15]}}}}, gain_dsp_q}};
+      assign gain_ext   = {{{{48{{dsp_gain[15]}}}}, dsp_gain}};
 
       assign dsp_out_ready  = !dsp_valid_o | dsp_ready_i;
       assign dsp_pipe_ready = !dsp_pipe_valid_q | dsp_out_ready;
@@ -431,8 +433,8 @@ def render_nclock_core(top: str) -> str:
           end
 
           if (dsp_pipe_ready) begin
-            dsp_pipe_valid_q <= fifo_rready;
-            if (fifo_rready) begin
+            dsp_pipe_valid_q <= fifo_pop;
+            if (fifo_pop) begin
               raw_result_q    <= raw_result_d;
               dsp_saturate_q  <= dsp_saturate;
               dsp_threshold_q <= dsp_threshold;
@@ -445,7 +447,6 @@ def render_nclock_core(top: str) -> str:
       // HW -> register status/result
       // --------------------------------------------------------------------
       logic cfg_busy;
-      logic cfg_overflow;
 
       prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_busy_cfg_sync (
         .clk_i  (cfg_clk_i),
@@ -454,25 +455,13 @@ def render_nclock_core(top: str) -> str:
         .q_o    (cfg_busy)
       );
 
-      prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_overflow_cfg_sync (
-        .clk_i  (cfg_clk_i),
-        .rst_ni (cfg_rst_ni),
-        .d_i    (dsp_overflow_o),
-        .q_o    (cfg_overflow)
-      );
-
-      assign cfg_hw2reg_o.cfg_status.busy.d     = cfg_busy;
-      assign cfg_hw2reg_o.cfg_status.overflow.d = cfg_overflow;
+      assign cfg_hw2reg_o.cfg_status.d = cfg_busy;
 
       assign dsp_hw2reg_o.result.d                     = dsp_result_o;
       assign dsp_hw2reg_o.dsp_status.valid.d           = dsp_valid_o;
       assign dsp_hw2reg_o.dsp_status.above_threshold.d = dsp_above_threshold_o;
       assign dsp_hw2reg_o.dsp_status.fifo_empty.d      = ~fifo_rvalid;
       assign dsp_hw2reg_o.dsp_status.overflow.d        = dsp_overflow_o;
-
-      // Debug visibility and lint quieting for intentionally unused scaffold nets.
-      logic unused_debug;
-      assign unused_debug = ^{{fifo_wdepth, fifo_rdepth}};
 
     endmodule
     """)
@@ -714,6 +703,13 @@ def _reset_sync_name(domain: ClockDomain) -> str:
     return f"{_id(domain.name)}_rst_sync_ni"
 
 
+def _domain_sync_reset_signal(domain: ClockDomain) -> str:
+    """Return the synchronized reset with the core port's original polarity."""
+
+    signal = _reset_sync_name(domain)
+    return signal if domain.reset_polarity == "low" else f"~{signal}"
+
+
 def _reset_branch_name(domain: ClockDomain, branch: str, *, single: bool = False) -> str:
     """Return one active-low reset distribution branch signal."""
 
@@ -839,7 +835,7 @@ class RegisterWindow:
 
     @property
     def reset_ni(self) -> str:
-        return _reset_branch_name(self.domain, "reg")
+        return _reset_sync_name(self.domain)
 
 
 def _register_windows(ports: list[Port], clocks: ClockConfig) -> tuple[RegisterWindow, ...]:
@@ -911,15 +907,9 @@ def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig, itf:
         *[line + ("," if i + 1 < len(declarations) else "") for i, line in enumerate(declarations)],
         ");", "",
     ]
-    register_domains = {window.domain.name for window in windows}
     for domain in clocks.domains:
         lines += [
             f"  logic {_reset_sync_name(domain)};",
-            f"  logic {_reset_branch_name(domain, 'core')};",
-        ]
-        if domain.name in register_domains:
-            lines.append(f"  logic {_reset_branch_name(domain, 'reg')};")
-        lines += [
             "",
             "  prim_ff_2sync #(",
             "    .Width      (1),",
@@ -931,11 +921,7 @@ def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig, itf:
             f"    .q_o   ({_reset_sync_name(domain)})",
             "  );",
             "",
-            *_render_reset_branch(domain, "core"),
-            "",
         ]
-        if domain.name in register_domains:
-            lines += [*_render_reset_branch(domain, "reg"), ""]
     for window in windows:
         name, domain = window.name, window.domain
         prefix = name
@@ -958,7 +944,7 @@ def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig, itf:
         if match:
             signal = f"{match['name']}_{match['kind'][:-2]}"
         elif port.name in reset_by_port:
-            signal = _domain_branch_reset_signal(reset_by_port[port.name], "core")
+            signal = _domain_sync_reset_signal(reset_by_port[port.name])
         else:
             signal = port.name
         pins.append(f"    .{port.name:<22}({signal})")

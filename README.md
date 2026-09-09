@@ -4,13 +4,11 @@
 
 # ⚡ FlexSoC
 
-FlexSoC is an open-source orchestration framework for **digital IP contracts**:
-the synchronized design intent, generated views, qualification evidence, and provenance
-required to release digital ASIC IP and SoCs through one Python API and CLI (`fx`).
+FlexSoC is an open-source Python/EDA framework for **contract-driven digital design development, qualification, and release**. It applies the same small set of core mechanisms to a single reusable IP, a complex multi-clock IP, a complete SoC, or a large SoC assembled from reusable subsystems.
 
-Its purpose is not to hide the EDA tools. Its purpose is to keep design intent,
-generated collateral, verification environments, constraints, implementation
-data, reports, and logs synchronized while the IP evolves.
+FlexSoC does not replace synthesis, formal, STA, PnR, simulation, or physical-sign-off tools. Those tools remain authoritative for their analyses. FlexSoC adds the layer that is usually missing between them: **source-of-truth ownership, machine-readable requirements and test plans, provenance, selective invalidation, evidence lifecycle, qualification policy, repeatability, and release packaging** through one Python API and CLI (`fx`).
+
+The current frozen package command is IP-oriented (`fx ip_save` / `fx ip_load`). SoC-specific composition contracts and packaging are built on the same core model rather than on a second framework: IP composition, memory map, interconnect, clock/reset topology, software-visible contract, technology branches, and system-level evidence become additional authored inputs and StageContract dependencies.
 
 ```text
 requirements and architecture
@@ -31,10 +29,17 @@ post-route timing / SDF / GLS / power / physical sign-off
         ↓
 metrics snapshot + human closure check
         ↓
-qualified reusable IP or SoC release
+qualified reusable design release
 ```
 
 ## Why FlexSoC
+
+The value of FlexSoC is not proportional to the size of the RTL generator. It comes from making a digital design **reviewable, reproducible, incrementally re-qualifiable, and releasable** while several independent EDA tools operate on it. The same model scales by composition:
+
+- **IP** — a peripheral, register block, arithmetic unit, or small datapath can have a concise contract and a bounded qualification flow.
+- **Complex IP** — accelerators, protocol engines, DMA-style blocks, and multi-clock subsystems add richer CDC/RDC, formal, performance, timing, and implementation evidence without changing the core lifecycle model.
+- **SoC** — IP composition, address space, interconnect, clocks/resets, software-visible integration, and system verification become first-class design intent connected to the same provenance and qualification graph.
+- **Complex SoC** — hierarchy, multiple clock/reset domains, reusable subsystems, multiple technology branches, and partial re-qualification remain manageable because invalidation follows actual dependencies rather than rerunning everything by habit.
 
 A hardware change rarely affects only one file. Adding a status register can
 change CSR configuration file (HJSON), generated register RTL, the Python CSR API,
@@ -53,8 +58,7 @@ FlexSoC makes those dependencies explicit:
 - raw evidence is normalized into analysis JSON and one `metrics.json` snapshot;
 - failed runs retain logs and tool workspaces for diagnosis.
 
-The final goal is a repeatable path from an IP requirement to evidence that the
-implemented hardware still matches its specification and RTL intent. The concise
+The final goal is a repeatable path from a requirement to evidence that the implemented hardware still matches its specification and design intent, whether the release unit is an IP, a subsystem, or an SoC. The concise
 contract, provenance, invalidation, evidence and L1-L5 qualification model is defined
 in [`docs/digital_ip_contract.md`](docs/digital_ip_contract.md).
 
@@ -149,6 +153,8 @@ belong in [docker/README.md](docker/README.md).
 
 ## Minimal single-clock flow
 
+Persist project intent once with `fx settings`; normal commands then reuse `TOP`, `RUN_ID`, `REG_ITF`, qualification target, selected PDK, and derived run paths instead of requiring them on every invocation. Explicit `--workdir` overrides are useful for isolated tests/E2E workspaces, not as the normal user experience.
+
 ```bash
 fx settings \
   TOP=my_ip RUN_TOP=my_ip RUN_ID=dev HOST=uart \
@@ -179,8 +185,11 @@ fx formal
 fx pdk use sky130
 fx syn --setup
 fx syn
+
+# Current scaffold baseline: generate EQY collateral only.
+# EQY setup is not equivalence PASS and therefore does not satisfy L3.
 fx eqy --setup
-fx eqy
+
 fx signoff --setup
 fx sdf
 fx sta
@@ -189,6 +198,8 @@ fx power_estimate
 fx manifest
 fx metrics
 fx check
+fx qualify
+fx ip_save
 ```
 
 `fx sdc --setup` is the handoff from bootstrap settings to authored timing intent.
@@ -230,6 +241,7 @@ adds one domain-local reset synchronizer per clock/reset domain using the common
 
 ## Documentation
 
+- [Digital IP Contract](docs/digital_ip_contract.md) — the core contract, provenance, lifecycle-state, qualification, traceability, and release model that scales from IP to SoC.
 - [Quickstart](docs/quickstart.md) — the shortest runnable single-clock and N-clock workflows.
 - [Project lifecycle](docs/project_lifecycle.md) — what happens to a project from design intent through qualification and reusable release.
 - [IP development guide](docs/ip_development_guide.md) — detailed step-by-step IP development and qualification flow.

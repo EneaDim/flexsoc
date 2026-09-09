@@ -151,7 +151,7 @@ def _write_minimal_ip_spec(root: Path, ip: str = "demo") -> Path:
     (spec / "testplan.yaml").write_text(
         f"schema: 1\nip: {ip}\n"
         "qualification:\n"
-        "  required_evidence: [lint, functional, traceability, cdc_rdc, formal]\n"
+        "  required_evidence: [traceability, lint, functional, cdc_rdc, formal]\n"
         "items:\n"
         "  - id: DEMO-TP-001\n"
         "    requirements: [DEMO-FUNC-001]\n"
@@ -932,9 +932,15 @@ def test_sdf_gls_enables_icarus_interconnect_for_all_timing_stages(
 """
     for package in packages:
         package.write_text(f"package {package.stem};\n{type_text}endpackage\n", encoding="utf-8")
+    (tmp_path / "reg_if.sv").write_text("interface reg_if; endinterface\n", encoding="utf-8")
+    stale_reg_utils = tmp_path / "reg_utils.sv"
+    stale_reg_utils.write_text("class reg_utils; endclass\n", encoding="utf-8")
     for interface in ("reg_iface", "axi_lite"):
         structured = {**values, "REG_ITF": interface}
         command = post_sim_module.compile_command(tmp_path, structured, "post_syn", paths)
+        if interface == "reg_iface":
+            assert str(tmp_path / "reg_if.sv") in command
+            assert str(stale_reg_utils) not in command
         staged = [stage / "iverilog_reg_pkg" / package.name for package in packages]
         assert all(str(package) not in command for package in packages)
         assert all(str(package) in command for package in staged)
@@ -1388,6 +1394,84 @@ def test_ip_load_requires_exact_frozen_interface_layout(tmp_path: Path) -> None:
 
 
 
+def test_release_validator_recomputes_multitech_summary_and_common_spec(tmp_path: Path) -> None:
+    from flexsoc.backend.core.qualification import (
+        qualification_name, validate_release_package, validate_spec_bundle, write_contract_snapshot,
+    )
+
+    ip_root = tmp_path / "hw" / "ips" / "demo"
+    spec_root = _write_minimal_ip_spec(ip_root, "demo")
+    interface = ip_root / "interfaces" / "tlul"
+    interface.mkdir(parents=True)
+    write_contract_snapshot(
+        staged=interface, spec_root=spec_root, ip_name="demo", reg_interface="tlul",
+    )
+    fingerprint = validate_spec_bundle(spec_root, ip_name="demo")["fingerprint"]
+
+    technologies = {}
+    for pdk, level in (("sky130", 4), ("ihp-sg13g2", 2)):
+        meta = interface / "meta" / pdk
+        meta.mkdir(parents=True)
+        report = {
+            "schema": 1,
+            "ip": "demo",
+            "reg_interface": "tlul",
+            "pdk": pdk,
+            "contract_fingerprint": fingerprint,
+            "maximum_level": level,
+            "maximum_qualification": qualification_name(level),
+            "maximum_pass_level": level,
+            "maximum_pass_qualification": qualification_name(level),
+            "qualification_status": "PASS",
+        }
+        (meta / "qualification.json").write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        technologies[pdk] = {
+            "qualification": f"meta/{pdk}/qualification.json",
+            "maximum_level": level,
+            "maximum_qualification": qualification_name(level),
+            "maximum_pass_level": level,
+            "maximum_pass_qualification": qualification_name(level),
+            "qualification_status": "PASS",
+        }
+
+    manifest = {
+        "schema": 2,
+        "format": "flexsoc-ip",
+        "name": "demo",
+        "top": "demo",
+        "reg_interface": "tlul",
+        "content": {"contract": "contract/contract.json"},
+        "qualification": {
+            "summary": {
+                "maximum_level": 4,
+                "maximum_qualification": qualification_name(4),
+            },
+            "technologies": technologies,
+        },
+    }
+    manifest_path = interface / "ip.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    result = validate_release_package(interface)
+    assert result["technology_branches"] == ["ihp-sg13g2", "sky130"]
+    assert result["contract_fingerprint"] == fingerprint
+
+    manifest["qualification"]["summary"]["maximum_level"] = 5
+    manifest["qualification"]["summary"]["maximum_qualification"] = qualification_name(5)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="qualification summary is stale"):
+        validate_release_package(interface)
+
+    manifest["qualification"]["summary"]["maximum_level"] = 4
+    manifest["qualification"]["summary"]["maximum_qualification"] = qualification_name(4)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (spec_root / "ip.md").write_text("# changed after release\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="IP-level spec fingerprint"):
+        validate_release_package(interface)
+
+
 def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     """Packaging stays atomic, PDK-first, and anchored to canonical run artifacts."""
     top, pdk = "demo", "sky130"
@@ -1461,7 +1545,7 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     rdl.mkdir(parents=True)
     (rdl / f"{top}.rdl").write_text("addrmap demo {};\n", encoding="utf-8")
     library = tmp_path / "library"
-    spec_root = _write_minimal_ip_spec(tmp_path / "hw" / "ips" / top, top)
+    spec_root = _write_minimal_ip_spec(run, top)
     stale_impl = library / top / "interfaces" / "tlul" / "impl" / pdk
     stale_impl.mkdir(parents=True)
     (stale_impl / "config.mk").write_text("# setup-only, not PnR evidence\n", encoding="utf-8")
@@ -1491,7 +1575,6 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
         clock_gate_model=gate,
         settings_json=settings_json,
         design_intent_json=design_intent_json,
-        spec_root=spec_root,
     )
     assert not (saved / "impl" / pdk).exists()
     assert (saved / "meta" / "design_intent.json").is_file()
@@ -1533,6 +1616,12 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     implementation = run / "impl" / pdk
     implementation.mkdir(parents=True)
     (implementation / "config.mk").write_text("DESIGN_NAME := demo\n", encoding="utf-8")
+    impl_logs = implementation / "logs"
+    impl_logs.mkdir()
+    (impl_logs / "openroad.log").write_text("runtime log\n", encoding="utf-8")
+    impl_reports = implementation / "reports"
+    impl_reports.mkdir()
+    (impl_reports / "final.rpt").write_text("release report\n", encoding="utf-8")
     flow.save(
         ip_name=top,
         reg_interface="tlul",
@@ -1554,6 +1643,8 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
         force=True,
     )
     assert (saved / "impl" / pdk / "config.mk").is_file()
+    assert not (saved / "impl" / pdk / "logs").exists()
+    assert (saved / "impl" / pdk / "reports" / "final.rpt").is_file()
     stale_runtime = saved / "signoff" / pdk / "post_syn" / "fusion/stale/setup/fusion_analysis.tcl"
     stale_runtime.parent.mkdir(parents=True)
     stale_runtime.write_text("# stale runtime copy\n", encoding="utf-8")
@@ -1923,6 +2014,92 @@ def test_cli_dispatches_doctor_eqy_debug_and_shell(
     assert [name for name, _ in calls] == ["doctor", "eqy_debug", "shell"]
 
 
+
+def test_show_catalog_loads_canonical_json_and_sections(tmp_path: Path) -> None:
+    from flexsoc.backend.core.show import issues, keys, load
+
+    run = tmp_path / "runs" / "demo" / "dev"
+    meta = run / "meta" / "sky130"
+    meta.mkdir(parents=True)
+    qualification = {
+        "ip": "demo",
+        "reg_interface": "reg_iface",
+        "pdk": "sky130",
+        "maximum_level": 2,
+        "maximum_qualification": "RTL Qualified",
+        "qualification_status": "PASS",
+        "requirements": {"covered": 2, "total": 2},
+        "levels": {"3": {"name": "Netlist Qualified", "status": "BLOCKED", "required_evidence": ["eqy"], "blocking_evidence": ["eqy"]}},
+        "evidence": {"regression": "PASS", "eqy": "MISSING", "physical_signoff": "REVIEW"},
+        "freshness": {"regression": "CLEAN", "eqy": "MISSING", "physical_signoff": "CLEAN"},
+        "outcomes": {"regression": "PASS", "physical_signoff": "REVIEW"},
+    }
+    (meta / "qualification.json").write_text(json.dumps(qualification), encoding="utf-8")
+    (meta / "metrics.json").write_text(
+        json.dumps({"equivalence": {"status": "missing"}, "regression": {"status": "pass"}}),
+        encoding="utf-8",
+    )
+
+    available = {item["key"]: item["available"] for item in keys(run, top="demo", pdk="sky130")}
+    assert available["qualification"] is True
+    assert available["gls_post_syn"] is False
+    assert load(run, top="demo", pdk="sky130", key="evidence").data["eqy"] == "MISSING"
+    assert load(run, top="demo", pdk="sky130", key="eqy").data["status"] == "missing"
+    rows = issues(run, top="demo", pdk="sky130")
+    assert {row["key"] for row in rows} == {"eqy", "physical_signoff"}
+
+
+def test_cli_show_renders_qualification_gls_and_json(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    workspace = tmp_path / "workspace"
+    run = workspace / "runs" / "demo" / "dev"
+    meta = run / "meta" / "sky130"
+    meta.mkdir(parents=True)
+    qualification = {
+        "ip": "demo",
+        "reg_interface": "reg_iface",
+        "pdk": "sky130",
+        "maximum_level": 2,
+        "maximum_qualification": "RTL Qualified",
+        "qualification_status": "PASS",
+        "requirements": {"covered": 2, "total": 2},
+        "levels": {
+            "2": {"name": "RTL Qualified", "status": "PASS", "required_evidence": ["regression"], "blocking_evidence": []},
+            "3": {"name": "Netlist Qualified", "status": "BLOCKED", "required_evidence": ["regression", "eqy"], "blocking_evidence": ["eqy"]},
+        },
+        "evidence": {"regression": "PASS", "eqy": "MISSING"},
+        "freshness": {"regression": "CLEAN", "eqy": "MISSING"},
+        "outcomes": {"regression": "PASS"},
+    }
+    (meta / "qualification.json").write_text(json.dumps(qualification), encoding="utf-8")
+    gls = run / "dv" / "functional" / "sim" / "post_syn" / "sky130"
+    gls.mkdir(parents=True)
+    (gls / "summary_sv.json").write_text(json.dumps({
+        "status": "pass", "tests": ["smoke"], "scenarios": ["ff", "tt", "ss"],
+        "passed": 3, "failed": 0, "total": 3,
+        "reports": [
+            {"test_name": "smoke", "scenario": scenario, "status": "pass"}
+            for scenario in ("ff", "tt", "ss")
+        ],
+    }), encoding="utf-8")
+    common = [
+        "--project-root", str(tmp_path), "--workdir", str(workspace),
+        "--set", "TOP=demo", "--set", "RUN_TOP=demo", "--set", "RUN_ID=dev", "--set", "PDK=sky130",
+    ]
+
+    assert app(["show", "qualification", *common]) == 0
+    rendered = capsys.readouterr().out
+    assert "Qualification" in rendered and "eqy" in rendered and "MISSING" in rendered
+
+    assert app(["show", "gls_post_syn", *common]) == 0
+    rendered = capsys.readouterr().out
+    assert "smoke" in rendered and "ff" in rendered and "tt" in rendered and "ss" in rendered
+
+    assert app(["show", "evidence", "--json", *common]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"eqy": "MISSING", "regression": "PASS"}
+
 def test_cli_execution_output_modes(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -2157,16 +2334,38 @@ def test_nclock_dsp_clock_gate_is_regmap_controlled_and_reenable_safe(tmp_path: 
     core = render_nclock_core("tri_stream_dsp")
 
     assert "CLK_GATE_EN" not in cfg_hjson
+    assert 'name: "GAIN"' not in cfg_hjson
     assert 'name: "CLK_EN"' in dsp_hjson
+    assert 'name: "SOFT_RESET"' not in cfg_hjson
+    assert 'name: "SOFT_RESET"' in dsp_hjson
+    assert 'name: "GAIN"' in dsp_hjson
     assert 'resval: "1"' in dsp_hjson
     assert "input  logic                     test_en_i" not in core
+    assert "assign cfg_enable     = cfg_reg2hw_i.ctrl.q;" in core
+    assert "assign dsp_gain       = dsp_reg2hw_i.gain.q[15:0];" in core
+    assert "assign cfg_hw2reg_o.cfg_status.d = cfg_busy;" in core
+    assert "cfg_hw2reg_o.cfg_status.busy.d" not in core
+    assert "cfg_gain" not in core
+    assert "gain_dsp_q" not in core
     assert "assign dsp_clk_req_en = dsp_reg2hw_i.dsp_ctrl.clk_en.q;" in core
-    assert "assign fifo_rready = enable_dsp & dsp_clk_req_en & fifo_rvalid & dsp_pipe_ready;" in core
+    assert "assign soft_reset_dsp = dsp_reg2hw_i.dsp_ctrl.soft_reset.q;" in core
+    assert "u_soft_reset_dsp_sync" not in core
+    assert "cfg_soft_reset" not in core
+    assert "assign fifo_rready = enable_dsp & dsp_clk_req_en & dsp_pipe_ready;" in core
+    assert "assign fifo_pop    = fifo_rvalid & fifo_rready;" in core
+    assert ".wvalid_i  (rx_valid_i & enable_rx)" in core
     assert ".clk_rd_i  (dsp_clk_gated)" in core
     assert ".clk_rd_i  (dsp_clk_i)" not in core
     assert "assign dsp_clk_active = (enable_dsp & dsp_clk_req_en) | soft_reset_dsp | dsp_pipe_valid_q | dsp_valid_o;" in core
     assert "prim_clk_gate u_dsp_clk_gate" in core
     assert ".test_en_i (1'b0)" in core
+    assert "prim_fifo_async_simple #( " not in core
+    assert "prim_fifo_async_simple #(" in core
+    assert ".EnRzHs    (1'b1)" in core
+    assert 'flexsoc_cdc_contract = "clock_gate"' in core
+    assert 'flexsoc_cdc_contract = "async_fifo"' in core
+    assert 'flexsoc_cdc_partial_reset_safe = "true"' in core
+    assert "FLEXSOC_CDC_ANALYSIS" in core
     assert "dsp_clk_gated;" in core
     assert "always_ff @(posedge dsp_clk_gated or negedge dsp_rst_ni)" in core
     assert "u_clk_gate_en_dsp_sync" not in core
@@ -2191,7 +2390,21 @@ def test_nclock_dsp_clock_gate_is_regmap_controlled_and_reenable_safe(tmp_path: 
     assert '"clock_gate"' in tests
     assert "clk_en=False" in tests
     assert "int(config.clk_en) << 3" in tests
+    assert "SOFT_RESET=0" in tests
+    assert "CFG.CTRL.write(ENABLE=1)" in tests
+    assert "DSP.GAIN.write" in tests
+    assert "CFG.GAIN" not in tests
     assert "CLK_GATE_EN" not in tests
+
+    from flexsoc.backend.dv.testbench import cocotb_reg_driver_py_text, sv_driver_text
+
+    cocotb_driver = cocotb_reg_driver_py_text("tri_stream_dsp", clocks, interface="tlul")
+    assert '"cfg": {"CTRL": 0x0, "STATUS": 0x4, "CFG_STATUS": 0x4}' in cocotb_driver
+    assert '"dsp": {"DSP_CTRL": 0x0, "THRESHOLD": 0x4, "RESULT": 0x8, "DSP_STATUS": 0xC, "STATUS": 0xC, "GAIN": 0x10}' in cocotb_driver
+
+    sv_driver = sv_driver_text("tri_stream_dsp", clocks, interface="tlul")
+    assert "reg_name == \"dsp.GAIN\") dsp_write(32'h10, value)" in sv_driver
+    assert 'reg_name == "cfg.GAIN"' not in sv_driver
 
 
 def test_reggen_runtime_uses_pinned_opentitan_vendor() -> None:
@@ -2303,7 +2516,11 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
     multi = render_nclock_top("multi", multi_core, clocks)
     assert "prim_reset_sync" not in multi
     assert multi.count("prim_ff_2sync #(") == 2
-    assert multi.count("prim_flop #(") == 4
+    assert multi.count("prim_flop #(") == 0
+    assert "cfg_core_rst_ni" not in multi
+    assert "cfg_reg_rst_ni" not in multi
+    assert "dsp_core_rst_ni" not in multi
+    assert "dsp_reg_rst_ni" not in multi
     assert 'keep = "true"' not in multi
 
     multi_reg = render_nclock_top("multi", multi_core, clocks, "reg_iface")
@@ -2327,10 +2544,10 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
     assert "axi_lite_to_reg #( " in multi_axi_reg_top
     assert "multi_cfg_reg_core u_reg_core" in multi_axi_reg_top
     core_instance = "".join(multi.split("multi_core u_core", 1)[1].split())
-    assert ".cfg_rst_ni(cfg_core_rst_ni)" in core_instance
-    assert ".dsp_rst_ni(dsp_core_rst_ni)" in core_instance
-    assert ".rst_ni    (cfg_reg_rst_ni)" in multi
-    assert ".rst_ni    (dsp_reg_rst_ni)" in multi
+    assert ".cfg_rst_ni(cfg_rst_sync_ni)" in core_instance
+    assert ".dsp_rst_ni(dsp_rst_sync_ni)" in core_instance
+    assert ".rst_ni    (cfg_rst_sync_ni)" in multi
+    assert ".rst_ni    (dsp_rst_sync_ni)" in multi
 
     rtl_root = tmp_path / "rtl"
     rtl_root.mkdir()
@@ -2339,7 +2556,7 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
     selected = select_used_ips_in_order(candidates, rtl_root)
     resolved = resolve_ip_dependencies(selected, candidates)
     stems = {path.stem for path in resolved}
-    assert {"prim_ff_2sync", "prim_flop"} <= stems
+    assert "prim_ff_2sync" in stems
     assert "prim_reset_sync" not in stems
     assert not (ROOT / "hw/ips/prim/prim_reset_sync.sv").exists()
 
@@ -2357,10 +2574,12 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
     )
     partial = render_nclock_top("partial", partial_core, clocks)
     assert partial.count("prim_ff_2sync #(") == 2
-    assert partial.count("prim_flop #(") == 3
-    assert "cfg_reg_rst_ni" in partial
-    assert "cfg_core_rst_ni" in partial
-    assert "dsp_core_rst_ni" in partial
+    assert partial.count("prim_flop #(") == 0
+    assert "cfg_rst_sync_ni" in partial
+    assert "dsp_rst_sync_ni" in partial
+    assert "cfg_reg_rst_ni" not in partial
+    assert "cfg_core_rst_ni" not in partial
+    assert "dsp_core_rst_ni" not in partial
     assert "dsp_reg_rst_ni" not in partial
 
 
@@ -2998,6 +3217,35 @@ def test_systemverilog_setup_returns_canonical_generated_paths(tmp_path: Path) -
         "drivers/demo_vec_driver.svh",
         "drivers/demo_vec_monitor.svh",
     }
+
+
+def test_reg_iface_sv_driver_is_procedural_and_gls_portable(tmp_path: Path) -> None:
+    from flexsoc.backend.dv.testbench import (
+        render_reg_interface, render_sv_reg_sequence, render_verilator_include,
+    )
+
+    interface = render_reg_interface("demo")
+    sequence = render_sv_reg_sequence(
+        "demo", "reg_iface", "clk_i", active=True, registers=()
+    )
+    include = render_verilator_include(
+        "demo", tmp_path / "rtl", tmp_path / "syn", (), True, "reg_iface", "sv"
+    )
+
+    assert "interface reg_if" in interface
+    assert "task automatic init()" in interface
+    assert "req_q = '0;" in interface
+    assert "task automatic write(" in interface
+    assert "task automatic read(" in interface
+    assert "@(posedge clk_i);\n    @(negedge clk_i);" in interface
+    assert "idle-high ready is not a response" in interface
+    assert "virtual reg_if" not in interface
+    assert "class reg_utils" not in interface
+    assert "regif.write(" in sequence
+    assert "regif.read(" in sequence
+    assert "reg_utils_inst" not in sequence
+    assert '`include "reg_if.sv"' in include
+    assert "reg_utils.sv" not in include
 
 
 def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> None:
@@ -5934,6 +6182,15 @@ def test_stage_contract_graph_is_single_source_and_acyclic() -> None:
     assert api_module.RUNTIME_STAGES == frozenset(contracts) - api_module.PROVENANCE_SETUPS
     assert all(parent in contracts for spec in contracts.values() for parent in spec.parents)
     assert all(contracts[stage].evidence for stage in api_module.RUNTIME_STAGES)
+    assert all(spec.scope in {"run", "pdk"} for spec in contracts.values())
+    assert contracts["regression"].scope == "run"
+    assert contracts["formal_prove"].scope == "run"
+    assert contracts["syn"].scope == "pdk"
+    assert contracts["pnr"].scope == "pdk"
+    assert contracts["sta_post_pnr"].scope == "pdk"
+    assert contracts["syn"].tools == ("YOSYS",)
+    assert contracts["physical_signoff"].tools == ("ORFS", "OPENROAD", "KLAYOUT")
+    assert contracts["eqy"].evidence == ("signoff/{pdk}/equivalence/{top}_rtl_vs_syn",)
     assert "REG_ITF" in contracts["signoff.setup"].config
     assert "REG_ITF" in contracts["signoff_post_pnr.setup"].config
     assert contracts["power_analysis_all"].parents == ("signoff.setup", "sim_post_syn_all")
@@ -5998,6 +6255,142 @@ def test_runtime_contract_evidence_invalidates_downstream_selectively(tmp_path: 
     netlist.write_text("module demo; wire changed; endmodule\n", encoding="utf-8")
     assert router._provenance_state("syn") == "MODIFIED"
     assert router._provenance_state("sta") == "STALE"
+
+
+def test_tool_contract_invalidation_is_stage_selective(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    lock = project / "src/flexsoc/backend/core/toolchain.lock"
+    lock.parent.mkdir(parents=True)
+    lock.write_text(
+        "LOCK_VERSION=3\nYOSYS_VERSION=0.67\nOPENROAD_REF_PREFIX=aaa\n",
+        encoding="utf-8",
+    )
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev", "PDK": "sky130",
+    }
+    router = api_module.FlexSoCTarget(client, values)
+    router.paths.ensure()
+    source = router.paths.rtl / "demo.sv"
+    source.write_text("module demo(input clk_i); endmodule\n", encoding="utf-8")
+    router.paths.rtl_common.write_text("", encoding="utf-8")
+    router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
+    router.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
+    netlist, netjson = router._evidence_paths("syn")
+    netlist.parent.mkdir(parents=True, exist_ok=True)
+    netlist.write_text("module demo; endmodule\n", encoding="utf-8")
+    netjson.write_text("{}\n", encoding="utf-8")
+    router._record_provenance("syn", 0)
+    assert router._provenance_state("syn") == "CLEAN"
+
+    lock.write_text(
+        "LOCK_VERSION=3\nYOSYS_VERSION=0.67\nOPENROAD_REF_PREFIX=bbb\n",
+        encoding="utf-8",
+    )
+    assert router._provenance_state("syn") == "CLEAN"
+
+    lock.write_text(
+        "LOCK_VERSION=3\nYOSYS_VERSION=0.68\nOPENROAD_REF_PREFIX=bbb\n",
+        encoding="utf-8",
+    )
+    assert router._provenance_state("syn") == "STALE"
+
+
+def test_legacy_provenance_without_tool_contract_keeps_existing_lineage(tmp_path: Path) -> None:
+    from flexsoc.backend.core.reporting import Provenance
+
+    root = tmp_path / "run"
+    source = root / "source.sv"
+    parent_out = root / "parent.out"
+    child_out = root / "child.out"
+    root.mkdir()
+    source.write_text("source\n", encoding="utf-8")
+    parent_out.write_text("parent\n", encoding="utf-8")
+    child_out.write_text("child\n", encoding="utf-8")
+    store = Provenance(root / "meta/provenance.json", root)
+    store.record(
+        "parent", inputs=(source,), generated=(parent_out,), config={}, parents={},
+        tools={"YOSYS": {"version": "0.67"}},
+    )
+    data = json.loads(store.path.read_text(encoding="utf-8"))
+    parent = data["stages"]["parent"]
+    parent.pop("tools")
+    parent["fingerprint"] = store._fingerprint(parent)
+    store.path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    legacy_parent = store.current_fingerprint(
+        "parent", inputs=(source,), config={}, parents={},
+        tools={"YOSYS": {"version": "changed"}},
+    )
+    assert legacy_parent == parent["fingerprint"]
+    assert store.state(
+        "parent", inputs=(source,), config={}, parents={},
+        tools={"YOSYS": {"version": "changed"}},
+    ) == "CLEAN"
+    store.record(
+        "child", inputs=(parent_out,), generated=(child_out,), config={},
+        parents={"parent": legacy_parent}, tools={},
+    )
+    assert store.state(
+        "child", inputs=(parent_out,), config={}, parents={"parent": legacy_parent}, tools={},
+    ) == "CLEAN"
+
+
+def test_pnr_output_change_invalidates_only_post_pnr_lineage(tmp_path: Path) -> None:
+    from flexsoc.backend.core.reporting import Provenance
+
+    root = tmp_path / "run"
+    root.mkdir()
+    source = root / "netlist.v"
+    source.write_text("module demo; endmodule\n", encoding="utf-8")
+    store = Provenance(root / "meta/provenance.json", root)
+    pnr_outputs = tuple(root / f"6_final.{suffix}" for suffix in ("v", "sdc", "spef", "odb", "gds"))
+    for path in pnr_outputs:
+        path.write_text(path.suffix + "\n", encoding="utf-8")
+    store.record("pnr", inputs=(source,), generated=pnr_outputs, config={}, parents={}, tools={})
+    pnr_fp = store.current_fingerprint("pnr", inputs=(source,), config={}, parents={}, tools={})
+    post = root / "post_pnr_sta.json"
+    post.write_text('{"status":"pass"}\n', encoding="utf-8")
+    store.record(
+        "sta_post_pnr", inputs=pnr_outputs, generated=(post,), config={},
+        parents={"pnr": pnr_fp}, tools={},
+    )
+    rtl = root / "regression.log"
+    rtl.write_text("PASS\n", encoding="utf-8")
+    store.record("regression", inputs=(source,), generated=(rtl,), config={}, parents={}, tools={})
+
+    pnr_outputs[-1].write_text("changed gds\n", encoding="utf-8")
+    assert store.state("pnr", inputs=(source,), config={}, parents={}, tools={}) == "MODIFIED"
+    current_pnr = store.current_fingerprint("pnr", inputs=(source,), config={}, parents={}, tools={})
+    assert store.state(
+        "sta_post_pnr", inputs=pnr_outputs, config={},
+        parents={"pnr": current_pnr}, tools={},
+    ) == "STALE"
+    assert store.state("regression", inputs=(source,), config={}, parents={}, tools={}) == "CLEAN"
+
+
+def test_physical_signoff_inputs_are_canonical_pnr_outputs_not_impl_tree(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    ors = tmp_path / "orfs" / "flow"
+    ors.mkdir(parents=True)
+    makefile = ors / "Makefile"
+    makefile.write_text("all:\n\t@true\n", encoding="utf-8")
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
+        "PDK": "sky130", "ORS_TECH": "sky130hd", "ORS": str(ors),
+    }
+    router = api_module.FlexSoCTarget(client, values)
+    router.paths.ensure()
+    config = router.paths.impl / "config.mk"
+    config.write_text("export DESIGN_NAME = demo\n", encoding="utf-8")
+    inputs = router._provenance_inputs("physical_signoff")
+    assert router.paths.impl.resolve() not in inputs
+    assert makefile.resolve() in inputs
+    assert config.resolve() in inputs
+    assert set(router._evidence_paths("pnr")).issubset(inputs)
 
 
 def test_pnr_provenance_tracks_only_canonical_final_artifacts(tmp_path: Path) -> None:
@@ -6116,7 +6509,9 @@ def test_regression_provenance_ignores_derived_coverage_reports(tmp_path: Path) 
     assert router._provenance_state("regression") == "CLEAN"
 
 
-def test_contract_status_derives_release_level_without_running_eda(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_contract_status_derives_release_level_without_running_eda(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     project = tmp_path / "project"
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
@@ -6129,14 +6524,14 @@ def test_contract_status_derives_release_level_without_running_eda(tmp_path: Pat
     router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
     router.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
     (router.paths.csr / "demo.hjson").write_text('{name: "demo"}\n', encoding="utf-8")
-    _write_minimal_ip_spec(project / "hw" / "ips" / "demo", "demo")
+    _write_minimal_ip_spec(router.paths.run, "demo")
     (router.paths.tests / "smoke").mkdir(parents=True)
     prop = router.paths.formal / "properties" / "prove" / "demo_prove.sv"
     prop.parent.mkdir(parents=True)
     prop.write_text("module demo_prove; endmodule\n", encoding="utf-8")
 
     from flexsoc.backend.core.qualification import required_stages, validate_spec_bundle
-    spec = validate_spec_bundle(project / "hw" / "ips" / "demo" / "spec", ip_name="demo")
+    spec = validate_spec_bundle(router.paths.spec, ip_name="demo")
     rtl_required = set(required_stages(spec, 2)) - {"requirements_traceability"}
     monkeypatch.setattr(router, "_contract_state", lambda stage: "CLEAN" if stage in rtl_required else "MISSING")
     status = router._contract_status()
@@ -6145,12 +6540,104 @@ def test_contract_status_derives_release_level_without_running_eda(tmp_path: Pat
     assert status["maximum_qualification"] == "RTL Qualified"
     assert status["requirements"]["status"] == "PASS"
     assert status["evidence"]["requirements_traceability"] == "PASS"
+    req_trace = status["traceability"]["requirements"]["DEMO-FUNC-001"]
+    assert req_trace["status"] == "PASS"
+    assert req_trace["testplan"] == [{
+        "testplan_id": "DEMO-TP-001",
+        "methods": ["simulation", "formal"],
+        "tests": ["smoke"],
+        "properties": ["demo_prove"],
+    }]
 
     netlist_required = set(required_stages(spec, 3)) - {"requirements_traceability"}
     monkeypatch.setattr(router, "_contract_state", lambda stage: "CLEAN" if stage in netlist_required else "MISSING")
     status = router._contract_status()
     assert status["maximum_level"] == 3
     assert status["maximum_qualification"] == "Netlist Qualified"
+    output = capsys.readouterr().out
+    assert "[evidence] eqy" in output
+    assert "MISSING" in output
+
+
+def test_requirements_traceability_is_always_first_l2_evidence() -> None:
+    from flexsoc.backend.core.qualification import required_stages
+
+    spec = {
+        "required_evidence": ["lint", "functional", "cdc_rdc", "formal"],
+    }
+    stages = required_stages(spec, 2)
+    assert stages[0] == "requirements_traceability"
+    assert stages[1:3] == ("lint_slang_suite", "lint_verilator_suite")
+    assert stages.count("requirements_traceability") == 1
+
+
+def test_qualification_l1_l5_keeps_waived_review_and_failed_distinct() -> None:
+    from flexsoc.backend.core.qualification import build_qualification_report, required_stages
+
+    spec = {
+        "fingerprint": "contract-sha",
+        "baselined_requirements": 3,
+        "covered_requirements": 3,
+        "required_evidence": ["lint", "functional", "traceability", "cdc_rdc", "formal"],
+    }
+    stages = required_stages(spec, 5)
+    states = {stage: "CLEAN" for stage in stages}
+    outcomes = {stage: "PASS" for stage in stages}
+
+    report = build_qualification_report(
+        ip_name="demo", reg_interface="tlul", pdk="sky130", spec=spec,
+        stage_states=states, stage_outcomes=outcomes, contract_ready=True,
+        requested_level=5,
+    )
+    assert report["maximum_level"] == 5
+    assert report["maximum_pass_level"] == 5
+    assert report["qualification_status"] == "PASS"
+    assert report["target_status"] == "PASS"
+    assert report["target_satisfied"] is True
+    assert all(report["levels"][str(level)]["status"] == "PASS" for level in range(1, 6))
+
+    review = dict(outcomes)
+    review["physical_signoff"] = "REVIEW"
+    report = build_qualification_report(
+        ip_name="demo", reg_interface="tlul", pdk="sky130", spec=spec,
+        stage_states=states, stage_outcomes=review, contract_ready=True,
+        requested_level=5,
+    )
+    assert report["maximum_level"] == 4
+    assert report["maximum_pass_level"] == 4
+    assert report["levels"]["5"]["status"] == "BLOCKED"
+    assert "physical_signoff" in report["levels"]["5"]["blocking_evidence"]
+    assert report["target_status"] == "BLOCKED"
+    assert report["target_satisfied"] is False
+
+    waived = dict(outcomes)
+    waived["eqy"] = "WAIVED"
+    report = build_qualification_report(
+        ip_name="demo", reg_interface="tlul", pdk="sky130", spec=spec,
+        stage_states=states, stage_outcomes=waived, contract_ready=True,
+        requested_level=5,
+    )
+    assert report["maximum_level"] == 5
+    assert report["maximum_pass_level"] == 2
+    assert report["qualification_status"] == "WAIVED"
+    assert report["levels"]["3"]["status"] == "WAIVED"
+    assert report["levels"]["5"]["status"] == "WAIVED"
+    assert report["levels"]["5"]["waived_evidence"] == ["eqy"]
+    assert report["target_status"] == "WAIVED"
+    assert report["target_satisfied"] is True
+
+    failed = dict(outcomes)
+    failed["eqy"] = "FAILED"
+    report = build_qualification_report(
+        ip_name="demo", reg_interface="tlul", pdk="sky130", spec=spec,
+        stage_states=states, stage_outcomes=failed, contract_ready=True,
+        requested_level=3,
+    )
+    assert report["maximum_level"] == 2
+    assert report["maximum_pass_level"] == 2
+    assert report["evidence"]["eqy"] == "FAILED"
+    assert report["target_status"] == "BLOCKED"
+    assert report["target_satisfied"] is False
 
 
 def test_single_clock_spec_scaffold_is_minimal_and_gls_bounded(tmp_path: Path) -> None:
@@ -6178,6 +6665,8 @@ def test_single_clock_spec_scaffold_is_minimal_and_gls_bounded(tmp_path: Path) -
 
 
 def test_multi_clock_spec_scaffold_covers_cdc_dsp_and_clock_gate(tmp_path: Path) -> None:
+    import yaml
+
     from flexsoc.backend.core.qualification import validate_spec_bundle, write_spec_scaffold
 
     root = tmp_path / "hw" / "ips" / "scaffold_multi_clock" / "spec"
@@ -6199,8 +6688,11 @@ def test_multi_clock_spec_scaffold_covers_cdc_dsp_and_clock_gate(tmp_path: Path)
     assert spec["gls_policy"]["tests"] == ["mac_smoke", "corners", "clock_gate"]
     assert spec["gls_policy"]["scenarios"] == ["ss", "tt", "ff"]
     text = (root / "ip.md").read_text(encoding="utf-8")
-    assert "asynchronous FIFO" in text
+    assert "partial-reset-safe asynchronous FIFO" in text
     assert "clock gating" in text
+    requirements = yaml.safe_load((root / "requirements.yaml").read_text(encoding="utf-8"))
+    reset_req = next(item for item in requirements["requirements"] if item["id"].endswith("-RST-001"))
+    assert "without acting as a FIFO flush" in reset_req["statement"]
 
 
 def test_scaffold_gls_policy_rejects_cocotb_or_more_than_three_tests(tmp_path: Path) -> None:
@@ -6241,10 +6733,12 @@ def test_spec_target_is_first_class_ip_scaffold_target(tmp_path: Path) -> None:
     }
     router = api_module.FlexSoCTarget(client, values)
     router._execute_target("spec")
-    root = project / "hw" / "ips" / "scaffold_single_clock" / "spec"
+    root = router.paths.spec
+    assert root == client.workdir / "runs" / "scaffold_single_clock" / "dev" / "spec"
     assert (root / "ip.md").is_file()
     assert (root / "requirements.yaml").is_file()
     assert (root / "testplan.yaml").is_file()
+    assert not (project / "hw" / "ips" / "scaffold_single_clock").exists()
     assert TARGETS["spec"][0] == "IP flow"
 
 
@@ -6321,6 +6815,140 @@ def test_provenance_tracks_generated_symlink_binding_not_its_target(tmp_path: Pa
     assert store.state("eqy.setup", **args) == "INVALID"
 
 
+def test_provenance_missing_is_distinct_from_invalid(tmp_path: Path) -> None:
+    from flexsoc.backend.core.reporting import Provenance
+
+    root = tmp_path / "run"
+    root.mkdir()
+    store = Provenance(root / "meta/provenance.json", root)
+    assert store.state("never_run", inputs=(), config={}) == "MISSING"
+
+
+def test_runtime_failure_records_clean_lineage_and_failed_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
+    router = api_module.FlexSoCTarget(client, values)
+    router.paths.ensure()
+
+    def fail_lint(target: str) -> int:
+        assert target == "lint_slang_suite"
+        evidence = router._evidence_paths(target)[0]
+        evidence.parent.mkdir(parents=True, exist_ok=True)
+        evidence.write_text("lint failed\n", encoding="utf-8")
+        return 3
+
+    monkeypatch.setattr(router, "_execute_target", fail_lint)
+    assert router.execute("lint_slang_suite") == 3
+    assert router._contract_state("lint_slang_suite") == "CLEAN"
+    assert router._contract_outcome("lint_slang_suite") == "FAILED"
+
+    from flexsoc.backend.core.qualification import evidence_state
+    assert evidence_state("CLEAN", outcome="FAILED") == "FAILED"
+
+
+def test_runtime_failure_without_canonical_output_is_failed_but_invalid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
+    router = api_module.FlexSoCTarget(client, values)
+    router.paths.ensure()
+    monkeypatch.setattr(router, "_execute_target", lambda target: 4)
+
+    assert router.execute("lint_slang_suite") == 4
+    assert router._contract_state("lint_slang_suite") == "INVALID"
+    assert router._contract_outcome("lint_slang_suite") == "FAILED"
+
+    from flexsoc.backend.core.qualification import evidence_state
+    assert evidence_state("INVALID", outcome="FAILED") == "FAILED"
+
+
+def test_physical_review_is_not_promoted_to_pass(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    ors = tmp_path / "orfs" / "flow"
+    ors.mkdir(parents=True)
+    (ors / "Makefile").write_text("all:\n\t@true\n", encoding="utf-8")
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
+        "PDK": "sky130", "ORS_TECH": "sky130hd", "ORS": str(ors),
+    }
+    router = api_module.FlexSoCTarget(client, values)
+    router.paths.ensure()
+    (router.paths.impl / "config.mk").write_text("export DESIGN_NAME = demo\n", encoding="utf-8")
+    for path in router._evidence_paths("pnr"):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("canonical pnr\n", encoding="utf-8")
+    summary = router._evidence_paths("physical_signoff")[0]
+    summary.parent.mkdir(parents=True, exist_ok=True)
+    summary.write_text('{"status":"review","checks":{"ir_drop":{"status":"unsupported"}}}\n', encoding="utf-8")
+
+    router._record_provenance("physical_signoff", 2)
+    assert router._contract_state("physical_signoff") == "CLEAN"
+    assert router._contract_outcome("physical_signoff") == "REVIEW"
+
+    from flexsoc.backend.core.qualification import evidence_state
+    assert evidence_state("CLEAN", outcome="REVIEW") == "REVIEW"
+    assert evidence_state("CLEAN") == "PASS"  # legacy record compatibility
+
+
+def test_runtime_outcome_does_not_change_artifact_lineage_fingerprint(tmp_path: Path) -> None:
+    from flexsoc.backend.core.reporting import Provenance
+
+    root = tmp_path / "run"
+    root.mkdir()
+    source = root / "source.v"
+    parent_out = root / "netlist.v"
+    child_out = root / "sta.json"
+    source.write_text("module demo; endmodule\n", encoding="utf-8")
+    parent_out.write_text("module demo; endmodule\n", encoding="utf-8")
+    child_out.write_text('{"status":"pass"}\n', encoding="utf-8")
+    store = Provenance(root / "meta/provenance.json", root)
+    first = store.record(
+        "syn", inputs=(source,), generated=(parent_out,), config={}, parents={}, tools={},
+        outcome="PASS", returncode=0,
+    )
+    store.record(
+        "sta", inputs=(parent_out,), generated=(child_out,), config={},
+        parents={"syn": first}, tools={}, outcome="PASS", returncode=0,
+    )
+
+    second = store.record(
+        "syn", inputs=(source,), generated=(parent_out,), config={}, parents={}, tools={},
+        outcome="FAILED", returncode=1,
+    )
+    assert second == first
+    assert store.outcome("syn") == "FAILED"
+    assert store.state(
+        "sta", inputs=(parent_out,), config={}, parents={"syn": second}, tools={},
+    ) == "CLEAN"
+
+
+def test_runtime_stage_requires_current_runtime_parent_lineage(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev", "PDK": "sky130",
+    }
+    router = api_module.FlexSoCTarget(client, values)
+    router.paths.ensure()
+
+    # StageContract is the dependency source: STA needs signoff.setup, syn.setup and syn.
+    assert router._contract_parents("sta") == ("signoff.setup", "syn.setup", "syn")
+    with pytest.raises(RuntimeError, match=r"signoff.setup provenance is MISSING"):
+        router._require_provenance("sta")
+
+
 def test_router_run_requires_existing_setup_and_setup_force_regenerates(tmp_path: Path) -> None:
     import flexsoc.api as api_module
 
@@ -6343,13 +6971,18 @@ def test_router_run_requires_existing_setup_and_setup_force_regenerates(tmp_path
     init_sdc(router.paths.sdc, top="demo", clocks=router.context.clocks)
 
     # Run-only consumer refuses a missing setup.
-    with pytest.raises(RuntimeError, match=r"cdc_rdc.setup provenance is INVALID.*generate the setup first"):
+    with pytest.raises(RuntimeError, match=r"cdc_rdc.setup provenance is MISSING.*generate the setup first"):
         router._require_provenance("cdc_rdc")
 
     router.execute("cdc_rdc.setup")
     assert router._provenance_state("cdc_rdc.setup") == "CLEAN"
     script = router.paths.run / "analysis" / "cdc_rdc" / "extract.ys"
     canonical = script.read_text(encoding="utf-8")
+    assert "read_slang " in canonical
+    assert "--keep-hierarchy" in canonical.splitlines()[0]
+    assert "setattr -set keep_hierarchy 1 a:flexsoc_cdc_contract" in canonical
+    assert canonical.index("--keep-hierarchy") < canonical.index("setattr -set keep_hierarchy 1 a:flexsoc_cdc_contract")
+    assert canonical.index("setattr -set keep_hierarchy 1 a:flexsoc_cdc_contract") < canonical.index("flatten")
 
     # A clean setup is reused, not regenerated.
     assert router.execute("cdc_rdc.setup")
@@ -6449,6 +7082,380 @@ def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tm
     sky._write_settings_evidence("syn.setup")
     changed = json.loads((run / "meta" / "design_intent.json").read_text(encoding="utf-8"))
     assert changed["ip_intent_sha256"] != before
+
+
+def test_cdc_debug_diagnoses_contract_loss_compactly(tmp_path: Path) -> None:
+    from flexsoc.backend.dv.cdc import collect_cdc_debug
+
+    run = tmp_path / "runs/demo/dev"
+    analysis = run / "analysis/cdc_rdc"
+    rtl = run / "rtl"
+    analysis.mkdir(parents=True)
+    rtl.mkdir(parents=True)
+    (rtl / "demo_core.sv").write_text(
+        '(* flexsoc_cdc_contract = "clock_gate" *) gate u_gate();\n'
+        '(* flexsoc_cdc_contract = "async_fifo" *) fifo u_fifo();\n',
+        encoding="utf-8",
+    )
+    summary = {
+        "schema": "flexsoc.cdc_rdc.v3",
+        "top": "demo",
+        "status": "fail",
+        "clock_domains": 3,
+        "reset_domains": 6,
+        "sequential_elements": 42,
+        "setup": {
+            "errors": 2, "warnings": 0, "review": 0, "safe": 0, "info": 0,
+            "findings": [
+                {"id": "SETUP-0001", "status": "ERROR", "classification": "unassigned_clock_domain",
+                 "issues": ["sequential=q"], "evidence": ["demo.sv:10"], "obligations": []},
+                {"id": "SETUP-0002", "status": "ERROR", "classification": "unassigned_clock_domain",
+                 "issues": ["sequential=r"], "evidence": ["demo.sv:11"], "obligations": []},
+            ],
+        },
+        "glitch": {
+            "errors": 1, "warnings": 0, "review": 0, "safe": 0, "info": 0,
+            "findings": [
+                {"id": "GLITCH-0001", "status": "ERROR", "classification": "combinational_clock_path",
+                 "issues": ["potentially_glitching_clock_logic"], "evidence": ["clock=dsp_clk_i"], "obligations": []},
+            ],
+        },
+        "cdc": {"errors": 0, "warnings": 0, "review": 0, "safe": 1, "info": 0, "findings": []},
+        "rdc": {"errors": 0, "warnings": 0, "review": 0, "safe": 1, "info": 0, "findings": []},
+        "obligations": [],
+    }
+    (analysis / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+    (analysis / "design.json").write_text(json.dumps({"modules": {"demo": {"cells": {}}}}), encoding="utf-8")
+    (analysis / "extract.ys").write_text("flatten\n", encoding="utf-8")
+
+    payload = collect_cdc_debug(
+        summary_path=analysis / "summary.json",
+        design_json=analysis / "design.json",
+        extract_script=analysis / "extract.ys",
+        rtl_dir=rtl,
+    )
+    assert payload["contracts"]["source"] == {"async_fifo": 1, "clock_gate": 1}
+    assert payload["contracts"]["structural_design"] == {}
+    assert payload["contracts"]["frontend_hierarchy_preserved"] is False
+    assert payload["contracts"]["selective_contract_guard"] is False
+    assert payload["contracts"]["extract_guard_state"] == "missing"
+    assert payload["triage"]["phase"] == "extraction"
+    assert payload["triage"]["downstream"] == "deferred"
+    assert payload["scopes"]["setup"]["classes"] == {"unassigned_clock_domain": 2}
+    assert len(payload["scopes"]["setup"]["samples"]) == 1
+    codes = {item["code"] for item in payload["diagnoses"]}
+    assert "contract_lost_in_extraction" in codes
+    assert "clock_domain_mapping_incomplete" in codes
+    assert "cdc_errors_remain" not in codes
+
+
+def test_cli_cdc_rdc_debug_reads_existing_artifacts_without_rerun(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    workspace = tmp_path / "workspace"
+    run = workspace / "runs/demo/dev"
+    analysis = run / "analysis/cdc_rdc"
+    rtl = run / "rtl"
+    analysis.mkdir(parents=True)
+    rtl.mkdir(parents=True)
+    (rtl / "demo_core.sv").write_text(
+        '(* flexsoc_cdc_contract = "clock_gate" *) gate u_gate();\n', encoding="utf-8"
+    )
+    summary = {
+        "schema": "flexsoc.cdc_rdc.v3", "top": "demo", "status": "fail",
+        "clock_domains": 2, "reset_domains": 2, "sequential_elements": 8,
+        "setup": {"errors": 1, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": [
+            {"id": "SETUP-0001", "status": "ERROR", "classification": "unassigned_clock_domain",
+             "issues": ["sequential=q"], "evidence": ["demo.sv:1"], "obligations": []}
+        ]},
+        "glitch": {"errors": 0, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": []},
+        "cdc": {"errors": 0, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": []},
+        "rdc": {"errors": 0, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": []},
+        "obligations": [],
+    }
+    (analysis / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+    (analysis / "design.json").write_text(json.dumps({"modules": {"demo": {"cells": {}}}}), encoding="utf-8")
+    (analysis / "extract.ys").write_text("flatten\n", encoding="utf-8")
+    common = [
+        "--project-root", str(project), "--workdir", str(workspace),
+        "--set", "TOP=demo", "--set", "RUN_TOP=demo", "--set", "RUN_ID=dev",
+    ]
+
+    assert app(["cdc_rdc", "--debug", *common]) == 0
+    rendered = capsys.readouterr().out
+    assert "CDC/RDC debug" in rendered
+    assert "CDC contract survival" in rendered
+    assert "Triage" in rendered
+    assert "contract_lost_in_extraction" in rendered
+    assert "unassigned_clock_domain" in rendered
+    assert "downstream symptoms" in rendered
+
+    assert app(["cdc_rdc", "--debug", "--json", *common]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["schema"] == "flexsoc.cdc_rdc_debug.v2"
+    assert payload["contracts"]["structural_design"] == {}
+    assert payload["triage"]["phase"] == "extraction"
+
+
+def test_cdc_debug_distinguishes_ineffective_guard_and_atomic_obligations(tmp_path: Path) -> None:
+    from flexsoc.backend.dv.cdc import collect_cdc_debug
+
+    run = tmp_path / "runs/demo/dev"
+    analysis = run / "analysis/cdc_rdc"
+    rtl = run / "rtl"
+    analysis.mkdir(parents=True)
+    rtl.mkdir(parents=True)
+    (rtl / "demo_core.sv").write_text(
+        '(* flexsoc_cdc_contract = "clock_gate" *) gate u_gate();\n', encoding="utf-8"
+    )
+    summary = {
+        "schema": "flexsoc.cdc_rdc.v3", "top": "demo", "status": "review",
+        "clock_domains": 2, "reset_domains": 2, "sequential_elements": 8,
+        "setup": {"errors": 0, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": []},
+        "glitch": {"errors": 0, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": []},
+        "cdc": {"errors": 0, "warnings": 0, "review": 1, "safe": 0, "info": 0, "findings": []},
+        "rdc": {"errors": 0, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": []},
+        "obligations": [{
+            "finding_id": "CDC-0001", "scope": "cdc", "classification": "qualified_multibit",
+            "obligations": ["before", "after", "polarity"],
+        }],
+    }
+    (analysis / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+    (analysis / "design.json").write_text(json.dumps({"modules": {"demo": {"cells": {}}}}), encoding="utf-8")
+    (analysis / "extract.ys").write_text(
+        "read_slang --keep-hierarchy demo.sv --top demo\n"
+        "setattr -set keep_hierarchy 1 a:flexsoc_cdc_contract\nflatten\n", encoding="utf-8"
+    )
+
+    payload = collect_cdc_debug(
+        summary_path=analysis / "summary.json", design_json=analysis / "design.json",
+        extract_script=analysis / "extract.ys", rtl_dir=rtl,
+    )
+    assert payload["contracts"]["frontend_hierarchy_preserved"] is True
+    assert payload["contracts"]["selective_contract_guard"] is True
+    assert payload["contracts"]["extract_guard"] is True
+    assert payload["contracts"]["extract_guard_state"] == "present_but_ineffective"
+    assert payload["verification_obligations"] == 3
+    assert payload["obligation_findings"] == 1
+    assert payload["triage"]["phase"] == "extraction"
+
+
+def test_cdc_debug_triages_synchronized_reconvergence_without_waiving_it(tmp_path: Path) -> None:
+    from flexsoc.backend.dv.cdc import collect_cdc_debug
+
+    run = tmp_path / "runs/demo/dev"
+    analysis = run / "analysis/cdc_rdc"
+    rtl = run / "rtl"
+    analysis.mkdir(parents=True)
+    rtl.mkdir(parents=True)
+    (rtl / "demo.sv").write_text("module demo; endmodule\n", encoding="utf-8")
+    finding = {
+        "id": "CDC-0001", "status": "WARN", "classification": "synchronized_reconvergence",
+        "issues": ["independently_synchronized_signals_reconverge"],
+        "evidence": ["destination=q[0]", "source_domain=cfg"],
+        "obligations": ["prove_destination_coherency"],
+    }
+    summary = {
+        "schema": "flexsoc.cdc_rdc.v3", "top": "demo", "status": "review",
+        "clock_domains": 2, "reset_domains": 2, "sequential_elements": 8,
+        "setup": {"errors": 0, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": []},
+        "glitch": {"errors": 0, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": []},
+        "cdc": {"errors": 0, "warnings": 1, "review": 0, "safe": 2, "info": 0, "findings": [finding]},
+        "rdc": {"errors": 0, "warnings": 0, "review": 0, "safe": 2, "info": 0, "findings": []},
+        "obligations": [{
+            "finding_id": "CDC-0001", "scope": "cdc",
+            "classification": "synchronized_reconvergence",
+            "obligations": ["prove_destination_coherency"],
+        }],
+    }
+    (analysis / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+    (analysis / "design.json").write_text(json.dumps({"modules": {"demo": {"cells": {}}}}), encoding="utf-8")
+    (analysis / "extract.ys").write_text("flatten\n", encoding="utf-8")
+
+    payload = collect_cdc_debug(
+        summary_path=analysis / "summary.json", design_json=analysis / "design.json",
+        extract_script=analysis / "extract.ys", rtl_dir=rtl,
+    )
+    assert payload["triage"]["phase"] == "cdc_reconvergence"
+    assert payload["triage"]["state"] == "REVIEW"
+    codes = {item["code"] for item in payload["diagnoses"]}
+    assert "synchronized_reconvergence_only" in codes
+    assert "review_required" not in codes
+    assert payload["verification_obligations"] == 1
+
+
+def test_cdc_methodology_documents_single_multi_clock_rdc_and_debug() -> None:
+    root = Path(__file__).resolve().parents[1]
+    guide = root / "docs/methodology/clock_domain_crossing.md"
+    text = guide.read_text(encoding="utf-8")
+    index = (root / "docs/methodology/README.md").read_text(encoding="utf-8")
+
+    assert "Single-clock methodology" in text
+    assert "Multi-clock methodology" in text
+    assert "Keep controls domain-local when possible" in text
+    assert "Synchronized reconvergence" in text
+    assert "Reset methodology and RDC" in text
+    assert "Explicit FlexSoC CDC contracts" in text
+    assert "fx cdc_rdc --debug" in text
+    assert "WAIVED` remains distinct from `PASS" in text
+    assert "clock_domain_crossing.md" in index
+
+
+def test_cdc_contracts_assign_internal_clock_and_bound_async_fifo() -> None:
+    from flexsoc.backend.dv import cdc as cdc_module
+
+    clocks = ClockConfig((
+        ClockDomain("rx", "rx_clk_i", "rx_rst_ni", 8.0),
+        ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 10.0),
+    ))
+    module = {
+        "ports": {
+            "rx_clk_i": {"direction": "input", "bits": [1]},
+            "rx_rst_ni": {"direction": "input", "bits": [2]},
+            "dsp_clk_i": {"direction": "input", "bits": [3]},
+            "dsp_rst_ni": {"direction": "input", "bits": [4]},
+        },
+        "netnames": {
+            "rx_clk_i": {"bits": [1]},
+            "rx_rst_ni": {"bits": [2]},
+            "dsp_clk_i": {"bits": [3]},
+            "dsp_rst_ni": {"bits": [4]},
+            "dsp_clk_gated": {"bits": [5]},
+        },
+        "cells": {
+            "u_gate": {
+                "type": "some_glitch_free_gate",
+                "attributes": {
+                    "flexsoc_cdc_contract": "clock_gate",
+                    "flexsoc_cdc_domain": "dsp",
+                    "flexsoc_cdc_clock_in_port": "C",
+                    "flexsoc_cdc_clock_out_port": "Q",
+                },
+                "port_directions": {"C": "input", "E": "input", "Q": "output"},
+                "connections": {"C": [3], "E": ["1"], "Q": [5]},
+            },
+            "u_fifo": {
+                "type": "some_async_fifo",
+                "attributes": {
+                    "flexsoc_cdc_contract": "async_fifo",
+                    "flexsoc_cdc_source_domain": "rx",
+                    "flexsoc_cdc_destination_domain": "dsp",
+                    "flexsoc_cdc_source_clock_port": "WCLK",
+                    "flexsoc_cdc_destination_clock_port": "RCLK",
+                    "flexsoc_cdc_source_reset_port": "WRST",
+                    "flexsoc_cdc_destination_reset_port": "RRST",
+                    "flexsoc_cdc_partial_reset_safe": "true",
+                },
+                "port_directions": {
+                    "WCLK": "input", "RCLK": "input", "WRST": "input", "RRST": "input",
+                    "WDATA": "input", "RDATA": "output",
+                },
+                "connections": {
+                    "WCLK": [1], "RCLK": [5], "WRST": [2], "RRST": [4],
+                    "WDATA": [6, 7], "RDATA": [8, 9],
+                },
+            },
+            "q": {
+                "type": "$adff",
+                "attributes": {"src": "demo.sv:1"},
+                "parameters": {"ARST_POLARITY": "0"},
+                "port_directions": {"CLK": "input", "ARST": "input", "D": "input", "Q": "output"},
+                "connections": {"CLK": [5], "ARST": [4], "D": [10], "Q": [11]},
+            },
+        },
+    }
+    data = {"modules": {"demo": module}}
+    ir = cdc_module.load_yosys_json(data, "demo", clocks)
+    assert ir.sequential[0].clock_domain == "dsp"
+    analysis = cdc_module.analyze_domains(ir, clocks)
+    result = cdc_module.classify_cdc_rdc(ir, analysis)
+    assert not [item for item in result.setup if item.status == "ERROR"]
+    assert not [item for item in result.glitch if item.status == "ERROR"]
+    fifo = [item for item in result.cdc if item.classification == "async_fifo_contract"]
+    assert len(fifo) == 1
+    assert fifo[0].status == "SAFE"
+    assert fifo[0].obligations == ()
+
+
+def test_cdc_contract_rejects_unknown_clock_gate_domain() -> None:
+    from flexsoc.backend.dv import cdc as cdc_module
+
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+    module = {
+        "ports": {"clk_i": {"direction": "input", "bits": [1]}, "rst_ni": {"direction": "input", "bits": [2]}},
+        "netnames": {"clk_i": {"bits": [1]}, "rst_ni": {"bits": [2]}},
+        "cells": {
+            "gate": {
+                "type": "gate",
+                "attributes": {
+                    "flexsoc_cdc_contract": "clock_gate",
+                    "flexsoc_cdc_domain": "missing",
+                    "flexsoc_cdc_clock_in_port": "C",
+                    "flexsoc_cdc_clock_out_port": "Q",
+                },
+                "connections": {"C": [1], "Q": [3]},
+            }
+        },
+    }
+    with pytest.raises(ValueError, match="unknown domain"):
+        cdc_module.load_yosys_json({"modules": {"demo": module}}, "demo", clocks)
+
+
+def test_cdc_safe_synchronizer_rdc_has_no_open_obligation() -> None:
+    from flexsoc.backend.dv import cdc as cdc_module
+
+    crossing = cdc_module.Crossing(
+        cdc_module.Endpoint("seq", "src", 0, "a", "a_rst"),
+        cdc_module.Endpoint("seq", "dst", 0, "b", "b_rst"),
+        "async",
+    )
+    analysis = cdc_module.DomainAnalysis((), (), (crossing,))
+    protected = cdc_module.DomainFinding("cdc", "SAFE", "nff_synchronizer", (crossing,))
+    rdc = cdc_module._classify_reset_domain_crossings(analysis, (protected,))
+    assert len(rdc) == 1
+    assert rdc[0].status == "SAFE"
+    assert rdc[0].obligations == ()
+
+
+def test_cdc_multiple_resets_on_one_clock_is_informational_without_crossings() -> None:
+    from flexsoc.backend.core import ClockDomain
+    from flexsoc.backend.dv import cdc as cdc_module
+
+    domain = ClockDomain("main", "clk_i", "rst_ni", 10.0)
+    module = {
+        "ports": {
+            "clk_i": {"direction": "input", "bits": [1]},
+            "rst_ni": {"direction": "input", "bits": [2]},
+            "rst_aux_ni": {"direction": "input", "bits": [3]},
+        },
+        "cells": {},
+        "netnames": {},
+    }
+    ir = cdc_module.DesignIR(
+        top="demo",
+        clocks=(domain,),
+        ports=(),
+        sequential=(
+            cdc_module.SequentialElement(
+                "a", "$adff", 1, "main", (4,), (5,),
+                async_reset_bit=2, reset_signal="rst_ni", reset_polarity="low",
+            ),
+            cdc_module.SequentialElement(
+                "b", "$adff", 1, "main", (6,), (7,),
+                async_reset_bit=3, reset_signal="rst_aux_ni", reset_polarity="low",
+            ),
+        ),
+        module=module,
+    )
+    analysis = cdc_module.DomainAnalysis((), (), ())
+    setup, glitch = cdc_module._setup_and_glitch_findings(ir, analysis)
+    finding = next(item for item in setup if item.classification == "multiple_reset_domains_on_clock")
+    result = cdc_module.ComprehensiveAnalysis((), (), setup, glitch)
+
+    assert finding.status == "INFO"
+    assert cdc_module._overall_status(result) == "pass"
 
 
 def test_metrics_snapshots_provenance_and_check_does_not_refresh(tmp_path: Path) -> None:

@@ -1,18 +1,43 @@
 # Digital IP Contract and qualification
 
-FlexSoC treats a release as a contract plus reproducible evidence, not as a directory of tool outputs.
+FlexSoC treats a release as a contract plus reproducible evidence, not as a directory of tool outputs. The **Digital IP Contract** is the first concrete release contract, but the core model is intentionally design-scale independent: the same provenance, invalidation, evidence, qualification, and repeatability primitives apply to small IP, complex IP, subsystems, SoCs, and complex SoCs.
 
 The core model is intentionally small:
 
 1. **Digital IP Contract** — what the IP must do: identity, register interface, external interfaces, clocks/resets, CSR behavior, requirements, assumptions, limitations, and qualification target.
 2. **Source of truth** — authoritative specification, requirements, test plan, CSR HJSON, authored RTL, properties, and constraints. Generated collateral is derived state.
-3. **Provenance graph** — each generated artifact/evidence records its effective inputs, configuration, parents, and hashes.
-4. **Dependency / invalidation graph** — the existing `StageContract.parents` and stage inputs define what becomes stale when upstream intent changes. FlexSoC invalidates the minimum correct downstream set.
-5. **Artifact/evidence states** — `MISSING`, `CLEAN`, `STALE`, `PASS`, `FAILED`, `WAIVED`, `INVALID`, `MODIFIED`, `VALIDATED_OVERRIDE`. A waiver is never a pass.
+3. **Provenance graph** — each tracked artifact/evidence records effective inputs, semantic configuration, real parents, relevant tool identity, canonical outputs, and hashes.
+4. **Dependency / invalidation graph** — the `StageContract` fields define what becomes stale when upstream intent changes. FlexSoC invalidates the minimum correct downstream set rather than treating the flow as one monolithic build.
+5. **Two independent lifecycle axes** — provenance freshness is `MISSING`, `CLEAN`, `STALE`, `INVALID`, `MODIFIED`, or `VALIDATED_OVERRIDE`; evidence outcome is `MISSING`, `PASS`, `FAILED`, `REVIEW`, `WAIVED`, `STALE`, or `INVALID`. A clean artifact is not automatically a successful EDA result, and a waiver is never a pass.
 6. **Qualification policy** — defines the evidence required for each release level.
 7. **Evidence** — lint, functional regression, requirement traceability, formal, CDC/RDC, synthesis, equivalence, STA, GLS, power, implementation, and physical checks.
 8. **Unified validator** — `fx qualify` derives the maximum level actually supported by coherent non-stale evidence.
 9. **Repeatability** — releases retain source/spec hashes, settings, tool/PDK identity, provenance, and qualification evidence sufficient to reproduce the qualification result.
+
+## Design scale: IP to complex SoC
+
+FlexSoC scales by adding authored contract facts and real dependencies, not by introducing a second orchestration architecture:
+
+| Design scale | Typical contract additions | Core mechanisms that stay unchanged |
+| --- | --- | --- |
+| Small IP | CSR/interface behavior, clocks/resets, RTL, requirements | StageContract, provenance, qualification, release evidence |
+| Complex IP / subsystem | multiple domains, CDC/RDC, protocols, memories, performance constraints | the same selective invalidation and evidence lifecycle |
+| SoC | IP composition, memory map, interconnect, system clocks/resets, software-visible integration | the same source-of-truth, parent lineage, tool fingerprint, qualification policy |
+| Complex SoC | hierarchy, reusable subsystems, multiple domains/technology branches and system-level sign-off | the same graph semantics; only the authored contract and stage dependencies grow |
+
+The currently implemented frozen release primitive is `ip_save` / `ip_load`. SoC-specific package structure is an extension of this contract model; it must not duplicate provenance, scheduling, or qualification logic.
+
+## StageContract and fingerprints
+
+`STAGE_CONTRACTS` is the minimal dependency graph. Each tracked stage declares the information required to decide whether its evidence is still current:
+
+- semantic configuration keys actually consumed by the stage;
+- real parent stages;
+- canonical owned evidence;
+- storage scope (`run` for technology-independent evidence or `pdk` for technology-specific evidence);
+- the relevant tool contract/fingerprint.
+
+The stage fingerprint combines effective inputs, configuration, parent lineage, tool identity, and canonical outputs. Tool identity is stage-specific: changing OpenROAD must not invalidate a Yosys-only synthesis result, and changing PDK-specific implementation state must not invalidate RTL regression/formal evidence. Legacy provenance that predates tool fingerprints remains readable under its original fingerprint semantics.
 
 ## Qualification levels
 
@@ -94,9 +119,23 @@ The direct `sim_post_syn_all` / `sim_post_pnr_all` commands remain general-purpo
 
 - `fx ip_load --set IP_NAME=<ip> --set REG_ITF=<itf>` loads exactly `interfaces/<itf>/` into a run and materializes package `signoff/<pdk>/post_syn/` evidence into the operational run layout.
 - `fx qualify --set QUAL_LEVEL=<level>` validates the current run against the specification/test-plan policy and writes `meta/<pdk>/qualification.json`.
-- `fx ip_save` always runs the same validator first, snapshots the contract, writes provenance/qualification metadata, and atomically publishes only the selected interface/PDK branch. `QUAL_LEVEL=auto` records the maximum demonstrated level; an explicit target refuses publication if that level is not satisfied.
+- `fx ip_save` always runs the same validator first, snapshots the contract, preserves the common IP-level `spec/`, writes provenance/qualification metadata, and atomically publishes only the selected interface/PDK branch. `QUAL_LEVEL=auto` records the maximum demonstrated level; an explicit target refuses publication if that level is not satisfied.
+- Saving one PDK branch preserves previously published PDK branches. Release validation rechecks the common `spec/` against the frozen interface contract and recomputes multi-PDK qualification summaries from the per-PDK qualification reports instead of trusting a precomputed `ip.json` claim.
 
 A release is valid only when its required evidence is present, coherent with current intent, and non-stale. Presence of a directory is never sufficient qualification evidence.
+
+Qualification reports preserve the difference between a satisfied policy and an unwaived PASS:
+
+- `maximum_level` is the highest level satisfied by `PASS` or explicitly `WAIVED` evidence;
+- `maximum_pass_level` is the highest level satisfied without waivers;
+- `qualification_status` is `PASS`, `WAIVED`, or `BLOCKED` for the highest reached level;
+- `WAIVED` never becomes `PASS`; `FAILED` and `REVIEW` remain blocking unless an explicit policy records a waiver.
+
+Requirement traceability is emitted machine-readably as `requirement -> testplan item -> methods/tests/properties`, so a release can identify not only that the test plan is complete but exactly which verification intent covers each normative requirement.
+
+### Current EQY baseline
+
+EQY support remains part of the Netlist Qualified policy. During the current scaffold-baseline phase FlexSoC generates EQY collateral with `fx eqy --setup` but does not run the proof by default. **Setup-only is not equivalence evidence**: the `eqy` stage remains `MISSING`, so qualification must not claim L3 until a real EQY run produces acceptable evidence (or an explicit future waiver policy is deliberately applied).
 
 ## Provenance scopes
 

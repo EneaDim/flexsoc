@@ -220,26 +220,17 @@ def cfg_hjson(top: str, itf: str = "tlul") -> str:
           swaccess: "rw",
           hwaccess: "hro",
           fields: [
-            {{ bits: "0", name: "ENABLE", desc: "Enable RX input and DSP processing." }},
-            {{ bits: "1", name: "SOFT_RESET", desc: "Synchronous datapath clear request." }}
+            {{ bits: "0", name: "ENABLE", desc: "Enable RX input and DSP processing." }}
           ]
         }},
         {{
-          name: "GAIN",
-          desc: "Signed Q1.15 gain added by the DSP pipeline. Update while CTRL.ENABLE is low.",
-          swaccess: "rw",
-          hwaccess: "hro",
-          fields: [{{ bits: "15:0", name: "VALUE", desc: "DSP gain coefficient." }}]
-        }},
-        {{
           name: "CFG_STATUS",
-          desc: "Cfg-domain view of datapath status synchronized back from the DSP domain.",
+          desc: "Cfg-domain view of the synchronized global busy indication.",
           swaccess: "ro",
           hwaccess: "hrw",
           hwext: "true",
           fields: [
-            {{ bits: "0", name: "BUSY", desc: "The DSP pipeline currently owns an output sample." }},
-            {{ bits: "1", name: "OVERFLOW", desc: "The latest result overflowed or saturated." }}
+            {{ bits: "0", name: "BUSY", desc: "The DSP pipeline currently owns an output sample." }}
           ]
         }}
       ]
@@ -282,7 +273,8 @@ def dsp_hjson(top: str, itf: str = "tlul") -> str:
           fields: [
             {{ bits: "1:0", name: "OP", desc: "0=MAC plus gain, 1=absolute difference, 2=energy estimate." }},
             {{ bits: "2", name: "SATURATE", desc: "Clamp overflowing results to signed 32-bit limits." }},
-            {{ bits: "3", name: "CLK_EN", resval: "1", desc: "Enable the gated DSP datapath clock. The DSP register interface remains clocked by clk_i so software can always re-enable the datapath." }}
+            {{ bits: "3", name: "CLK_EN", resval: "1", desc: "Enable the gated DSP datapath clock. The DSP register interface remains clocked by clk_i so software can always re-enable the datapath." }},
+            {{ bits: "4", name: "SOFT_RESET", desc: "Synchronous DSP-domain datapath clear request; does not flush the RX-to-DSP FIFO." }}
           ]
         }},
         {{
@@ -312,6 +304,13 @@ def dsp_hjson(top: str, itf: str = "tlul") -> str:
             {{ bits: "2", name: "FIFO_EMPTY", desc: "RX-to-DSP FIFO has no readable payload." }},
             {{ bits: "3", name: "OVERFLOW", desc: "The latest operation overflowed before saturation." }}
           ]
+        }},
+        {{
+          name: "GAIN",
+          desc: "Signed Q1.15 gain consumed directly in the DSP clock domain.",
+          swaccess: "rw",
+          hwaccess: "hro",
+          fields: [{{ bits: "15:0", name: "VALUE", desc: "DSP gain coefficient." }}]
         }}
       ]
     }}

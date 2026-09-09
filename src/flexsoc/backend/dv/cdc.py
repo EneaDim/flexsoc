@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import threading
 import time
@@ -127,6 +128,38 @@ class DomainAnalysis:
     reset_crossings: tuple[Crossing, ...]
 
 
+_CDC_CONTRACT_ATTR = "flexsoc_cdc_contract"
+_CDC_DOMAIN_ATTR = "flexsoc_cdc_domain"
+_CDC_SOURCE_DOMAIN_ATTR = "flexsoc_cdc_source_domain"
+_CDC_DESTINATION_DOMAIN_ATTR = "flexsoc_cdc_destination_domain"
+_CDC_CLOCK_IN_PORT_ATTR = "flexsoc_cdc_clock_in_port"
+_CDC_CLOCK_OUT_PORT_ATTR = "flexsoc_cdc_clock_out_port"
+_CDC_SOURCE_CLOCK_PORT_ATTR = "flexsoc_cdc_source_clock_port"
+_CDC_DESTINATION_CLOCK_PORT_ATTR = "flexsoc_cdc_destination_clock_port"
+_CDC_SOURCE_RESET_PORT_ATTR = "flexsoc_cdc_source_reset_port"
+_CDC_DESTINATION_RESET_PORT_ATTR = "flexsoc_cdc_destination_reset_port"
+_CDC_PARTIAL_RESET_SAFE_ATTR = "flexsoc_cdc_partial_reset_safe"
+
+
+def _attribute_text(item: Mapping[str, Any], name: str) -> str | None:
+    """Return one normalized Yosys attribute value."""
+
+    value = item.get("attributes", {}).get(name)
+    if value is None:
+        return None
+    text = str(value).strip().strip('"')
+    return text or None
+
+
+def _attribute_bool(item: Mapping[str, Any], name: str) -> bool:
+    value = (_attribute_text(item, name) or "").lower()
+    return value in {"1", "true", "yes", "on"} or (set(value) <= {"0", "1"} and value.endswith("1"))
+
+
+def _cdc_contract(item: Mapping[str, Any]) -> str | None:
+    return (_attribute_text(item, _CDC_CONTRACT_ATTR) or "").lower() or None
+
+
 _SEQ_PORTS: dict[str, tuple[str, str, str | None, str | None]] = {
     "$dff": ("CLK", "D", None, None),
     "$dffe": ("CLK", "D", None, None),
@@ -175,9 +208,12 @@ def _net_names(module: Mapping[str, Any]) -> dict[NetBit, str]:
 
 
 def _domain_bit_map(module: Mapping[str, Any], clocks: ClockConfig) -> dict[NetBit, str]:
+    """Map primary and explicitly contracted internal clocks to logical domains."""
+
     names = _net_names(module)
     by_name = {name.split("[")[0]: bit for bit, name in names.items()}
     result: dict[NetBit, str] = {}
+    known_domains = {domain.name for domain in clocks.domains}
     for domain in clocks.domains:
         port = module.get("ports", {}).get(domain.signal)
         bits = tuple(port.get("bits", ())) if port else ()
@@ -185,6 +221,46 @@ def _domain_bit_map(module: Mapping[str, Any], clocks: ClockConfig) -> dict[NetB
             bits = (by_name[domain.signal],)
         if len(bits) == 1:
             result[bits[0]] = domain.name
+
+    # Clock-gate contracts are explicit design intent. Resolve them iteratively
+    # so cascaded glitch-free gates can inherit their declared parent domain.
+    pending = [
+        (name, cell)
+        for name, cell in module.get("cells", {}).items()
+        if _cdc_contract(cell) == "clock_gate"
+    ]
+    while pending:
+        unresolved: list[tuple[str, Mapping[str, Any]]] = []
+        progress = False
+        for name, cell in pending:
+            domain = _attribute_text(cell, _CDC_DOMAIN_ATTR)
+            in_port = _attribute_text(cell, _CDC_CLOCK_IN_PORT_ATTR)
+            out_port = _attribute_text(cell, _CDC_CLOCK_OUT_PORT_ATTR)
+            if domain not in known_domains:
+                raise ValueError(f"clock-gate contract {name!r} references unknown domain {domain!r}")
+            if not in_port or not out_port:
+                raise ValueError(f"clock-gate contract {name!r} is missing clock port metadata")
+            in_bits = tuple(cell.get("connections", {}).get(in_port, ()))
+            out_bits = tuple(cell.get("connections", {}).get(out_port, ()))
+            if len(in_bits) != 1 or len(out_bits) != 1:
+                raise ValueError(f"clock-gate contract {name!r} requires scalar clock ports")
+            parent = result.get(in_bits[0])
+            if parent is None:
+                unresolved.append((name, cell))
+                continue
+            if parent != domain:
+                raise ValueError(
+                    f"clock-gate contract {name!r} declares domain {domain!r} but parent clock belongs to {parent!r}"
+                )
+            previous = result.get(out_bits[0])
+            if previous not in {None, domain}:
+                raise ValueError(f"clock-gate output for {name!r} has conflicting domain intent")
+            result[out_bits[0]] = domain
+            progress = True
+        if unresolved and not progress:
+            names_text = ", ".join(name for name, _ in unresolved)
+            raise ValueError(f"clock-gate contract parent clock is unresolved: {names_text}")
+        pending = unresolved
     return result
 
 
@@ -305,7 +381,7 @@ def _graph(ir: DesignIR) -> tuple[
     drivers: dict[NetBit, tuple[str, ...]] = {}
     cells = module.get("cells", {})
     for name, cell in cells.items():
-        if name in seq_by_name:
+        if name in seq_by_name or _cdc_contract(cell) == "async_fifo":
             continue
         directions = cell.get("port_directions", {})
         for port_name, direction in directions.items():
@@ -694,7 +770,7 @@ def _setup_and_glitch_findings(ir: DesignIR, analysis: DomainAnalysis) -> tuple[
     glitch: list[DomainFinding] = []
     declared_clocks = {domain.signal for domain in ir.clocks}
     declared_resets = {domain.reset for domain in ir.clocks}
-    clock_bits = _declared_port_bits(ir, declared_clocks)
+    clock_bits = set(_domain_bit_map(ir.module, ClockConfig(ir.clocks)))
     reset_bits = _declared_port_bits(ir, declared_resets)
     domain_by_name = {domain.name: domain for domain in ir.clocks}
 
@@ -751,8 +827,11 @@ def _setup_and_glitch_findings(ir: DesignIR, analysis: DomainAnalysis) -> tuple[
             resets_by_clock.setdefault(seq.clock_domain, set()).add(seq.reset_signal)
     for clock, resets in sorted(resets_by_clock.items()):
         if len(resets) > 1:
+            # Multiple reset signals within one clock domain are structural intent,
+            # not by themselves an RDC violation. Unsafe reset interactions are
+            # classified separately from reset crossings/release/sequencing checks.
             setup.append(DomainFinding(
-                "setup", "REVIEW", "multiple_reset_domains_on_clock",
+                "setup", "INFO", "multiple_reset_domains_on_clock",
                 issues=(f"clock_domain={clock}",),
                 evidence=tuple(sorted(resets)),
             ))
@@ -889,7 +968,7 @@ def _classify_primary_cdc(
             cdc.append(DomainFinding(
                 "cdc", sync.status, "nff_synchronizer", (crossing,),
                 sync.issues,
-                ("minimum_pulse_width_or_sampling_window",) if sync.status != "ERROR" else (),
+                ("minimum_pulse_width_or_sampling_window",) if sync.status == "WARN" else (),
                 tuple(f"stage={stage.name}[{stage.bit_index}]" for stage in sync.stages),
             ))
             continue
@@ -1070,7 +1149,6 @@ def _classify_reset_domain_crossings(
         if cdc_finding and cdc_finding.classification == "nff_synchronizer" and cdc_finding.status in {"SAFE", "WARN"}:
             rdc.append(DomainFinding(
                 "rdc", "SAFE", "rdc_via_data_synchronizer", group,
-                obligations=("minimum_pulse_width_or_sampling_window",),
             ))
         elif cdc_finding and cdc_finding.classification == "qualified_multibit":
             rdc.append(DomainFinding(
@@ -1130,14 +1208,101 @@ def _check_reset_sequence(
     ir: DesignIR,
     analysis: DomainAnalysis,
 ) -> None:
-    """Append a sequencing obligation when multiple reset domains interact."""
+    """Request reset sequencing only when an interacting RDC is not already SAFE."""
 
-    if len({seq.reset_signal for seq in ir.sequential if seq.reset_signal}) > 1 and analysis.reset_crossings:
+    unsafe = any(
+        finding.primary and finding.crossings and finding.status in {"ERROR", "WARN", "REVIEW"}
+        for finding in rdc
+    )
+    if (
+        unsafe
+        and len({seq.reset_signal for seq in ir.sequential if seq.reset_signal}) > 1
+        and analysis.reset_crossings
+    ):
         rdc.append(DomainFinding(
             "rdc", "REVIEW", "reset_sequence_or_control_required", (),
             obligations=("specify_reset_assertion_sequence_or_rdc_blocking_control",),
             primary=False,
         ))
+
+
+def _cdc_contract_findings(ir: DesignIR) -> tuple[list[DomainFinding], list[DomainFinding]]:
+    """Validate explicit trusted CDC boundaries without naming implementation modules."""
+
+    cdc: list[DomainFinding] = []
+    setup: list[DomainFinding] = []
+    clocks = ClockConfig(ir.clocks)
+    domain_by_bit = _domain_bit_map(ir.module, clocks)
+    known_domains = {domain.name for domain in ir.clocks}
+    names = _net_names(ir.module)
+    for name, cell in ir.module.get("cells", {}).items():
+        contract = _cdc_contract(cell)
+        if contract is None or contract == "clock_gate":
+            continue
+        if contract != "async_fifo":
+            setup.append(DomainFinding(
+                "setup", "ERROR", "unsupported_cdc_contract", (),
+                issues=(f"cell={name}", f"contract={contract}"),
+                primary=False,
+            ))
+            continue
+        src_domain = _attribute_text(cell, _CDC_SOURCE_DOMAIN_ATTR)
+        dst_domain = _attribute_text(cell, _CDC_DESTINATION_DOMAIN_ATTR)
+        src_clk_port = _attribute_text(cell, _CDC_SOURCE_CLOCK_PORT_ATTR)
+        dst_clk_port = _attribute_text(cell, _CDC_DESTINATION_CLOCK_PORT_ATTR)
+        src_rst_port = _attribute_text(cell, _CDC_SOURCE_RESET_PORT_ATTR)
+        dst_rst_port = _attribute_text(cell, _CDC_DESTINATION_RESET_PORT_ATTR)
+        partial_reset_safe = _attribute_bool(cell, _CDC_PARTIAL_RESET_SAFE_ATTR)
+        if src_domain not in known_domains or dst_domain not in known_domains or src_domain == dst_domain:
+            setup.append(DomainFinding(
+                "setup", "ERROR", "invalid_async_fifo_contract", (),
+                issues=(f"cell={name}", f"domains={src_domain}->{dst_domain}"),
+                primary=False,
+            ))
+            continue
+        required_ports = (src_clk_port, dst_clk_port, src_rst_port, dst_rst_port)
+        if any(not port for port in required_ports):
+            setup.append(DomainFinding(
+                "setup", "ERROR", "invalid_async_fifo_contract", (),
+                issues=(f"cell={name}", "missing_clock_or_reset_port_metadata"),
+                primary=False,
+            ))
+            continue
+        connections = cell.get("connections", {})
+        src_clk_bits = tuple(connections.get(str(src_clk_port), ()))
+        dst_clk_bits = tuple(connections.get(str(dst_clk_port), ()))
+        src_rst_bits = tuple(connections.get(str(src_rst_port), ()))
+        dst_rst_bits = tuple(connections.get(str(dst_rst_port), ()))
+        if not all(len(bits) == 1 for bits in (src_clk_bits, dst_clk_bits, src_rst_bits, dst_rst_bits)):
+            setup.append(DomainFinding(
+                "setup", "ERROR", "invalid_async_fifo_contract", (),
+                issues=(f"cell={name}", "clock_and_reset_ports_must_be_scalar"),
+                primary=False,
+            ))
+            continue
+        observed = (domain_by_bit.get(src_clk_bits[0]), domain_by_bit.get(dst_clk_bits[0]))
+        if observed != (src_domain, dst_domain):
+            setup.append(DomainFinding(
+                "setup", "ERROR", "async_fifo_clock_domain_mismatch", (),
+                issues=(f"cell={name}", f"declared={src_domain}->{dst_domain}", f"observed={observed[0]}->{observed[1]}"),
+                primary=False,
+            ))
+            continue
+        status = "SAFE" if partial_reset_safe else "REVIEW"
+        obligations = () if partial_reset_safe else ("prove_protocol_safe_across_independent_reset_events",)
+        cdc.append(DomainFinding(
+            "cdc", status, "async_fifo_contract", (),
+            obligations=obligations,
+            evidence=(
+                f"cell={name}",
+                f"domains={src_domain}->{dst_domain}",
+                f"source_reset={names.get(src_rst_bits[0], src_rst_port)}",
+                f"destination_reset={names.get(dst_rst_bits[0], dst_rst_port)}",
+                f"partial_reset_safe={str(partial_reset_safe).lower()}",
+            ),
+            primary=False,
+        ))
+    return cdc, setup
 
 
 def classify_cdc_rdc(ir: DesignIR, analysis: DomainAnalysis) -> ComprehensiveAnalysis:
@@ -1157,8 +1322,12 @@ def classify_cdc_rdc(ir: DesignIR, analysis: DomainAnalysis) -> ComprehensiveAna
     # CDC_CHECK_ORDER[3]: independently synchronized controls/data that reconverge.
     _check_synchronized_reconvergence(cdc, analysis, clean_scalar)
 
+    contract_cdc, contract_setup = _cdc_contract_findings(ir)
+    cdc.extend(contract_cdc)
+
     # SETUP_GLITCH_CHECK_ORDER: environment/domain setup and combinational hazards.
     setup, glitch = _setup_and_glitch_findings(ir, analysis)
+    setup = (*setup, *contract_setup)
 
     # RDC_CHECK_ORDER[0]: reset-domain crossings and their recognized protection.
     rdc = _classify_reset_domain_crossings(analysis, cdc)
@@ -1187,7 +1356,16 @@ def _read_slang_command(top: str, filelists: Sequence[Path], repo_root: Path) ->
         repo_root / "hw" / "ips" / "prim_opentitan",
         repo_root / "hw" / "ips" / "tlul",
     )
-    options = [*(f"-I {path}" for path in include_dirs), "-D SYNTHESIS", "--ignore-assertions"]
+    options = [
+        *(f"-I {path}" for path in include_dirs),
+        "-D SYNTHESIS",
+        "-D FLEXSOC_CDC_ANALYSIS",
+        # read_slang flattens hierarchy during frontend elaboration by default.
+        # CDC contracts are instance-level intent, so preserve hierarchy until
+        # Yosys can mark only contracted boundaries before the explicit flatten.
+        "--keep-hierarchy",
+        "--ignore-assertions",
+    ]
     options.extend(f"-f {path}" for path in filelists)
     options.append(f"--top {top}")
     return "read_slang " + " ".join(options)
@@ -1207,6 +1385,9 @@ def render_extract_script(
         f"hierarchy -check -top {top}",
         "proc",
         "opt",
+        # Contract cells are trusted CDC boundaries. Set keep_hierarchy on the
+        # selected cell objects explicitly; all other hierarchy is flattened.
+        "setattr -set keep_hierarchy 1 a:flexsoc_cdc_contract",
         "flatten",
         "opt_clean",
         f"write_json {design_json}",
@@ -1482,6 +1663,342 @@ def write_reports(
     for name in ("cdc.log", "rdc.log", "cdc_rdc.log"):
         (log_dir / name).unlink(missing_ok=True)
     return summary
+
+
+# ---------------------------------------------------------------------------
+# Read-only debug/triage of canonical CDC/RDC artifacts
+# ---------------------------------------------------------------------------
+
+_NON_PASS = {"ERROR", "WARN", "REVIEW"}
+_CONTRACT_RE = re.compile(r"flexsoc_cdc_contract\s*=\s*[\"']([^\"']+)[\"']")
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        raise FileNotFoundError(f"CDC/RDC artifact not found: {path}; run `fx cdc_rdc` first")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"CDC/RDC artifact is not a JSON object: {path}")
+    return data
+
+
+def _source_contracts(rtl_dir: Path) -> Counter[str]:
+    contracts: Counter[str] = Counter()
+    if not rtl_dir.is_dir():
+        return contracts
+    for path in sorted((*rtl_dir.glob("*.sv"), *rtl_dir.glob("*.v"))):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        contracts.update(match.group(1).strip().lower() for match in _CONTRACT_RE.finditer(text))
+    return contracts
+
+
+def _design_contracts(design: Mapping[str, Any], top: str) -> Counter[str]:
+    contracts: Counter[str] = Counter()
+    module = design.get("modules", {}).get(top, {})
+    for cell in module.get("cells", {}).values():
+        value = cell.get("attributes", {}).get("flexsoc_cdc_contract")
+        if value is None:
+            continue
+        text = str(value).strip().strip('"').lower()
+        if text:
+            contracts[text] += 1
+    return contracts
+
+
+def _scope_payload(summary: Mapping[str, Any], scope: str) -> dict[str, Any]:
+    section = summary.get(scope, {})
+    findings = section.get("findings", []) if isinstance(section, dict) else []
+    non_pass = [
+        item for item in findings
+        if isinstance(item, dict) and str(item.get("status", "")).upper() in _NON_PASS
+    ]
+    classes = Counter(str(item.get("classification", "unknown")) for item in non_pass)
+    samples: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in non_pass:
+        classification = str(item.get("classification", "unknown"))
+        if classification in seen:
+            continue
+        seen.add(classification)
+        samples.append({
+            "id": item.get("id"),
+            "status": item.get("status"),
+            "classification": classification,
+            "issues": list(item.get("issues") or ()),
+            "evidence": list(item.get("evidence") or ()),
+            "obligations": list(item.get("obligations") or ()),
+        })
+    return {
+        "errors": int(section.get("errors", 0) or 0),
+        "warnings": int(section.get("warnings", 0) or 0),
+        "review": int(section.get("review", 0) or 0),
+        "safe": int(section.get("safe", 0) or 0),
+        "info": int(section.get("info", 0) or 0),
+        "classes": dict(sorted(classes.items())),
+        "samples": samples,
+    }
+
+
+def _contract_guard_state(
+    *, source_contracts: Counter[str], design_contracts: Counter[str], guard_present: bool
+) -> str:
+    source_total = sum(source_contracts.values())
+    design_total = sum(design_contracts.values())
+    if source_total == 0:
+        return "not_applicable"
+    if design_total >= source_total:
+        return "effective" if guard_present else "survived_without_guard"
+    if design_total > 0:
+        return "partial" if guard_present else "partial_without_guard"
+    return "present_but_ineffective" if guard_present else "missing"
+
+
+def _diagnoses(
+    summary: Mapping[str, Any],
+    scopes: Mapping[str, Mapping[str, Any]],
+    *,
+    source_contracts: Counter[str],
+    design_contracts: Counter[str],
+    guard_state: str,
+) -> list[dict[str, str]]:
+    diagnoses: list[dict[str, str]] = []
+    setup_classes = scopes["setup"]["classes"]
+    glitch_classes = scopes["glitch"]["classes"]
+
+    source_total = sum(source_contracts.values())
+    design_total = sum(design_contracts.values())
+    if source_total and not design_total:
+        diagnoses.append({
+            "code": "contract_lost_in_extraction",
+            "severity": "ERROR",
+            "message": (
+                "Explicit flexsoc_cdc_contract markers exist in RTL but no contracted cell survives in the "
+                "top-level structural design. Fix extraction before interpreting downstream CDC/RDC findings."
+            ),
+        })
+    elif source_total and design_total < source_total:
+        diagnoses.append({
+            "code": "contract_partially_preserved",
+            "severity": "ERROR",
+            "message": "Only part of the explicit CDC contract boundary set survives structural extraction.",
+        })
+    elif guard_state == "survived_without_guard":
+        diagnoses.append({
+            "code": "extract_contract_guard_missing",
+            "severity": "WARN",
+            "message": "Contracts currently survive, but extraction does not explicitly protect contracted cells before flattening.",
+        })
+
+    if setup_classes.get("unassigned_clock_domain") or glitch_classes.get("combinational_clock_path"):
+        diagnoses.append({
+            "code": "clock_domain_mapping_incomplete",
+            "severity": "ERROR",
+            "message": "Sequential state is clocked through a network that the structural IR has not assigned to a declared domain.",
+        })
+
+    # Once extraction/domain setup is known broken, detailed CDC/RDC classifications
+    # are downstream symptoms. Keep them in JSON, but do not promote each family to
+    # another root-cause diagnosis.
+    extraction_broken = source_total > design_total
+    mapping_broken = bool(
+        setup_classes.get("unassigned_clock_domain") or glitch_classes.get("combinational_clock_path")
+    )
+    if not extraction_broken and not mapping_broken:
+        if scopes["cdc"]["errors"]:
+            diagnoses.append({
+                "code": "cdc_errors_remain",
+                "severity": "ERROR",
+                "message": "CDC structural errors remain after extraction and clock/domain setup are closed.",
+            })
+        if scopes["rdc"]["errors"]:
+            diagnoses.append({
+                "code": "rdc_errors_remain",
+                "severity": "ERROR",
+                "message": "RDC structural errors remain after extraction and reset-domain setup are closed.",
+            })
+
+    non_error_review = sum(
+        int(scopes[name]["warnings"]) + int(scopes[name]["review"])
+        for name in ("setup", "glitch", "cdc", "rdc")
+    )
+    cdc_non_pass_classes = set(scopes["cdc"]["classes"])
+    reconvergence_only = (
+        not any(item["severity"] == "ERROR" for item in diagnoses)
+        and non_error_review
+        and cdc_non_pass_classes == {"synchronized_reconvergence"}
+        and not any(
+            int(scopes[name]["warnings"]) + int(scopes[name]["review"])
+            for name in ("setup", "glitch", "rdc")
+        )
+    )
+    if reconvergence_only:
+        diagnoses.append({
+            "code": "synchronized_reconvergence_only",
+            "severity": "REVIEW",
+            "message": (
+                "Only synchronized reconvergence remains. Prefer removing unnecessary cross-domain controls or "
+                "using an explicit coherent transfer before adding a waiver or weakening the checker."
+            ),
+        })
+    elif not any(item["severity"] == "ERROR" for item in diagnoses) and non_error_review:
+        diagnoses.append({
+            "code": "review_required",
+            "severity": "REVIEW",
+            "message": "No structural ERROR remains, but WARN/REVIEW findings still require design-intent confirmation or evidence.",
+        })
+
+    obligations = summary.get("obligations", []) or []
+    if not any(item["severity"] == "ERROR" for item in diagnoses) and obligations:
+        diagnoses.append({
+            "code": "open_verification_obligations",
+            "severity": "REVIEW",
+            "message": "Structural classification is not fully closed because verification obligations remain open.",
+        })
+
+    if str(summary.get("status", "")).lower() == "pass" and not diagnoses:
+        diagnoses.append({
+            "code": "closed",
+            "severity": "PASS",
+            "message": "CDC/RDC structural closure is complete for the recorded analysis.",
+        })
+    return diagnoses
+
+
+def _triage(
+    scopes: Mapping[str, Mapping[str, Any]],
+    diagnoses: list[dict[str, str]],
+) -> dict[str, str]:
+    codes = {item["code"] for item in diagnoses}
+    if {"contract_lost_in_extraction", "contract_partially_preserved"} & codes:
+        return {
+            "phase": "extraction",
+            "state": "BLOCKED",
+            "next_action": "Preserve explicit CDC contract cells in design.json, then rerun CDC/RDC before interpreting downstream crossings.",
+            "downstream": "deferred",
+        }
+    if "clock_domain_mapping_incomplete" in codes:
+        return {
+            "phase": "clock_reset_setup",
+            "state": "BLOCKED",
+            "next_action": "Close unassigned clock domains and combinational clock/reset paths before classifying CDC/RDC protocols.",
+            "downstream": "deferred",
+        }
+    if scopes["cdc"]["errors"]:
+        return {
+            "phase": "cdc",
+            "state": "BLOCKED",
+            "next_action": "Resolve the remaining CDC ERROR classes, then rerun and inspect RDC.",
+            "downstream": "active",
+        }
+    if scopes["rdc"]["errors"]:
+        return {
+            "phase": "rdc",
+            "state": "BLOCKED",
+            "next_action": "Resolve reset-domain protection or reset sequencing for the remaining RDC ERROR classes.",
+            "downstream": "active",
+        }
+    if "synchronized_reconvergence_only" in codes:
+        return {
+            "phase": "cdc_reconvergence",
+            "state": "REVIEW",
+            "next_action": (
+                "Remove unnecessary independently synchronized controls or replace them with an explicit coherent "
+                "transfer; rerun CDC before considering any waiver."
+            ),
+            "downstream": "active",
+        }
+    if any(int(scopes[name]["warnings"]) + int(scopes[name]["review"]) for name in scopes):
+        return {
+            "phase": "review",
+            "state": "REVIEW",
+            "next_action": "Discharge remaining review obligations with explicit design intent or verification evidence.",
+            "downstream": "active",
+        }
+    return {
+        "phase": "closed",
+        "state": "PASS",
+        "next_action": "CDC/RDC structural closure is complete for this recorded analysis.",
+        "downstream": "closed",
+    }
+
+
+def collect_cdc_debug(
+    *,
+    summary_path: Path,
+    design_json: Path,
+    extract_script: Path,
+    rtl_dir: Path,
+) -> dict[str, Any]:
+    """Return a compact diagnosis from existing canonical CDC/RDC artifacts only."""
+
+    summary = _load_json(summary_path)
+    design = _load_json(design_json)
+    top = str(summary.get("top") or "")
+    if not top:
+        raise ValueError(f"CDC/RDC summary has no top: {summary_path}")
+
+    source_contracts = _source_contracts(rtl_dir)
+    design_contracts = _design_contracts(design, top)
+    extract_text = extract_script.read_text(encoding="utf-8", errors="replace") if extract_script.is_file() else ""
+    frontend_hierarchy = "--keep-hierarchy" in extract_text
+    selective_guard = (
+        "setattr -set keep_hierarchy 1 a:flexsoc_cdc_contract" in extract_text
+        or "keep_hierarchy a:flexsoc_cdc_contract" in extract_text
+    )
+    guard_present = frontend_hierarchy and selective_guard
+    guard_state = _contract_guard_state(
+        source_contracts=source_contracts,
+        design_contracts=design_contracts,
+        guard_present=guard_present,
+    )
+    scopes = {name: _scope_payload(summary, name) for name in ("setup", "glitch", "cdc", "rdc")}
+    obligations = [
+        {
+            "finding_id": item.get("finding_id"),
+            "scope": item.get("scope"),
+            "classification": item.get("classification"),
+            "obligations": list(item.get("obligations") or ()),
+        }
+        for item in (summary.get("obligations", []) or [])
+        if isinstance(item, dict)
+    ]
+    obligation_checks = sum(len(item["obligations"]) for item in obligations)
+    diagnoses = _diagnoses(
+        summary,
+        scopes,
+        source_contracts=source_contracts,
+        design_contracts=design_contracts,
+        guard_state=guard_state,
+    )
+    triage = _triage(scopes, diagnoses)
+    return {
+        "schema": "flexsoc.cdc_rdc_debug.v2",
+        "top": top,
+        "status": summary.get("status"),
+        "clock_domains": summary.get("clock_domains"),
+        "reset_domains": summary.get("reset_domains"),
+        "sequential_elements": summary.get("sequential_elements"),
+        "verification_obligations": obligation_checks,
+        "obligation_findings": len(obligations),
+        "contracts": {
+            "source": dict(sorted(source_contracts.items())),
+            "structural_design": dict(sorted(design_contracts.items())),
+            "frontend_hierarchy_preserved": frontend_hierarchy,
+            "selective_contract_guard": selective_guard,
+            "extract_guard": guard_present,
+            "extract_guard_state": guard_state,
+        },
+        "triage": triage,
+        "scopes": scopes,
+        "diagnoses": diagnoses,
+        "obligations": obligations,
+        "artifacts": {
+            "summary": str(summary_path),
+            "design_json": str(design_json),
+            "extract_script": str(extract_script),
+            "rtl_dir": str(rtl_dir),
+        },
+    }
 
 
 class _Heartbeat:
@@ -1806,6 +2323,35 @@ class CdcFlow:
             heartbeat=heartbeat,
             strict=strict,
         ), runner=self.runner, inputs=inputs, on=on)
+
+    def debug(
+        self,
+        *,
+        summary_path: Path,
+        design_json: Path,
+        extract_script: Path,
+        rtl_dir: Path,
+    ) -> dict[str, Any]:
+        """Read canonical CDC/RDC artifacts and return compact root-cause triage."""
+
+        return collect_cdc_debug(
+            summary_path=summary_path,
+            design_json=design_json,
+            extract_script=extract_script,
+            rtl_dir=rtl_dir,
+        )
+
+    def debug_from_context(self, context) -> dict[str, Any]:
+        """Read CDC/RDC debug state from one BackendContext without rerunning analysis."""
+
+        paths = context.paths
+        analysis = paths.run / "analysis" / "cdc_rdc"
+        return self.debug(
+            summary_path=analysis / "summary.json",
+            design_json=analysis / "design.json",
+            extract_script=analysis / "extract.ys",
+            rtl_dir=paths.rtl,
+        )
 
     def run_from_context(
         self, context, *, inputs: Sequence[Path] = (), on: str = "local"

@@ -12,17 +12,28 @@ from typing import Mapping, Sequence
 import yaml
 
 
-ARTIFACT_STATES = (
+PROVENANCE_STATES = (
     "MISSING",
     "CLEAN",
     "STALE",
-    "PASS",
-    "FAILED",
-    "WAIVED",
     "INVALID",
     "MODIFIED",
     "VALIDATED_OVERRIDE",
 )
+
+EVIDENCE_STATES = (
+    "MISSING",
+    "PASS",
+    "FAILED",
+    "REVIEW",
+    "WAIVED",
+    "STALE",
+    "INVALID",
+)
+
+# Backward-compatible public union; provenance freshness and evidence outcome are
+# intentionally separate in the qualification report.
+ARTIFACT_STATES = tuple(dict.fromkeys((*PROVENANCE_STATES, *EVIDENCE_STATES)))
 
 QUALIFICATION_LEVELS = (
     ("Not Qualified", "none"),
@@ -159,7 +170,7 @@ This is a didactic scaffold, not an application-specific algorithm. Requirements
         "schema": 1,
         "ip": ip_name,
         "qualification": {
-            "required_evidence": ["lint", "functional", "traceability", "cdc_rdc", "formal"],
+            "required_evidence": ["traceability", "lint", "functional", "cdc_rdc", "formal"],
             "gls": {
                 "backend": GLS_QUALIFICATION_BACKEND,
                 "scenarios": list(GLS_QUALIFICATION_SCENARIOS),
@@ -201,12 +212,12 @@ Declared domains: {domains}.
 
 Declared relationships: {relationships}.
 
-Each domain owns its reset release. Cross-domain communication uses explicit synchronizers or an asynchronous FIFO rather than implicit combinational crossings.
+Each domain owns one synchronized reset release. Cross-domain communication uses explicit synchronizers or an asynchronous FIFO rather than implicit combinational crossings. The RX-to-DSP FIFO uses a partial-reset-safe handshake so either endpoint may reset independently.
 
 ## Functional behavior
 
-- Configuration controls originate in the cfg domain.
-- RX samples cross into the DSP domain through an asynchronous FIFO.
+- Global enable/software-reset controls originate in the cfg domain; DSP algorithm, gain and threshold controls remain in the DSP register domain.
+- RX samples cross into the DSP domain through a partial-reset-safe asynchronous FIFO handshake.
 - The DSP scaffold supports multiply-accumulate, absolute-difference and energy operations.
 - Output ready/valid backpressure is preserved.
 - The DSP datapath clock may be gated by the scaffold control while the control register window remains writable for restart.
@@ -226,18 +237,18 @@ The CDC mechanisms are starter patterns suitable for this scaffold topology. A r
         "requirements": [
             {"id": f"{prefix}-CLK-001", "statement": "The IP shall preserve the declared cfg, RX, and DSP clock/reset domains and their explicit clock relationships.", "scope": "common", "origin": "scaffold", "status": "baselined"},
             {"id": f"{prefix}-REG-001", "statement": "The software-visible CSR semantics shall remain unchanged across reg_iface, TL-UL, and AXI-Lite register-interface releases.", "scope": "common", "origin": "scaffold", "status": "baselined"},
-            {"id": f"{prefix}-CDC-001", "statement": "Control/status crossings shall use explicit synchronizers or safe update rules, and RX payloads shall cross into the DSP domain through the asynchronous FIFO scaffold.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+            {"id": f"{prefix}-CDC-001", "statement": "Control/status crossings shall use explicit synchronizers, and RX payloads shall cross into the DSP domain through the partial-reset-safe asynchronous FIFO scaffold.", "scope": "common", "origin": "scaffold", "status": "baselined"},
             {"id": f"{prefix}-FUNC-001", "statement": "The DSP scaffold shall implement multiply-accumulate, absolute-difference, and energy operations selected by configuration.", "scope": "common", "origin": "scaffold", "status": "baselined"},
             {"id": f"{prefix}-FLOW-001", "statement": "RX and DSP output interfaces shall obey the generated ready/valid flow-control and shall preserve output state under backpressure.", "scope": "common", "origin": "scaffold", "status": "baselined"},
             {"id": f"{prefix}-GATE-001", "statement": "DSP clock gating shall stop inactive datapath activity while preserving a control path that can re-enable the DSP domain.", "scope": "common", "origin": "scaffold", "status": "baselined"},
-            {"id": f"{prefix}-RST-001", "statement": "Reset and software reset shall return domain-local datapath, FIFO-visible state, valid state, and status to the scaffold-defined inactive condition.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+            {"id": f"{prefix}-RST-001", "statement": "External domain resets shall reset their domain-local state and the associated asynchronous-FIFO endpoint; the DSP-domain software reset shall synchronously clear DSP datapath, pipeline-valid, output and status state without acting as a FIFO flush.", "scope": "common", "origin": "scaffold", "status": "baselined"},
         ],
     }
     testplan = {
         "schema": 1,
         "ip": ip_name,
         "qualification": {
-            "required_evidence": ["lint", "functional", "traceability", "cdc_rdc", "formal"],
+            "required_evidence": ["traceability", "lint", "functional", "cdc_rdc", "formal"],
             "gls": {
                 "backend": GLS_QUALIFICATION_BACKEND,
                 "scenarios": list(GLS_QUALIFICATION_SCENARIOS),
@@ -402,6 +413,7 @@ def validate_spec_bundle(spec_root: Path, *, ip_name: str | None = None) -> dict
     covered: set[str] = set()
     test_names: set[str] = set()
     properties: set[str] = set()
+    traceability: dict[str, list[dict[str, object]]] = {req_id: [] for req_id in req_ids}
     for entry in items:
         if not isinstance(entry, dict):
             raise ValueError("each test-plan item must be a mapping")
@@ -412,15 +424,26 @@ def validate_spec_bundle(spec_root: Path, *, ip_name: str | None = None) -> dict
         refs = entry.get("requirements", [])
         if not isinstance(refs, list) or not refs:
             raise ValueError(f"{plan_id}: requirements must be a non-empty list")
+        fields: dict[str, list[str]] = {}
+        for key in ("methods", "tests", "properties"):
+            raw = entry.get(key, []) or []
+            if not isinstance(raw, list):
+                raise ValueError(f"{plan_id}: {key} must be a list")
+            fields[key] = [str(item).strip() for item in raw if str(item).strip()]
+        record = {
+            "testplan_id": plan_id,
+            "methods": fields["methods"],
+            "tests": fields["tests"],
+            "properties": fields["properties"],
+        }
         for ref in refs:
             req_id = str(ref)
             if req_id not in req_ids:
                 raise ValueError(f"{plan_id}: unknown requirement {req_id!r}")
             covered.add(req_id)
-        for name in entry.get("tests", []) or []:
-            test_names.add(str(name))
-        for name in entry.get("properties", []) or []:
-            properties.add(str(name))
+            traceability[req_id].append(record)
+        test_names.update(fields["tests"])
+        properties.update(fields["properties"])
     if len(set(plan_ids)) != len(plan_ids):
         raise ValueError("duplicate test-plan item id")
 
@@ -432,13 +455,17 @@ def validate_spec_bundle(spec_root: Path, *, ip_name: str | None = None) -> dict
     if not isinstance(qualification, dict):
         raise ValueError("testplan.qualification must be a mapping")
     required_evidence = qualification.get(
-        "required_evidence", ["lint", "functional", "traceability", "cdc_rdc", "formal"]
+        "required_evidence", ["traceability", "lint", "functional", "cdc_rdc", "formal"]
     )
     if not isinstance(required_evidence, list):
         raise ValueError("qualification.required_evidence must be a list")
     unknown = [str(item) for item in required_evidence if str(item) not in EVIDENCE_GROUPS]
     if unknown:
         raise ValueError("unknown qualification evidence group(s): " + ", ".join(unknown))
+    required_evidence = [
+        "traceability",
+        *(str(item) for item in required_evidence if str(item) != "traceability"),
+    ]
     gls_policy = _validated_gls_policy(qualification, planned_tests=test_names)
 
     hashes = {name: sha256_file(root / name) for name in SPEC_FILES}
@@ -454,6 +481,7 @@ def validate_spec_bundle(spec_root: Path, *, ip_name: str | None = None) -> dict
         "testplan_items": len(plan_ids),
         "tests": sorted(test_names),
         "properties": sorted(properties),
+        "traceability": traceability,
         "required_evidence": [str(item) for item in required_evidence],
         "gls_policy": gls_policy,
         "hashes": hashes,
@@ -466,8 +494,19 @@ def required_stages(spec: Mapping[str, object], level: int) -> tuple[str, ...]:
 
     stages: list[str] = []
     if level >= 2:
-        for group in spec.get("required_evidence", ("lint", "functional", "traceability", "cdc_rdc", "formal")):
-            stages.extend(EVIDENCE_GROUPS[str(group)])
+        groups = (
+            "traceability",
+            *(
+                str(group)
+                for group in spec.get(
+                    "required_evidence",
+                    ("traceability", "lint", "functional", "cdc_rdc", "formal"),
+                )
+                if str(group) != "traceability"
+            ),
+        )
+        for group in groups:
+            stages.extend(EVIDENCE_GROUPS[group])
     if level >= 3:
         stages.extend(EVIDENCE_GROUPS["netlist"])
     if level >= 4:
@@ -477,20 +516,32 @@ def required_stages(spec: Mapping[str, object], level: int) -> tuple[str, ...]:
     return tuple(dict.fromkeys(stages))
 
 
-def evidence_state(provenance_state: str, *, waived: bool = False) -> str:
+def evidence_state(
+    provenance_state: str, *, outcome: str | None = None, waived: bool = False,
+) -> str:
+    """Combine provenance freshness with an independently recorded tool outcome."""
+
     if waived:
         return "WAIVED"
-    state = str(provenance_state).upper()
-    if state in {"CLEAN", "VALIDATED_OVERRIDE"}:
-        return "PASS"
-    if state == "STALE":
-        return "STALE"
-    if state == "MISSING":
+    freshness = str(provenance_state).upper()
+    if freshness in {"PASS", "FAILED", "REVIEW", "WAIVED"}:
+        return freshness
+    if freshness == "MISSING":
         return "MISSING"
-    if state in {"INVALID", "MODIFIED"}:
+    if freshness == "STALE":
+        return "STALE"
+    if freshness == "MODIFIED":
         return "INVALID"
-    if state == "FAILED":
-        return "FAILED"
+
+    normalized = str(outcome).upper() if outcome is not None else None
+    if normalized in {"FAILED", "REVIEW", "WAIVED"}:
+        return normalized
+    if freshness == "INVALID":
+        return "INVALID"
+    if freshness in {"CLEAN", "VALIDATED_OVERRIDE"}:
+        # Legacy records predate explicit runtime outcomes. Keeping them PASS here
+        # preserves previously-qualified evidence without pretending it gained new metadata.
+        return "PASS" if normalized in {None, "PASS"} else "INVALID"
     return "INVALID"
 
 
@@ -503,27 +554,44 @@ def build_qualification_report(
     stage_states: Mapping[str, str],
     contract_ready: bool,
     requested_level: str | int | None = None,
+    stage_outcomes: Mapping[str, str | None] | None = None,
 ) -> dict[str, object]:
-    """Derive the maximum release level from current evidence and policy."""
+    """Derive the maximum release level from freshness plus independent outcomes."""
 
-    evidence = {stage: evidence_state(state) for stage, state in stage_states.items()}
+    outcomes = dict(stage_outcomes or {})
+    evidence = {
+        stage: evidence_state(state, outcome=outcomes.get(stage))
+        for stage, state in stage_states.items()
+    }
     maximum = 1 if contract_ready else 0
+    maximum_pass = maximum
     levels: dict[str, object] = {}
     for level in range(1, 6):
         required = required_stages(spec, level)
-        missing = [stage for stage in required if evidence.get(stage) not in {"PASS", "WAIVED"}]
-        passed = contract_ready and not missing and (level == 1 or maximum == level - 1)
-        if passed:
+        blocking = [stage for stage in required if evidence.get(stage) not in {"PASS", "WAIVED"}]
+        waived = [stage for stage in required if evidence.get(stage) == "WAIVED"]
+        satisfied = contract_ready and not blocking and (level == 1 or maximum == level - 1)
+        status = "BLOCKED"
+        if satisfied:
             maximum = level
+            status = "WAIVED" if waived else "PASS"
+            if status == "PASS":
+                maximum_pass = level
         levels[str(level)] = {
             "name": qualification_name(level),
-            "status": "PASS" if passed else "BLOCKED",
+            "status": status,
             "required_evidence": list(required),
-            "blocking_evidence": missing,
+            "blocking_evidence": blocking,
+            "waived_evidence": waived,
         }
 
     requested = normalize_qualification_level(requested_level)
-    target_satisfied = True if requested is None else maximum >= requested
+    target_status = (
+        levels[str(requested)]["status"]
+        if requested is not None and requested > 0
+        else (levels[str(maximum)]["status"] if maximum > 0 else "BLOCKED")
+    )
+    target_satisfied = True if requested is None else target_status in {"PASS", "WAIVED"}
     return {
         "schema": 1,
         "ip": ip_name,
@@ -537,10 +605,19 @@ def build_qualification_report(
         },
         "maximum_level": maximum,
         "maximum_qualification": qualification_name(maximum),
+        "maximum_pass_level": maximum_pass,
+        "maximum_pass_qualification": qualification_name(maximum_pass),
+        "qualification_status": levels[str(maximum)]["status"] if maximum > 0 else "BLOCKED",
         "requested_level": requested,
+        "target_status": target_status,
         "target_satisfied": target_satisfied,
         "levels": levels,
         "evidence": evidence,
+        "freshness": {stage: str(state).upper() for stage, state in sorted(stage_states.items())},
+        "outcomes": {
+            stage: (str(value).upper() if value is not None else None)
+            for stage, value in sorted(outcomes.items())
+        },
     }
 
 
@@ -564,7 +641,7 @@ def write_contract_snapshot(
     source_of_truth: dict[str, object] = {
         "specification": {
             name: {
-                "source": f"hw/ips/{ip_name}/spec/{name}",
+                "source": f"spec/{name}",
                 "snapshot": f"contract/{name}",
                 "sha256": spec["hashes"][name],
             }
@@ -657,8 +734,10 @@ def validate_contract_snapshot(package_root: Path) -> dict[str, object]:
     return {"contract": contract, "spec": spec}
 
 
-def validate_release_package(package_root: Path) -> dict[str, object]:
-    """Validate one frozen interface release and its recorded evidence references."""
+def validate_release_package(
+    package_root: Path, *, spec_root: Path | None = None,
+) -> dict[str, object]:
+    """Validate one frozen interface release, common spec, and evidence references."""
 
     root = Path(package_root)
     manifest_path = root / "ip.json"
@@ -682,6 +761,11 @@ def validate_release_package(package_root: Path) -> dict[str, object]:
     if contract.get("ip") != manifest.get("name"):
         raise ValueError("release manifest and contract snapshot disagree on IP identity")
 
+    common_spec_root = Path(spec_root) if spec_root is not None else root.parent.parent / "spec"
+    common_spec = validate_spec_bundle(common_spec_root, ip_name=str(manifest.get("name", "")))
+    if common_spec.get("fingerprint") != contract.get("spec_fingerprint"):
+        raise ValueError("IP-level spec fingerprint does not match packaged contract snapshot")
+
     qualification = manifest.get("qualification", {}) or {}
     if not isinstance(qualification, dict):
         raise ValueError("ip.json qualification must be a mapping")
@@ -690,11 +774,16 @@ def validate_release_package(package_root: Path) -> dict[str, object]:
         raise ValueError("ip.json qualification.technologies must be a mapping")
 
     checked_refs = 0
+    report_levels: list[int] = []
+    metadata_keys = {
+        "maximum_level", "maximum_qualification", "maximum_pass_level",
+        "maximum_pass_qualification", "qualification_status",
+    }
     for pdk, evidence in technologies.items():
         if not isinstance(evidence, dict):
             raise ValueError(f"qualification technology {pdk!r} must be a mapping")
         for key, value in evidence.items():
-            if key in {"maximum_level", "maximum_qualification"}:
+            if key in metadata_keys:
                 continue
             if not isinstance(value, str):
                 continue
@@ -711,6 +800,35 @@ def validate_release_package(package_root: Path) -> dict[str, object]:
                 raise ValueError(f"{pdk}: qualification report has wrong PDK identity")
             if report.get("contract_fingerprint") != contract.get("spec_fingerprint"):
                 raise ValueError(f"{pdk}: qualification report is stale against packaged contract")
+            try:
+                level = int(report.get("maximum_level", 0))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{pdk}: qualification report has invalid maximum_level") from exc
+            if not 0 <= level < len(QUALIFICATION_LEVELS):
+                raise ValueError(f"{pdk}: qualification report has invalid maximum_level {level}")
+            expected_name = qualification_name(level)
+            if report.get("maximum_qualification") != expected_name:
+                raise ValueError(f"{pdk}: qualification report level/name mismatch")
+            for key in metadata_keys:
+                if key in evidence and evidence.get(key) != report.get(key):
+                    raise ValueError(f"{pdk}: ip.json {key} disagrees with qualification report")
+            report_levels.append(level)
+
+    summary = qualification.get("summary", {}) or {}
+    if not isinstance(summary, dict):
+        raise ValueError("ip.json qualification.summary must be a mapping")
+    expected_level = max([1, *report_levels])
+    try:
+        declared_level = int(summary.get("maximum_level", -1))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("ip.json qualification.summary.maximum_level is invalid") from exc
+    if declared_level != expected_level:
+        raise ValueError(
+            f"ip.json qualification summary is stale: maximum_level={declared_level} "
+            f"expected={expected_level}"
+        )
+    if summary.get("maximum_qualification") != qualification_name(expected_level):
+        raise ValueError("ip.json qualification summary level/name mismatch")
 
     return {
         "schema": 1,

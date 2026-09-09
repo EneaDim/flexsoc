@@ -1,12 +1,12 @@
 # 🔄 FlexSoC project lifecycle
 
-This document describes **what happens during the life of a FlexSoC project** and why each stage exists. It is intentionally narrative: it explains the evolution of design intent, generated collateral, qualification evidence, technology branches, and reusable IP over time.
+This document describes **what happens during the life of a FlexSoC project** and why each stage exists. It is intentionally narrative: it explains the evolution of design intent, generated collateral, qualification evidence, technology branches, and reusable releases over time. The lifecycle is intentionally scale-independent: the same rules apply to a small IP, complex multi-clock IP/subsystem, SoC, or complex SoC; larger designs add composition intent and dependencies rather than changing the core provenance/qualification model.
 
 For exact commands and step-by-step execution, use the [IP development guide](ip_development_guide.md). For syntax and target options, use the [command reference](command_reference.md). For implementation details of FlexSoC itself, use [Architecture](architecture.md).
 
 > **Lifecycle rule:** edit the owning source of truth, regenerate the smallest derived boundary that became stale, and rerun every downstream gate whose assumptions changed.
 >
-> FlexSoC treats a **digital IP contract** as the versioned combination of authored design intent, generated integration views, qualification evidence, and provenance needed to decide whether an IP is releasable. RTL alone is never the release artifact.
+> FlexSoC treats a **digital design contract** as the versioned combination of authored design intent, generated integration views, qualification evidence, and provenance needed to decide whether a release is valid. The Digital IP Contract is the first concrete package form; SoC composition extends it with memory map, interconnect, system clock/reset, software-visible integration, and system-level evidence. RTL alone is never the release artifact.
 
 ---
 
@@ -428,7 +428,9 @@ requirements / HJSON / RTL / model / properties
                     ↓
                 select PDK
                     ↓
-             synthesis → EQY
+             synthesis
+                    ↓
+          EQY setup / equivalence gate
                     ↓
       pre-layout STA / GLS / power / fusion
                     ↓
@@ -440,7 +442,7 @@ requirements / HJSON / RTL / model / properties
                     ↓
                  fx check
                     ↓
-               qualified IP
+             qualified release
 ```
 
 The detailed command sequence for each transition is maintained in the [IP development guide](ip_development_guide.md), not duplicated here.
@@ -448,20 +450,23 @@ The detailed command sequence for each transition is maintained in the [IP devel
 
 ## Digital IP Contract status and release levels
 
-FlexSoC uses the same provenance manifest for generated setup collateral and successful runtime evidence. `STAGE_CONTRACTS` is the single dependency DAG: every tracked stage declares only semantic configuration, parent stages, and canonical evidence. No graph database or second lifecycle description is used.
+`STAGE_CONTRACTS` is the single dependency DAG: every tracked stage declares semantic configuration, real parent stages, canonical evidence ownership, run/PDK scope, and relevant tool identity. No graph database, second scheduler, or duplicate lifecycle description is used.
 
-After a successful tracked command, FlexSoC records SHA256 snapshots of its effective inputs and evidence. If an input, configuration value, generated setup, or upstream stage changes, dependent evidence is reported as `STALE`; unrelated branches remain valid. Existing `MODIFIED`, `VALIDATED_OVERRIDE`, and `INVALID` semantics continue to apply.
+Tracked runtime evidence is recorded even when the EDA result is not PASS. This is essential because **freshness and technical outcome are independent**: a current failure may be `CLEAN + FAILED`, while an old success may be `STALE + PASS`. If inputs, effective configuration, relevant tool identity, or upstream lineage change, only the true downstream dependency set becomes stale.
 
-`fx status` evaluates this graph live without running EDA and reports the current authored `IP_INTENT_SHA256`, stage states, and the highest fully closed release level:
+`fx qualify` evaluates this graph without inventing evidence and derives the hierarchical L1-L5 result:
 
 ```text
-0  Contract Valid
-1  RTL Qualified
-2  Netlist Qualified
-3  Technology Qualified
-4  Physical Qualified
+0  Not Qualified
+1  Contract Valid
+2  RTL Qualified
+3  Netlist Qualified
+4  Technology Qualified
+5  Physical / Signoff Complete Digital Macro
 ```
 
-The levels are intentionally hierarchical. A later technology or physical result does not hide a missing earlier qualification stage. EQY remains part of `Netlist Qualified`; while equivalence closure is intentionally deferred, `fx status` therefore stops at the highest earlier level that is fully evidenced.
+A level can be `PASS`, `WAIVED`, or `BLOCKED`. `maximum_level` may include explicitly waived evidence, while `maximum_pass_level` is the highest level reached without a waiver. `WAIVED != PASS`, and `FAILED`/`REVIEW` remain blocking unless a deliberate policy records a waiver.
 
-Runtime evidence currently covers the canonical lifecycle: Slang/Verilator lint suites, CDC/RDC, functional regression, individual formal BMC/prove/cover stages, synthesis, EQY, SDF/STA/vectorless power, post-synthesis SV GLS, PnR, physical sign-off, and routed SDF/STA/power/SV GLS. Composite commands such as `fx lint_suite`, `fx formal`, `fx signoff`, and `fx signoff_post_pnr` are compositions of those same canonical stages, so aggregate and manual execution produce the same contract evidence.
+The levels are hierarchical. A later technology or physical result does not hide a missing earlier gate. EQY remains part of `Netlist Qualified`. During the current scaffold-baseline phase FlexSoC runs `fx eqy --setup` only; setup-only is not equivalence PASS, so qualification correctly stops before L3 until a real equivalence result exists.
+
+Runtime evidence covers the canonical lifecycle: Slang/Verilator lint suites, CDC/RDC, functional regression, individual formal BMC/prove/cover stages, synthesis, optional EQY execution, SDF/STA/vectorless power, post-synthesis SV GLS, PnR, physical sign-off, and routed SDF/STA/power/SV GLS. Composite commands such as `fx lint_suite`, `fx formal`, `fx signoff`, and `fx signoff_post_pnr` are compositions of those same canonical stages, so aggregate and manual execution use the same contract evidence.

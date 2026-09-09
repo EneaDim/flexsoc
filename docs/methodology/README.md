@@ -41,6 +41,20 @@ How to write and maintain design-specific formal properties, including:
 - shallow qualification cover versus deeper reachability work;
 - reading compilation failures and counterexamples at the right layer.
 
+### [Clock-domain and reset-domain crossing](clock_domain_crossing.md)
+
+How to architect and qualify CDC/RDC behavior, including:
+
+- single-clock versus multi-clock expectations;
+- explicit clock/reset-domain ownership;
+- scalar, pulse, coherent-bus and async-FIFO crossing mechanisms;
+- gated/generated clock intent;
+- asynchronous assertion and synchronized reset release;
+- independent-reset and reset-sequencing policy;
+- generic FlexSoC CDC boundary contracts;
+- root-cause-first use of `fx cdc_rdc --debug`;
+- SAFE/INFO/WARN/REVIEW/ERROR and verification-obligation closure.
+
 ## Planned methodology areas
 
 Additional guides should be added only after their contracts have been validated

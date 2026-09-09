@@ -177,14 +177,21 @@ fx syn
 `syn --setup` consumes `constraints/<TOP>.sdc` and derives the small Yosys/ABC
 `abc.constr` drive/load boundary required by synthesis.
 
-## 6. RTL-to-netlist equivalence
+## 6. Prepare RTL-to-netlist equivalence
+
+The current scaffold qualification baseline generates EQY collateral but deliberately does not execute the proof:
 
 ```bash
 fx eqy --setup
+```
+
+`eqy --setup` is **not** equivalence PASS. L3 (`Netlist Qualified`) therefore remains blocked until a real EQY run is intentionally performed and produces acceptable evidence. The execution command remains available for focused equivalence work:
+
+```bash
 fx eqy
 ```
 
-EQY selects a solver portfolio automatically:
+When executed, EQY selects a solver portfolio automatically:
 
 ```text
 single clock: SAT → SMTBMC → PDR
@@ -286,7 +293,7 @@ fx formal
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-fx eqy
+# current scaffold baseline stops at setup-only
 ```
 
 ### 10.2 Change RTL behavior
@@ -305,7 +312,7 @@ fx formal
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-fx eqy
+# current scaffold baseline stops at setup-only
 ```
 
 ### 10.3 Change RTL ports
@@ -324,7 +331,7 @@ fx formal
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-fx eqy
+# current scaffold baseline stops at setup-only
 ```
 
 ### 10.4 Change clock/reset architecture
@@ -348,7 +355,7 @@ fx formal
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-fx eqy
+# current scaffold baseline stops at setup-only
 fx signoff --setup --force
 fx sdf
 fx sta
@@ -378,7 +385,7 @@ fx formal
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-fx eqy
+# current scaffold baseline stops at setup-only
 ```
 
 Preserve the IP-owned HJSON, RTL, model, tests, and properties. Regenerate only

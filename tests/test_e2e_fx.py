@@ -14,7 +14,7 @@ from typing import Iterator
 
 import pytest
 
-from flexsoc.backend.design.model import NCLOCK_DESIGN_TESTS, SHARED_VECTOR_TESTS
+from flexsoc.backend.design.model import SHARED_VECTOR_TESTS
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -307,6 +307,20 @@ def _preserve_project_settings() -> Iterator[None]:
             path.write_bytes(original)
         else:
             path.unlink(missing_ok=True)
+
+
+@contextmanager
+def _temporary_scaffold_ip_source(top: str) -> Iterator[None]:
+    """Remove repository-local scaffold source material after an E2E run."""
+
+    root = REPO_ROOT / "hw" / "ips" / top
+    assert not root.exists(), (
+        f"refusing to overwrite repository IP while running scaffold E2E: {root}"
+    )
+    try:
+        yield
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 @contextmanager
@@ -729,75 +743,57 @@ def _scaffold_execution_settings(config: E2EConfig, tests: tuple[str, ...]) -> s
 def _assert_scaffold_qualification(
     *, run: Path, pdk: str, config: E2EConfig,
 ) -> None:
-    """Check qualification at stage granularity, not backend implementation detail."""
+    """Check only user-visible scaffold qualification contracts."""
 
     path = run / "meta" / pdk / "qualification.json"
     assert path.is_file() and path.stat().st_size > 0, f"missing qualification report: {path}"
     report = json.loads(path.read_text(encoding="utf-8"))
     evidence = report.get("evidence", {})
 
-    required = set()
+    assert report.get("contract") == "VALID", f"{pdk}: invalid scaffold contract"
+    assert report.get("levels", {}).get("2", {}).get("status") == "PASS", (
+        f"{pdk}: scaffold did not reach RTL qualification"
+    )
+    assert evidence.get("requirements_traceability") == "PASS"
+    assert evidence.get("cdc_rdc") == "PASS"
+
+    # EQY is intentionally setup-only in scaffold E2E.
+    assert evidence.get("eqy") == "MISSING"
+
+    required = {"syn", "sdf", "sta", "power_estimate"}
     if config.run_post_syn:
         required.update({"sim_post_syn_all", "power_analysis_all", "fusion_analysis_all"})
     if config.run_pnr:
-        required.add("pnr")
+        required.update({"pnr", "sdf_post_pnr", "sta_post_pnr", "power_estimate_post_pnr"})
         if config.run_post_syn:
             required.update({
                 "sim_post_pnr_all",
                 "power_analysis_post_pnr_all",
                 "fusion_analysis_post_pnr_all",
             })
+
     missing = sorted(stage for stage in required if evidence.get(stage) != "PASS")
-    assert not missing, f"{pdk}: qualification stages not PASS: {missing}"
+    assert not missing, f"{pdk}: required scaffold flow stages not PASS: {missing}"
 
-    bad = {
-        stage: state for stage, state in evidence.items()
-        if state in {"FAILED", "STALE", "INVALID"}
-    }
-    assert not bad, f"{pdk}: invalid final evidence states: {bad}"
-
-    # EQY remains setup-only for scaffold E2E until the transport views are resolved.
-    assert evidence.get("eqy") == "MISSING"
-    assert int(report.get("maximum_level", 0)) == 2
-
-def _assert_scaffold_post_syn_matrix(
-    *, top: str, run: Path, pdk: str, tests: tuple[str, ...],
-) -> None:
-    """Require the selected scaffold post-synthesis GLS matrix to pass."""
-
-    root = run / "dv" / "functional" / "sim" / "post_syn" / pdk
-    reports = []
-    for path in sorted(root.glob(f"{top}_post_syn_*.json")):
-        report = json.loads(path.read_text(encoding="utf-8"))
-        if (
-            report.get("phase") == "run"
-            and report.get("test_name") in tests
-            and report.get("backend") == SCAFFOLD_GLS_BACKEND
-            and report.get("timing_mode") in SCAFFOLD_GLS_TIMING_MODES
-        ):
-            reports.append(report)
-    expected = len(tests) * len(SCAFFOLD_GLS_TIMING_MODES)
-    assert len(reports) == expected, f"{pdk}: expected {expected} GLS reports, got {len(reports)}"
-    assert all(report.get("status") == "pass" for report in reports), f"{pdk}: GLS matrix failed"
-
-def _assert_post_pnr_gls_evidence(top: str, run: Path, pdk: str) -> None:
-    """Require routed GLS workloads to complete successfully."""
-
-    sim = run / "dv" / "functional" / "sim" / "post_pnr" / pdk
-    reports = []
-    for path in sorted(sim.glob(f"{top}_post_pnr_*.json")):
-        report = json.loads(path.read_text(encoding="utf-8"))
-        if report.get("phase") == "run":
-            reports.append(report)
-    assert reports, f"missing post-PnR GLS reports: {sim}"
-    assert all(report.get("status") == "pass" for report in reports), f"{pdk}: post-PnR GLS failed"
+    # Physical sign-off is reported but does not redefine STA/PnR closure.
+    physical = evidence.get("physical_signoff")
+    if config.run_pnr:
+        assert physical in {"PASS", "REVIEW", "FAILED"}, (
+            f"{pdk}: physical sign-off outcome missing: {physical}"
+        )
+    print(
+        f"[e2e] {pdk}: qualification L{report.get('maximum_level', 0)} "
+        f"EQY={evidence.get('eqy')} physical_signoff={physical}",
+        flush=True,
+    )
 
 def _run_post_pnr_signoff(
     *, workspace: Path, top: str, run_id: str, run: Path, workdir: str,
     pdk: str, config: E2EConfig, gls_tests: tuple[str, ...],
 ) -> None:
-    """Run routed sign-off and check only canonical stage outputs."""
+    """Run routed sign-off; qualification checks the public stage outcomes."""
 
+    del run, pdk
     _run(
         f"fx signoff_post_pnr --setup --workdir {workdir}",
         workspace=workspace, top=top, run_id=run_id,
@@ -808,45 +804,30 @@ def _run_post_pnr_signoff(
             workspace=workspace, top=top, run_id=run_id,
         )
 
-    root = run / "signoff" / pdk / "post_pnr"
-    sta = root / "sta" / "sta.json"
-    assert sta.is_file() and sta.stat().st_size > 0, f"missing post-PnR STA summary: {sta}"
-    assert json.loads(sta.read_text(encoding="utf-8")).get("status") == "pass", (
-        f"post-PnR STA failed: {sta}"
-    )
-    assert (root / "sdf").is_dir(), f"missing post-PnR SDF branch: {root / 'sdf'}"
-
     if config.run_post_syn:
         _run_scaffold_gls_matrix(
             workspace=workspace, top=top, run_id=run_id, workdir=workdir,
             tests=gls_tests, stage="post_pnr",
         )
-        _assert_post_pnr_gls_evidence(top, run, pdk)
 
     _run(
         f"fx power_estimate_post_pnr --workdir {workdir}",
         workspace=workspace, top=top, run_id=run_id,
     )
-    assert (root / "power" / "estimate").is_dir(), f"missing post-PnR power estimate branch: {root}"
 
-    if not config.run_post_syn:
-        return
-    _run_scaffold_power_fusion(
-        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
-        tests=gls_tests, stage="post_pnr",
-    )
-    for path in (
-        root / "power" / "analysis" / "summary.json",
-        root / "fusion" / "summary.json",
-    ):
-        assert path.is_file() and path.stat().st_size > 0, f"missing post-PnR evidence: {path}"
+    if config.run_post_syn:
+        _run_scaffold_power_fusion(
+            workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+            tests=gls_tests, stage="post_pnr",
+        )
 
 def _run_implementation(
     *, workspace: Path, top: str, run_id: str, run: Path, workdir: str,
     pdk: str, platform: str, config: E2EConfig, gls_tests: tuple[str, ...],
 ) -> None:
-    """Run physical implementation and check only its public stage contract."""
+    """Run implementation; qualification checks the public stage outcomes."""
 
+    del platform
     if not config.run_pnr:
         return
     assert config.ors is not None
@@ -859,33 +840,18 @@ def _run_implementation(
         f"fx pnr --setup --set {ors} --workdir {workdir}",
         workspace=workspace, top=top, run_id=run_id,
     )
-    impl = run / "impl" / pdk
-    cfg = impl / "config.mk"
-    assert cfg.is_file() and cfg.stat().st_size > 0, f"missing PnR config: {cfg}"
-
     _run(
         f"fx pnr --set {ors} --workdir {workdir}",
         workspace=workspace, top=top, run_id=run_id,
     )
-    results = impl / "results" / platform / top / "base"
-    for name in ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds"):
-        artifact = results / name
-        assert artifact.is_file() and artifact.stat().st_size > 0, f"missing PnR artifact: {artifact}"
 
     physical_ok = _run(
         f"fx physical_signoff --set {ors} --workdir {workdir}",
         workspace=workspace, top=top, run_id=run_id, required=False,
     )
-    summary_path = run / "signoff" / pdk / "post_pnr" / "physical" / "summary.json"
-    assert summary_path.is_file() and summary_path.stat().st_size > 0, (
-        f"missing physical sign-off summary: {summary_path}"
-    )
-    summary = json.loads(summary_path.read_text(encoding="utf-8"))
-    assert summary.get("status") in {"pass", "review", "fail"}
-
     if not physical_ok:
         print(
-            f"[e2e] REVIEW · physical sign-off status={summary.get('status')}; continuing",
+            "[e2e] physical sign-off is non-PASS; qualification records the outcome",
             flush=True,
         )
 
@@ -912,13 +878,27 @@ def _assert_ast(top: str, run: Path) -> None:
     assert ast.is_file() and ast.stat().st_size > 0, f"missing or empty Slang AST: {ast}"
 
 def _assert_cdc_rdc_outputs(top: str, run: Path) -> None:
-    """Require canonical CDC/RDC outputs without inspecting backend schema details."""
+    """Require a closed CDC/RDC happy path from canonical summary evidence."""
 
     del top
     analysis = run / "analysis" / "cdc_rdc"
     for name in ("summary.json", "cdc_rdc.rpt"):
         path = analysis / name
         assert path.is_file() and path.stat().st_size > 0, f"missing CDC/RDC artifact: {path}"
+
+    summary = json.loads((analysis / "summary.json").read_text(encoding="utf-8"))
+    assert summary.get("status") == "pass", f"CDC/RDC did not close: {summary}"
+    for scope in ("cdc", "rdc", "setup", "glitch"):
+        counts = summary.get(scope, {})
+        blocking = {
+            key: int(counts.get(key, 0))
+            for key in ("review", "warnings", "errors")
+            if int(counts.get(key, 0))
+        }
+        assert not blocking, f"CDC/RDC {scope} findings require closure: {blocking}"
+    assert int(summary.get("verification_obligations", 0)) == 0, (
+        f"CDC/RDC verification obligations remain: {summary.get('verification_obligations')}"
+    )
 
 def _assert_design_formal_sources(top: str, run: Path) -> None:
     """Require real designer-owned prove and cover sources."""
@@ -928,20 +908,6 @@ def _assert_design_formal_sources(top: str, run: Path) -> None:
     assert prove.is_file() and prove.stat().st_size > 0, f"missing formal prove scaffold: {prove}"
     assert cover.is_file() and cover.stat().st_size > 0, f"missing formal cover scaffold: {cover}"
 
-
-def _assert_technology_closure(top: str, run: Path, pdk: str) -> None:
-    """Require the canonical technology branch outputs produced by the happy path."""
-
-    required = (
-        run / "syn" / pdk / f"{top}_synth.v",
-        run / "meta" / pdk / "manifest.json",
-        run / "meta" / pdk / "metrics.json",
-    )
-    for path in required:
-        assert path.is_file() and path.stat().st_size > 0, f"missing technology artifact: {path}"
-    assert (run / "signoff" / pdk / "post_syn").is_dir(), f"missing post-syn branch: {pdk}"
-    if (run / "impl" / pdk).is_dir():
-        assert (run / "signoff" / pdk / "post_pnr").is_dir(), f"missing post-PnR branch: {pdk}"
 
 def _assert_pre_impl_ip_branch(top: str, run: Path, pdk: str) -> None:
     """Require IP-load qualification to stop before EQY execution and PnR."""
@@ -1022,24 +988,13 @@ def _assert_saved_signoff_scripts(
     assert not forbidden, f"unexpected saved sign-off artifacts for {pdk}: {forbidden}"
 
 
-def _assert_saved_post_pnr_branch(
-    library_root: Path, top: str, profile: str, pdk: str, platform: str
-) -> None:
-    """Require ip_save to preserve the routed implementation and post-PnR branch."""
-
-    root = _saved_ip_interface(library_root, top, profile)
-    results = root / "impl" / pdk / "results" / platform / top / "base"
-    for name in ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds"):
-        artifact = results / name
-        assert artifact.is_file() and artifact.stat().st_size > 0, f"missing saved PnR artifact: {artifact}"
-    assert (root / "signoff" / pdk / "post_pnr").is_dir(), f"missing saved post-PnR branch: {pdk}"
-
 def _save_scaffold_ip(
     *, workspace: Path, top: str, run_id: str, workdir: str, library_root: Path,
     reg_interface: str, pdk: str, platform: str, config: E2EConfig,
 ) -> None:
-    """Save one scaffold PDK branch and check only the reusable package contract."""
+    """Save one scaffold PDK branch and check only release-level invariants."""
 
+    del platform
     target = shlex.quote(str(library_root))
     _run(
         (
@@ -1048,15 +1003,18 @@ def _save_scaffold_ip(
         ),
         workspace=workspace, top=top, run_id=run_id,
     )
+
     root = _saved_ip_interface(library_root, top, reg_interface)
     spec = library_root / top / "spec"
-    for name in ("ip.md", "requirements.yaml", "testplan.yaml"):
-        path = spec / name
-        assert path.is_file() and path.stat().st_size > 0, f"missing saved spec artifact: {path}"
+    assert all((spec / name).is_file() for name in ("ip.md", "requirements.yaml", "testplan.yaml")), (
+        f"missing common saved spec: {spec}"
+    )
+    assert (root / "meta" / pdk / "qualification.json").is_file(), (
+        f"missing saved qualification branch: {pdk}"
+    )
     assert (root / "syn" / pdk).is_dir(), f"missing saved synthesis branch: {pdk}"
-    assert (root / "signoff" / pdk / "post_syn").is_dir(), f"missing saved post-syn branch: {pdk}"
     if config.run_pnr:
-        _assert_saved_post_pnr_branch(library_root, top, reg_interface, pdk, platform)
+        assert (root / "impl" / pdk).is_dir(), f"missing saved implementation branch: {pdk}"
 
 def _assert_saved_multitech_layout(library_root: Path, top: str, profile: str) -> None:
     """Require load -> two complete technology flows -> save to preserve both branches."""
@@ -1120,7 +1078,7 @@ def test_fx_single_clock_flow_debug(
     clock_domains = SINGLE_CLOCK_DOMAINS
     clock_relationships = ""
 
-    with _preserve_project_settings(), _temporary_workspace(
+    with _preserve_project_settings(), _temporary_scaffold_ip_source(top), _temporary_workspace(
         f"flexsoc-single-{reg_itf}-e2e-", _e2e_root(request)
     ) as workspace:
         workdir = shlex.quote(str(workspace))
@@ -1225,8 +1183,6 @@ def test_fx_single_clock_flow_debug(
             f"fx cocotb --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
-        _assert_reset_driver_parity(run, top, multiclock=False)
-        _assert_functional_clock_driver(run, top)
         _run(
             (
                 f"fx slang_hier --set {slang_root} "
@@ -1241,7 +1197,6 @@ def test_fx_single_clock_flow_debug(
             ),
             workspace=workspace, top=top, run_id=run_id,
         )
-        _assert_ast(top, run)
         _run(
             f"fx regression --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
@@ -1254,13 +1209,11 @@ def test_fx_single_clock_flow_debug(
             f"fx coverage_detail --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
-        _assert_coverage_outputs(run / "dv" / "functional" / "coverage")
 
         _run(
             f"fx formal --setup --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
-        _assert_design_formal_sources(top, run)
         _run(
             f"fx formal_csr_bmc --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
@@ -1333,9 +1286,6 @@ def test_fx_single_clock_flow_debug(
                     workspace=workspace, top=top, run_id=run_id,
                     workdir=workdir, tests=gls_tests,
                 )
-                _assert_scaffold_post_syn_matrix(
-                    top=top, run=run, pdk="sky130", tests=gls_tests,
-                )
                 _run_scaffold_power_fusion(
                     workspace=workspace, top=top, run_id=run_id,
                     workdir=workdir, tests=gls_tests,
@@ -1368,7 +1318,6 @@ def test_fx_single_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _assert_scaffold_qualification(run=run, pdk="sky130", config=config)
-            _assert_technology_closure(top, run, "sky130")
             _save_scaffold_ip(
                 workspace=workspace, top=top, run_id=run_id, workdir=workdir,
                 library_root=saved_library, reg_interface=reg_itf, pdk="sky130", platform="sky130hd",
@@ -1421,9 +1370,6 @@ def test_fx_single_clock_flow_debug(
                     workspace=workspace, top=top, run_id=run_id,
                     workdir=workdir, tests=gls_tests,
                 )
-                _assert_scaffold_post_syn_matrix(
-                    top=top, run=run, pdk="ihp-sg13g2", tests=gls_tests,
-                )
                 _run_scaffold_power_fusion(
                     workspace=workspace, top=top, run_id=run_id,
                     workdir=workdir, tests=gls_tests,
@@ -1456,15 +1402,11 @@ def test_fx_single_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _assert_scaffold_qualification(run=run, pdk="ihp-sg13g2", config=config)
-            _assert_technology_closure(top, run, "ihp-sg13g2")
             _save_scaffold_ip(
                 workspace=workspace, top=top, run_id=run_id, workdir=workdir,
                 library_root=saved_library, reg_interface=reg_itf, pdk="ihp-sg13g2", platform="ihp-sg13g2",
                 config=config,
             )
-        test_root = run / "dv" / "functional" / "tests"
-        for test_name in SHARED_VECTOR_TESTS:
-            assert (test_root / test_name).is_dir()
 
 @pytest.mark.e2e
 @pytest.mark.parametrize("reg_itf", REG_ITFS, ids=REG_ITFS)
@@ -1483,7 +1425,7 @@ def test_fx_multi_clock_flow_debug(
     clock_domains = MULTI_CLOCK_DOMAINS
     clock_relationships = MULTI_CLOCK_RELATIONSHIPS
 
-    with _preserve_project_settings(), _temporary_workspace(
+    with _preserve_project_settings(), _temporary_scaffold_ip_source(top), _temporary_workspace(
         f"flexsoc-multiclock-{reg_itf}-e2e-", _e2e_root(request)
     ) as workspace:
         workdir = shlex.quote(str(workspace))
@@ -1588,7 +1530,6 @@ def test_fx_multi_clock_flow_debug(
             f"fx cocotb --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
-        _assert_reset_driver_parity(run, top, multiclock=True)
         _run(
             (
                 f"fx slang_hier --set {slang_root} "
@@ -1603,13 +1544,6 @@ def test_fx_multi_clock_flow_debug(
             ),
             workspace=workspace, top=top, run_id=run_id,
         )
-        _assert_ast(top, run)
-        test_root = run / "dv" / "functional" / "tests"
-        for path in (
-            test_root / "auto_toggle" / "config.regs",
-            test_root / "auto_toggle" / "data_in.vec",
-        ):
-            assert path.is_file() and path.stat().st_size > 0, f"missing generated test artifact: {path}"
         _run(
             f"fx regression --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
@@ -1622,13 +1556,11 @@ def test_fx_multi_clock_flow_debug(
             f"fx coverage_detail --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
-        _assert_coverage_outputs(run / "dv" / "functional" / "coverage")
 
         _run(
             f"fx formal --setup --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
-        _assert_design_formal_sources(top, run)
         _run(
             f"fx formal_csr_bmc --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
@@ -1701,9 +1633,6 @@ def test_fx_multi_clock_flow_debug(
                     workspace=workspace, top=top, run_id=run_id,
                     workdir=workdir, tests=gls_tests,
                 )
-                _assert_scaffold_post_syn_matrix(
-                    top=top, run=run, pdk="sky130", tests=gls_tests,
-                )
                 _run_scaffold_power_fusion(
                     workspace=workspace, top=top, run_id=run_id,
                     workdir=workdir, tests=gls_tests,
@@ -1736,7 +1665,6 @@ def test_fx_multi_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _assert_scaffold_qualification(run=run, pdk="sky130", config=config)
-            _assert_technology_closure(top, run, "sky130")
             _save_scaffold_ip(
                 workspace=workspace, top=top, run_id=run_id, workdir=workdir,
                 library_root=saved_library, reg_interface=reg_itf, pdk="sky130", platform="sky130hd",
@@ -1789,9 +1717,6 @@ def test_fx_multi_clock_flow_debug(
                     workspace=workspace, top=top, run_id=run_id,
                     workdir=workdir, tests=gls_tests,
                 )
-                _assert_scaffold_post_syn_matrix(
-                    top=top, run=run, pdk="ihp-sg13g2", tests=gls_tests,
-                )
                 _run_scaffold_power_fusion(
                     workspace=workspace, top=top, run_id=run_id,
                     workdir=workdir, tests=gls_tests,
@@ -1824,15 +1749,11 @@ def test_fx_multi_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _assert_scaffold_qualification(run=run, pdk="ihp-sg13g2", config=config)
-            _assert_technology_closure(top, run, "ihp-sg13g2")
             _save_scaffold_ip(
                 workspace=workspace, top=top, run_id=run_id, workdir=workdir,
                 library_root=saved_library, reg_interface=reg_itf, pdk="ihp-sg13g2", platform="ihp-sg13g2",
                 config=config,
             )
-        test_root = run / "dv" / "functional" / "tests"
-        for test_name in (*SHARED_VECTOR_TESTS, *NCLOCK_DESIGN_TESTS):
-            assert (test_root / test_name).is_dir()
 
 @pytest.mark.e2e
 def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:

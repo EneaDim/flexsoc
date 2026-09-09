@@ -392,14 +392,21 @@ Changing PDK does not regenerate HJSON, RTL, model, tests, formal properties, or
 
 ---
 
-## 10. Prove RTL-to-netlist equivalence
+## 10. Prepare and, when requested, prove RTL-to-netlist equivalence
+
+For the current scaffold baseline, generate the equivalence collateral only:
 
 ```bash
 fx eqy --setup --force
+```
+
+Setup-only is not equivalence evidence and does not satisfy the L3 qualification gate. When equivalence closure is intentionally in scope, execute it explicitly:
+
+```bash
 fx eqy
 ```
 
-For unresolved partitions:
+For unresolved partitions after a real EQY run:
 
 ```bash
 fx eqy_debug
@@ -741,7 +748,7 @@ fx pdk use sky130
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-fx eqy
+# current scaffold baseline stops at setup-only
 fx signoff --setup --force
 fx sdf
 fx sta
@@ -863,7 +870,7 @@ fx pdk use <pdk>
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-fx eqy
+# current scaffold baseline stops at setup-only
 fx signoff --setup --force
 ...
 ```

@@ -2,6 +2,8 @@
 
 This is the complete user-facing reference for the `fx` command line and every backend target currently exposed by FlexSoC. It follows the same lifecycle as [Project lifecycle](project_lifecycle.md): configure the run, enter the IP, verify it, synthesize it, prove equivalence, analyze timing and power, implement it, and collect release evidence.
 
+> **Current scaffold policy:** EQY remains a supported execution target and part of L3 qualification, but the scaffold baseline currently invokes `fx eqy --setup` only. Generating setup does not count as equivalence PASS; `fx eqy` is run only when equivalence closure is intentionally being worked.
+
 The reference explains what each command owns. The detailed step-by-step procedure is in [IP development guide](ip_development_guide.md), while repository/backend structure is in [Architecture](architecture.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <command> --help` (also `-h`, `help`, or `info`) for dedicated command help, and `fx commands --json` when a script needs live metadata from the installed checkout.
 
 > **Execution model:** `fx target_a target_b` launches exactly the requested backend targets in order. Execution targets are **run-only by default**: `fx syn` consumes an existing `syn --setup`, `fx eqy` consumes an existing `eqy --setup`, and sign-off/formal consumers behave the same way. Setup is generated explicitly once and then reused. Re-run the setup phase with `--force` only when regeneration is intentional. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
@@ -362,7 +364,7 @@ Enter the IP specification, generate register collateral, maintain the RTL wrapp
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx spec` | Generate the authoritative Digital IP spec/requirements/test-plan scaffold. | `IP_NAME`, `N_CLOCKS`, `CLOCK_DOMAINS`, `CLOCK_RELATIONSHIPS`, `FORCE` | Creates `hw/ips/<IP>/spec/`; designer-owned after generation. |
+| `fx spec` | Generate the authoritative Digital IP spec/requirements/test-plan scaffold. | `IP_NAME`, `N_CLOCKS`, `CLOCK_DOMAINS`, `CLOCK_RELATIONSHIPS`, `FORCE` | Creates `runs/<RUN_TOP>/<RUN_ID>/spec/` inside the selected workspace; designer-owned after generation. |
 | `fx hjson` | Generate an HJSON register template. | `REG_ITF` | Use `--info` for accepted overrides. |
 | `fx reg` | Generate register RTL from HJSON. | `REG_ITF` | Use `--info` for accepted overrides. |
 | `fx doc` | Generate register documentation. | `REG_ITF` | Use `--info` for accepted overrides. |
@@ -762,7 +764,7 @@ Separate evidence collection from human rendering. Technology-scoped metadata li
 
 ### 3.14 IP qualification and load/save
 
-The authoritative IP specification lives at `hw/ips/<IP_NAME>/spec/`; frozen register-interface releases live at `hw/ips/<IP_NAME>/interfaces/<REG_ITF>/`. `REG_ITF` is the only register-interface selector.
+The live authoritative IP specification lives at `runs/<RUN_TOP>/<RUN_ID>/spec/` inside the selected workspace. `fx ip_save` snapshots it into the release-level common `spec/` directory beside `interfaces/<REG_ITF>/`; repository `hw/ips/<IP_NAME>/` is therefore reserved for reusable IP packages rather than transient scaffold sources. `REG_ITF` is the only register-interface selector.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |

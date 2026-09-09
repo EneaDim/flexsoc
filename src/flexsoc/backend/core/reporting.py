@@ -1669,7 +1669,7 @@ def provenance_summary(states: Mapping[str, str]) -> dict[str, Any]:
     """Return deterministic setup states and the strongest provenance condition."""
 
     normalized = {stage: str(state).upper() for stage, state in sorted(states.items())}
-    order = ("INVALID", "STALE", "MODIFIED", "VALIDATED_OVERRIDE", "CLEAN")
+    order = ("INVALID", "STALE", "MODIFIED", "MISSING", "VALIDATED_OVERRIDE", "CLEAN")
     overall = next((state for state in order if state in normalized.values()), "INVALID")
     return {"status": overall, "stages": normalized}
 
@@ -1683,6 +1683,7 @@ def provenance_markup(status: str) -> str:
         "VALIDATED_OVERRIDE": "bold #87afff",
         "MODIFIED": "bold orange1",
         "STALE": "bold orange1",
+        "MISSING": "bold orange1",
         "INVALID": "bold red",
     }.get(normalized, "bold bright_cyan")
     return f"[{color}]{normalized}[/{color}]"
@@ -2124,7 +2125,7 @@ class Provenance:
 
     @staticmethod
     def _fingerprint(record: Mapping[str, Any]) -> str:
-        return _json_sha256({
+        payload: dict[str, Any] = {
             "config": record.get("config", {}),
             "parents": record.get("parents", {}),
             "inputs": [item.get("sha256") for item in record.get("inputs", ())],
@@ -2133,11 +2134,17 @@ class Provenance:
                 (item.get("path"), item.get("effective_sha256"))
                 for item in record.get("generated", ())
             ],
-        })
+        }
+        # Legacy records deliberately omit tools: retaining their old fingerprint avoids
+        # invalidating already-qualified evidence solely because provenance gained this field.
+        if "tools" in record:
+            payload["tools"] = record.get("tools", {})
+        return _json_sha256(payload)
 
     def current_fingerprint(
         self, stage: str, *, inputs: Sequence[Path], config: Mapping[str, object],
         parents: Mapping[str, str | None] | None = None,
+        tools: Mapping[str, object] | None = None,
     ) -> str | None:
         """Fingerprint the effective stage state, including unsaved upstream changes."""
 
@@ -2161,22 +2168,27 @@ class Provenance:
                 for item in record.get("generated", ())
             ],
         }
+        if "tools" in record:
+            current["tools"] = dict(sorted((tools or {}).items()))
         return self._fingerprint(current)
 
     def record(
         self, stage: str, *, inputs: Sequence[Path], generated: Sequence[Path],
         config: Mapping[str, object], parents: Mapping[str, str | None] | None = None,
+        tools: Mapping[str, object] | None = None, outcome: str | None = None,
+        returncode: int | None = None, allow_missing: bool = False,
     ) -> str:
-        """Record one successful canonical setup and return its fingerprint."""
+        """Record canonical stage lineage; runtime outcome is stored independently."""
 
         generated_state = self._snapshot(generated)
         missing = [item["path"] for item in generated_state if item["sha256"] is None]
-        if missing:
+        if missing and not allow_missing:
             raise FileNotFoundError(f"{stage}: generated artifact missing: {', '.join(missing)}")
         data = self._load()
         record: dict[str, Any] = {
             "config": dict(sorted(config.items())),
             "parents": dict(parents or {}),
+            "tools": dict(sorted((tools or {}).items())),
             "inputs": self._snapshot(inputs),
             "input_paths_match": True,
             "generated": [
@@ -2188,6 +2200,10 @@ class Provenance:
                 for item in generated_state
             ],
         }
+        if outcome is not None:
+            record["outcome"] = str(outcome).upper()
+        if returncode is not None:
+            record["returncode"] = int(returncode)
         record["fingerprint"] = self._fingerprint(record)
         data["stages"][stage] = record
         self._write(data)
@@ -2206,19 +2222,28 @@ class Provenance:
         )
 
     def stages(self) -> tuple[str, ...]:
-        """Return recorded setup stages in deterministic order."""
+        """Return recorded stages in deterministic order."""
 
         return tuple(sorted(self._load()["stages"]))
+
+    def outcome(self, stage: str) -> str | None:
+        """Return the recorded runtime outcome, or None for setup/legacy records."""
+
+        record = self._load()["stages"].get(stage)
+        if not isinstance(record, dict) or record.get("outcome") is None:
+            return None
+        return str(record["outcome"]).upper()
 
     def state(
         self, stage: str, *, inputs: Sequence[Path], config: Mapping[str, object],
         parents: Mapping[str, str | None] | None = None,
+        tools: Mapping[str, object] | None = None,
     ) -> str:
         """Derive the current stage state from disk; stored status is never trusted."""
 
         record = self._load()["stages"].get(stage)
         if not isinstance(record, dict):
-            return "INVALID"
+            return "MISSING"
         generated = record.get("generated")
         if not isinstance(generated, list) or not generated:
             return "INVALID"
@@ -2226,6 +2251,7 @@ class Provenance:
         if (
             record.get("config") != dict(sorted(config.items()))
             or record.get("parents") != dict(parents or {})
+            or ("tools" in record and record.get("tools") != dict(sorted((tools or {}).items())))
         ):
             return "STALE"
         if record.get("inputs") != current_inputs:
@@ -2247,10 +2273,11 @@ class Provenance:
     def validate(
         self, stage: str, *, inputs: Sequence[Path], config: Mapping[str, object],
         parents: Mapping[str, str | None] | None = None,
+        tools: Mapping[str, object] | None = None,
     ) -> str:
         """Accept only current generated-file edits; stale lineage remains rejected."""
 
-        state = self.state(stage, inputs=inputs, config=config, parents=parents)
+        state = self.state(stage, inputs=inputs, config=config, parents=parents, tools=tools)
         if state != "MODIFIED":
             if state == "STALE":
                 raise ValueError(
@@ -2258,6 +2285,10 @@ class Provenance:
                     f"Rerun the corresponding `fx <keyword> --setup` phase with the intended effective settings; for a multi-command "
                     "flow persist them with `fx settings ...`. validate_override is only for manually "
                     "MODIFIED generated collateral."
+                )
+            if state == "MISSING":
+                raise ValueError(
+                    f"{stage}: provenance is MISSING; generate the corresponding setup before validating an override."
                 )
             if state == "INVALID":
                 raise ValueError(

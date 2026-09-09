@@ -447,6 +447,7 @@ class PackageFlow:
             packaged_impl = staged / "impl" / pdk
             if impl_dir and Path(impl_dir).is_dir():
                 self._replace_tree(Path(impl_dir), packaged_impl)
+                shutil.rmtree(packaged_impl / "logs", ignore_errors=True)
                 self._stage_physical_signoff(staged, pdk, Path(signoff_dir) / "post_pnr")
             else:
                 shutil.rmtree(packaged_impl, ignore_errors=True)
@@ -460,7 +461,9 @@ class PackageFlow:
                 settings_json, design_intent_json, qualification_json,
             )
             if spec_root is None:
-                spec_root = self.project_root / "hw" / "ips" / ip_name / "spec"
+                live_spec = run / "spec"
+                frozen_spec = run / "contract"
+                spec_root = live_spec if live_spec.is_dir() else frozen_spec
             spec_root = Path(spec_root)
             from .qualification import SPEC_FILES, write_contract_snapshot
             write_contract_snapshot(
@@ -476,7 +479,7 @@ class PackageFlow:
             _clean_hidden_paths(staged)
             self._write_package_manifest(staged, ip_name, top, reg_interface)
             from .qualification import validate_release_package
-            validate_release_package(staged)
+            validate_release_package(staged, spec_root=staged_spec)
 
             backup = interface_root / f".{reg_interface}.backup"
             spec_target = library_root / ip_name / "spec"
@@ -591,10 +594,15 @@ class PackageFlow:
                 report_path = branch / "qualification.json"
                 if report_path.is_file():
                     report = json.loads(report_path.read_text(encoding="utf-8"))
-                    evidence["maximum_level"] = report.get("maximum_level", 0)
-                    evidence["maximum_qualification"] = report.get(
-                        "maximum_qualification", "Not Qualified"
-                    )
+                    for key, default in (
+                        ("maximum_level", 0),
+                        ("maximum_qualification", "Not Qualified"),
+                        ("maximum_pass_level", 0),
+                        ("maximum_pass_qualification", "Not Qualified"),
+                        ("qualification_status", "BLOCKED"),
+                    ):
+                        if key in report:
+                            evidence[key] = report.get(key, default)
                 if evidence:
                     qualification[branch.name] = evidence
 

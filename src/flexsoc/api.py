@@ -650,11 +650,13 @@ GLS_PROVENANCE_TARGETS = {
 
 @dataclass(frozen=True, slots=True)
 class StageContract:
-    """Semantic configuration, lineage, and evidence for one lifecycle stage."""
+    """Semantic configuration, lineage, scope, tool contract, and evidence for one stage."""
 
     config: tuple[str, ...] = ()
     parents: tuple[str, ...] = ()
     evidence: tuple[str, ...] = ()
+    scope: str = "run"
+    tools: tuple[str, ...] = ()
 
 
 STAGE_CONTRACTS = {
@@ -675,26 +677,26 @@ STAGE_CONTRACTS = {
     "syn.setup": StageContract((
         *CLOCKS, "TOP", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT",
         "TIEHI_CELL_AND_PORT", "TIELO_CELL_AND_PORT", "MIN_BUF_CELL_AND_PORTS",
-    )),
+    ), scope="pdk"),
     "eqy.setup": StageContract((
         *CLOCKS, "TOP", "EQY_SAT_DEPTH", "EQY_USE_SAT",
         "EQY_SPLITNETS", "EQY_USE_PDR", "EQY_PDR_ENGINE", "EQY_SMT_ENGINE",
         "EQY_SMT_DEPTH", "EQY_XPROP", "EQY_JOIN_OUTPUTS", "EQY_STRATEGY_ORDER",
         "EQY_RESET_NORMALIZE", "EQY_RESET_CYCLES",
-    ), ("syn.setup",)),
+    ), ("syn.setup",), scope="pdk"),
     "signoff.setup": StageContract((
         *CLOCKS, "TOP", "REG_ITF", "PDK", "CLK_PERIOD", "SDC_IO_DELAY_PCT", "SDC_CLOCK_PERIOD_NS",
-    )),
+    ), scope="pdk"),
     "signoff_post_pnr.setup": StageContract(
         (*CLOCKS, "TOP", "REG_ITF", "PDK", "CLK_PERIOD", "ORS_TECH", "SDC_IO_DELAY_PCT"),
-        ("pnr.setup",),
+        ("pnr.setup",), scope="pdk",
     ),
-    "pnr.setup": StageContract((*CLOCKS, "TOP", "PDK", "ORS_TECH"), ("syn.setup", "signoff.setup")),
+    "pnr.setup": StageContract((*CLOCKS, "TOP", "PDK", "ORS_TECH"), ("syn.setup", "signoff.setup"), scope="pdk"),
 
     # Runtime qualification evidence. Paths are run-relative and may use {pdk}/{top}.
-    "lint_slang_suite": StageContract(("TOP",), evidence=("analysis/lint/slang/{top}_lint_slang_all.log",)),
-    "lint_verilator_suite": StageContract(("TOP",), evidence=("analysis/lint/verilator/{top}_lint_verilator_all.log",)),
-    "cdc_rdc": StageContract((*CLOCKS, "TOP", "CDC_RDC_STRICT"), ("cdc_rdc.setup",), ("analysis/cdc_rdc/summary.json", "analysis/cdc_rdc/cdc_rdc.rpt")),
+    "lint_slang_suite": StageContract(("TOP",), evidence=("analysis/lint/slang/{top}_lint_slang_all.log",), tools=("SLANG",)),
+    "lint_verilator_suite": StageContract(("TOP",), evidence=("analysis/lint/verilator/{top}_lint_verilator_all.log",), tools=("VERILATOR",)),
+    "cdc_rdc": StageContract((*CLOCKS, "TOP", "CDC_RDC_STRICT"), ("cdc_rdc.setup",), ("analysis/cdc_rdc/summary.json", "analysis/cdc_rdc/cdc_rdc.rpt"), tools=("SLANG", "YOSYS")),
     "regression": StageContract(
         (*CLOCKS, "TOP", "COMPILER", "REGRESSION_BACKENDS", "SEED", "RESET_SETTLE_CYCLES"),
         ("tb.setup", "cocotb.setup"),
@@ -703,32 +705,36 @@ STAGE_CONTRACTS = {
             "dv/functional/coverage/sv",
             "dv/functional/coverage/cocotb",
         ),
+        tools=("IVERILOG", "VERILATOR"),
     ),
-    "formal_csr_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.csr_prove.setup",), ("logs/dv/formal/csr/{top}_bmc.log",)),
-    "formal_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.prove.setup",), ("logs/dv/formal/properties/{top}_bmc.log",)),
-    "formal_csr_prove": StageContract(("TOP", "FORMAL_PROVE_ENGINE"), ("formal.csr_prove.setup", "formal_csr_bmc"), ("logs/dv/formal/csr/{top}_prove.log",)),
-    "formal_prove": StageContract(("TOP", "FORMAL_PROVE_ENGINE"), ("formal.prove.setup", "formal_bmc"), ("logs/dv/formal/properties/{top}_prove.log",)),
-    "formal_csr_cover": StageContract(("TOP", "FORMAL_COVER_ENGINE"), ("formal.csr_cover.setup",), ("logs/dv/formal/csr/{top}_cover.log",)),
-    "formal_cover": StageContract(("TOP", "FORMAL_COVER_ENGINE"), ("formal.cover.setup",), ("logs/dv/formal/properties/{top}_cover.log",)),
-    "syn": StageContract(("TOP", "PDK", "TARGET_SYN", "TARGET_OPT"), ("syn.setup",), ("syn/{pdk}/{top}_synth.v", "syn/{pdk}/{top}_synth.json")),
-    "eqy": StageContract(("TOP", "PDK", "EQY_STRATEGY_ORDER"), ("eqy.setup", "syn"), ("signoff/{pdk}/equivalence",)),
-    "sdf": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/sdf",)),
-    "sta": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/sta/sta.json",)),
-    "power_estimate": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/power/estimate",)),
+    "formal_csr_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.csr_prove.setup",), ("logs/dv/formal/csr/{top}_bmc.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
+    "formal_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.prove.setup",), ("logs/dv/formal/properties/{top}_bmc.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
+    "formal_csr_prove": StageContract(("TOP", "FORMAL_PROVE_ENGINE"), ("formal.csr_prove.setup", "formal_csr_bmc"), ("logs/dv/formal/csr/{top}_prove.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
+    "formal_prove": StageContract(("TOP", "FORMAL_PROVE_ENGINE"), ("formal.prove.setup", "formal_bmc"), ("logs/dv/formal/properties/{top}_prove.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
+    "formal_csr_cover": StageContract(("TOP", "FORMAL_COVER_ENGINE"), ("formal.csr_cover.setup",), ("logs/dv/formal/csr/{top}_cover.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
+    "formal_cover": StageContract(("TOP", "FORMAL_COVER_ENGINE"), ("formal.cover.setup",), ("logs/dv/formal/properties/{top}_cover.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
+    "syn": StageContract(("TOP", "PDK", "TARGET_SYN", "TARGET_OPT"), ("syn.setup",), ("syn/{pdk}/{top}_synth.v", "syn/{pdk}/{top}_synth.json"), scope="pdk", tools=("YOSYS",)),
+    "eqy": StageContract(("TOP", "PDK", "EQY_STRATEGY_ORDER"), ("eqy.setup", "syn"), ("signoff/{pdk}/equivalence/{top}_rtl_vs_syn",), scope="pdk", tools=("EQY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
+    "sdf": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/sdf",), scope="pdk", tools=("OPENSTA",)),
+    "sta": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/sta/sta.json",), scope="pdk", tools=("OPENSTA",)),
+    "power_estimate": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/power/estimate",), scope="pdk", tools=("OPENSTA",)),
     "sim_post_syn_all": StageContract(
         ("TOP", "PDK", "GLS_BACKEND", "TIMING_MODES", "TEST_NAMES", "SDF_STRICT"),
         ("tb.setup", "syn", "sdf"),
         ("dv/functional/sim/post_syn/{pdk}/summary_sv.json",),
+        scope="pdk", tools=("IVERILOG", "VERILATOR"),
     ),
     "power_analysis_all": StageContract(
         ("TOP", "PDK", "POWER_TEST_NAMES", "POWER_GLS_BACKENDS", "POWER_TIMING_MODES"),
         ("signoff.setup", "sim_post_syn_all"),
         ("signoff/{pdk}/power/analysis/summary.json",),
+        scope="pdk", tools=("OPENSTA",),
     ),
     "fusion_analysis_all": StageContract(
         ("TOP", "PDK", "POWER_TEST_NAMES", "POWER_GLS_BACKENDS", "POWER_TIMING_MODES"),
         ("power_analysis_all",),
         ("signoff/{pdk}/fusion/summary.json",),
+        scope="pdk", tools=("OPENSTA",),
     ),
     "pnr": StageContract(
         ("TOP", "PDK", "ORS", "ORS_TECH"),
@@ -740,25 +746,29 @@ STAGE_CONTRACTS = {
             "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.odb",
             "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.gds",
         ),
+        scope="pdk", tools=("ORFS", "OPENROAD"),
     ),
-    "physical_signoff": StageContract(("TOP", "PDK", "ORS", "ORS_TECH"), ("pnr",), ("signoff/{pdk}/post_pnr/physical/summary.json",)),
-    "sdf_post_pnr": StageContract(("TOP", "PDK"), ("signoff_post_pnr.setup", "pnr"), ("signoff/{pdk}/post_pnr/sdf",)),
-    "sta_post_pnr": StageContract(("TOP", "PDK"), ("signoff_post_pnr.setup", "pnr"), ("signoff/{pdk}/post_pnr/sta/sta.json",)),
-    "power_estimate_post_pnr": StageContract(("TOP", "PDK"), ("signoff_post_pnr.setup", "pnr"), ("signoff/{pdk}/post_pnr/power/estimate",)),
+    "physical_signoff": StageContract(("TOP", "PDK", "ORS", "ORS_TECH"), ("pnr",), ("signoff/{pdk}/post_pnr/physical/summary.json",), scope="pdk", tools=("ORFS", "OPENROAD", "KLAYOUT")),
+    "sdf_post_pnr": StageContract(("TOP", "PDK"), ("signoff_post_pnr.setup", "pnr"), ("signoff/{pdk}/post_pnr/sdf",), scope="pdk", tools=("OPENSTA",)),
+    "sta_post_pnr": StageContract(("TOP", "PDK"), ("signoff_post_pnr.setup", "pnr"), ("signoff/{pdk}/post_pnr/sta/sta.json",), scope="pdk", tools=("OPENSTA",)),
+    "power_estimate_post_pnr": StageContract(("TOP", "PDK"), ("signoff_post_pnr.setup", "pnr"), ("signoff/{pdk}/post_pnr/power/estimate",), scope="pdk", tools=("OPENSTA",)),
     "sim_post_pnr_all": StageContract(
         ("TOP", "PDK", "GLS_BACKEND", "TIMING_MODES", "TEST_NAMES", "SDF_STRICT"),
         ("tb.setup", "pnr", "sdf_post_pnr"),
         ("dv/functional/sim/post_pnr/{pdk}/summary_sv.json",),
+        scope="pdk", tools=("IVERILOG", "VERILATOR"),
     ),
     "power_analysis_post_pnr_all": StageContract(
         ("TOP", "PDK", "POWER_TEST_NAMES", "POWER_GLS_BACKENDS", "POWER_TIMING_MODES"),
         ("signoff_post_pnr.setup", "sim_post_pnr_all"),
         ("signoff/{pdk}/post_pnr/power/analysis/summary.json",),
+        scope="pdk", tools=("OPENSTA",),
     ),
     "fusion_analysis_post_pnr_all": StageContract(
         ("TOP", "PDK", "POWER_TEST_NAMES", "POWER_GLS_BACKENDS", "POWER_TIMING_MODES"),
         ("power_analysis_post_pnr_all",),
         ("signoff/{pdk}/post_pnr/fusion/summary.json",),
+        scope="pdk", tools=("OPENSTA",),
     ),
 }
 PROVENANCE_SETUPS = frozenset(stage for stage in STAGE_CONTRACTS if stage.endswith(".setup"))
@@ -1088,7 +1098,10 @@ class FlexSoCTarget:
 
         from .backend.core.reporting import Provenance
 
-        technology_scoped = stage in TECHNOLOGY_TARGETS if stage is not None else True
+        if stage in STAGE_CONTRACTS:
+            technology_scoped = STAGE_CONTRACTS[stage].scope == "pdk"
+        else:
+            technology_scoped = stage in TECHNOLOGY_TARGETS if stage is not None else True
         path = (self.paths.meta if technology_scoped else self.paths.run / "meta") / "provenance.json"
         return Provenance(path, self.paths.run)
 
@@ -1096,6 +1109,25 @@ class FlexSoCTarget:
         """Select only semantic values for one contract stage."""
 
         return {key: self.values.get(key, "") for key in STAGE_CONTRACTS[stage].config}
+
+    def _provenance_tools(self, stage: str) -> dict[str, dict[str, str]]:
+        """Return the stage-specific pinned tool contract without probing executables."""
+
+        from .backend.core.toolchain import load_toolchain_lock
+
+        contract = STAGE_CONTRACTS[stage]
+        if not contract.tools:
+            return {}
+        lock = load_toolchain_lock(self.client.project_root)
+        result: dict[str, dict[str, str]] = {}
+        for prefix in contract.tools:
+            marker = prefix + "_"
+            result[prefix] = {
+                key[len(marker):].lower(): value
+                for key, value in sorted(lock.items())
+                if key.startswith(marker)
+            }
+        return result
 
     def _configured_paths(self, *keys: str) -> tuple[Path, ...]:
         paths: list[Path] = []
@@ -1141,9 +1173,11 @@ class FlexSoCTarget:
             elif stage == "fusion_analysis_all":
                 inputs = (p.signoff / "power" / "analysis",)
             elif stage == "pnr":
-                inputs = self._execution_inputs("pnr.setup")
+                makefile, _ = self._orfs()
+                inputs = (*self._execution_inputs("pnr.setup"), makefile)
             elif stage == "physical_signoff":
-                inputs = (p.impl,)
+                makefile, config = self._orfs()
+                inputs = (*self._evidence_paths("pnr"), makefile, config)
             elif stage in {"sdf_post_pnr", "sta_post_pnr", "power_estimate_post_pnr"}:
                 inputs = self._execution_inputs("signoff_post_pnr.setup")
             elif stage == "sim_post_pnr_all":
@@ -1266,6 +1300,7 @@ class FlexSoCTarget:
                 parent, inputs=self._provenance_inputs(parent),
                 config=self._provenance_config(parent),
                 parents=self._provenance_parents(parent),
+                tools=self._provenance_tools(parent),
             )
             for parent in STAGE_CONTRACTS[stage].parents
         }
@@ -1281,6 +1316,7 @@ class FlexSoCTarget:
             stage, inputs=self._provenance_inputs(stage),
             config=self._provenance_config(stage),
             parents=self._provenance_parents(stage),
+            tools=self._provenance_tools(stage),
         )
 
     def _provenance_summary(self) -> dict[str, object]:
@@ -1296,9 +1332,22 @@ class FlexSoCTarget:
         return provenance_summary(states)
 
     def _contract_state(self, stage: str) -> str:
-        """Return CLEAN/STALE/... or MISSING for one contract stage."""
+        """Return the current provenance freshness for one contract stage."""
 
-        return "MISSING" if stage not in self._provenance(stage).stages() else self._provenance_state(stage)
+        return self._provenance_state(stage)
+
+    def _contract_outcome(self, stage: str) -> str | None:
+        """Return the independently recorded runtime outcome, if this record has one."""
+
+        return self._provenance(stage).outcome(stage)
+
+    def _spec_root(self) -> Path:
+        """Return the live run spec, or a frozen package contract after ip_load."""
+
+        if self.paths.spec.is_dir():
+            return self.paths.spec
+        frozen = self.paths.run / "contract"
+        return frozen if frozen.is_dir() else self.paths.spec
 
     def _contract_status(self, *, write: bool = False) -> dict[str, object]:
         """Validate the live Digital IP Contract and derive its maximum qualified level."""
@@ -1311,9 +1360,7 @@ class FlexSoCTarget:
 
         ip_name = self.values.get("IP_NAME", self.paths.top)
         reg_interface = self.values.get("REG_ITF", "tlul")
-        spec_root = self.client.project_root / "hw" / "ips" / ip_name / "spec"
-        if not spec_root.is_dir() and (self.paths.run / "contract").is_dir():
-            spec_root = self.paths.run / "contract"
+        spec_root = self._spec_root()
 
         spec_error = None
         try:
@@ -1324,15 +1371,21 @@ class FlexSoCTarget:
                 "fingerprint": None,
                 "baselined_requirements": 0,
                 "covered_requirements": 0,
-                "required_evidence": ["lint", "functional", "traceability", "cdc_rdc", "formal"],
+                "required_evidence": ["traceability", "lint", "functional", "cdc_rdc", "formal"],
                 "tests": [],
                 "properties": [],
+                "traceability": {},
             }
 
         states = {
             stage: self._contract_state(stage)
             for stage in STAGE_CONTRACTS
             if stage in RUNTIME_STAGES
+        }
+        outcomes = {
+            stage: self._contract_outcome(stage)
+            for stage, state in states.items()
+            if state != "MISSING"
         }
 
         available_tests = {
@@ -1349,8 +1402,9 @@ class FlexSoCTarget:
             name for name in planned_properties
             if not any(name == item or item.startswith(name) for item in available_properties)
         )
-        states["requirements_traceability"] = (
-            "FAILED" if missing_tests or missing_properties or spec_error else "CLEAN"
+        states["requirements_traceability"] = "CLEAN"
+        outcomes["requirements_traceability"] = (
+            "FAILED" if missing_tests or missing_properties or spec_error else "PASS"
         )
 
         contract_ready = (
@@ -1367,12 +1421,33 @@ class FlexSoCTarget:
             stage_states=states,
             contract_ready=contract_ready,
             requested_level=self.values.get("QUAL_LEVEL", "auto"),
+            stage_outcomes=outcomes,
         )
         report["contract"] = "VALID" if contract_ready else "INVALID"
         report["spec_error"] = spec_error
+        requirement_traceability: dict[str, object] = {}
+        for req_id, entries in (spec.get("traceability", {}) or {}).items():
+            traced_tests = sorted({
+                str(name) for entry in entries for name in entry.get("tests", [])
+            })
+            traced_properties = sorted({
+                str(name) for entry in entries for name in entry.get("properties", [])
+            })
+            req_missing_tests = sorted(set(traced_tests) - available_tests)
+            req_missing_properties = sorted(
+                name for name in traced_properties
+                if not any(name == item or item.startswith(name) for item in available_properties)
+            )
+            requirement_traceability[str(req_id)] = {
+                "status": "PASS" if not req_missing_tests and not req_missing_properties else "FAILED",
+                "testplan": entries,
+                "missing_tests": req_missing_tests,
+                "missing_properties": req_missing_properties,
+            }
         report["traceability"] = {
             "missing_tests": missing_tests,
             "missing_properties": missing_properties,
+            "requirements": requirement_traceability,
         }
 
         print(
@@ -1389,8 +1464,7 @@ class FlexSoCTarget:
             print(f"[level] L{level} {item['name']}: {item['status']}{suffix}")
         for stage in required_stages(spec, 5):
             state = report["evidence"].get(stage, "MISSING")
-            if state != "MISSING":
-                print(f"[evidence] {stage:<26} {state}")
+            print(f"[evidence] {stage:<26} {state}")
 
         if write:
             output = self.paths.meta / "qualification.json"
@@ -1399,30 +1473,100 @@ class FlexSoCTarget:
             print(f"[qualification] {output}")
         return report
 
+    @staticmethod
+    def _status_outcome(value: object) -> str | None:
+        token = str(value).strip().lower()
+        if token in {"pass", "passed", "ok", "success"}:
+            return "PASS"
+        if token in {"fail", "failed", "error", "fatal"}:
+            return "FAILED"
+        if token in {"review", "partial", "incomplete", "unknown", "unsupported", "warn", "warning"}:
+            return "REVIEW"
+        return None
+
+    def _runtime_outcome(self, stage: str, result: object) -> str:
+        """Derive a runtime outcome from canonical evidence, then from the return code."""
+
+        statuses: list[str] = []
+        for path in self._evidence_paths(stage):
+            candidates = (path,) if path.is_file() else (path / "summary.json",)
+            for candidate in candidates:
+                if candidate.suffix != ".json" or not candidate.is_file():
+                    continue
+                try:
+                    payload = json.loads(candidate.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    statuses.append("REVIEW")
+                    continue
+                if isinstance(payload, Mapping) and (status := self._status_outcome(payload.get("status"))) is not None:
+                    statuses.append(status)
+            if path.is_dir():
+                if (path / "FAIL").is_file():
+                    statuses.append("FAILED")
+                elif (path / "PASS").is_file():
+                    statuses.append("PASS")
+
+        if "FAILED" in statuses:
+            return "FAILED"
+        if "REVIEW" in statuses:
+            return "REVIEW"
+        returncode = self.client._returncode(result)
+        if returncode != 0:
+            return "FAILED"
+        return "PASS"
+
     def _record_provenance(self, stage: str, result: object) -> None:
         generated = self._generated_paths(stage, result)
         if not generated:
             raise ValueError(f"{stage}: no contract evidence was produced")
+        runtime = stage in RUNTIME_STAGES
+        outcome = self._runtime_outcome(stage, result) if runtime else None
+        returncode = self.client._returncode(result) if runtime else None
         self._provenance(stage).record(
             stage, inputs=self._provenance_inputs(stage), generated=generated,
             config=self._provenance_config(stage),
             parents=self._provenance_parents(stage),
+            tools=self._provenance_tools(stage),
+            outcome=outcome, returncode=returncode,
+            allow_missing=runtime and outcome != "PASS",
         )
 
+    def _contract_parents(self, target: str) -> tuple[str, ...]:
+        """Return transitive StageContract prerequisites in deterministic execution order."""
+
+        if target not in STAGE_CONTRACTS:
+            return self._setup_stages(target)
+        found: list[str] = []
+
+        def visit(stage: str) -> None:
+            for parent in STAGE_CONTRACTS[stage].parents:
+                visit(parent)
+                if parent not in found:
+                    found.append(parent)
+
+        visit(target)
+        return tuple(found)
+
     def _require_provenance(self, target: str) -> None:
-        for stage in self._setup_stages(target):
-            recorded = set(self._provenance(stage).stages())
-            state = self._provenance_state(stage)
+        for stage in self._contract_parents(target):
+            state = self._contract_state(stage)
             if state in {"CLEAN", "VALIDATED_OVERRIDE"}:
                 continue
-            if state == "MODIFIED":
-                action = f"run `fx validate_override --set STAGE={_setup_public(stage)}` or regenerate with `{_setup_command(stage, force=True)}`"
-            elif state == "STALE":
-                action = f"regenerate the setup with `{_setup_command(stage, force=True)}`"
-            elif stage not in recorded:
-                action = f"generate the setup first with `{_setup_command(stage)}`"
+            if stage in PROVENANCE_SETUPS:
+                if state == "MODIFIED":
+                    action = f"run `fx validate_override --set STAGE={_setup_public(stage)}` or regenerate with `{_setup_command(stage, force=True)}`"
+                elif state == "STALE":
+                    action = f"regenerate the setup with `{_setup_command(stage, force=True)}`"
+                elif state == "MISSING":
+                    action = f"generate the setup first with `{_setup_command(stage)}`"
+                else:
+                    action = f"repair missing/inconsistent inputs, then regenerate with `{_setup_command(stage, force=True)}`"
             else:
-                action = f"repair missing/inconsistent inputs, then regenerate with `{_setup_command(stage, force=True)}`"
+                public = stage if stage in TARGETS else stage.replace("_all", "")
+                if state == "MISSING":
+                    action = f"run the required parent first with `fx {public}`"
+                else:
+                    action = f"rerun the required parent with `fx {public}`"
             raise RuntimeError(f"{target}: {stage} provenance is {state}; {action}")
 
     def _reuse_setup(self, stage: str) -> tuple[Path, ...] | None:
@@ -1464,6 +1608,7 @@ class FlexSoCTarget:
             stage, inputs=self._provenance_inputs(stage),
             config=self._provenance_config(stage),
             parents=self._provenance_parents(stage),
+            tools=self._provenance_tools(stage),
         )
         print(f"[provenance] {stage} state={state}")
         return state
@@ -1650,7 +1795,7 @@ class FlexSoCTarget:
         if target not in SETUP_STAGES:
             self._require_provenance(target)
         result = self._execute_target(target)
-        if target in RUNTIME_STAGES and self.client._returncode(result) == 0:
+        if target in RUNTIME_STAGES:
             self._record_provenance(target, result)
         return result
 
@@ -1672,7 +1817,7 @@ class FlexSoCTarget:
             ip_name = v.get("IP_NAME", top)
             clocks = self.context.clocks
             return write_spec_scaffold(
-                self.client.project_root / "hw" / "ips" / ip_name / "spec",
+                p.spec,
                 ip_name=ip_name,
                 clock_domains=tuple(domain.encode() for domain in clocks.domains),
                 clock_relationships=tuple(rel.encode() for rel in clocks.relationships),
@@ -1978,7 +2123,7 @@ class FlexSoCTarget:
                 settings_json=p.meta / "settings.json",
                 design_intent_json=p.run / "meta" / "design_intent.json",
                 qualification_json=p.meta / "qualification.json",
-                spec_root=self.client.project_root / "hw" / "ips" / v.get("IP_NAME", top) / "spec",
+                spec_root=self._spec_root(),
                 force=force,
             )
 

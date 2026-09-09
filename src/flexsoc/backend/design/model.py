@@ -575,7 +575,10 @@ def _regmap_tests_text(top: str, *, safe_controls: bool = False) -> str:
             if SAFE_CONTROLS and register.name == "CTRL":
                 return 0
             mask = 0
+            disruptive = {"SOFT_RESET", "CLK_EN", "CLK_GATE_EN"} if SAFE_CONTROLS else set()
             for field in register.fields:
+                if field.name in disruptive:
+                    continue
                 if field.swaccess == "rw" and field.hwaccess == "hro":
                     mask |= field.mask
             return mask & 0xFFFF_FFFF
@@ -838,14 +841,15 @@ def render_nclock_tests(top: str) -> str:
         """Serialize initial domain-qualified CSR writes."""
 
         return [
-            CFG.GAIN.write(VALUE=int(config.gain) & 0xFFFF),
+            DSP.GAIN.write(VALUE=int(config.gain) & 0xFFFF),
             DSP.DSP_CTRL.write(
                 OP=int(config.op),
                 SATURATE=int(config.saturate),
                 CLK_EN=int(config.clk_en),
+                SOFT_RESET=0,
             ),
             DSP.THRESHOLD.write(VALUE=int(config.threshold) & 0xFFFF_FFFF),
-            CFG.CTRL.write(ENABLE=1, SOFT_RESET=0),
+            CFG.CTRL.write(ENABLE=1),
         ]
 
 
@@ -856,10 +860,10 @@ def render_nclock_tests(top: str) -> str:
         ctrl = int(config.op) | (int(config.saturate) << 2) | (int(config.clk_en) << 3)
         threshold = int(config.threshold) & 0xFFFF_FFFF
         return [
-            CFG.GAIN.vector_write(step, gain),
+            DSP.GAIN.vector_write(step, gain),
             DSP.DSP_CTRL.vector_write(step, ctrl),
             DSP.THRESHOLD.vector_write(step, threshold),
-            CFG.GAIN.vector_read(step, gain),
+            DSP.GAIN.vector_read(step, gain),
             DSP.DSP_CTRL.vector_read(step, ctrl),
             DSP.THRESHOLD.vector_read(step, threshold),
         ]

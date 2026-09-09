@@ -4,6 +4,8 @@
 >
 > The focus is deliberately on **what FlexSoC does, why each stage exists, what scripts and tools are involved, what evidence is produced, and what a PASS actually means**. It is not a tutorial on RTL design itself, nor a reference for every CLI option. For exact command syntax use `docs/command_reference.md`; for project ownership and regeneration policy use `docs/project_lifecycle.md` and `docs/ip_development_guide.md`.
 
+> **Current scaffold qualification policy.** This guide documents the full EQY capability and may show `fx eqy` in reference flows. The current scaffold baseline intentionally runs `fx eqy --setup` only; setup-only is not equivalence PASS and therefore does not satisfy L3.
+
 ---
 
 ## 1. The flow in one page

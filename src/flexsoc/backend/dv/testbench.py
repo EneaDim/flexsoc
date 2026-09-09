@@ -84,8 +84,8 @@ endtask
         write_addr_call = f"axi_lite_write(addr[{top}_reg_pkg::AW-1:0], data, mask[{top}_reg_pkg::DBW-1:0]);"
         read_addr_call = f"axi_lite_read(addr[{top}_reg_pkg::AW-1:0], data);"
     else:
-        write_addr_call = f"reg_utils_inst.write(addr[{top}_reg_pkg::AW-1:0], data, mask[{top}_reg_pkg::DBW-1:0]);"
-        read_addr_call = f"reg_utils_inst.read(addr[{top}_reg_pkg::AW-1:0], data);"
+        write_addr_call = f"regif.write(addr[{top}_reg_pkg::AW-1:0], data, mask[{top}_reg_pkg::DBW-1:0]);"
+        read_addr_call = f"regif.read(addr[{top}_reg_pkg::AW-1:0], data);"
 
     cases: list[str] = []
     seen: set[str] = set()
@@ -1604,7 +1604,6 @@ def render_verilator_include(top: str, rtldir: str | Path, syndir: str | Path,
         inc.append('  `include "tlul_if.sv"')
 
     if flag_reg_pkg and interface == "reg_iface":
-        inc.append('  `include "reg_utils.sv"')
         inc.append('  `include "reg_if.sv"')
 
     # DUT source: assume +incdir+rtldir nel comando
@@ -1820,7 +1819,7 @@ endinterface
 """
 
 def render_reg_interface(top: str) -> str:
-    """Render a generic register request/response SystemVerilog interface."""
+    """Render a register interface with simulator-portable procedural access tasks."""
 
     return f"""`timescale 1ns/1ps
 
@@ -1835,23 +1834,86 @@ interface reg_if (
   // From DUT (response)
   reg_rsp_t rsp /* simulator public*/;
 
-  // Staging avoids combinational loops from TB into DUT
+  // Staging avoids combinational loops from TB into DUT.
   reg_req_t req_q;
 
-  // Register the staged request (visible to DUT as 'req')
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) req <= '0;
     else         req <= req_q;
   end
 
-  // Driver modport (TB)
+  task automatic cycle();
+    @(posedge clk_i);
+    @(negedge clk_i);
+  endtask
+
+  task automatic init();
+    req_q = '0;
+  endtask
+
+  task automatic write(
+      input logic [{top}_reg_pkg::AW-1:0]  addr,
+      input logic [{top}_reg_pkg::DW-1:0]  data,
+      input logic [{top}_reg_pkg::DBW-1:0] strb);
+    $display("[%0t] REG WRITE: Addr = 0x%0h Data = 0x%0h WSTRB = 0x%0h", $time, addr, data, strb);
+
+    req_q.valid = 1'b1;
+    req_q.write = 1'b1;
+    req_q.addr  = addr;
+    req_q.wdata = data;
+    req_q.wstrb = strb;
+
+    // First edge registers req_q into req.  ready may already be high while
+    // the bus is idle, so do not treat that idle level as an acceptance.
+    cycle();
+    while (!rsp.ready) cycle();
+
+    // Drop the staged request before the acceptance edge.  req remains valid
+    // for this edge and is cleared by the interface register afterwards.
+    req_q.valid = 1'b0;
+    cycle();
+
+    if (rsp.error) begin
+      $display("[%0t] REG WRITE ERROR: Addr = 0x%0h", $time, addr);
+    end else begin
+      $display("[%0t] REG WRITE DONE: Addr = 0x%0h", $time, addr);
+    end
+    #1;
+  endtask
+
+  task automatic read(
+      input  logic [{top}_reg_pkg::AW-1:0] addr,
+      output logic [{top}_reg_pkg::DW-1:0] data);
+    $display("[%0t] REG READ: Addr = 0x%0h", $time, addr);
+
+    req_q.valid = 1'b1;
+    req_q.write = 1'b0;
+    req_q.addr  = addr;
+    req_q.wdata = '0;
+    req_q.wstrb = '0;
+
+    // Register the request first; an idle-high ready is not a response.
+    cycle();
+    while (!rsp.ready) cycle();
+
+    req_q.valid = 1'b0;
+    cycle();
+    data = rsp.rdata;
+
+    if (rsp.error) begin
+      $display("[%0t] REG READ ERROR: Addr = 0x%0h", $time, addr);
+    end else begin
+      $display("[%0t] REG READ DONE: Addr = 0x%0h Data = 0x%0h", $time, addr, data);
+    end
+    #1;
+  endtask
+
   modport drv (
     input  clk_i,
     output req_q,
     input  rsp
   );
 
-  // DUT modport (sees registered request)
   modport dut (
     input  clk_i,
     input  rst_ni,
@@ -1861,82 +1923,6 @@ interface reg_if (
 
 endinterface
 """
-
-
-def render_reg_utils(top: str) -> str:
-    """Render simple register read/write tasks for generated testbenches."""
-
-    return f"""class reg_utils;
-
-  // Use the driver modport for clean directions & clock access
-  virtual reg_if.drv drv_if;
-
-  function new(virtual reg_if.drv drv_if);
-    this.drv_if = drv_if;
-  endfunction
-
-  task automatic cycle();
-    @(posedge drv_if.clk_i);
-  endtask
-
-  task automatic write(
-      input  logic [{top}_reg_pkg::AW-1:0]  addr,
-      input  logic [{top}_reg_pkg::DW-1:0]  data,
-      input  logic [{top}_reg_pkg::DBW-1:0] strb = {{{top}_reg_pkg::DBW{{1'b1}}}});
-    $display("[%0t] REG WRITE: Addr = 0x%0h Data = 0x%0h WSTRB = 0x%0h", $time, addr, data, strb);
-
-    drv_if.req_q.valid <= 1'b1;
-    drv_if.req_q.write <= 1'b1;
-    drv_if.req_q.addr  <= addr;
-    drv_if.req_q.wdata <= data;
-    drv_if.req_q.wstrb <= strb;
-
-    cycle();
-
-    while (!drv_if.rsp.ready) cycle();
-
-    drv_if.req_q.valid <= 1'b0;
-    cycle();
-
-    if (drv_if.rsp.error) begin
-      $display("[%0t] REG WRITE ERROR: Addr = 0x%0h", $time, addr);
-    end else begin
-      $display("[%0t] REG WRITE DONE: Addr = 0x%0h", $time, addr);
-    end
-    #1;
-  endtask
-
-  task automatic read(
-      input  logic [{top}_reg_pkg::AW-1:0]  addr,
-      output logic [{top}_reg_pkg::DW-1:0]  data);
-    $display("[%0t] REG READ: Addr = 0x%0h", $time, addr);
-
-    drv_if.req_q.valid <= 1'b1;
-    drv_if.req_q.write <= 1'b0;
-    drv_if.req_q.addr  <= addr;
-    drv_if.req_q.wdata <= '0;
-    drv_if.req_q.wstrb <= '0;
-
-    cycle();
-
-    while (!drv_if.rsp.ready) cycle();
-
-    data = drv_if.rsp.rdata;
-
-    drv_if.req_q.valid <= 1'b0;
-    cycle();
-
-    if (drv_if.rsp.error) begin
-      $display("[%0t] REG READ ERROR: Addr = 0x%0h", $time, addr);
-    end else begin
-      $display("[%0t] REG READ DONE: Addr = 0x%0h Data = 0x%0h", $time, addr, data);
-    end
-    #1;
-  endtask
-
-endclass
-"""
-
 
 def render_axi_lite_utils(top: str, period_ns: float = 10.0, io_delay_pct: float = 0.2) -> str:
     """Render minimal AXI4-Lite read/write tasks for the generated SV testbench."""
@@ -2209,8 +2195,7 @@ def render_testbench(top: str,
     # TL-UL uses procedural interface tasks in both RTL and gate simulation.
     if interface == "tlul":
         lines.append("  tlul_if tl_if(.clk_i(clk_i), .rst_ni(rst_ni));")
-    elif compiler == "verilator" and interface == "reg_iface":
-        lines.append("  reg_utils reg_utils_inst;")
+    elif interface == "reg_iface":
         lines.append("  reg_if regif(.clk_i(clk_i), .rst_ni(rst_ni));")
 
     lines.append("\n  // Verification helpers")
@@ -2284,8 +2269,8 @@ def render_testbench(top: str,
             lines.append(f"    {nm} = {_sv_input_default(nm)};")
     if interface == "tlul":
         lines.append("    tl_if.init();")
-    elif compiler == "verilator" and interface == "reg_iface":
-        lines.append("    reg_utils_inst = new(regif);")
+    elif interface == "reg_iface":
+        lines.append("    regif.init();")
 
     # Every generated test starts from an initialized, race-free reset boundary.
     reset_name = rsts[0] if rsts else (ports_in[1][0] if len(ports_in) > 1 and "rst" in ports_in[1][0] else "")
@@ -2304,7 +2289,7 @@ def render_testbench(top: str,
 
     lines.append('    $display("\\nRunning...\\n");')
 
-    if interface in {"tlul", "axi_lite"} or compiler == "verilator":
+    if interface in {"tlul", "reg_iface", "axi_lite"}:
         lines.append("    #(CLK_PERIOD*10);")
         lines.append("    run_reg_config(cfg_path);")
         lines.append("    run_vectors(data_in_path, data_out_path);")
@@ -2532,10 +2517,7 @@ def write_bus_helpers(config: TestbenchConfig, *, reg_pkg: bool, simple_mode: bo
     interface = normalize_register_interface(config.interface)
     helpers = {
         "tlul": (("tlul_if.sv", render_tlul_interface(config.clk_period_ns, config.io_delay_pct)),),
-        "reg_iface": (
-            (("reg_if.sv", render_reg_interface(config.top)), ("reg_utils.sv", render_reg_utils(config.top)))
-            if config.compiler == "verilator" else ()
-        ),
+        "reg_iface": (("reg_if.sv", render_reg_interface(config.top)),),
         "axi_lite": (("axi_lite_utils.svh", render_axi_lite_utils(
             config.top, config.clk_period_ns, config.io_delay_pct
         )),),
@@ -2604,7 +2586,7 @@ def _generate_testbench_files(
             config.interface,
             sig,
             hjson_path=hjson_path,
-            bus_active=(not simple_mode and (config.interface in {"tlul", "axi_lite"} or config.compiler == "verilator")),
+            bus_active=(not simple_mode and config.interface in {"tlul", "reg_iface", "axi_lite"}),
             force=True,
             reset_polarity=reset_domain.reset_polarity,
             reset_domain=reset_domain.name,
@@ -3066,7 +3048,7 @@ __NAMED_RESET_BRANCHES__
 
       task automatic apply_reg(input string reg_name, input logic [31:0] value);
         if (reg_name == "cfg.CTRL") cfg_write(32'h0, value);
-        else if (reg_name == "cfg.GAIN") cfg_write(32'h4, value);
+        else if (reg_name == "dsp.GAIN") dsp_write(32'h10, value);
         else if (reg_name == "dsp.DSP_CTRL") dsp_write(32'h0, value);
         else if (reg_name == "dsp.THRESHOLD") dsp_write(32'h4, value);
         else $display("[TB][WARN] unknown config register: %s", reg_name);
@@ -3075,7 +3057,7 @@ __NAMED_RESET_BRANCHES__
       task automatic read_reg(input string reg_name, output logic [31:0] value);
         value = '0;
         if (reg_name == "cfg.CTRL") cfg_read(32'h0, value);
-        else if (reg_name == "cfg.GAIN") cfg_read(32'h4, value);
+        else if (reg_name == "dsp.GAIN") dsp_read(32'h10, value);
         else if (reg_name == "dsp.DSP_CTRL") dsp_read(32'h0, value);
         else if (reg_name == "dsp.THRESHOLD") dsp_read(32'h4, value);
         else begin
@@ -5894,8 +5876,8 @@ def cocotb_reg_driver_py_text(
     SETTLE_CLOCK = __SETTLE_CLOCK__
 
     ADDR = {
-        "cfg": {"CTRL": 0x0, "GAIN": 0x4, "STATUS": 0x8, "CFG_STATUS": 0x8},
-        "dsp": {"DSP_CTRL": 0x0, "THRESHOLD": 0x4, "DSP_STATUS": 0x8, "STATUS": 0x8, "RESULT": 0xC},
+        "cfg": {"CTRL": 0x0, "STATUS": 0x4, "CFG_STATUS": 0x4},
+        "dsp": {"DSP_CTRL": 0x0, "THRESHOLD": 0x4, "RESULT": 0x8, "DSP_STATUS": 0xC, "STATUS": 0xC, "GAIN": 0x10},
     }
 
 

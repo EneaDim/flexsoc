@@ -613,7 +613,7 @@ def compile_command(project_root: Path, values: Mapping[str, str], stage: str, p
     command += ["-o", str(paths.executable)]
     command += [str(path) for path in _register_packages(values, paths)]
     command += [str(path) for path in models if path.is_file()]
-    helpers = [paths.tb.parent / name for name in ("tlul_if.sv", "reg_if.sv", "reg_utils.sv")]
+    helpers = [paths.tb.parent / name for name in ("tlul_if.sv", "reg_if.sv")]
     command += [str(path) for path in helpers if path.is_file()]
     command.append(str(paths.tb))
     return command
