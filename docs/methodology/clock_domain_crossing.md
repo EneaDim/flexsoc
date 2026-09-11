@@ -170,6 +170,19 @@ responses are, in order:
 2. transfer related controls coherently with a handshake/snapshot/bundled-data protocol;
 3. prove that incoherent arrival is functionally harmless when that is genuine design intent.
 
+### Verification ordering across asynchronous domains
+
+A source-domain acceptance event does not imply that the destination domain has
+consumed the transaction. This matters in generated vector tests as well as RTL.
+A configuration write issued immediately after a source-side handshake may legally
+reach another domain before the accepted payload does.
+
+When a test requires ordering across asynchronous domains, synchronize the test to
+an architectural completion event, for example an observed output or explicit
+acknowledgement. Do not encode that ordering with a guessed fixed delay. FlexSoC
+generated vectors use `@wait_output` for this purpose when reconfiguration must not
+overtake an earlier payload.
+
 ---
 
 ## 4. Choose the CDC mechanism from the information being transferred
@@ -301,31 +314,61 @@ Do not distribute one synchronizer output across unrelated clock domains.
 Likewise, do not generate arbitrary combinational reset trees unless the reset
 composition itself is part of reviewed architecture.
 
-### Reset families and physical distribution trees
+### Reset families and consumer-owned distribution
 
-Physical implementation may intentionally split one synchronized reset into
-multiple branches to control fanout, buffering, placement, or reset-tree load.
-Those branch signals are distinct nets, but they are not automatically distinct
-RDC domains. FlexSoC therefore distinguishes **reset signals** from **reset
-families**.
+When one clock domain contains structurally distinct consumers, prefer to
+partition reset fanout at those ownership boundaries. Each branch receives the
+same raw asynchronous reset and performs its own asynchronous-assert,
+synchronous-release chain; the final Q of that chain drives only its assigned
+consumer subtree.
 
-A reset family is derived from structural ancestry, not from signal names or a
-fixed tree depth. A pure tree may be arbitrarily deep:
+For example:
 
 ```text
 external reset
-    └── synchronizer / release chain
-          ├── distribution stage
-          │     ├── distribution stage -> consumers
-          │     └── distribution stage -> consumers
-          └── distribution stage
-                └── distribution stage -> consumers
+    ├── 2-flop release sync -> register/interface subtree
+    └── 2-flop release sync -> datapath/core subtree
+```
+
+This expresses the fanout split as architecture rather than as synthesis
+preservation metadata. Do not add `keep`, `dont_touch`, or broad hierarchy
+preservation to functional RTL merely to retain equivalent reset copies.
+
+A synthesis optimizer is nevertheless allowed to merge logically equivalent
+release chains unless implementation intent says otherwise. FlexSoC therefore
+applies reset-distribution preservation in the synthesis backend, not in the
+functional RTL. Before generic optimization it takes a process-lowered,
+technology-neutral structural snapshot, recognizes reset-release chains by
+connectivity (asynchronous reset, scalar D/Q, common clock/reset lineage, and a
+terminal Q that actually drives sequential reset sinks), and marks only the
+recognized chain cells in the Yosys intermediate representation. The complete
+chain is preserved so independent consumer branches do not share an earlier
+metastability stage. The rule is independent of design names, interface type,
+PDK and branch count.
+
+If physical implementation needs further buffering inside one consumer subtree,
+that remains a synthesis/physical reset-distribution responsibility rather than
+an RTL workaround.
+
+The branch signals above are distinct nets, but they are not automatically
+distinct RDC domains. FlexSoC therefore distinguishes **reset signals** from
+**reset families**. A reset family is derived from structural ancestry, not from
+signal names or a fixed tree depth. A pure release/distribution tree may be
+arbitrarily deep:
+
+```text
+external reset
+    ├── release chain -> consumer subtree
+    │     └── physical distribution -> leaves
+    └── release chain -> consumer subtree
+          └── physical distribution -> leaves
 ```
 
 All leaves above belong to the same logical reset family when the checker can
-trace them to one root through conservative reset-tree structures. The accepted
-ancestry is intentionally narrow: simple aliases/polarity normalization and
-scalar reset-release/distribution state whose data path represents deassertion.
+trace them to one root through conservative reset-release/distribution
+structures. The accepted ancestry is intentionally narrow: simple
+aliases/polarity normalization and scalar reset-release/distribution state whose
+data path represents deassertion.
 
 The family trace must stop when it encounters dynamic reset logic, arbitrary
 combinational control, or an unrecognized state element. Such a derived reset
@@ -333,7 +376,8 @@ remains a separate family and normal RDC analysis applies.
 
 This distinction preserves both goals:
 
-- synthesis/physical design may split reset networks for fanout and distribution;
+- RTL partitions reset fanout according to real consumer ownership;
+- synthesis/physical design may further buffer reset networks for fanout and placement;
 - CDC/RDC analysis still detects genuinely independent or functionally controlled
   reset domains.
 

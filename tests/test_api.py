@@ -433,6 +433,118 @@ def test_synthesis_profiles_cover_area_delay_tradeoffs() -> None:
         syn_module.abc_script("delay", 10.0)
 
 
+def test_reset_distribution_preservation_is_structural_and_name_independent(tmp_path: Path) -> None:
+    def adff(name: str, d, q, *, clk=2, arst=3):
+        return name, {
+            "type": "$adff",
+            "parameters": {"ARST_POLARITY": "0", "ARST_VALUE": "0"},
+            "attributes": {},
+            "connections": {"CLK": [clk], "ARST": [arst], "D": [d], "Q": [q]},
+        }
+
+    cells = dict([
+        adff("alpha_stage0", "1", 10),
+        adff("alpha_stage1", 10, 11),
+        adff("beta_stage0", "1", 20),
+        adff("beta_stage1", 20, 21),
+        # Functional state: reset by alpha terminal; not itself a reset-release stage.
+        adff("consumer_a", 40, 41, arst=11),
+        # Functional state: reset by beta terminal.
+        adff("consumer_b", 42, 43, arst=21),
+        # Constant-D async FF that does not distribute reset must not be preserved.
+        adff("unrelated", "1", 50, arst=30),
+    ])
+    design = {"modules": {"anything": {"cells": cells}}}
+
+    assert syn_module.reset_distribution_cells(design, "anything") == (
+        "alpha_stage0", "alpha_stage1", "beta_stage0", "beta_stage1",
+    )
+
+    src = tmp_path / "pre.json"
+    dst = tmp_path / "preserved.json"
+    src.write_text(json.dumps(design), encoding="utf-8")
+    preserved = syn_module.apply_reset_distribution_preservation(src, dst, "anything")
+    assert preserved == ("alpha_stage0", "alpha_stage1", "beta_stage0", "beta_stage1")
+    payload = json.loads(dst.read_text(encoding="utf-8"))
+    out_cells = payload["modules"]["anything"]["cells"]
+    for name in preserved:
+        assert out_cells[name]["attributes"]["keep"].endswith("1")
+    assert "keep" not in out_cells["consumer_a"]["attributes"]
+    assert "keep" not in out_cells["unrelated"]["attributes"]
+
+
+def test_reset_distribution_preservation_supports_aldff_without_matching_functional_async_loads(tmp_path: Path) -> None:
+    def aldff(name: str, d, q, *, clk=2, aload=3, ad=("0",), width=1, polarity="1"):
+        d_bits = [d] if width == 1 else list(d)
+        q_bits = [q] if width == 1 else list(q)
+        return name, {
+            "type": "$aldff",
+            "parameters": {
+                "WIDTH": f"{width:032b}",
+                "CLK_POLARITY": "1",
+                "ALOAD_POLARITY": polarity,
+            },
+            "attributes": {},
+            "connections": {
+                "CLK": [clk],
+                "ALOAD": [aload],
+                "AD": list(ad),
+                "D": d_bits,
+                "Q": q_bits,
+            },
+        }
+
+    def inv(name: str, a, y):
+        return name, {
+            "type": "$logic_not",
+            "parameters": {},
+            "attributes": {},
+            "connections": {"A": [a], "Y": [y]},
+        }
+
+    cells = dict([
+        # Separate frontend inverters model active-low raw reset lowered to
+        # active-high ALOAD. Normalization must still identify one reset root.
+        inv("alpha_reset_inv0", 3, 100),
+        inv("alpha_reset_inv1", 3, 101),
+        inv("beta_reset_inv0", 3, 102),
+        inv("beta_reset_inv1", 3, 103),
+        aldff("alpha_stage0", "1", 10, aload=100),
+        aldff("alpha_stage1", 10, 11, aload=101),
+        aldff("beta_stage0", "1", 20, aload=102),
+        aldff("beta_stage1", 20, 21, aload=103),
+        # Terminal active-low reset Q may be inverted again before Yosys ALOAD.
+        inv("alpha_consumer_reset_inv", 11, 110),
+        inv("beta_consumer_reset_inv", 21, 120),
+        aldff("consumer_alpha", (30, 31), (32, 33), aload=110, ad=("0", "0"), width=2),
+        aldff("consumer_beta", (40, 41), (42, 43), aload=120, ad=("0", "1"), width=2),
+        # Live AD is a functional asynchronous load, never reset distribution.
+        aldff("functional_async_load", 50, 51, aload=110, ad=(99,)),
+        # Constant-D reset-like FF without reset consumers is not preserved.
+        aldff("unrelated", "1", 60, aload=70, ad=("0",)),
+    ])
+    design = {"modules": {"anything": {"cells": cells}}}
+
+    assert syn_module.reset_distribution_cells(design, "anything") == (
+        "alpha_stage0", "alpha_stage1", "beta_stage0", "beta_stage1",
+    )
+
+    src = tmp_path / "pre.json"
+    dst = tmp_path / "preserved.json"
+    src.write_text(json.dumps(design), encoding="utf-8")
+    preserved = syn_module.apply_reset_distribution_preservation(src, dst, "anything")
+    assert preserved == (
+        "alpha_stage0", "alpha_stage1", "beta_stage0", "beta_stage1",
+    )
+    payload = json.loads(dst.read_text(encoding="utf-8"))
+    out_cells = payload["modules"]["anything"]["cells"]
+    for name in preserved:
+        assert out_cells[name]["attributes"]["keep"].endswith("1")
+    assert "keep" not in out_cells["consumer_alpha"]["attributes"]
+    assert "keep" not in out_cells["functional_async_load"]["attributes"]
+    assert "keep" not in out_cells["unrelated"]["attributes"]
+
+
 def test_synthesis_defaults_to_delay1_and_finishes_for_physical_implementation(tmp_path: Path) -> None:
     liberty = tmp_path / "cells.lib"
     liberty.write_text("library(test) {}\n", encoding="utf-8")
@@ -456,7 +568,16 @@ def test_synthesis_defaults_to_delay1_and_finishes_for_physical_implementation(t
         tie_hi=cfg.tie_hi, tie_lo=cfg.tie_lo, min_buffer=cfg.min_buffer,
     )
     assert f"read_liberty -overwrite -setattr liberty_cell -lib {liberty}" in script
-    assert script.index("read_liberty") < script.index("read_verilog")
+    assert "read_json" in script
+    assert "_pre_preserved.json" in script
+    assert "read_verilog" not in script
+    pre_script = syn_module.yosys_presynth_asic_verilog(cfg.top, cfg.topdir, liberty, cfg.output)
+    assert pre_script.index("read_liberty") < pre_script.index("read_verilog")
+    assert "proc" in pre_script
+    assert "\nflatten\n" in pre_script
+    assert pre_script.index("\nproc\n") < pre_script.index("\nselect -module demo\n") < pre_script.index("\nflatten\n")
+    assert pre_script.index("\nflatten\n") < pre_script.index("write_json -selected")
+    assert "write_json -selected" in pre_script
     assert "clockgate -liberty" not in script
     assert "clock_gate_map.v" not in script
     assert "dfflibmap -prepare" in script
@@ -527,20 +648,28 @@ cell (ICG_PLAIN) {
     assert ".GCLK (clk_o)" in techmap
 
     cfg = syn_module.SynthesisConfig(
-        "demo", topdir, "asic", 10.0, tmp_path / "syn", liberty, sdc=sdc,
+        "demo", topdir, "asic", 10.0, tmp_path / "syn", liberty, sdc=sdc, platform="sky130hd",
     )
     generated = syn_module.generate_synthesis_scripts(cfg)
     map_path = cfg.output / "clock_gate_map.v"
     script = (cfg.output / "synth_sv.ys").read_text(encoding="utf-8")
+    pre_script = (cfg.output / "synth_pre_sv.ys").read_text(encoding="utf-8")
     assert map_path in generated
     assert "ICG_PLAIN _TECHMAP_REPLACE_" in map_path.read_text(encoding="utf-8")
-    assert "--blackboxed-module prim_clk_gate" in script
-    assert "blackbox prim_clk_gate" not in script
-    assert f"techmap -map {map_path.resolve().as_posix()}" in script
-    assert "select -assert-count 0 t:prim_clk_gate" in script
-    assert script.index("--blackboxed-module prim_clk_gate") < script.index("--top demo")
-    assert script.index("--top demo") < script.index("techmap -map") < script.index("synth -top demo -noabc")
+    assert "--blackboxed-module prim_clk_gate" in pre_script
+    assert "blackbox prim_clk_gate" not in pre_script
+    assert f"techmap -map {map_path.resolve().as_posix()}" in pre_script
+    assert "select -assert-count 0 t:prim_clk_gate" in pre_script
+    assert pre_script.index("--blackboxed-module prim_clk_gate") < pre_script.index("--top demo")
+    assert pre_script.index("--top demo") < pre_script.index("techmap -map") < pre_script.index("proc")
+    assert pre_script.index("\nproc\n") < pre_script.index("\nflatten\n") < pre_script.index("write_json -selected")
+    assert "read_json" in script and "_pre_preserved.json" in script
     assert "clockgate -liberty" not in script
+    assert (cfg.output / "repair_config.mk") in generated
+    assert (cfg.output / "repair.tcl") in generated
+    assert (cfg.output / "repair_json.ys") in generated
+    assert "repair_design -pre_placement" in (cfg.output / "repair.tcl").read_text(encoding="utf-8")
+    assert "demo_synth_raw.v" in (cfg.output / "repair_config.mk").read_text(encoding="utf-8")
 
     settings = pdk_settings(tmp_path, "sky130", root=tmp_path / "missing-pdk")
     assert "CLOCK_GATE_CELL_AND_PORTS" not in settings
@@ -554,7 +683,9 @@ def test_asic_synthesis_ignores_clock_gate_mapping_when_design_has_no_primitive(
     (topdir / "demo.sv").write_text("module demo; endmodule\n", encoding="utf-8")
     liberty.write_text('capacitive_load_unit (1.0000000000, "pf");\n', encoding="utf-8")
     sdc.write_text("set_load 0.01 [all_outputs]\n", encoding="utf-8")
-    cfg = syn_module.SynthesisConfig("demo", topdir, "asic", 10.0, tmp_path / "syn", liberty, sdc=sdc)
+    cfg = syn_module.SynthesisConfig(
+        "demo", topdir, "asic", 10.0, tmp_path / "syn", liberty, sdc=sdc, platform="sky130hd"
+    )
     syn_module.generate_synthesis_scripts(cfg)
     script = (cfg.output / "synth_sv.ys").read_text(encoding="utf-8")
     assert not (cfg.output / "clock_gate_map.v").exists()
@@ -1359,7 +1490,7 @@ def test_ip_load_requires_exact_frozen_interface_layout(tmp_path: Path) -> None:
         json.dumps({
             "schema": 2, "format": "flexsoc-ip", "name": "demo", "top": "demo",
             "reg_interface": "axi_lite",
-            "content": {"contract": "contract/contract.json"},
+            "content": {"contract": "meta/contract.json"},
             "qualification": {
                 "summary": {"maximum_level": 1, "maximum_qualification": "Contract Valid"},
                 "technologies": {},
@@ -1442,7 +1573,7 @@ def test_release_validator_recomputes_multitech_summary_and_common_spec(tmp_path
         "name": "demo",
         "top": "demo",
         "reg_interface": "tlul",
-        "content": {"contract": "contract/contract.json"},
+        "content": {"contract": "meta/contract.json"},
         "qualification": {
             "summary": {
                 "maximum_level": 4,
@@ -1577,7 +1708,11 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
         design_intent_json=design_intent_json,
     )
     assert not (saved / "impl" / pdk).exists()
-    assert (saved / "meta" / "design_intent.json").is_file()
+    contract_json = saved / "meta" / "contract.json"
+    assert contract_json.is_file()
+    contract = json.loads(contract_json.read_text(encoding="utf-8"))
+    assert contract["design_intent"]["TOP"] == top
+    assert not (saved / "contract").exists()
     assert (saved / "meta" / pdk / "settings.json").is_file()
     package_index = json.loads((saved / "ip.json").read_text(encoding="utf-8"))
     assert saved == library / top / "interfaces" / "tlul"
@@ -1587,7 +1722,7 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     assert (sibling / "sentinel.txt").read_text(encoding="utf-8") == "keep sibling profile\n"
     assert "profile" not in package_index
     assert package_index["reg_interface"] == "tlul"
-    assert package_index["content"]["design_intent"] == "meta/design_intent.json"
+    assert package_index["content"]["contract"] == "meta/contract.json"
     assert package_index["content"]["registers"] == "csr"
     assert package_index["content"]["ipxact"] == "component.xml"
     assert package_index["content"]["systemrdl"] == "csr/systemrdl"
@@ -2395,8 +2530,14 @@ def test_nclock_dsp_clock_gate_is_regmap_controlled_and_reenable_safe(tmp_path: 
     assert "DSP.GAIN.write" in tests
     assert "CFG.GAIN" not in tests
     assert "CLK_GATE_EN" not in tests
+    assert "wait_for_output: bool = False" in tests
+    assert tests.count("wait_for_output=True") == 2
+    assert "@wait_output" in tests
 
-    from flexsoc.backend.dv.testbench import cocotb_reg_driver_py_text, sv_driver_text
+    from flexsoc.backend.dv.testbench import (
+        cocotb_reg_driver_py_text, cocotb_vec_driver_py_text,
+        sv_driver_text, _sv_vec_driver_text_string,
+    )
 
     cocotb_driver = cocotb_reg_driver_py_text("tri_stream_dsp", clocks, interface="tlul")
     assert '"cfg": {"CTRL": 0x0, "STATUS": 0x4, "CFG_STATUS": 0x4}' in cocotb_driver
@@ -2405,6 +2546,8 @@ def test_nclock_dsp_clock_gate_is_regmap_controlled_and_reenable_safe(tmp_path: 
     sv_driver = sv_driver_text("tri_stream_dsp", clocks, interface="tlul")
     assert "reg_name == \"dsp.GAIN\") dsp_write(32'h10, value)" in sv_driver
     assert 'reg_name == "cfg.GAIN"' not in sv_driver
+    assert "@wait_output timeout waiting for dsp_valid_o" in _sv_vec_driver_text_string("tri_stream_dsp", clocks)
+    assert "@wait_output timeout waiting for dsp_valid_o" in cocotb_vec_driver_py_text("tri_stream_dsp")
 
 
 def test_reggen_runtime_uses_pinned_opentitan_vendor() -> None:
@@ -2416,7 +2559,7 @@ def test_reggen_runtime_uses_pinned_opentitan_vendor() -> None:
     assert "missing vendored reggen" in source
 
 
-def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp_path: Path) -> None:
+def test_top_from_core_uses_independent_reset_sync_per_consumer(tmp_path: Path) -> None:
     from flexsoc.backend.core.core import candidate_ips_in_order, resolve_ip_dependencies, select_used_ips_in_order
     from flexsoc.backend.design.rtl import render_nclock_top, render_register_top, render_top_from_core
 
@@ -2437,17 +2580,19 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
         clocks=ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),)),
     )
     assert "prim_reset_sync" not in single
-    assert "prim_ff_2sync #(" in single
-    assert ".ResetValue (1'b0)" in single
-    assert ".rst_ni(rst_ni)" in single
-    assert ".d_i   (1'b1)" in single
-    assert ".q_o   (core_rst_sync_ni)" in single
-    assert single.count("prim_flop #(") == 2
+    assert single.count("prim_ff_2sync #(") == 2
+    assert single.count(".ResetValue (1'b0)") == 2
+    assert single.count(".rst_ni(rst_ni)") == 2
+    assert single.count(".d_i   (1'b1)") == 2
+    assert ") u_reg_reset_sync (" in single
+    assert ") u_core_reset_sync (" in single
     assert ".q_o   (reg_rst_ni)" in single
     assert ".q_o   (core_rst_ni)" in single
+    assert "core_rst_sync_ni" not in single
+    assert "prim_flop #(" not in single
+    assert "(* keep" not in single
     assert ".rst_ni(reg_rst_ni)" in single.split("demo_reg_top u_demo_reg", 1)[1]
     assert ".rst_ni(core_rst_ni)" in single.split("demo_core u_demo_core", 1)[1]
-    assert 'keep = "true"' not in single
 
     tlul = render_top_from_core(
         "demo",
@@ -2602,7 +2747,9 @@ def test_top_from_core_reset_branches_preserve_active_high_core_polarity(tmp_pat
         "reg_iface",
         clocks=ClockConfig((ClockDomain("core", "clk_i", "rst_i", 10.0, "high"),)),
     )
-    assert ".rst_ni(~rst_i)" in text
+    assert text.count(".rst_ni(~rst_i)") == 2
+    assert ") u_reg_reset_sync (" in text
+    assert ") u_core_reset_sync (" in text
     assert ".rst_ni(reg_rst_ni)" in text.split("demo_reg_top u_demo_reg", 1)[1]
     assert ".rst_i(~core_rst_ni)" in text.split("demo_core u_demo_core", 1)[1]
 
@@ -4738,7 +4885,11 @@ def test_synthesis_derives_abc_constraints_from_sdc(tmp_path: Path) -> None:
         "demo", tmp_path, "asic", 10.0, output, liberty, sdc=sdc,
     )
 
-    assert "read_sdc" not in synthesis
+    yosys_script = syn_module.yosys_synth_asic_verilog(
+        "demo", tmp_path, liberty, 10.0, "delay1", None, output,
+    )
+    assert "read_sdc" not in yosys_script
+    assert "read_sdc" in syn_module.render_openroad_syn_repair_tcl()
     assert "abc.constr" in synthesis
     assert "canonical SDC" in synthesis
     assert "-constr" in synthesis
@@ -4809,6 +4960,8 @@ def test_formal_scaffold_uses_explicit_multiclock_context(tmp_path: Path) -> Non
     cover_text = cover.read_text(encoding="utf-8")
     assert "dsp_clk_i" in prove_text
     assert "fifo_rready" in prove_text
+    assert "fifo_rready == (enable_dsp & dsp_clk_req_en & (!dsp_pipe_valid_q | !dsp_valid_o | dsp_ready_i))" in prove_text
+    assert "dsp_clk_req_en & fifo_rvalid" not in prove_text
     assert "dsp_clk_req_en" in prove_text
     assert "dsp_clk_gated" in prove_text
     assert "always_ff @(posedge dsp_clk_gated)" in prove_text
@@ -5602,15 +5755,42 @@ def test_eda_requests_declare_effective_inputs_and_outputs(tmp_path: Path) -> No
 
     syn = tmp_path / "syn"
     syn.mkdir()
+    (syn / "synth_pre_sv.ys").write_text("# pre\n", encoding="utf-8")
     (syn / "synth_sv.ys").write_text("# synth\n", encoding="utf-8")
+    (syn / "repair.tcl").write_text("repair_design -pre_placement\n", encoding="utf-8")
+    (syn / "repair_json.ys").write_text("write_json demo_synth.json\n", encoding="utf-8")
+    (syn / "repair_config.mk").write_text("export DESIGN_NAME = demo\nexport PLATFORM = sky130hd\n", encoding="utf-8")
+    (syn / "demo_pre.json").write_text(
+        '{"modules":{"demo":{"cells":{}}}}\n', encoding="utf-8"
+    )
+    sdc = tmp_path / "demo.sdc"
+    sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
+    liberty = tmp_path / "slow.lib"
+    liberty.write_text("library(x) {}\n", encoding="utf-8")
+    makefile = tmp_path / "Makefile"
+    makefile.write_text("all:\n\t@true\n", encoding="utf-8")
     assert SynthesisFlow(runner).run_asic(
-        output=syn, top="demo", log_dir=tmp_path / "logs", inputs=(source,)
+        output=syn, top="demo", log_dir=tmp_path / "logs", inputs=(source,),
+        sdc=sdc, repair_liberty=liberty, platform="sky130hd", orfs_makefile=makefile,
     ) == 0
-    request = runner.requests[-1]
-    assert request.inputs[:2] == ((syn / "synth_sv.ys").resolve(), source.resolve())
-    assert {path.name for path in request.inputs[2:]} == {"pkgs", "prim", "prim_opentitan", "tlul"}
-    assert syn / "demo_synth.v" in request.outputs
-    assert syn / "demo_synth.json" in request.outputs
+    assert len(runner.requests) == 5
+    pre_request, synth_request, floorplan_request, repair_request, json_request = runner.requests
+    assert pre_request.inputs[:2] == ((syn / "synth_pre_sv.ys").resolve(), source.resolve())
+    assert pre_request.outputs == ((syn / "demo_pre.json").resolve(),)
+    assert synth_request.inputs[0] == (syn / "synth_sv.ys").resolve()
+    assert source.resolve() in synth_request.inputs
+    assert (syn / "demo_pre_preserved.json").resolve() in synth_request.inputs
+    assert (syn / "demo_reset_preserve.json").resolve() in synth_request.inputs
+    assert syn / "demo_synth_raw.v" in synth_request.outputs
+    assert syn / "demo_synth_raw.json" in synth_request.outputs
+    assert floorplan_request.argv[-1] == "2_1_floorplan"
+    assert floorplan_request.outputs[0].name == "2_1_floorplan.odb"
+    assert Path(repair_request.argv[0]).name == "openroad"
+    assert "-exit" in repair_request.argv[1:]
+    assert Path(repair_request.argv[-1]).resolve() == (syn / "repair.tcl").resolve()
+    assert repair_request.outputs == ((syn / "demo_synth.v").resolve(),)
+    assert json_request.outputs == ((syn / "demo_synth.json").resolve(),)
+    assert (syn / "demo_synth_repair.json").is_file()
 
     eqy = tmp_path / "eqy" / "demo.eqy"
     view = tmp_path / "eqy" / "demo_view.sv"
@@ -6188,7 +6368,7 @@ def test_stage_contract_graph_is_single_source_and_acyclic() -> None:
     assert contracts["syn"].scope == "pdk"
     assert contracts["pnr"].scope == "pdk"
     assert contracts["sta_post_pnr"].scope == "pdk"
-    assert contracts["syn"].tools == ("YOSYS",)
+    assert contracts["syn"].tools == ("YOSYS", "OPENROAD", "ORFS")
     assert contracts["physical_signoff"].tools == ("ORFS", "OPENROAD", "KLAYOUT")
     assert contracts["eqy"].evidence == ("signoff/{pdk}/equivalence/{top}_rtl_vs_syn",)
     assert "REG_ITF" in contracts["signoff.setup"].config
@@ -6233,9 +6413,10 @@ def test_runtime_contract_evidence_invalidates_downstream_selectively(tmp_path: 
         "syn.setup", inputs=router._provenance_inputs("syn.setup"), generated=(setup,),
         config=router._provenance_config("syn.setup"), parents=router._provenance_parents("syn.setup"),
     )
-    netlist, netjson = router._evidence_paths("syn")
+    netlist, netjson, repair = router._evidence_paths("syn")
     netlist.write_text("module demo; endmodule\n", encoding="utf-8")
     netjson.write_text("{}\n", encoding="utf-8")
+    repair.write_text('{"classification":"openroad_pre_placement_repair"}\n', encoding="utf-8")
     router._record_provenance("syn", 0)
 
     signoff_setup = router.paths.signoff / "sta" / "sta.tcl"
@@ -6277,10 +6458,11 @@ def test_tool_contract_invalidation_is_stage_selective(tmp_path: Path) -> None:
     router.paths.rtl_common.write_text("", encoding="utf-8")
     router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
     router.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
-    netlist, netjson = router._evidence_paths("syn")
+    netlist, netjson, repair = router._evidence_paths("syn")
     netlist.parent.mkdir(parents=True, exist_ok=True)
     netlist.write_text("module demo; endmodule\n", encoding="utf-8")
     netjson.write_text("{}\n", encoding="utf-8")
+    repair.write_text('{"classification":"openroad_pre_placement_repair"}\n', encoding="utf-8")
     router._record_provenance("syn", 0)
     assert router._provenance_state("syn") == "CLEAN"
 
@@ -6288,8 +6470,11 @@ def test_tool_contract_invalidation_is_stage_selective(tmp_path: Path) -> None:
         "LOCK_VERSION=3\nYOSYS_VERSION=0.67\nOPENROAD_REF_PREFIX=bbb\n",
         encoding="utf-8",
     )
-    assert router._provenance_state("syn") == "CLEAN"
+    assert router._provenance_state("syn") == "STALE"
 
+    # Record the new tool contract, then a Yosys change independently invalidates synthesis.
+    router._record_provenance("syn", 0)
+    assert router._provenance_state("syn") == "CLEAN"
     lock.write_text(
         "LOCK_VERSION=3\nYOSYS_VERSION=0.68\nOPENROAD_REF_PREFIX=bbb\n",
         encoding="utf-8",
@@ -6507,6 +6692,23 @@ def test_regression_provenance_ignores_derived_coverage_reports(tmp_path: Path) 
     annotated.write_text("annotated\n", encoding="utf-8")
 
     assert router._provenance_state("regression") == "CLEAN"
+
+
+def test_contract_state_missing_does_not_resolve_unavailable_stage_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
+    router = api_module.FlexSoCTarget(client, values)
+    router.paths.ensure()
+
+    def fail_inputs(stage: str):
+        raise AssertionError(f"unrecorded stage inputs must not be resolved: {stage}")
+
+    monkeypatch.setattr(router, "_provenance_inputs", fail_inputs)
+    assert router._contract_state("sta_post_pnr") == "MISSING"
 
 
 def test_contract_status_derives_release_level_without_running_eda(
@@ -7801,3 +8003,69 @@ def test_rv_timer_authored_formal_bind_tracks_timer_reset_branch() -> None:
 
     assert ".rst_ni(timer_rst_ni)," in prove
     assert ".rst_ni(rst_ni)," not in prove
+
+
+def test_async_sequential_preservation_fallback_is_backend_only(tmp_path):
+    from flexsoc.backend.syn.syn import apply_async_sequential_preservation
+    import json
+
+    design = {
+        "modules": {
+            "top": {
+                "cells": {
+                    "a": {"type": "$aldff", "attributes": {}},
+                    "b": {"type": "$adffe", "attributes": {}},
+                    "c": {"type": "$dff", "attributes": {}},
+                }
+            }
+        }
+    }
+    src = tmp_path / "pre.json"
+    dst = tmp_path / "preserved.json"
+    src.write_text(json.dumps(design))
+
+    kept = apply_async_sequential_preservation(src, dst, "top")
+    out = json.loads(dst.read_text())
+
+    assert kept == ("a", "b")
+    assert out["modules"]["top"]["cells"]["a"]["attributes"]["keep"]
+    assert out["modules"]["top"]["cells"]["b"]["attributes"]["keep"]
+    assert "keep" not in out["modules"]["top"]["cells"]["c"]["attributes"]
+
+
+def test_openroad_post_synth_repair_report_and_script_contract(tmp_path):
+    from flexsoc.backend.syn.syn import render_openroad_syn_repair_tcl, synthesis_repair_report
+
+    script = render_openroad_syn_repair_tcl(slew_margin=10, cap_margin=10)
+    assert "repair_design -pre_placement -slew_margin 10 -cap_margin 10 -verbose" in script
+    assert "global_placement" not in script
+    assert "clock_tree_synthesis" not in script
+    assert "global_route" not in script
+    assert "write_verilog $::env(FLEXSOC_REPAIR_OUT)" in script
+
+    log = tmp_path / "repair.log"
+    log.write_text(
+        "wns max -2.19\n"
+        "tns max -559.61\n"
+        "[INFO RSZ-0038] Inserted 62 buffers in 291 nets.\n"
+        "[INFO RSZ-0504] Runtime: 0.30s\n"
+        "wns max 0.00\n"
+        "tns max 0.00\n",
+        encoding="utf-8",
+    )
+    data = synthesis_repair_report(
+        log,
+        top="demo",
+        raw=tmp_path / "demo_synth_raw.v",
+        repaired=tmp_path / "demo_synth.v",
+        floorplan=tmp_path / "2_1_floorplan.odb",
+        liberty=tmp_path / "slow.lib",
+    )
+    assert data["classification"] == "openroad_pre_placement_repair"
+    assert data["buffers_inserted"] == 62
+    assert data["nets_repaired"] == 291
+    assert data["runtime_seconds"] == 0.30
+    assert data["wns_before"] == -2.19
+    assert data["wns_after"] == 0.0
+    assert data["tns_before"] == -559.61
+    assert data["tns_after"] == 0.0

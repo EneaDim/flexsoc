@@ -45,9 +45,11 @@ The stage fingerprint combines effective inputs, configuration, parent lineage, 
 | --- | --- | --- |
 | L1 | Contract Valid | baselined contract, interfaces, clock/reset, CSR, assumptions and qualification plan |
 | L2 | RTL Qualified | L1 + RTL, lint, functional verification, requirement traceability, formal/CDC-RDC where required, limitations and release evidence |
-| L3 | Netlist Qualified | L2 + synthesis, constraints, RTL/netlist equivalence, netlist checks, STA and preliminary PPA |
+| L3 | Netlist Qualified | L2 + synthesis, pre-PnR electrical repair of the mapped netlist, constraints, RTL/netlist equivalence, netlist checks, STA and preliminary PPA |
 | L4 | Technology Qualified | L3 + declared PDK/library/macro assumptions/PVT and technology-specific evidence such as GLS, timing and power; implementation may be included when the policy requires it |
 | L5 | Physical / Signoff Complete Digital Macro | L4 + the final physical/signoff checks required by the technology/customer, such as post-PnR STA, DRC/LVS, antenna, density/fill, equivalence, IR/EM/reliability and final layout views |
+
+For ASIC targets the L3 netlist is the canonical `<top>_synth.v` **after** OpenROAD pre-placement electrical repair. The raw Yosys netlist remains diagnostic evidence. This repair may buffer or resize technology cells to satisfy Liberty fanout/capacitance/slew constraints, but it does not imply placement, CTS, routing, extraction or physical sign-off.
 
 `signoff/` is the common release namespace for technology-dependent evidence. It is split by evidence maturity: `signoff/<pdk>/post_syn/` contains post-synthesis evidence, while `signoff/<pdk>/post_pnr/` contains routed/physical evidence using the same evidence names where applicable (`sta/`, `power/`, `fusion/`); physical-only checks may be grouped under `physical/`. The directory name alone does not imply Level 5: only a qualification policy with the complete required physical evidence may claim **Physical / Signoff Complete Digital Macro**.
 
@@ -74,8 +76,8 @@ A frozen interface release is self-describing:
 ```text
 interfaces/<REG_ITF>/
 ├── ip.json
-├── contract/                 # hashed snapshot of spec/ used by this release
 ├── csr/
+├── sw/drivers/               # software-facing C collateral
 ├── rtl/
 ├── analysis/
 ├── dv/
@@ -92,7 +94,9 @@ interfaces/<REG_ITF>/
 │       ├── power/
 │       ├── fusion/
 │       └── physical/         # DRC/LVS/antenna/IR-EM/etc. when required
-└── meta/<pdk>/
+└── meta/
+    ├── contract.json          # spec fingerprint + design intent + source hashes
+    └── <pdk>/
 ```
 
 ## Requirements and test plan
@@ -119,7 +123,7 @@ The direct `sim_post_syn_all` / `sim_post_pnr_all` commands remain general-purpo
 
 - `fx ip_load --set IP_NAME=<ip> --set REG_ITF=<itf>` loads exactly `interfaces/<itf>/` into a run and materializes package `signoff/<pdk>/post_syn/` evidence into the operational run layout.
 - `fx qualify --set QUAL_LEVEL=<level>` validates the current run against the specification/test-plan policy and writes `meta/<pdk>/qualification.json`.
-- `fx ip_save` always runs the same validator first, snapshots the contract, preserves the common IP-level `spec/`, writes provenance/qualification metadata, and atomically publishes only the selected interface/PDK branch. `QUAL_LEVEL=auto` records the maximum demonstrated level; an explicit target refuses publication if that level is not satisfied.
+- `fx ip_save` always runs the same validator first, preserves one common IP-level `spec/`, writes the merged frozen contract/design-intent metadata to `meta/contract.json`, writes provenance/qualification metadata, and atomically publishes only the selected interface/PDK branch. `QUAL_LEVEL=auto` records the maximum demonstrated level; an explicit target refuses publication if that level is not satisfied.
 - Saving one PDK branch preserves previously published PDK branches. Release validation rechecks the common `spec/` against the frozen interface contract and recomputes multi-PDK qualification summaries from the per-PDK qualification reports instead of trusting a precomputed `ip.json` claim.
 
 A release is valid only when its required evidence is present, coherent with current intent, and non-stale. Presence of a directory is never sufficient qualification evidence.

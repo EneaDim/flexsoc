@@ -701,9 +701,12 @@ Comandi runtime:
 <CYCLE> @write <REGISTER_OR_ADDRESS> <DATA> [MASK]
 <CYCLE> @cfg   <PATH_TO_CONFIG.REGS>
 <CYCLE> @reset [DOMAIN_OR_RESET] <CYCLES>
+<STEP>  @wait_output
 ```
 
 Questa è una proprietà forte del flow: **lo stesso scenario può combinare stimulus sul datapath e modifiche software-visible della regmap**.
+
+Negli scenari DSP multi-clock generati, `@wait_output` è una barriera a evento: attende il completamento del payload già accettato prima di emettere una successiva riconfigurazione CSR. L'ordine di transazioni tra domini asincroni non deve essere modellato con un ritardo fisso presunto; il timeout è un failure, non un risultato alternativo.
 
 ```text
 0  @write CFG.CTRL 0x1 0x1
@@ -1028,7 +1031,7 @@ Un contratto authored, consumer piccoli e deliberati.
 
 ## 11. Sintesi con Yosys e ABC
 
-FlexSoC possiede la sintesi. ORFS riceve il netlist già mapped da FlexSoC invece di lanciare una seconda sintesi indipendente.
+FlexSoC possiede la sintesi. Yosys/ABC esegue il mapping logico; subito dopo FlexSoC usa ORFS/OpenROAD solo per un **electrical repair post-synthesis leggero** prima di pubblicare il netlist canonico. Il successivo PnR ORFS riceve quel netlist repaired e non rilancia una seconda sintesi indipendente.
 
 ### 11.1 Input
 
@@ -1047,8 +1050,14 @@ La sintesi ASIC consuma:
 `syn/syn.py` genera:
 
 ```text
-synth.ys / synth_sv.ys   programma Yosys
-abc.constr               assunzioni timing I/O per ABC
+synth_pre.ys / synth_pre_sv.ys   prepass strutturale dopo il lowering dei processi
+synth.ys / synth_sv.ys           programma Yosys
+repair_config.mk                 contesto floorplan ORFS minimale per il repair
+repair.tcl                       electrical repair OpenROAD pre-placement
+repair_json.ys                   export JSON canonico dopo il repair
+<top>_reset_preserve.json        evidenza strutturale della distribuzione reset
+<top>_synth_repair.json          evidenza provenance/QoR del repair
+abc.constr                       assunzioni timing I/O per ABC
 area.abc                 recipe ABC area-oriented
 delay.abc                recipe ABC delay-oriented
 ```
@@ -1076,20 +1085,25 @@ Il driver cell arriva dal profilo PDK attivo: FlexSoC non inietta una cella SKY1
 Lo script Yosys è una sequenza di trasformazioni e validation boundary:
 
 ```text
-1. Read Liberty target come library cells
-2. Read/elaborate SystemVerilog con frontend Slang/Yosys
-3. Sintesi generic logic senza final ABC mapping
-4. Salva checkpoint RTLIL generico
-5. Prepara mapping FF con dfflibmap
-6. Salva checkpoint FF-prepared
-7. Mappa combinatorio tramite ABC
-8. Salva checkpoint post-ABC
-9. Finalizza FF verso celle library
-10. check -assert
-11. split/clean net e inserimento tie/min-buffer se necessario
-12. check -assert -mapped
-13. statistiche
-14. final mapped Verilog + JSON
+1. Read/elaborate RTL e lowering dei processi senza ottimizzazione
+2. Salva snapshot JSON strutturale e technology-neutral
+3. Riconosce strutturalmente le catene reset release/distribution e applica preservation solo nell’IR di synthesis
+4. Rilegge lo snapshot preservato insieme alla Liberty target
+5. Sintesi generic logic senza final ABC mapping
+6. Salva checkpoint RTLIL generico
+7. Prepara mapping FF con dfflibmap
+8. Salva checkpoint FF-prepared
+9. Mappa combinatorio tramite ABC
+10. Salva checkpoint post-ABC
+11. Finalizza FF verso celle library
+12. check -assert
+13. split/clean net e inserimento tie/min-buffer se necessario
+14. check -assert -mapped
+15. statistiche
+16. emette il raw mapped `<top>_synth_raw.v` + JSON
+17. costruisce soltanto il contesto floorplan/OpenDB ORFS minimale
+18. esegue OpenROAD `repair_design -pre_placement` per fanout/capacitance/slew
+19. emette `<top>_synth.v` repaired canonico e rigenera `<top>_synth.json`
 ```
 
 I checkpoint RTLIL permettono di localizzare un problema al confine generic, FF mapping, ABC o cleanup.
@@ -1186,14 +1200,16 @@ rank dei candidati Pareto
 
 Artifact principali:
 
-- `<top>_synth.v` — mapped implementation netlist;
-- `<top>_synth.json` — design mapped machine-readable;
+- `<top>_synth_raw.v` / `<top>_synth_raw.json` — diagnostica raw del mapping Yosys;
+- `<top>_synth.v` — netlist mapped canonico dopo electrical repair OpenROAD pre-placement;
+- `<top>_synth.json` — vista machine-readable rigenerata dal netlist repaired canonico;
+- `<top>_synth_repair.json` — evidence di engine, Liberty, contesto floorplan e QoR before/after;
 - checkpoint RTLIL;
 - log sintesi;
 - estratti warning/error;
 - statistiche Liberty-based di celle/area.
 
-Il mapped netlist è l'esatto input logico consegnato a EQY e physical implementation.
+Il `<top>_synth.v` repaired è l'esatto input logico consegnato a STA, EQY e physical implementation. Il repair può inserire buffer o ridimensionare celle standard equivalenti, ma non esegue global placement, CTS, routing o extraction: resta quindi uno stage pre-PnR.
 
 ---
 

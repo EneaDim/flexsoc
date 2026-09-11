@@ -467,6 +467,8 @@ Tracked runtime evidence is recorded even when the EDA result is not PASS. This 
 
 A level can be `PASS`, `WAIVED`, or `BLOCKED`. `maximum_level` may include explicitly waived evidence, while `maximum_pass_level` is the highest level reached without a waiver. `WAIVED != PASS`, and `FAILED`/`REVIEW` remain blocking unless a deliberate policy records a waiver.
 
+For ASIC flows, `syn` publishes the repaired pre-PnR netlist rather than the raw Yosys output: Yosys mapping is followed by a lightweight OpenROAD `repair_design -pre_placement` round for electrical fanout/capacitance/slew repair. This is part of the Netlist Qualified artifact contract and remains distinct from `pnr`; no global placement, CTS, routing or extraction is claimed by synthesis.
+
 The levels are hierarchical. A later technology or physical result does not hide a missing earlier gate. EQY remains part of `Netlist Qualified`. During the current scaffold-baseline phase FlexSoC runs `fx eqy --setup` only; setup-only is not equivalence PASS, so qualification correctly stops before L3 until a real equivalence result exists.
 
 Runtime evidence covers the canonical lifecycle: Slang/Verilator lint suites, CDC/RDC, functional regression, individual formal BMC/prove/cover stages, synthesis, optional EQY execution, SDF/STA/vectorless power, post-synthesis SV GLS, PnR, physical sign-off, and routed SDF/STA/power/SV GLS. Composite commands such as `fx lint_suite`, `fx formal`, `fx signoff`, and `fx signoff_post_pnr` are compositions of those same canonical stages, so aggregate and manual execution use the same contract evidence.

@@ -260,6 +260,8 @@ The SV and cocotb vector drivers accept the same reset commands:
 
 The short form pulses every configured reset. The named form selects one `CLOCK_DOMAINS` domain or reset signal. Both backends honor the configured polarity and hold all selected resets concurrently for the requested number of their own clock edges; unknown selectors are errors.
 
+Generated multi-clock scaffold vectors also accept `<step> @wait_output` as a semantic completion barrier before a runtime reconfiguration. It waits for the current DSP output handshake with a bounded timeout; it is intentionally not a fixed-cycle delay. This prevents a CSR update in one clock domain from overtaking an already accepted payload in another domain.
+
 ---
 
 ## 3. Complete backend target catalogue
@@ -612,7 +614,7 @@ Generated `.abc` files are intentionally self-documenting: every executable ABC 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx syn --setup` | Generate Yosys/ABC synthesis scripts and `abc.constr`; no SDC is consumed by synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx syn` | Run synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Use `--info` for accepted overrides. |
+| `fx syn` | Run ASIC synthesis and publish the electrically repaired pre-PnR netlist. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `LIBS`, `ORS`, `ORS_TECH` | Yosys emits `<top>_synth_raw.v`; ORFS builds only minimal floorplan context and OpenROAD `repair_design -pre_placement` publishes canonical `<top>_synth.v`. No global placement, CTS or routing is run. |
 | `fx syn_v` | Run Verilog synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Use `--info` for accepted overrides. |
 | `fx syn_sv` | Run SystemVerilog synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Use `--info` for accepted overrides. |
 | `fx yosys-vgen` | Convert SV to Verilog with Yosys. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Use `--info` for accepted overrides. |
@@ -771,7 +773,7 @@ The live authoritative IP specification lives at `runs/<RUN_TOP>/<RUN_ID>/spec/`
 | `fx status` | Show live contract/evidence state and maximum demonstrated qualification level. | common settings | Read-only. |
 | `fx qualify` | Validate requirements traceability and evidence against the L1-L5 policy. | `IP_NAME`, `REG_ITF`, `QUAL_LEVEL` | Writes `meta/<pdk>/qualification.json`; returns non-zero when an explicit `QUAL_LEVEL` is not satisfied. |
 | `fx ip_load` | Load one frozen register-interface release into a run workspace. | `IP_NAME`, `REG_ITF` | Resolves exactly `interfaces/<REG_ITF>/`; there is no legacy profile fallback. |
-| `fx ip_save` | Atomically publish the selected interface/PDK release from the current run. | `IP_NAME`, `REG_ITF`, `IP_LIBRARY_ROOT`, `QUAL_LEVEL`; use `--force` to refresh an existing branch | Runs the unified validator first, snapshots the authoritative `spec/` under `contract/`, preserves unrelated technology branches, and packages only real implementation/signoff evidence. `QUAL_LEVEL=auto` records the maximum demonstrated level. |
+| `fx ip_save` | Atomically publish the selected interface/PDK release from the current run. | `IP_NAME`, `REG_ITF`, `IP_LIBRARY_ROOT`, `QUAL_LEVEL`; use `--force` to refresh an existing branch | Runs the unified validator first, keeps one authoritative common `spec/`, freezes its hash/source contract in `meta/contract.json`, preserves unrelated technology branches, and packages only real implementation/signoff evidence. `QUAL_LEVEL=auto` records the maximum demonstrated level. |
 
 Release layout:
 
@@ -783,8 +785,8 @@ hw/ips/<IP_NAME>/
 │   └── testplan.yaml
 └── interfaces/<REG_ITF>/
     ├── ip.json
-    ├── contract/
     ├── csr/
+    ├── sw/drivers/
     ├── rtl/
     ├── analysis/
     ├── dv/
@@ -794,7 +796,9 @@ hw/ips/<IP_NAME>/
     ├── signoff/<pdk>/
     │   ├── post_syn/       # sta / power / fusion on synthesized netlist
     │   └── post_pnr/       # sta / power / fusion + routed physical evidence
-    └── meta/<pdk>/
+    └── meta/
+        ├── contract.json
+        └── <pdk>/
 ```
 
 `signoff/<pdk>/post_syn/` contains post-synthesis technology evidence such as equivalence setup/views, SDF, STA, GLS-correlated power/fusion and related reports. `signoff/<pdk>/post_pnr/` contains routed evidence and keeps the same canonical names for common analyses (`sta/`, `power/`, `fusion/`), plus physical-only checks where required. Presence of either directory does not by itself assert a qualification level; the unified validator applies the L1-L5 policy. The operational run workspace may keep post-synthesis evidence directly under `signoff/<pdk>/`; `ip_save`/`ip_load` translate between run and release layouts. See `docs/digital_ip_contract.md`.

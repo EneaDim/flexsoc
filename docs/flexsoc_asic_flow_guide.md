@@ -710,9 +710,12 @@ Runtime commands extend the same file:
 <CYCLE> @write <REGISTER_OR_ADDRESS> <DATA> [MASK]
 <CYCLE> @cfg   <PATH_TO_CONFIG.REGS>
 <CYCLE> @reset [DOMAIN_OR_RESET] <CYCLES>
+<STEP>  @wait_output
 ```
 
 This is one of the useful FlexSoC properties: **the same scenario can combine datapath stimulus and software-visible control changes**.
+
+For generated multi-clock DSP scenarios, `@wait_output` is an event barrier: it waits for completion of the previously accepted payload before a following CSR reconfiguration is issued. Transaction order across asynchronous domains must not be encoded as an assumed fixed delay; timeout is a failure, not a substitute result.
 
 For example:
 
@@ -1052,7 +1055,7 @@ One authored contract, multiple deliberately small consumers.
 
 ## 11. Synthesis with Yosys and ABC
 
-FlexSoC owns synthesis. ORFS receives the already mapped FlexSoC netlist instead of running a second independent synthesis flow.
+FlexSoC owns synthesis. Yosys/ABC performs logical mapping, then FlexSoC uses ORFS/OpenROAD only for a lightweight **post-synthesis electrical repair** before publishing the canonical netlist. ORFS still receives that repaired netlist for the later full physical implementation; it does not run a second independent synthesis flow.
 
 ### 11.1 Inputs
 
@@ -1071,8 +1074,14 @@ ASIC synthesis consumes:
 `syn/syn.py` generates the synthesis workspace, including:
 
 ```text
-synth.ys / synth_sv.ys   Yosys synthesis program
-abc.constr               ABC I/O timing assumptions
+synth_pre.ys / synth_pre_sv.ys   process-lowering structural prepass
+synth.ys / synth_sv.ys           Yosys synthesis program
+repair_config.mk                 minimal ORFS floorplan context for synthesis repair
+repair.tcl                       OpenROAD pre-placement electrical repair
+repair_json.ys                   canonical JSON export after repair
+<top>_reset_preserve.json        structural reset-distribution evidence
+<top>_synth_repair.json          repair provenance/QoR evidence
+abc.constr                       ABC I/O timing assumptions
 area.abc                 area-oriented ABC recipe, when selected
 delay.abc                delay-oriented ABC recipe, when selected
 ```
@@ -1100,20 +1109,25 @@ FlexSoC does not silently inject a SKY130-specific driver cell into another PDK.
 The generated Yosys program is best understood as a sequence of representation changes and validation boundaries:
 
 ```text
-1. Read target Liberty as library cells
-2. Read/elaborate SystemVerilog RTL with Slang/Yosys frontend
-3. Resolve hierarchy and synthesize generic logic without ABC final mapping
-4. Save generic RTLIL checkpoint
-5. Prepare technology FF mapping with dfflibmap
-6. Save FF-prepared checkpoint
-7. Map combinational logic through ABC
-8. Save post-ABC checkpoint
-9. Map prepared FF types to final library cells
-10. check -assert
-11. split/clean nets and insert tie/min-buffer cells when required
-12. check -assert -mapped
-13. emit statistics
-14. write final mapped Verilog + JSON
+1. Read/elaborate RTL and lower processes without optimization
+2. Save a technology-neutral structural JSON snapshot
+3. Recognize reset-release/distribution chains structurally and add backend-only preservation attributes to those cells
+4. Reload the preserved structural JSON together with target Liberty cells
+5. Synthesize generic logic without ABC final mapping
+6. Save generic RTLIL checkpoint
+7. Prepare technology FF mapping with dfflibmap
+8. Save FF-prepared checkpoint
+9. Map combinational logic through ABC
+10. Save post-ABC checkpoint
+11. Map prepared FF types to final library cells
+12. check -assert
+13. split/clean nets and insert tie/min-buffer cells when required
+14. check -assert -mapped
+15. emit statistics
+16. write raw mapped `<top>_synth_raw.v` + JSON
+17. build only the minimal ORFS floorplan/OpenDB context
+18. run OpenROAD `repair_design -pre_placement` for max fanout/capacitance/slew
+19. write repaired canonical `<top>_synth.v` and regenerate `<top>_synth.json`
 ```
 
 The intermediate RTLIL checkpoints are not decorative. They make synthesis/equivalence failures easier to localize to the generic, FF-mapping, ABC or cleanup boundary.
@@ -1214,14 +1228,16 @@ That is a **roadmap idea**, not a current feature.
 
 The key outputs are:
 
-- `<top>_synth.v` — mapped implementation netlist;
-- `<top>_synth.json` — machine-readable mapped design;
+- `<top>_synth_raw.v` / `<top>_synth_raw.json` — raw Yosys mapped diagnostics;
+- `<top>_synth.v` — canonical mapped netlist after OpenROAD pre-placement electrical repair;
+- `<top>_synth.json` — machine-readable view regenerated from the canonical repaired netlist;
+- `<top>_synth_repair.json` — repair engine, Liberty, floorplan context and before/after QoR evidence;
 - RTLIL checkpoints;
 - synthesis log;
 - warnings/errors extracts;
 - Liberty-based cell/area statistics.
 
-The mapped netlist is the exact logical input handed to equivalence and physical implementation.
+The repaired `<top>_synth.v` is the exact logical input handed to STA, equivalence and physical implementation. The repair stage may insert buffers or resize equivalent standard cells, but it does not perform global placement, CTS, routing or extraction and therefore remains a pre-PnR netlist stage.
 
 ---
 

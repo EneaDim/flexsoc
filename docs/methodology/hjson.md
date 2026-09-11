@@ -441,8 +441,8 @@ Checks C-header generation and the FlexSoC driver-generation boundary.
 Expected outputs:
 
 ```text
-drivers/<top>.h
-drivers/<top>.c
+sw/drivers/<top>.h
+sw/drivers/<top>.c
 ```
 
 A HJSON file is not considered validated merely because `fx reg` passes.

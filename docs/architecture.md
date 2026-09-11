@@ -843,7 +843,7 @@ syn/        portable synthesis collateral/results
 signoff/    sign-off collateral/results
 impl/       physical implementation collateral
 meta/       saved qualification metadata
-drivers/    software collateral
+sw/drivers/ software collateral
 py/         design-specific Python/model code
 ```
 

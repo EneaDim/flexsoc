@@ -118,6 +118,17 @@ is easy to assert.
 
 The goal is to prove **design behavior**, not freeze one RTL implementation.
 
+### Do not strengthen a handshake while restating it
+
+If a property intentionally checks an RTL handshake equation, preserve the roles of
+`valid`, `ready`, and the transfer event. In a conventional decoupled interface,
+`ready` may be asserted while no item is valid; transfer/pop is what requires both.
+
+Do not silently add `valid` to a `ready` equation merely because the downstream
+action is gated by `valid && ready`. That changes the contract and can create a
+formal failure in a legal idle state. Prefer separate properties for readiness and
+for the actual transfer condition.
+
 ---
 
 ## 4. Bind properties to the boundary that owns the behavior
