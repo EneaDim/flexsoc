@@ -1427,7 +1427,7 @@ def copy_driver_files(ips_dir: Path, sw_dir: Path) -> list[str]:
 
     modules: list[str] = []
     for ip_dir in sorted((p for p in ips_dir.iterdir() if p.is_dir()), key=lambda p: p.name):
-        driver_files = sorted((ip_dir / "drivers").glob("*.h")) + sorted((ip_dir / "drivers").glob("*.c"))
+        driver_files = sorted((ip_dir / "sw" / "drivers").glob("*.h")) + sorted((ip_dir / "sw" / "drivers").glob("*.c"))
         if not driver_files:
             continue
         for src in driver_files:

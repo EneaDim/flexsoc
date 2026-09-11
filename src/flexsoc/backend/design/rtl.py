@@ -724,22 +724,22 @@ def _domain_branch_reset_signal(domain: ClockDomain, branch: str, *, single: boo
     return signal if domain.reset_polarity == "low" else f"~{signal}"
 
 
-def _render_reset_branch(domain: ClockDomain, branch: str, *, single: bool = False) -> list[str]:
-    """Render one reset launch stage fed by the synchronized domain reset."""
+def _render_reset_sync_branch(domain: ClockDomain, branch: str, *, single: bool = False) -> list[str]:
+    """Render one independent reset synchronizer for a structural consumer branch."""
 
     signal = _reset_branch_name(domain, branch, single=single)
     instance = (
-        f"u_{_id(domain.name)}_{_id(branch)}_reset_branch"
+        f"u_{_id(domain.name)}_{_id(branch)}_reset_sync"
         if not single
-        else f"u_{_id(branch)}_reset_branch"
+        else f"u_{_id(branch)}_reset_sync"
     )
     return [
-        "  prim_flop #(",
+        "  prim_ff_2sync #(",
         "    .Width      (1),",
         "    .ResetValue (1'b0)",
         f"  ) {instance} (",
         f"    .clk_i ({domain.signal}),",
-        f"    .rst_ni({_reset_sync_name(domain)}),",
+        f"    .rst_ni({_raw_reset_ni(domain)}),",
         "    .d_i   (1'b1),",
         f"    .q_o   ({signal})",
         "  );",
@@ -796,23 +796,12 @@ def render_top_from_core(
         f"  {top}_reg2hw_t reg2hw;",
         f"  {top}_hw2reg_t hw2reg;",
         "",
-        f"  logic {_reset_sync_name(domain)};",
         f"  logic {_reset_branch_name(domain, 'reg', single=True)};",
         f"  logic {_reset_branch_name(domain, 'core', single=True)};",
         "",
-        "  prim_ff_2sync #(",
-        "    .Width      (1),",
-        "    .ResetValue (1'b0)",
-        f"  ) u_{_id(domain.name)}_reset_sync (",
-        f"    .clk_i ({domain.signal}),",
-        f"    .rst_ni({_raw_reset_ni(domain)}),",
-        "    .d_i   (1'b1),",
-        f"    .q_o   ({_reset_sync_name(domain)})",
-        "  );",
+        *_render_reset_sync_branch(domain, "reg", single=True),
         "",
-        *_render_reset_branch(domain, "reg", single=True),
-        "",
-        *_render_reset_branch(domain, "core", single=True),
+        *_render_reset_sync_branch(domain, "core", single=True),
         "",
         *_instance(f"{top}_reg", f"{top}_reg_top", reg_pins),
         "",

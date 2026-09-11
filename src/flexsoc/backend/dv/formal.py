@@ -265,7 +265,7 @@ def render_design_prove(top: str, *, multiclock: bool) -> str:
 
           always_comb begin
             assert (rx_ready_o == (enable_rx & fifo_wready));
-            assert (fifo_rready == (enable_dsp & dsp_clk_req_en & fifo_rvalid & (!dsp_pipe_valid_q | !dsp_valid_o | dsp_ready_i)));
+            assert (fifo_rready == (enable_dsp & dsp_clk_req_en & (!dsp_pipe_valid_q | !dsp_valid_o | dsp_ready_i)));
             assert (dsp_clk_active == ((enable_dsp & dsp_clk_req_en) | soft_reset_dsp | dsp_pipe_valid_q | dsp_valid_o));
           end
 

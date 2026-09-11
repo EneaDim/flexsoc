@@ -46,6 +46,9 @@ def catalog(run: Path, *, top: str, pdk: str) -> dict[str, ShowSpec]:
     metrics = meta / "metrics.json"
     signoff = run / "signoff" / pdk
     sim = run / "dv" / "functional" / "sim"
+    contract = run / "meta" / "contract.json"
+    if not contract.is_file():
+        contract = run / "contract" / "contract.json"
     specs = (
         ShowSpec("qualification", "Qualification", meta / "qualification.json"),
         ShowSpec("evidence", "Qualification evidence", meta / "qualification.json", ("evidence",)),
@@ -55,7 +58,7 @@ def catalog(run: Path, *, top: str, pdk: str) -> dict[str, ShowSpec]:
         ShowSpec("provenance", "Stage provenance", meta / "provenance.json"),
         ShowSpec("settings", "Effective PDK settings", meta / "settings.json"),
         ShowSpec("design_intent", "Common design intent", run / "meta" / "design_intent.json"),
-        ShowSpec("contract", "Frozen contract", run / "contract" / "contract.json"),
+        ShowSpec("contract", "Frozen contract", contract),
         ShowSpec("regression", "RTL regression metrics", metrics, ("regression",)),
         ShowSpec("formal", "Formal metrics", metrics, ("formal",)),
         ShowSpec("eqy", "Equivalence metrics", metrics, ("equivalence",)),

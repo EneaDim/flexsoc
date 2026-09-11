@@ -3162,6 +3162,21 @@ def _sv_vec_driver_text_string(top: str, clocks: ClockConfig, io_delay_pct: floa
         end
       endtask
 
+      task automatic wait_output_completion;
+        integer timeout;
+        begin : wait_output_completion_body
+        timeout = 0;
+        while (!dsp_valid_o && timeout < 64) begin
+          dsp_sample_cycle();
+          timeout++;
+        end
+        if (!dsp_valid_o) begin
+          $display("[TB][ERROR] @wait_output timeout waiting for dsp_valid_o");
+          errors++;
+        end
+        end
+      endtask
+
       task automatic run_inputs(input string path);
         integer fd;
         integer code;
@@ -3193,7 +3208,9 @@ def _sv_vec_driver_text_string(top: str, clocks: ClockConfig, io_delay_pct: floa
           if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_nclk_input_line;
           code = $sscanf(line, "%d %s", step, token);
           if (code != 2) disable tb_nclk_input_line;
-          if (token == "@write" || token == "write") begin
+          if (token == "@wait_output" || token == "wait_output") begin
+            wait_output_completion();
+          end else if (token == "@write" || token == "write") begin
             code = $sscanf(line, "%d %s %s %h", step, token, reg_name, value);
             if (code == 4) begin
               mask = 32'hffff_ffff;
@@ -6077,6 +6094,14 @@ def cocotb_vec_driver_py_text(top: str) -> str:
             if len(parts) < 2:
                 continue
             token = parts[1]
+            if token in {"@wait_output", "wait_output"}:
+                for _ in range(64):
+                    await _sample_cycle(dut.dsp_clk_i)
+                    if bool(dut.dsp_valid_o.value):
+                        break
+                else:
+                    raise TimeoutError("@wait_output timeout waiting for dsp_valid_o")
+                continue
             if token in {"@write", "write"} and len(parts) >= 4:
                 mask = int(parts[4], 0) if len(parts) >= 5 else 0xFFFFFFFF
                 await apply_reg(dut, parts[2], int(parts[3], 0), mask)

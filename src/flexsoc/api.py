@@ -76,7 +76,7 @@ SIM = (
     "WAVE_FILE",
 )
 VIEW = (*COMMON, "PDK", "SIGNOFF_STAGE", "SIM_NAME", "WAVE_VIEWER", "SURFER_BACKEND")
-SYN = (*COMMON, "PDK", "PDK_ROOT", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "VSV", "LIB_SYN", "TIEHI_CELL_AND_PORT", "TIELO_CELL_AND_PORT", "MIN_BUF_CELL_AND_PORTS")
+SYN = (*COMMON, "PDK", "PDK_ROOT", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "VSV", "LIB_SYN", "LIBS", "ORS", "ORS_TECH", "TIEHI_CELL_AND_PORT", "TIELO_CELL_AND_PORT", "MIN_BUF_CELL_AND_PORTS")
 FORMAL = (
     *COMMON,
     "SBY",
@@ -675,8 +675,8 @@ STAGE_CONTRACTS = {
     )),
     "formal.csr_cover.setup": StageContract((*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE")),
     "syn.setup": StageContract((
-        *CLOCKS, "TOP", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT",
-        "TIEHI_CELL_AND_PORT", "TIELO_CELL_AND_PORT", "MIN_BUF_CELL_AND_PORTS",
+        *CLOCKS, "TOP", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "LIB_SYN", "LIBS",
+        "ORS", "ORS_TECH", "TIEHI_CELL_AND_PORT", "TIELO_CELL_AND_PORT", "MIN_BUF_CELL_AND_PORTS",
     ), scope="pdk"),
     "eqy.setup": StageContract((
         *CLOCKS, "TOP", "EQY_SAT_DEPTH", "EQY_USE_SAT",
@@ -713,7 +713,16 @@ STAGE_CONTRACTS = {
     "formal_prove": StageContract(("TOP", "FORMAL_PROVE_ENGINE"), ("formal.prove.setup", "formal_bmc"), ("logs/dv/formal/properties/{top}_prove.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
     "formal_csr_cover": StageContract(("TOP", "FORMAL_COVER_ENGINE"), ("formal.csr_cover.setup",), ("logs/dv/formal/csr/{top}_cover.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
     "formal_cover": StageContract(("TOP", "FORMAL_COVER_ENGINE"), ("formal.cover.setup",), ("logs/dv/formal/properties/{top}_cover.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
-    "syn": StageContract(("TOP", "PDK", "TARGET_SYN", "TARGET_OPT"), ("syn.setup",), ("syn/{pdk}/{top}_synth.v", "syn/{pdk}/{top}_synth.json"), scope="pdk", tools=("YOSYS",)),
+    "syn": StageContract(
+        ("TOP", "PDK", "TARGET_SYN", "TARGET_OPT", "ORS_TECH"),
+        ("syn.setup",),
+        (
+            "syn/{pdk}/{top}_synth.v",
+            "syn/{pdk}/{top}_synth.json",
+            "syn/{pdk}/{top}_synth_repair.json",
+        ),
+        scope="pdk", tools=("YOSYS", "OPENROAD", "ORFS"),
+    ),
     "eqy": StageContract(("TOP", "PDK", "EQY_STRATEGY_ORDER"), ("eqy.setup", "syn"), ("signoff/{pdk}/equivalence/{top}_rtl_vs_syn",), scope="pdk", tools=("EQY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
     "sdf": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/sdf",), scope="pdk", tools=("OPENSTA",)),
     "sta": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/sta/sta.json",), scope="pdk", tools=("OPENSTA",)),
@@ -1203,7 +1212,13 @@ class FlexSoCTarget:
         elif stage.startswith("formal.csr_"):
             inputs = rtl
         elif stage == "syn.setup":
-            inputs = (*rtl, p.sdc, *self._configured_paths("LIB_SYN"))
+            makefile, _ = self._orfs()
+            platform = self.values.get("ORS_TECH", self.values.get("PDK", ""))
+            platform_config = makefile.parent / "platforms" / platform / "config.mk"
+            inputs = (
+                *rtl, p.sdc, *self._configured_paths("LIB_SYN", "LIBS"),
+                makefile, platform_config,
+            )
         elif stage == "eqy.setup":
             inputs = (
                 *rtl, p.syn / f"{p.top}_synth.v",
@@ -1332,8 +1347,10 @@ class FlexSoCTarget:
         return provenance_summary(states)
 
     def _contract_state(self, stage: str) -> str:
-        """Return the current provenance freshness for one contract stage."""
+        """Return freshness for recorded evidence, otherwise MISSING."""
 
+        if stage not in self._provenance(stage).stages():
+            return "MISSING"
         return self._provenance_state(stage)
 
     def _contract_outcome(self, stage: str) -> str | None:
@@ -1622,6 +1639,13 @@ class FlexSoCTarget:
         if target in {"ice40", "ice"}:
             return flow.setup_ice40(top=self.paths.top, topdir=self.paths.rtl, clk_period_ns=period, output=self.paths.syn)
         liberty = Path(self.values["LIB_SYN"])
+        makefile, _ = self._orfs()
+        platform = self.values.get("ORS_TECH", self.values.get("PDK", ""))
+        platform_config = makefile.parent / "platforms" / platform / "config.mk"
+        if not makefile.is_file():
+            raise FileNotFoundError(f"OpenROAD-flow-scripts Makefile not found: {makefile}")
+        if not platform_config.is_file():
+            raise FileNotFoundError(f"OpenROAD platform config not found: {platform_config}")
         return flow.setup_asic(
             top=self.paths.top, topdir=self.paths.rtl, liberty=liberty,
             clk_period_ns=period, output=self.paths.syn, sdc=self.paths.sdc,
@@ -1630,6 +1654,7 @@ class FlexSoCTarget:
             tie_hi=self._tuple("TIEHI_CELL_AND_PORT", 2),
             tie_lo=self._tuple("TIELO_CELL_AND_PORT", 2),
             min_buffer=self._tuple("MIN_BUF_CELL_AND_PORTS", 3),
+            platform=platform,
         )
 
     def _tuple(self, key: str, size: int):
@@ -1974,11 +1999,17 @@ class FlexSoCTarget:
         if target == "syn.setup":
             return self._setup_synthesis()
         if target in {"syn", "syn_v", "syn_sv"}:
+            libs = self._configured_paths("LIBS")
+            repair_liberty = libs[0] if libs else Path(v["LIB_SYN"]).expanduser().resolve()
+            makefile, _ = self._orfs()
             return b.syn.synthesis.run_asic(
                 output=p.syn, top=top, log_dir=p.logs / "synthesis" / p.pdk,
                 opt=v.get("TARGET_OPT", "delay1"), yosys=v.get("YOSYS", "yosys"),
                 systemverilog=(target != "syn_v" and v.get("VSV", "sv") != "v"),
                 inputs=self._execution_inputs("syn.setup"), on=self.on,
+                sdc=p.sdc, repair_liberty=repair_liberty,
+                platform=v.get("ORS_TECH", v.get("PDK", "")),
+                orfs_makefile=makefile, openroad=v.get("OPENROAD", "openroad"),
             )
         if target == "yosys-vgen":
             return b.syn.synthesis.run_yosys_vgen(top=top, cwd=p.run, output=p.rtl / f"{top}.v", yosys=v.get("YOSYS","yosys"), on=self.on)

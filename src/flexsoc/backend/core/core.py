@@ -1620,7 +1620,9 @@ class FlowPaths:
     @property
     def doc(self) -> Path: return self.run / "doc"
     @property
-    def drivers(self) -> Path: return self.run / "drivers"
+    def sw(self) -> Path: return self.run / "sw"
+    @property
+    def drivers(self) -> Path: return self.sw / "drivers"
     @property
     def logs(self) -> Path: return self.run / "logs"
     @property

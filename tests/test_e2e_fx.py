@@ -391,14 +391,14 @@ def _validate_ip_layout(top: str, profile: str) -> None:
     assert "profile" not in manifest
     assert manifest["reg_interface"] == profile
     required_dirs = (
-        csr_dir, "doc", "drivers", "rtl", "dv/functional/model",
+        csr_dir, "doc", "sw/drivers", "rtl", "dv/functional/model",
         "dv/functional/tests", "dv/functional/tb/sv", "dv/functional/tb/cocotb",
         "dv/formal/properties/prove", "dv/formal/properties/cover",
         "constraints", "syn/sky130", "signoff/sky130/post_syn/equivalence",
     )
     required_files = (
         f"{csr_dir}/{top}.hjson", f"doc/{top}.md", f"doc/{top}_interfaces.md",
-        f"drivers/{top}.c", f"drivers/{top}.h", f"rtl/{top}.sv",
+        f"sw/drivers/{top}.c", f"sw/drivers/{top}.h", f"rtl/{top}.sv",
         f"rtl/{top}_core.sv", "rtl/rtl_common.f", "rtl/rtl_ip.f",
         f"dv/functional/model/{top}_model.py",
         f"dv/functional/model/{top}_regmap.py",
@@ -1023,7 +1023,7 @@ def _assert_saved_multitech_layout(library_root: Path, top: str, profile: str) -
     package_index = json.loads((root / "ip.json").read_text(encoding="utf-8"))
     assert "profile" not in package_index
     assert package_index["reg_interface"] == profile
-    for common in ("csr", "doc", "drivers", "rtl", "dv"):
+    for common in ("csr", "doc", "sw/drivers", "rtl", "dv"):
         assert (root / common).is_dir(), f"missing saved {top}/{common}"
     assert (root / "analysis" / "lint" / "slang").is_dir(), f"missing saved {top} Slang lint evidence"
     assert (root / "analysis" / "lint" / "verilator").is_dir(), f"missing saved {top} Verilator lint evidence"
@@ -1031,9 +1031,10 @@ def _assert_saved_multitech_layout(library_root: Path, top: str, profile: str) -
     assert (root / "analysis" / "cdc_rdc" / "cdc_rdc.rpt").is_file(), f"missing saved {top} CDC/RDC report"
     assert not (root / "logs" / "analysis" / "cdc_rdc").exists(), "CDC/RDC raw logs must not be packaged"
     assert not (root / "logs" / "analysis" / "lint").exists(), "raw lint logs must not be packaged"
-    design_intent = root / "meta" / "design_intent.json"
-    assert design_intent.is_file(), f"missing saved {top} design intent"
-    intent = json.loads(design_intent.read_text(encoding="utf-8"))["design_intent"]
+    contract = root / "meta" / "contract.json"
+    assert contract.is_file(), f"missing saved {top} contract metadata"
+    assert not (root / "contract").exists(), f"legacy contract directory retained for {top}"
+    intent = json.loads(contract.read_text(encoding="utf-8"))["design_intent"]
     assert (root / "constraints" / f"{top}.sdc").is_file(), f"missing saved {top} canonical SDC"
     settings_by_pdk = {}
     for pdk in ("sky130", "ihp-sg13g2"):

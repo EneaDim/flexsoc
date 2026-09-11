@@ -827,6 +827,7 @@ def render_nclock_tests(top: str) -> str:
 
         inputs: model.DspInput | None = None
         config: model.DspConfig | None = None
+        wait_for_output: bool = False
 
 
     @dataclass(frozen=True)
@@ -938,9 +939,9 @@ def render_nclock_tests(top: str) -> str:
                 config=smoke,
                 steps=(
                     Step(inputs=model.DspInput(3, 4)),
-                    Step(config=model.DspConfig(gain=0, op=1, threshold=4)),
+                    Step(config=model.DspConfig(gain=0, op=1, threshold=4), wait_for_output=True),
                     Step(inputs=model.DspInput(9, 4)),
-                    Step(config=model.DspConfig(gain=0, op=2, threshold=0x20)),
+                    Step(config=model.DspConfig(gain=0, op=2, threshold=0x20), wait_for_output=True),
                     Step(inputs=model.DspInput(3, 4)),
                 ),
             ),
@@ -1000,6 +1001,7 @@ def render_nclock_tests(top: str) -> str:
         data_in = [
             "# format: <STEP> <SIGNAL> <VALUE>",
             "# runtime CSR: <STEP> @write/@read <DOMAIN.REG> <VALUE> [MASK]",
+            "# completion barrier: <STEP> @wait_output",
             "# STEP records transaction order, not an absolute clock cycle.",
         ]
         data_out = [
@@ -1008,6 +1010,8 @@ def render_nclock_tests(top: str) -> str:
         ]
         active = case.config
         for step, action in enumerate(case.steps):
+            if action.wait_for_output:
+                data_in.append(f"{{step}} @wait_output")
             if action.config is not None:
                 active = action.config
                 data_in.extend(runtime_config_rows(step, active))
