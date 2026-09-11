@@ -250,6 +250,9 @@ class PackageFlow:
         if destination.exists() and destination != run:
             shutil.rmtree(destination)
         _copy_contents(source, destination)
+        common_spec = source.parent.parent / "spec"
+        if common_spec.is_dir():
+            self._replace_tree(common_spec, destination / "spec")
         # Release packages group technology evidence under signoff/<pdk>/post_syn
         # and physical evidence under signoff/<pdk>/post_pnr. The operational
         # run layout keeps post-synthesis evidence directly under signoff/<pdk>/,
@@ -517,7 +520,7 @@ class PackageFlow:
         """Copy reusable source and generated collateral from the current run."""
 
         for relative in (
-            "csr", "rtl", "doc", "drivers",
+            "csr", "rtl", "doc", "sw/drivers",
             "dv/formal/properties",
             "dv/functional/model", "dv/functional/tests", "dv/functional/tb",
         ):
@@ -558,7 +561,7 @@ class PackageFlow:
         content = {}
         for key, relative in (
             ("registers", "csr"), ("rtl", "rtl"), ("documentation", "doc"),
-            ("drivers", "drivers"), ("functional_model", "dv/functional/model"),
+            ("drivers", "sw/drivers"), ("functional_model", "dv/functional/model"),
             ("functional_tests", "dv/functional/tests"),
             ("functional_tb", "dv/functional/tb"),
             ("formal_properties", "dv/formal/properties"),
@@ -570,15 +573,13 @@ class PackageFlow:
         if sdc.is_file():
             content["timing_constraints"] = f"constraints/{top}.sdc"
 
-        design_intent = staged / "meta" / "design_intent.json"
-        if design_intent.is_file():
-            content["design_intent"] = "meta/design_intent.json"
+        contract = staged / "meta" / "contract.json"
+        if contract.is_file():
+            content["contract"] = "meta/contract.json"
         if (staged / "component.xml").is_file():
             content["ipxact"] = "component.xml"
         if (staged / "csr" / "systemrdl").is_dir():
             content["systemrdl"] = "csr/systemrdl"
-        if (staged / "contract" / "contract.json").is_file():
-            content["contract"] = "contract/contract.json"
         qualification = {}
         meta = staged / "meta"
         if meta.is_dir():
@@ -611,7 +612,7 @@ class PackageFlow:
             for item in qualification.values()
             if isinstance(item, dict)
         ]
-        contract_level = 1 if (staged / "contract" / "contract.json").is_file() else 0
+        contract_level = 1 if (staged / "meta" / "contract.json").is_file() else 0
         maximum = max([contract_level, *levels])
         from .qualification import qualification_name
         summary = {
