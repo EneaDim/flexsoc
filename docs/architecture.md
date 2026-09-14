@@ -181,12 +181,11 @@ runs/<top>/<run_id>/
 ├── doc/                       generated documentation
 ├── constraints/<TOP>.sdc      authored timing contract
 ├── dv/
-│   ├── functional/            model, tests, testbenches, simulation
-│   └── formal/                SBY/property collateral and results
-├── analysis/
 │   ├── slang/                 parsing/elaboration artifacts
 │   ├── lint/{slang,verilator}/
-│   └── cdc_rdc/               structural CDC/RDC evidence
+│   ├── cdc_rdc/               structural CDC/RDC evidence
+│   ├── functional/            model, tests, testbenches, simulation
+│   └── formal/                SBY/property collateral and results
 ├── syn/<pdk>/                 synthesis scripts, logs, mapped netlist
 ├── impl/<pdk>/                ORFS/OpenROAD implementation handoff/results
 ├── signoff/<pdk>/             EQY, STA, SDF, GLS, power, fusion

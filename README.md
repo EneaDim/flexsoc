@@ -73,7 +73,7 @@ in [`docs/digital_ip_contract.md`](docs/digital_ip_contract.md).
 - single-clock and arbitrary N-clock configuration;
 - per-domain asynchronous-assert/synchronous-release reset integration;
 - authoritative `spec/` requirements/test-plan shared across register interfaces;
-- reusable interface releases under `hw/ips/<top>/interfaces/<REG_ITF>/`, with explicit qualification levels and multi-PDK evidence.
+- reusable interface releases under `hw/ips/<top>/<version>/interfaces/<REG_ITF>/`, with explicit qualification levels and multi-PDK evidence.
 
 ### Design verification
 

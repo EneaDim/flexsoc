@@ -505,7 +505,7 @@ fx cdc_rdc --debug
 `fx cdc_rdc` executes the structural analysis and writes the canonical evidence:
 
 ```text
-analysis/cdc_rdc/
+dv/cdc_rdc/
 ├── extract.ys
 ├── design.json
 ├── summary.json

@@ -118,13 +118,13 @@ The lifecycle purpose is not merely to count crossings. It is to answer whether 
 The public evidence is intentionally small:
 
 ```text
-analysis/cdc_rdc/
+dv/cdc_rdc/
 ├── design.json      raw structural evidence
 ├── summary.json     machine-readable analysis result
 ├── cdc_rdc.rpt      human-readable report
 └── extract.ys       reproducible extraction setup
 
-logs/analysis/cdc_rdc/
+logs/dv/cdc_rdc/
 └── extract.log      raw tool log
 ```
 
@@ -141,6 +141,11 @@ After the structural boundary is stable, the project develops two complementary 
 ### Functional verification
 
 The reference model and authored scenarios define expected behavior. Generated vectors and SV/cocotb harnesses are derived from them. Both simulation backends use the same timing contract for clock phase, duty cycle, source latency, and reproducible clock uncertainty/jitter.
+
+Register-bus access is also a shared semantic contract across `tlul`, `reg_iface`, and `axi_lite`: one logical read/write performs exactly one accepted transaction, captures its response before any read-side effect can alter it, and returns with the protocol handshake quiescent. The vector scheduler does not add bus-specific clock edges around those accesses. Initial CSR state belongs in `config.regs`; cycle-indexed `@write` rows are reserved for behavior that is intentionally runtime, such as reconfiguration or a write-triggered action. This keeps one authored scenario portable across register transports instead of baking transport latency into the vector timing.
+
+For AXI4-Lite specifically, AW and W are independent channels: the driver tracks each handshake separately and deasserts each VALID before the next rising edge after acceptance. AR follows the same one-handshake rule, and B/R READY is asserted only to acknowledge the observed response. A driver must never require AWREADY and WREADY in the same cycle or leave a request VALID high for an extra acceptance edge.
+Asynchronous serial receive pins are a second cross-backend contract: canonical RX names (`rx_i`, `cio_rx_i`, `uart_rx_i`, `serial_rx_i`) are initialized and reset to their protocol-idle high level before CSR configuration and vector execution in both SystemVerilog and cocotb harnesses. A transport/backend change must not expose the DUT to a spurious start bit during reset release or static register programming.
 
 Coverage answers **what was exercised**; simulation PASS answers **what matched the model for the exercised scenarios**. They are related evidence, not substitutes for one another.
 
@@ -369,10 +374,11 @@ A package has one common design identity and may accumulate multiple PDK branche
 │   └── systemrdl/
 ├── rtl/
 ├── dv/
-├── analysis/
 │   ├── slang/
 │   ├── lint/{slang,verilator}/
-│   └── cdc_rdc/
+│   ├── cdc_rdc/
+│   ├── functional/
+│   └── formal/
 ├── syn/
 │   ├── sky130/
 │   └── ihp-sg13g2/
@@ -472,3 +478,10 @@ For ASIC flows, `syn` publishes the repaired pre-PnR netlist rather than the raw
 The levels are hierarchical. A later technology or physical result does not hide a missing earlier gate. EQY remains part of `Netlist Qualified`. During the current scaffold-baseline phase FlexSoC runs `fx eqy --setup` only; setup-only is not equivalence PASS, so qualification correctly stops before L3 until a real equivalence result exists.
 
 Runtime evidence covers the canonical lifecycle: Slang/Verilator lint suites, CDC/RDC, functional regression, individual formal BMC/prove/cover stages, synthesis, optional EQY execution, SDF/STA/vectorless power, post-synthesis SV GLS, PnR, physical sign-off, and routed SDF/STA/power/SV GLS. Composite commands such as `fx lint_suite`, `fx formal`, `fx signoff`, and `fx signoff_post_pnr` are compositions of those same canonical stages, so aggregate and manual execution use the same contract evidence.
+
+
+### Contract and generated-DV inspection
+
+The authored Python test catalogue is the source of truth for functional scenarios. `config.regs`, `data_in.vec`, and `data_out.vec` are generated artifacts and must not be edited manually. Regenerate them with `fx tests_gen` and verify them without rewriting with `fx tests_gen --check`. The same generated scenario tree is expected to serve `tlul`, `reg_iface`, and `axi_lite`.
+
+Use `fx requirements` / `fx requirements --less` and `fx testplan` / `fx testplan --less` to inspect the authoritative release contract. Use `fx meta` for the readable design-intent, qualification, and provenance views plus the metadata inventory; use `fx meta --less` for the compact file index. Raw canonical JSON remains available through `fx show design_intent`, `fx show qualification`, and `fx show provenance`.

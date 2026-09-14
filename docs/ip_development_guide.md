@@ -28,12 +28,11 @@ runs/<RUN_TOP>/<RUN_ID>/
 ├── doc/                          generated register docs
 ├── constraints/<TOP>.sdc         authored timing contract
 ├── dv/
-│   ├── functional/
-│   └── formal/
-├── analysis/
 │   ├── slang/                    parsing/elaboration artifacts
 │   ├── lint/{slang,verilator}/
-│   └── cdc_rdc/                  technology-independent CDC/RDC analysis
+│   ├── cdc_rdc/                  technology-independent CDC/RDC analysis
+│   ├── functional/
+│   └── formal/
 ├── syn/<pdk>/                    mapped synthesis branch
 ├── impl/<pdk>/                   physical implementation branch
 ├── signoff/<pdk>/                technology sign-off
@@ -256,13 +255,13 @@ RTL/top/filelist
 FlexSoC deliberately keeps this analysis compact:
 
 ```text
-analysis/cdc_rdc/
+dv/cdc_rdc/
 ├── extract.ys
 ├── design.json
 ├── summary.json
 └── cdc_rdc.rpt
 
-logs/analysis/cdc_rdc/
+logs/dv/cdc_rdc/
 └── extract.log
 ```
 
@@ -702,7 +701,7 @@ A multi-PDK package can therefore accumulate:
 ```text
 <name>/
 ├── constraints/<TOP>.sdc
-├── analysis/cdc_rdc/
+├── dv/cdc_rdc/
 ├── syn/
 │   ├── sky130/
 │   └── ihp-sg13g2/
@@ -718,7 +717,7 @@ A multi-PDK package can therefore accumulate:
     └── ihp-sg13g2/
 ```
 
-The package intentionally retains compact canonical analysis evidence rather than every transient log/runtime Tcl copy.
+The package intentionally retains compact canonical DV evidence rather than every transient log/runtime Tcl copy.
 
 ---
 

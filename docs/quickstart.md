@@ -118,7 +118,7 @@ fx cdc_rdc --setup --force
 fx cdc_rdc
 ```
 
-Canonical CDC/RDC evidence is intentionally small: `analysis/cdc_rdc/design.json`
+Canonical CDC/RDC evidence is intentionally small: `dv/cdc_rdc/design.json`
 (raw structure), `summary.json` (machine-readable findings/obligations),
 `cdc_rdc.rpt` (human report), plus the extraction script/log. Clock relationships
 come from `<TOP>.sdc`; reset ownership and polarity remain bootstrap metadata.

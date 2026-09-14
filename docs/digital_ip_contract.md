@@ -58,7 +58,7 @@ For ASIC targets the L3 netlist is the canonical `<top>_synth.v` **after** OpenR
 The authoritative specification is shared by every register-interface implementation:
 
 ```text
-hw/ips/<IP>/
+hw/ips/<IP>/<VERSION>/
 ├── spec/
 │   ├── ip.md
 │   ├── requirements.yaml
@@ -79,8 +79,7 @@ interfaces/<REG_ITF>/
 ├── csr/
 ├── sw/drivers/               # software-facing C collateral
 ├── rtl/
-├── analysis/
-├── dv/
+├── dv/                         # slang / lint / cdc_rdc / functional / formal
 ├── constraints/
 ├── syn/<pdk>/
 ├── impl/<pdk>/               # physical implementation artifacts when present
@@ -121,9 +120,9 @@ The direct `sim_post_syn_all` / `sim_post_pnr_all` commands remain general-purpo
 
 ## Save, load and validate
 
-- `fx ip_load --set IP_NAME=<ip> --set REG_ITF=<itf>` loads exactly `interfaces/<itf>/` into a run and materializes package `signoff/<pdk>/post_syn/` evidence into the operational run layout.
+- `fx ip_load --set IP_NAME=<ip> --set IP_VERSION=<version> --set REG_ITF=<itf>` loads exactly `<version>/interfaces/<itf>/` into a run and materializes package `signoff/<pdk>/post_syn/` evidence into the operational run layout.
 - `fx qualify --set QUAL_LEVEL=<level>` validates the current run against the specification/test-plan policy and writes `meta/<pdk>/qualification.json`.
-- `fx ip_save` always runs the same validator first, preserves one common IP-level `spec/`, writes the merged frozen contract/design-intent metadata to `meta/contract.json`, writes provenance/qualification metadata, and atomically publishes only the selected interface/PDK branch. `QUAL_LEVEL=auto` records the maximum demonstrated level; an explicit target refuses publication if that level is not satisfied.
+- `fx ip_save` with `IP_VERSION=<version>` always runs the same validator first, preserves one common version-level `spec/`, writes the merged frozen contract/design-intent metadata to `meta/contract.json`, writes provenance/qualification metadata, and atomically publishes only the selected interface/PDK branch. `QUAL_LEVEL=auto` records the maximum demonstrated level; an explicit target refuses publication if that level is not satisfied.
 - Saving one PDK branch preserves previously published PDK branches. Release validation rechecks the common `spec/` against the frozen interface contract and recomputes multi-PDK qualification summaries from the per-PDK qualification reports instead of trusting a precomputed `ip.json` claim.
 
 A release is valid only when its required evidence is present, coherent with current intent, and non-stale. Presence of a directory is never sufficient qualification evidence.

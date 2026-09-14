@@ -41,6 +41,9 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `fx <command> --help` | Show dedicated help, examples, required setup, and accepted variables. | `fx <command> -h`, `fx <command> help`, `fx <command> info`, and `fx help <command>` are equivalent. |
 | `fx commands` | List all backend targets, groups, descriptions, and accepted variables. | Add `--json` for machine-readable metadata. |
 | `fx settings [KEY=VALUE ...]` | Show or update persistent project settings and derived run paths. | Supports `--set`, `--unset`, `--reset`, `--workdir`, and `--json`. Clock relationships are cleared automatically when domains change unless explicitly supplied. |
+| `fx requirements` | Render the authoritative `requirements.yaml` for the configured run/package. | Default view shows all fields; `--less` keeps ID, status, and statement; `--json` is machine-readable. |
+| `fx testplan` | Render the authoritative `testplan.yaml` for the configured run/package. | Default view shows requirements, methods, tests, and properties; `--less` is compact; `--json` is machine-readable. |
+| `fx meta` | Inspect release-critical metadata and inventory the configured run `meta/` tree. | Default view renders design intent, per-PDK qualification, provenance stages, and the file inventory; `--less` shows path/size only; `--json` returns both documents and inventory. |
 | `fx doctor` | Check Python, lock files, and installed EDA tools. | Add `--json` for CI or provisioning scripts. |
 | `fx pdk list` | List known PDK profiles and local readiness. | `--json` returns the catalogue. |
 | `fx pdk info <name>` | Show source, node, digital views, OpenROAD platform, and formal adapter. | `--set PDK_ROOT=...` inspects a non-default installation. |
@@ -70,6 +73,8 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `--debug` | STA, power, fusion, and GLS targets | Read existing analysis artifacts and render filtered diagnostics without rerunning the target. |
 | `--save-output PATH`, `-o PATH` | With `--debug` | Save the same filtered diagnostic view to a file or directory. |
 | `--json` | Supported pseudo-commands and execution output | Emit machine-readable JSON. |
+| `--less` | `requirements`, `testplan`, `meta` | Use the compact human-readable view without changing the underlying data. |
+| `--check` | `tests_gen` | Regenerate vectors in temporary staging and compare them with `dv/functional/tests/` without modifying the run. |
 | `--info` | Backend targets | Describe selected targets and accepted variables instead of running them. |
 
 ### 1.2.1 Backend operation vocabulary
@@ -251,6 +256,11 @@ Those outputs are isolated below `syn/<pdk>`, `impl/<pdk>`, `signoff/<pdk>`, `dv
 | Post-layout sign-off | `fx signoff_post_pnr --setup`, `fx sdf_post_pnr`, `fx sta_post_pnr`, routed GLS, `fx power_estimate_post_pnr`, activity/fusion post-PnR targets, `fx physical_signoff` | SPEF-aware timing, routed GLS/power/fusion, and physical evidence |
 | Release | `fx manifest`, `fx metrics`, `fx check`, `fx ip_save` | Immutable identity + normalized metrics snapshot + human closure dashboard + reusable package |
 
+The generated register drivers expose the same logical CSR semantics on `tlul`, `reg_iface`, and `axi_lite`: one read/write helper owns the complete protocol transaction and returns only after its handshake controls are quiescent. The surrounding vector scheduler never inserts a protocol-specific clock edge. Put static initial CSR programming in `config.regs`; use cycle-indexed `@write` only when the scenario is intentionally testing a runtime register change or write-triggered action.
+
+For AXI4-Lite specifically, AW and W are independent channels: the driver tracks each handshake separately and deasserts each VALID before the next rising edge after acceptance. AR follows the same one-handshake rule, and B/R READY is asserted only to acknowledge the observed response. A driver must never require AWREADY and WREADY in the same cycle or leave a request VALID high for an extra acceptance edge.
+Generated SV and cocotb harnesses also apply the same idle policy to asynchronous serial RX inputs: `rx_i`, `cio_rx_i`, `uart_rx_i`, and `serial_rx_i` are held high before reset/configuration and restored high by generated reset helpers. This prevents backend-specific false start bits before the first vector row.
+
 The SV and cocotb vector drivers accept the same reset commands:
 
 ```text
@@ -427,13 +437,13 @@ The checks cover scalar N-FF synchronizers and their integrity, multi-bit transf
 Canonical CDC/RDC evidence is intentionally compact:
 
 ```text
-analysis/cdc_rdc/
+dv/cdc_rdc/
 ├── extract.ys
 ├── design.json
 ├── summary.json
 └── cdc_rdc.rpt
 
-logs/analysis/cdc_rdc/
+logs/dv/cdc_rdc/
 └── extract.log
 ```
 
@@ -473,7 +483,7 @@ Generate the reference-model environment, vectors, testbenches, simulations, reg
 | `fx cocotb --setup` | Generate a cocotb scaffold. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx model --setup` | Generate Python model, CSR regmap, and test scaffolds. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx regmap_py` | Regenerate only `<top>_regmap.py` from HJSON. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx tests_gen` | Generate all vector tests from `<top>_tests.py`. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx tests_gen` | Generate all vector tests from `<top>_tests.py`. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | `fx tests_gen --check` verifies the generated tree against the Python source without rewriting it. |
 | `fx test_gen` | Generate one vector test selected by TEST_NAME. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx tests` | List generated vector tests. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx compile` | Compile the current testbench. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
@@ -530,6 +540,11 @@ fx cocotb --live \
 `fx sim_tests` and `fx cocotb_tests` run every existing vector test for one
 backend. `fx regression` runs the same existing vectors on every backend in
 `REGRESSION_BACKENDS`, clears only previous regression logs and coverage, and
+
+`<top>_tests.py` and `<top>_regmap_tests.py` are the authoritative functional-test sources.
+`config.regs`, `data_in.vec`, and `data_out.vec` are generated artifacts: do not edit them by hand.
+After changing Python test intent, delete/regenerate the test catalogue with `fx tests_gen`; before qualification or `ip_save`, use `fx tests_gen --check` to prove the generated files still match their Python source. The generated vectors are interface-neutral and must remain semantically identical across `tlul`, `reg_iface`, and `axi_lite`.
+
 merges coverage when `COMPILER=verilator`. Use `fx tests_gen` explicitly when the
 editable test catalogue must be recreated. For a loaded IP, run `fx regmap_py` and
 `fx tests_gen` before regression so authored scenarios and machine-owned CSR tests are
@@ -766,19 +781,19 @@ Separate evidence collection from human rendering. Technology-scoped metadata li
 
 ### 3.14 IP qualification and load/save
 
-The live authoritative IP specification lives at `runs/<RUN_TOP>/<RUN_ID>/spec/` inside the selected workspace. `fx ip_save` snapshots it into the release-level common `spec/` directory beside `interfaces/<REG_ITF>/`; repository `hw/ips/<IP_NAME>/` is therefore reserved for reusable IP packages rather than transient scaffold sources. `REG_ITF` is the only register-interface selector.
+The live authoritative IP specification lives at `runs/<RUN_TOP>/<RUN_ID>/spec/` inside the selected workspace. `fx ip_save` snapshots it into the release-level common `spec/` directory beside `interfaces/<REG_ITF>/`; versioned releases live under `hw/ips/<IP_NAME>/<IP_VERSION>/`, while repository `hw/ips/<IP_NAME>/` is therefore reserved for reusable IP packages rather than transient scaffold sources. `REG_ITF` is the only register-interface selector.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx status` | Show live contract/evidence state and maximum demonstrated qualification level. | common settings | Read-only. |
-| `fx qualify` | Validate requirements traceability and evidence against the L1-L5 policy. | `IP_NAME`, `REG_ITF`, `QUAL_LEVEL` | Writes `meta/<pdk>/qualification.json`; returns non-zero when an explicit `QUAL_LEVEL` is not satisfied. |
-| `fx ip_load` | Load one frozen register-interface release into a run workspace. | `IP_NAME`, `REG_ITF` | Resolves exactly `interfaces/<REG_ITF>/`; there is no legacy profile fallback. |
-| `fx ip_save` | Atomically publish the selected interface/PDK release from the current run. | `IP_NAME`, `REG_ITF`, `IP_LIBRARY_ROOT`, `QUAL_LEVEL`; use `--force` to refresh an existing branch | Runs the unified validator first, keeps one authoritative common `spec/`, freezes its hash/source contract in `meta/contract.json`, preserves unrelated technology branches, and packages only real implementation/signoff evidence. `QUAL_LEVEL=auto` records the maximum demonstrated level. |
+| `fx qualify` | Validate requirements traceability and evidence against the L1-L5 policy. | `IP_NAME`, `IP_VERSION`, `REG_ITF`, `QUAL_LEVEL` | Writes `meta/<pdk>/qualification.json`; returns non-zero when an explicit `QUAL_LEVEL` is not satisfied. |
+| `fx ip_load` | Load one frozen register-interface release into a run workspace. | `IP_NAME`, `IP_VERSION`, `REG_ITF` | Resolves exactly `<IP_VERSION>/interfaces/<REG_ITF>/`; there is no legacy profile fallback. |
+| `fx ip_save` | Atomically publish the selected interface/PDK release from the current run. | `IP_NAME`, `IP_VERSION`, `REG_ITF`, `IP_LIBRARY_ROOT`, `QUAL_LEVEL`; use `--force` to refresh an existing branch | Runs the unified validator first, keeps one authoritative common `spec/`, freezes its hash/source contract in `meta/contract.json`, preserves unrelated technology branches, and packages only real implementation/signoff evidence. `QUAL_LEVEL=auto` records the maximum demonstrated level. |
 
 Release layout:
 
 ```text
-hw/ips/<IP_NAME>/
+hw/ips/<IP_NAME>/<IP_VERSION>/
 ├── spec/
 │   ├── ip.md
 │   ├── requirements.yaml
@@ -788,8 +803,7 @@ hw/ips/<IP_NAME>/
     ├── csr/
     ├── sw/drivers/
     ├── rtl/
-    ├── analysis/
-    ├── dv/
+    ├── dv/                 # slang / lint / cdc_rdc / functional / formal
     ├── constraints/
     ├── syn/<pdk>/
     ├── impl/<pdk>/
