@@ -1,0 +1,293 @@
+// Verilated -*- C++ -*-
+// DESCRIPTION: Verilator output: Design implementation internals
+// See Vtop.h for the primary calling header
+
+#include "Vtop__pch.h"
+
+// Parameter definitions for Vtop___024root
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__FLEXSOC_TL_PUT_FULL;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__FLEXSOC_TL_PUT_PARTIAL;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__FLEXSOC_TL_GET;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_odd__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_odd__DOT__RESVAL;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_odd__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_odd__DOT__wr_en_data_arb__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_odd__DOT__wr_en_data_arb__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_en__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_en__DOT__RESVAL;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_en__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_en__DOT__wr_en_data_arb__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_en__DOT__wr_en_data_arb__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_llpbk__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_llpbk__DOT__RESVAL;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_llpbk__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_llpbk__DOT__wr_en_data_arb__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_llpbk__DOT__wr_en_data_arb__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_slpbk__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_slpbk__DOT__RESVAL;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_slpbk__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_slpbk__DOT__wr_en_data_arb__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_slpbk__DOT__wr_en_data_arb__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nf__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nf__DOT__RESVAL;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nf__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nf__DOT__wr_en_data_arb__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nf__DOT__wr_en_data_arb__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_rx__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_rx__DOT__RESVAL;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_rx__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_rx__DOT__wr_en_data_arb__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_rx__DOT__wr_en_data_arb__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_tx__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_tx__DOT__RESVAL;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_tx__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_tx__DOT__wr_en_data_arb__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_tx__DOT__wr_en_data_arb__DOT__Mubi;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl0_qe__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_wdata0_qe__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__AddrCheck;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__EnableCheck;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__StrictCheck;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__EnableAlertTriggerSVA;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_txrst__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_txrst__DOT__RESVAL;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_txrst__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_txrst__DOT__wr_en_data_arb__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_txrst__DOT__wr_en_data_arb__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_rxrst__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_rxrst__DOT__RESVAL;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_rxrst__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_rxrst__DOT__wr_en_data_arb__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_rxrst__DOT__wr_en_data_arb__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_wdata__DOT__SwAccess;
+constexpr CData/*7:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_wdata__DOT__RESVAL;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_wdata__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_wdata__DOT__wr_en_data_arb__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_wdata__DOT__wr_en_data_arb__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nco__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nco__DOT__Mubi;
+constexpr CData/*2:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nco__DOT__wr_en_data_arb__DOT__SwAccess;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nco__DOT__wr_en_data_arb__DOT__Mubi;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__CmdIntgCheck;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__EnableRspIntgGen;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__EnableDataIntgGen;
+constexpr CData/*3:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__u_err__DOT__MaskOne;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__u_rsp_intg_gen__DOT__EnableRspIntgGen;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__u_rsp_intg_gen__DOT__EnableDataIntgGen;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__sync_rx__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__sync_rx__DOT__EnablePrimCdcRand;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__sync_rx__DOT__u_sync_2__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__sync_rx__DOT__u_sync_1__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_rx_reset_branch__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_tx_reset_branch__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_timing_reset_branch__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_rxfifo__DOT__Pass;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_rxfifo__DOT__OutputZeroIfEmpty;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_rxfifo__DOT__Secure;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_rxfifo__DOT__gen_normal_fifo__DOT__u_fifo_cnt__DOT__Secure;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_txfifo__DOT__Pass;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_txfifo__DOT__OutputZeroIfEmpty;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_txfifo__DOT__Secure;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_txfifo__DOT__gen_normal_fifo__DOT__u_fifo_cnt__DOT__Secure;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_core_reset_sync__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_core_reset_sync__DOT__u_sync_2__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_core_reset_sync__DOT__u_sync_1__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_reg_reset_sync__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_reg_reset_sync__DOT__u_sync_2__DOT__ResetValue;
+constexpr CData/*0:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_reg_reset_sync__DOT__u_sync_1__DOT__ResetValue;
+constexpr SData/*15:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nco__DOT__RESVAL;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__AW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__DBW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_odd__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_odd__DOT__wr_en_data_arb__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_en__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_parity_en__DOT__wr_en_data_arb__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_llpbk__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_llpbk__DOT__wr_en_data_arb__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_slpbk__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_slpbk__DOT__wr_en_data_arb__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nf__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nf__DOT__wr_en_data_arb__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_rx__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_rx__DOT__wr_en_data_arb__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_tx__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_tx__DOT__wr_en_data_arb__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl0_qe__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_wdata0_qe__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_status_rxempty__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_status_rxidle__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_status_txidle__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_status_txempty__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_status_rxfull__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_status_txfull__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__OneHotWidth;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__AddrWidth;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__OneHotWidth;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__NumLevels;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__0__KET____DOT__Base0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__0__KET____DOT__Base1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__0__KET____DOT__gen_level__BRA__0__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__0__KET____DOT__gen_level__BRA__0__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__0__KET____DOT__gen_level__BRA__0__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__1__KET____DOT__Base0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__1__KET____DOT__Base1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__1__KET____DOT__gen_level__BRA__0__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__1__KET____DOT__gen_level__BRA__0__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__1__KET____DOT__gen_level__BRA__0__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__1__KET____DOT__gen_level__BRA__1__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__1__KET____DOT__gen_level__BRA__1__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__1__KET____DOT__gen_level__BRA__1__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__Base0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__Base1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__gen_level__BRA__0__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__gen_level__BRA__0__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__gen_level__BRA__0__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__gen_level__BRA__1__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__gen_level__BRA__1__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__gen_level__BRA__1__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__gen_level__BRA__2__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__gen_level__BRA__2__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__gen_level__BRA__2__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__gen_level__BRA__3__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__gen_level__BRA__3__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__2__KET____DOT__gen_level__BRA__3__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__Base0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__Base1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__0__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__0__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__0__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__1__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__1__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__1__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__2__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__2__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__2__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__3__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__3__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__3__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__4__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__4__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__4__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__5__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__5__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__5__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__6__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__6__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__6__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__7__KET____DOT__Pa;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__7__KET____DOT__C0;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_onehot_check__DOT__gen_tree__BRA__3__KET____DOT__gen_level__BRA__7__KET____DOT__C1;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_prim_reg_we_check__DOT__u_prim_buf__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_txrst__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_txrst__DOT__wr_en_data_arb__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_rxrst__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_ctrl_rxrst__DOT__wr_en_data_arb__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_status_rxlvl__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_fifo_status_txlvl__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_wdata__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_wdata__DOT__wr_en_data_arb__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_rdata__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nco__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_reg_core__DOT__u_ctrl_nco__DOT__wr_en_data_arb__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__RegAw;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__RegDw;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__AccessLatency;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__RegBw;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__IW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__SZW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__u_err__DOT__IW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__u_err__DOT__SZW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__u_err__DOT__DW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__u_err__DOT__MW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_reg__DOT__u_flexsoc_tlul_to_reg__DOT__u_err__DOT__SubAW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__NcoWidth;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__TxFifoDepthW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__RxFifoDepthW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__sync_rx__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__sync_rx__DOT__u_sync_2__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__sync_rx__DOT__u_sync_1__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_rx_reset_branch__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_tx_reset_branch__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_timing_reset_branch__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_rxfifo__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_rxfifo__DOT__Depth;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_rxfifo__DOT__DepthW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_rxfifo__DOT__gen_normal_fifo__DOT__PtrW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_rxfifo__DOT__gen_normal_fifo__DOT__u_fifo_cnt__DOT__Depth;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_rxfifo__DOT__gen_normal_fifo__DOT__u_fifo_cnt__DOT__PtrW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_rxfifo__DOT__gen_normal_fifo__DOT__u_fifo_cnt__DOT__DepthW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_rxfifo__DOT__gen_normal_fifo__DOT__u_fifo_cnt__DOT__WrapPtrW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_txfifo__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_txfifo__DOT__Depth;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_txfifo__DOT__DepthW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_txfifo__DOT__gen_normal_fifo__DOT__PtrW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_txfifo__DOT__gen_normal_fifo__DOT__u_fifo_cnt__DOT__Depth;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_txfifo__DOT__gen_normal_fifo__DOT__u_fifo_cnt__DOT__PtrW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_txfifo__DOT__gen_normal_fifo__DOT__u_fifo_cnt__DOT__DepthW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_uart_core__DOT__u_uart_txfifo__DOT__gen_normal_fifo__DOT__u_fifo_cnt__DOT__WrapPtrW;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_core_reset_sync__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_core_reset_sync__DOT__u_sync_2__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_core_reset_sync__DOT__u_sync_1__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_reg_reset_sync__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_reg_reset_sync__DOT__u_sync_2__DOT__Width;
+constexpr IData/*31:0*/ Vtop___024root::uart_tb__DOT__u_uart__DOT__u_reg_reset_sync__DOT__u_sync_1__DOT__Width;
+
+
+void Vtop___024root___ctor_var_reset(Vtop___024root* vlSelf);
+
+Vtop___024root::Vtop___024root(Vtop__Syms* symsp, const char* namep)
+    : __VdlySched{*symsp->_vm_contextp__}
+ {
+    vlSymsp = symsp;
+    vlNamep = strdup(namep);
+    // Reset structure values
+    Vtop___024root___ctor_var_reset(this);
+}
+
+void Vtop___024root___configure_coverage(Vtop___024root* vlSelf, bool first);
+
+void Vtop___024root::__Vconfigure(bool first) {
+    (void)first;  // Prevent unused variable warning
+    Vtop___024root___configure_coverage(this, first);
+}
+
+Vtop___024root::~Vtop___024root() {
+    VL_DO_DANGLING(std::free(const_cast<char*>(vlNamep)), vlNamep);
+}
+
+// Coverage
+void Vtop___024root::__vlCoverInsert(uint32_t* countp, bool enable, bool localCounter, const char* filenamep, int lineno, int column,
+    const char* hierp, const char* pagep, const char* commentp, const char* linescovp,
+    const char* fsmVarp, const char* fsmFromp, const char* fsmTop, const char* fsmTagp) {
+    uint32_t* count32p = countp;
+    static uint32_t fake_zero_count = 0;
+    std::string fullhier = std::string{vlNamep} + hierp;
+    if (!fullhier.empty() && fullhier[0] == '.') fullhier = fullhier.substr(1);
+    if (!enable && !localCounter) count32p = &fake_zero_count;
+    *count32p = 0;
+    VL_COVER_INSERT(vlSymsp->_vm_contextp__->coveragep(), vlNamep, count32p,  "filename",filenamep,  "lineno",lineno,  "column",column,
+        "hier",fullhier.c_str(),  "page",pagep,  "comment",commentp,  (linescovp[0] ? "linescov" : ""), linescovp,  (fsmVarp[0] ? "fsm_var" : ""), fsmVarp,  (fsmFromp[0] ? "fsm_from" : ""), fsmFromp,  (fsmTop[0] ? "fsm_to" : ""), fsmTop,  (fsmTagp[0] ? "fsm_tag" : ""), fsmTagp);
+}
+
+// Toggle Coverage
+void Vtop___024root::__vlCoverToggleInsert(int begin, int end, bool ranged, uint32_t* countp, bool enable, bool localCounter, const char* filenamep, int lineno, int column,
+    const char* hierp, const char* pagep, const char* commentp) {
+    int step = (end >= begin) ? 1 : -1;
+    for (int i = begin; i != end + step; i += step) {
+        for (int j = 0; j < 2; j++) {
+            uint32_t* count32p = countp;
+            static uint32_t fake_zero_count = 0;
+            std::string fullhier = std::string{vlNamep} + hierp;
+            if (!fullhier.empty() && fullhier[0] == '.') fullhier = fullhier.substr(1);
+            std::string commentWithIndex = commentp;
+            if (ranged) commentWithIndex += '[' + std::to_string(i) + ']';
+            commentWithIndex += j ? ":0->1" : ":1->0";
+            if (!enable && !localCounter) count32p = &fake_zero_count;
+            *count32p = 0;
+            VL_COVER_INSERT(vlSymsp->_vm_contextp__->coveragep(), vlNamep, count32p,  "filename",filenamep,  "lineno",lineno,  "column",column,
+                "hier",fullhier.c_str(),  "page",pagep,  "comment",commentWithIndex.c_str(),  "", "");
+            ++countp;
+        }
+    }
+}

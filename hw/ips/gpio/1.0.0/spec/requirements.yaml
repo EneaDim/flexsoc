@@ -1,0 +1,66 @@
+schema: 1
+ip: gpio
+version: 1.0.0
+baseline: authored-release
+requirements:
+- id: GPIO-RST-001
+  statement: Reset shall clear stored GPIO output values and output enables to zero.
+  scope: common
+  origin: authored
+  status: baselined
+- id: GPIO-OUT-001
+  statement: A software write to DIRECT.GPIO_O shall update the corresponding cio_gpio_o
+    state and the state shall hold when no write strobe is present.
+  scope: common
+  origin: authored
+  status: baselined
+- id: GPIO-OE-001
+  statement: A software write to DIRECT.GPIO_OE shall update the corresponding cio_gpio_en_o
+    state and the state shall hold when no write strobe is present.
+  scope: common
+  origin: authored
+  status: baselined
+- id: GPIO-IN-001
+  statement: DATA_IN.GPIO_IN shall expose the accepted synchronized/filtered value
+    of cio_gpio_i[3:0].
+  scope: common
+  origin: authored
+  status: baselined
+- id: GPIO-FILT-001
+  statement: For each enabled pin, the input filter shall reject a short excursion
+    and accept a sufficiently stable new value according to the implemented four-bit
+    qualification counter.
+  scope: common
+  origin: authored
+  status: baselined
+- id: GPIO-INT-001
+  statement: EN_RISING shall contribute an interrupt pulse when an enabled accepted
+    input changes from zero to one.
+  scope: common
+  origin: authored
+  status: baselined
+- id: GPIO-INT-002
+  statement: EN_FALLING shall contribute an interrupt pulse when an enabled accepted
+    input changes from one to zero.
+  scope: common
+  origin: authored
+  status: baselined
+- id: GPIO-INT-003
+  statement: EN_LVLHIGH and EN_LVLLOW shall contribute interrupt assertion for enabled
+    accepted high and low levels respectively.
+  scope: common
+  origin: authored
+  status: baselined
+- id: GPIO-INT-004
+  statement: For each pin, intr_gpio_o shall be the logical OR of all enabled rising,
+    falling, high-level and low-level conditions.
+  scope: common
+  origin: authored
+  status: baselined
+- id: GPIO-REG-001
+  statement: Register offsets, field semantics, direct I/O behavior, filtering and
+    interrupt behavior shall be identical for qualified tlul, reg_iface and axi_lite
+    package interfaces.
+  scope: reg_interface
+  origin: authored
+  status: baselined

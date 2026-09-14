@@ -1,0 +1,46 @@
+analysis=power_analysis corner=ff stage=post_syn
+workload=smoke_sv_ff
+gls_report=/tmp/flexsoc-uart-interface-contract-20260914/tlul/runs/uart/contract/dv/functional/sim/post_syn/ihp-sg13g2/uart_post_syn_smoke_sv_ff.json
+activity_file=/tmp/flexsoc-uart-interface-contract-20260914/tlul/runs/uart/contract/signoff/ihp-sg13g2/power/activity/captures/uart_ihp-sg13g2_smoke_sv_ff.vcd
+activity_scope=uart_tb/u_uart
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib
+netlist=/tmp/flexsoc-uart-interface-contract-20260914/tlul/runs/uart/contract/syn/ihp-sg13g2/uart_synth.v
+sdc=/tmp/flexsoc-uart-interface-contract-20260914/tlul/runs/uart/contract/constraints/uart.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1uA
+ power 1pW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Activity annotation ===
+annotated_percent=100.00%
+Unannotated pins: none
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             3.57e-03   6.77e-06   1.65e-06   3.58e-03  97.6%
+Combinational          4.28e-05   4.23e-05   2.16e-06   8.73e-05   2.4%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  3.61e-03   4.91e-05   3.81e-06   3.67e-03 100.0%
+                          98.6%       1.3%       0.1%
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.00361
+switching_power=4.91e-05
+dynamic_power=0.0036590999999999998
+leakage_power=3.81e-06
+total_power=0.00367

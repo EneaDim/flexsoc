@@ -1,0 +1,74 @@
+schema: 1
+ip: uart_master
+version: 1.0.0
+baseline: authored-release
+requirements:
+- id: UM-RST-001
+  statement: Reset shall leave the host parser/request interface idle with req_o and
+    we_o deasserted and the externally visible host address word aligned.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UM-UART-001
+  statement: The local UART engine shall provide programmable TX, noise filtering,
+    loopback, parity and NCO timing with FIFO/status behavior according to the checked-in
+    CSR contract.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UM-PROTO-001
+  statement: A host command shall be recognized from request SOF 0xA5 followed by
+    a supported opcode, byte-enable byte and 32-bit little-endian address; write commands
+    shall additionally consume 32-bit little-endian write data.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UM-HOST-001
+  statement: A supported read command shall launch one host read request with aligned
+    address, we_o deasserted, be_o equal to 0xF and zero write data.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UM-HOST-002
+  statement: A supported write command shall launch one host write request with aligned
+    address and the command write data and low four byte-enable bits.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UM-HOST-003
+  statement: While a launched request is waiting for grant, req_o shall remain asserted
+    and address, read/write indication, write data and byte enables shall remain stable.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UM-HOST-004
+  statement: Acceptance of a request by gnt_i shall remove req_o and transition the
+    bridge to wait for the fabric response.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UM-HOST-005
+  statement: A write response valid indication shall complete the command without
+    requiring a UART response packet.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UM-RESP-001
+  statement: The reference protocol model shall encode read responses as 0x5A, protocol
+    version 0x01, echoed opcode, one error-status byte and 32-bit read data most-significant
+    byte first.
+  scope: common
+  origin: authored
+  status: planned
+- id: UM-TXEN-001
+  statement: cio_tx_en_o shall remain asserted by the release-1.0.0 top-level interface
+    contract.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UM-REG-001
+  statement: Release 1.0.0 shall expose the UART-master CSR device interface only
+    as a TL-UL package.
+  scope: reg_interface
+  origin: authored
+  status: baselined

@@ -1,0 +1,78 @@
+schema: 1
+ip: gpio
+version: 1.0.0
+qualification:
+  required_evidence:
+  - traceability
+  - lint
+  - functional
+  - cdc_rdc
+  - formal
+  gls:
+    backend: sv
+    tests:
+    - smoke
+    - interrupt_levels
+    - input_filter
+    max_tests: 3
+    scenarios:
+    - ss
+    - tt
+    - ff
+    stages:
+    - post_syn
+items:
+- id: GPIO-TP-001
+  requirements:
+  - GPIO-RST-001
+  - GPIO-OUT-001
+  - GPIO-OE-001
+  - GPIO-IN-001
+  methods:
+  - formal
+  - simulation
+  tests:
+  - smoke
+  - corners
+  - reconfig
+  properties:
+  - gpio_prove
+- id: GPIO-TP-002
+  requirements:
+  - GPIO-FILT-001
+  methods:
+  - simulation
+  tests:
+  - input_filter
+- id: GPIO-TP-003
+  requirements:
+  - GPIO-INT-001
+  - GPIO-INT-002
+  - GPIO-INT-004
+  methods:
+  - formal
+  properties:
+  - gpio_prove
+- id: GPIO-TP-004
+  requirements:
+  - GPIO-INT-003
+  - GPIO-INT-004
+  methods:
+  - formal
+  - simulation
+  tests:
+  - interrupt_levels
+  properties:
+  - gpio_prove
+- id: GPIO-TP-005
+  requirements:
+  - GPIO-REG-001
+  methods:
+  - simulation
+  tests:
+  - smoke
+  - corners
+  - reconfig
+  - auto_toggle
+  - random_seed_1
+  - random_seed_2

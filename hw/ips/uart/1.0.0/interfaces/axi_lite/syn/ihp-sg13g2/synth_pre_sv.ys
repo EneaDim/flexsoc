@@ -1,0 +1,19 @@
+# pre-synthesis structural snapshot; no optimization
+read_liberty -overwrite -setattr liberty_cell -lib /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
+read_slang -I /home/eneadim/github/flexsoc/hw/ips/pkgs \
+           -I /home/eneadim/github/flexsoc/hw/ips/prim \
+           -I /home/eneadim/github/flexsoc/hw/ips/prim_opentitan \
+           -D SYNTHESIS \
+           --ignore-assertions \
+           -f /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/rtl/rtl_common.f \
+           -f /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/rtl/rtl_ip.f \
+           --top uart
+
+hierarchy -check -top uart
+proc
+select -module uart
+# flatten only the structural analysis view so hierarchical reset FFs are visible
+flatten
+check -assert
+write_json -selected /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/syn/ihp-sg13g2/uart_pre.json
+select -clear

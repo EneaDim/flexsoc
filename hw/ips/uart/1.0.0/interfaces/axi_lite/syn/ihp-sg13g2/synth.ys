@@ -1,0 +1,42 @@
+# read target standard cells as library modules for mapped-cell pin directions
+read_liberty -overwrite -setattr liberty_cell -lib /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
+# read process-lowered design with backend-only reset preservation attributes
+read_json /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/syn/ihp-sg13g2/uart_pre_preserved.json
+# basic synth
+synth -top uart -noabc
+show -width -format dot -prefix /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/syn/ihp-sg13g2/plots/uart_postsyn
+
+# technology-boundary checkpoints used by equivalence diagnostics
+write_rtlil /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/syn/ihp-sg13g2/uart_generic.il
+
+# prepare FF types while keeping Yosys FF boundaries visible to ABC
+dfflibmap -prepare -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
+write_rtlil /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/syn/ihp-sg13g2/uart_dffmap.il
+
+# map combinational logic and preserve FF output wires used by EQY
+abc -keepff -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib -script /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/syn/ihp-sg13g2/delay1.abc \
+    -constr /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/syn/ihp-sg13g2/abc.constr
+write_rtlil /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/syn/ihp-sg13g2/uart_abc.il
+
+# bind the prepared FF types to final technology cells after ABC
+dfflibmap -map-only -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
+
+# Validate mapped connectivity before physical-only netlist finalization
+check -assert
+
+# Finalize the implementation-ready technology netlist
+splitnets
+opt_clean -purge
+hilomap -singleton -hicell sg13g2_tiehi L_HI -locell sg13g2_tielo L_LO
+insbuf -buf sg13g2_buf_1 A X
+# keep final public identifiers portable across Verilog, SDF and P&R consumers
+rename -unescape
+check -assert -mapped
+write_rtlil /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/syn/ihp-sg13g2/uart_clean.il
+
+# Basic stats of std cells and area
+stat -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
+
+# Raw mapped netlist; OpenROAD pre-placement repair publishes the canonical netlist
+write_verilog -nohex -nodec /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/syn/ihp-sg13g2/uart_synth_raw.v
+write_json /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/syn/ihp-sg13g2/uart_synth_raw.json

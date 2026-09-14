@@ -1,0 +1,73 @@
+schema: 1
+ip: rv_timer
+version: 1.0.0
+baseline: authored-release
+requirements:
+- id: RVT-RST-001
+  statement: Reset shall clear the internal prescaler/tick counter and leave software-visible
+    timer state at the HJSON-defined reset values.
+  scope: common
+  origin: authored
+  status: baselined
+- id: RVT-ACT-001
+  statement: When CTRL.active is deasserted, the internal tick counter shall return
+    to zero and normal timer compare-event generation shall be inactive.
+  scope: common
+  origin: authored
+  status: baselined
+- id: RVT-TICK-001
+  statement: While active, tick shall assert exactly when the internal tick counter
+    is greater than or equal to CFG0.prescale.
+  scope: common
+  origin: authored
+  status: baselined
+- id: RVT-COUNT-001
+  statement: While active below the programmed terminal count, the internal tick counter
+    shall increment by one per sampled cycle and shall return to zero at the terminal
+    count.
+  scope: common
+  origin: authored
+  status: baselined
+- id: RVT-TIME-001
+  statement: On each timer tick, TIMER_V0 shall update to its previous value plus
+    the zero-extended CFG0.step with natural 32-bit wraparound.
+  scope: common
+  origin: authored
+  status: baselined
+- id: RVT-CFG-001
+  statement: CTRL.active, CFG0.prescale, CFG0.step, TIMER_V0 and COMPARE_V0 shall
+    be software programmable according to the CSR contract.
+  scope: common
+  origin: authored
+  status: baselined
+- id: RVT-CMP-001
+  statement: The timer compare event shall assert when the timer is active and TIMER_V0
+    is greater than or equal to COMPARE_V0.
+  scope: common
+  origin: authored
+  status: baselined
+- id: RVT-INT-001
+  statement: An enabled compare event shall set interrupt state and assert intr_timer_expired_hart0_timer0_o
+    according to the generated interrupt-helper semantics.
+  scope: common
+  origin: authored
+  status: baselined
+- id: RVT-INT-002
+  statement: Updating COMPARE_V0 shall clear the implemented timer interrupt state
+    and allow a previously asserted compare interrupt to deassert when the new threshold
+    is not met.
+  scope: common
+  origin: authored
+  status: baselined
+- id: RVT-INT-003
+  statement: Writing INTR_TEST0.T while the interrupt is enabled shall inject timer
+    interrupt state according to the generated interrupt-helper semantics.
+  scope: common
+  origin: authored
+  status: baselined
+- id: RVT-REG-001
+  statement: Register offsets, timer arithmetic, compare and interrupt semantics shall
+    be identical for qualified tlul, reg_iface and axi_lite package interfaces.
+  scope: reg_interface
+  origin: authored
+  status: baselined

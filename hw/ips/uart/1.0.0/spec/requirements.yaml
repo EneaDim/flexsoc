@@ -1,0 +1,93 @@
+schema: 1
+ip: uart
+version: 1.0.0
+baseline: authored-release
+requirements:
+- id: UART-RST-001
+  statement: Reset shall return the UART timing, receive synchronization and FIFO-visible
+    state to the documented idle/empty release state.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-CFG-001
+  statement: TX enable, receive-filter enable, loopback selection, parity configuration
+    and NCO baud control shall be software programmable through CTRL and shall affect
+    subsequent UART transactions.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-TX-001
+  statement: When TX is enabled, each accepted WDATA byte shall traverse the transmit
+    FIFO and be serialized as an eight-bit UART payload using the active timing and
+    parity configuration.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-RX-001
+  statement: Each valid accepted eight-bit UART frame shall be queued in the RX FIFO
+    and software shall consume queued bytes through RDATA in receive order.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-RX-002
+  statement: A received frame with a framing error or enabled-parity error shall not
+    be inserted into the RX FIFO.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-FIFO-001
+  statement: FIFO_CTRL.RXRST and FIFO_CTRL.TXRST shall independently clear receive
+    and transmit FIFO state as write-triggered actions.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-FIFO-002
+  statement: FIFO_STATUS.TXLVL and FIFO_STATUS.RXLVL shall track the live transmit
+    and receive FIFO fill levels.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-STAT-001
+  statement: STATUS full, empty and idle fields shall reflect the corresponding live
+    FIFO and UART state.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-LOOP-001
+  statement: With line loopback enabled, tx_o shall reflect rx_i; with line loopback
+    disabled, tx_o shall reflect the internal transmit path.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-LOOP-002
+  statement: System loopback shall return transmitted bytes to the receive path while
+    preserving the implemented external TX idle behavior.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-PAR-001
+  statement: When parity is enabled, accepted traffic shall use the selected even/odd
+    parity mode and parity configuration shall be reprogrammable between completed
+    transactions.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-FILT-001
+  statement: When the receive noise filter is enabled, a short disturbance rejected
+    by the three-sample majority filter shall not create a receive byte while a stable
+    frame remains receivable.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-DATA-001
+  statement: The receive datapath shall preserve representative payloads 0x00, 0xFF,
+    0x55 and 0xAA through serial reception, FIFO storage and software readback.
+  scope: common
+  origin: authored
+  status: baselined
+- id: UART-REG-001
+  statement: Register offsets, field semantics and functional UART behavior shall
+    be identical for qualified tlul, reg_iface and axi_lite package interfaces.
+  scope: reg_interface
+  origin: authored
+  status: baselined

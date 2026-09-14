@@ -1,0 +1,11 @@
+# pre-synthesis structural snapshot; no optimization
+read_liberty -overwrite -setattr liberty_cell -lib /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
+read_verilog /tmp/flexsoc-uart-interface-contract-20260914/reg_iface/runs/uart/contract/rtl/uart.v
+hierarchy -check -top uart
+proc
+select -module uart
+# flatten only the structural analysis view so hierarchical reset FFs are visible
+flatten
+check -assert
+write_json -selected /tmp/flexsoc-uart-interface-contract-20260914/reg_iface/runs/uart/contract/syn/sky130/uart_pre.json
+select -clear

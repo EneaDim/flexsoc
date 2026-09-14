@@ -1,0 +1,134 @@
+FlexSoC run check · uart
+Technical REVIEW · Provenance CLEAN
+
+Flow
+Main step                    Status    
+RTL lint                     MISSING   
+CDC / RDC                    MISSING   
+Functional verification      PASS      
+Formal verification          PASS      
+Synthesis                    PASS      
+RTL ↔ synthesis equivalence  MISSING   
+Pre-implementation sign-off  PASS      
+Implementation / PnR         MISSING   
+Post Sign-Off                INCOMPLETE
+Run status: INCOMPLETE
+
+Provenance
+Setup                   State  Action
+cdc_rdc                 CLEAN  -     
+cdc_rdc.setup           CLEAN  -     
+cocotb.setup            CLEAN  -     
+eqy.setup               CLEAN  -     
+formal.cover.setup      CLEAN  -     
+formal.csr_cover.setup  CLEAN  -     
+formal.csr_prove.setup  CLEAN  -     
+formal.prove.setup      CLEAN  -     
+formal_bmc              CLEAN  -     
+formal_cover            CLEAN  -     
+formal_csr_bmc          CLEAN  -     
+formal_csr_cover        CLEAN  -     
+formal_csr_prove        CLEAN  -     
+formal_prove            CLEAN  -     
+fusion_analysis_all     CLEAN  -     
+lint_slang_suite        CLEAN  -     
+lint_verilator_suite    CLEAN  -     
+power_analysis_all      CLEAN  -     
+power_estimate          CLEAN  -     
+regression              CLEAN  -     
+sdf                     CLEAN  -     
+signoff.setup           CLEAN  -     
+sim_post_syn_all        CLEAN  -     
+sta                     CLEAN  -     
+syn                     CLEAN  -     
+syn.setup               CLEAN  -     
+tb.setup                CLEAN  -     
+
+Functional verification
+Status           PASS             
+Generated tests  12               
+sv logs          12               
+cocotb logs      12               
+Coverage all     5735/9617  59.63%
+Coverage design  1627/2344  69.41%
+Test             SV    cocotb
+auto_toggle      PASS  PASS  
+corners          PASS  PASS  
+fifo_reset       PASS  PASS  
+line_loopback    PASS  PASS  
+noise_filter     PASS  PASS  
+parity_error     PASS  PASS  
+parity_reconfig  PASS  PASS  
+random_seed_1    PASS  PASS  
+random_seed_2    PASS  PASS  
+reconfig         PASS  PASS  
+rx_fifo          PASS  PASS  
+smoke            PASS  PASS  
+
+Formal verification
+Suite       Stage  Status  Time  Traces
+csr         bmc    PASS      5s       0
+csr         prove  PASS      0s       0
+csr         cover  PASS      0s       6
+properties  bmc    PASS      6s       0
+properties  prove  PASS      0s       0
+properties  cover  PASS      0s       8
+
+Synthesis
+Strategy         delay1                     
+Netlist          syn/ihp-sg13g2/uart_synth.v
+Cells            2381                       
+Area             40204.1556                 
+Sequential area  23416.6464                 
+Errors           0                          
+Warnings         0                          
+
+Pre-implementation sign-off
+SDF                    PASS · corners=3             
+STA                    PASS · ideal clock · none    
+Gate-level simulation  9/9  PASS · interconnect none
+Power estimate         PASS                         
+Activity power         9/9  PASS                    
+Timing / power fusion  9/9  PASS                    
+STA QoR
+Corner  Mode   Status   WNS (ns)   TNS (ns)  Viol  Unconstr
+ss      setup  PASS    +0.000000  +0.000000     0         0
+ss      hold   PASS    +0.000000  +0.000000     0         0
+tt      setup  PASS    +0.000000  +0.000000     0         0
+tt      hold   PASS    +0.000000  +0.000000     0         0
+ff      setup  PASS    +0.000000  +0.000000     0         0
+ff      hold   PASS    +0.000000  +0.000000     0         0
+GLS matrix
+Test        min      typ      max  
+corners   PASS sv  PASS sv  PASS sv
+reconfig  PASS sv  PASS sv  PASS sv
+smoke     PASS sv  PASS sv  PASS sv
+Power estimate
+Corner  Internal (mW)  Switching (mW)  Leakage (µW)  Total (mW)
+ss             +5.220          +1.140        +3.900      +6.360
+tt             +6.430          +1.510        +1.620      +7.950
+ff             +7.760          +1.990        +5.080      +9.760
+Activity power workloads
+Workload        Test      Backend  Timing  Status
+corners_sv_ff   corners     sv      min    PASS  
+reconfig_sv_ff  reconfig    sv      min    PASS  
+smoke_sv_ff     smoke       sv      min    PASS  
+corners_sv_tt   corners     sv      typ    PASS  
+reconfig_sv_tt  reconfig    sv      typ    PASS  
+smoke_sv_tt     smoke       sv      typ    PASS  
+corners_sv_ss   corners     sv      max    PASS  
+reconfig_sv_ss  reconfig    sv      max    PASS  
+smoke_sv_ss     smoke       sv      max    PASS  
+Timing / power fusion workloads
+Workload        Test      Backend  Timing  Status
+corners_sv_ff   corners     sv      min    PASS  
+reconfig_sv_ff  reconfig    sv      min    PASS  
+smoke_sv_ff     smoke       sv      min    PASS  
+corners_sv_tt   corners     sv      typ    PASS  
+reconfig_sv_tt  reconfig    sv      typ    PASS  
+smoke_sv_tt     smoke       sv      typ    PASS  
+corners_sv_ss   corners     sv      max    PASS  
+reconfig_sv_ss  reconfig    sv      max    PASS  
+smoke_sv_ss     smoke       sv      max    PASS  
+
+Detailed metrics: /home/eneadim/github/flexsoc/hw/ips/uart/1.0.0/interfaces/.ip-save.uart.axi_lite.gm62blsx/axi_lite/meta/ihp-sg13g2/metrics.json

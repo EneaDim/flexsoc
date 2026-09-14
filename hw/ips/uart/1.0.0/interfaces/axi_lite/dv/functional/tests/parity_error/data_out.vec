@@ -1,0 +1,5 @@
+# UART checks: direct pins and CSR reads.
+# <cycle> <signal> <expected> or <cycle> @read <reg> <expected> [mask]
+880 @read clk_i.FIFO_STATUS 0x00010000 0x00ff00ff
+880 @read clk_i.RDATA 0x000000c3 0x000000ff
+880 @read clk_i.FIFO_STATUS 0x00000000 0x00ff00ff
