@@ -42,7 +42,10 @@ if _MISSING:  # pragma: no cover - exercised only in incomplete envs.
 else:
     console = Console()
     error_console = Console(stderr=True)
-    PSEUDO_COMMANDS = ("help", "settings", "commands", "show", "doctor", "pdk", "eqy_debug", "shell")
+    PSEUDO_COMMANDS = (
+        "help", "settings", "commands", "show", "requirements", "testplan", "meta",
+        "doctor", "pdk", "eqy_debug", "shell",
+    )
     OPTION_WORDS = (
         "--set",
         "--unset",
@@ -65,6 +68,8 @@ else:
         "--save-output",
         "-o",
         "--json",
+        "--less",
+        "--check",
         "--info",
         "--install-completion",
         "--show-completion",
@@ -182,7 +187,9 @@ Use `fx commands` to list every backend target.
             "8. Reuse an existing IP",
             (
                 ("fx ip_load --set TOP=cordic --set RUN_TOP=cordic", "Load authored and generated IP collateral."),
+                ("fx requirements --less | fx testplan --less | fx meta --less", "Inspect the loaded contract and metadata."),
                 ("fx regmap_py tests_gen regression --setup", "Refresh generator-owned DV collateral."),
+                ("fx tests_gen --check", "Verify config.regs and vector files still match the Python generators."),
                 ("fx lint_suite regression formal syn eqy", "Run the same qualification gates as a scaffolded IP."),
                 ("fx soc_start | fx soc_flow", "Use loaded IPs as building blocks for a later SoC flow."),
             ),
@@ -275,6 +282,7 @@ Use `fx commands` to list every backend target.
         "CDC_RDC_HEARTBEAT": "Live-mode progress heartbeat interval in seconds.",
         "CDC_RDC_STRICT": "Return non-zero when structural ERROR findings make CDC/RDC status FAIL.",
         "IP_NAME": "Saved or loaded IP package name.",
+        "IP_VERSION": "Saved or loaded IP package release version (for example 1.0.0).",
         "IP_LIBRARY_ROOT": "IP package library root.",
         "QUAL_LEVEL": "Qualification target: auto, contract, rtl, netlist, technology, or physical_signoff.",
         "HOST": "Selected SoC host integration.",
@@ -346,10 +354,10 @@ Use `fx commands` to list every backend target.
             "fx validate_override --set STAGE=syn.setup",
             "fx check",
         ),
-        "ip_load": ("fx ip_load --set IP_NAME=cordic --set REG_ITF=tlul",),
+        "ip_load": ("fx ip_load --set IP_NAME=uart --set IP_VERSION=1.0.0 --set REG_ITF=tlul",),
         "ip_save": (
-            "fx ip_save --set IP_NAME=cordic --set REG_ITF=tlul --set QUAL_LEVEL=auto",
-            "fx ip_save --force --set IP_NAME=cordic --set REG_ITF=tlul --set QUAL_LEVEL=technology",
+            "fx ip_save --set IP_NAME=uart --set IP_VERSION=1.0.0 --set REG_ITF=tlul --set QUAL_LEVEL=auto",
+            "fx ip_save --force --set IP_NAME=uart --set IP_VERSION=1.0.0 --set REG_ITF=tlul --set QUAL_LEVEL=netlist",
         ),
         "qualify": ("fx qualify --set QUAL_LEVEL=rtl", "fx qualify --set QUAL_LEVEL=technology"),
     }
@@ -369,6 +377,21 @@ Use `fx commands` to list every backend target.
             "Render canonical machine-readable run reports by stable key.",
             ("fx show keys", "fx show qualification", "fx show gls_post_syn", "fx show issues"),
             ("--set KEY=VALUE", "--workdir PATH", "--json"),
+        ),
+        "requirements": (
+            "Render the authoritative requirements.yaml for the configured run.",
+            ("fx requirements", "fx requirements --less", "fx requirements --json"),
+            ("--less", "--set KEY=VALUE", "--workdir PATH", "--json"),
+        ),
+        "testplan": (
+            "Render the authoritative testplan.yaml for the configured run.",
+            ("fx testplan", "fx testplan --less", "fx testplan --json"),
+            ("--less", "--set KEY=VALUE", "--workdir PATH", "--json"),
+        ),
+        "meta": (
+            "Render design intent, qualification, provenance, and the configured run metadata inventory.",
+            ("fx meta", "fx meta --less", "fx meta --json"),
+            ("--less", "--set KEY=VALUE", "--workdir PATH", "--json"),
         ),
         "doctor": (
             "Check Python dependencies and the locally available EDA toolchain.",
@@ -1006,6 +1029,273 @@ Use `fx commands` to list every backend target.
             console.print(JSON.from_data(document.data))
         return 0
 
+    def _configured_run(client: FlexSoC, sets: tuple[str, ...]) -> tuple[Path, dict[str, str]]:
+        """Resolve the configured run path without modifying the workspace."""
+
+        values = {**DEFAULT_SETTINGS, **client.settings, **_assignments(sets)}
+        top = values.get("TOP", "test")
+        run_top = values.get("RUN_TOP") or top
+        run_id = values.get("RUN_ID", "default")
+        return client.workdir / "runs" / run_top / run_id, values
+
+    def _requirements(client: FlexSoC, sets: tuple[str, ...], *, less: bool, as_json: bool) -> int:
+        """Render the authoritative requirements document for the configured run."""
+
+        from .backend.core.show import load_spec
+
+        run, _ = _configured_run(client, sets)
+        try:
+            document = load_spec(run, "requirements")
+        except (FileNotFoundError, KeyError, ValueError) as exc:
+            error_console.print(f"[red]{exc}[/red]")
+            return 2
+        data = document.data
+        rows = data.get("requirements", []) if isinstance(data, Mapping) else []
+        if not isinstance(rows, list):
+            error_console.print(f"[red]{document.path}: requirements must be a list[/red]")
+            return 2
+        if as_json:
+            print(json.dumps(data, indent=2, sort_keys=False))
+            return 0
+
+        title = f"Requirements · {data.get('ip', '-') } · {data.get('version', '-') }"
+        table = Table(title=title, header_style="bold white", expand=not less)
+        table.add_column("ID", style="bright_cyan", no_wrap=True)
+        table.add_column("Status", no_wrap=True)
+        if not less:
+            table.add_column("Scope", style="magenta", no_wrap=True)
+            table.add_column("Origin", style="grey70", no_wrap=True)
+        table.add_column("Statement", overflow="fold")
+        for item in rows:
+            if not isinstance(item, Mapping):
+                continue
+            values = [
+                str(item.get("id", "-")),
+                str(item.get("status", "-")),
+            ]
+            if not less:
+                values.extend((str(item.get("scope", "-")), str(item.get("origin", "-"))))
+            values.append(str(item.get("statement", "-")))
+            table.add_row(*values)
+        console.print(table)
+        console.print(f"[grey70]requirements:[/grey70] [white]{len(rows)}[/white] · [grey70]source:[/grey70] [white]{document.path}[/white]")
+        return 0
+
+    def _testplan(client: FlexSoC, sets: tuple[str, ...], *, less: bool, as_json: bool) -> int:
+        """Render the authoritative test plan for the configured run."""
+
+        from .backend.core.show import load_spec
+
+        run, _ = _configured_run(client, sets)
+        try:
+            document = load_spec(run, "testplan")
+        except (FileNotFoundError, KeyError, ValueError) as exc:
+            error_console.print(f"[red]{exc}[/red]")
+            return 2
+        data = document.data
+        rows = data.get("items", []) if isinstance(data, Mapping) else []
+        if not isinstance(rows, list):
+            error_console.print(f"[red]{document.path}: items must be a list[/red]")
+            return 2
+        if as_json:
+            print(json.dumps(data, indent=2, sort_keys=False))
+            return 0
+
+        title = f"Test plan · {data.get('ip', '-') } · {data.get('version', '-') }"
+        table = Table(title=title, header_style="bold white", expand=not less)
+        table.add_column("ID", style="bright_cyan", no_wrap=True)
+        table.add_column("Requirements", style="magenta")
+        if not less:
+            table.add_column("Methods")
+        table.add_column("Tests")
+        if not less:
+            table.add_column("Properties")
+        for item in rows:
+            if not isinstance(item, Mapping):
+                continue
+            reqs = ", ".join(str(value) for value in item.get("requirements", []) or ()) or "-"
+            methods = ", ".join(str(value) for value in item.get("methods", []) or ()) or "-"
+            tests = ", ".join(str(value) for value in item.get("tests", []) or ()) or "-"
+            properties = ", ".join(str(value) for value in item.get("properties", []) or ()) or "-"
+            values = [str(item.get("id", "-")), reqs]
+            if not less:
+                values.append(methods)
+            values.append(tests)
+            if not less:
+                values.append(properties)
+            table.add_row(*values)
+        console.print(table)
+        qualification = data.get("qualification", {}) if isinstance(data, Mapping) else {}
+        evidence = qualification.get("required_evidence", []) if isinstance(qualification, Mapping) else []
+        console.print(
+            f"[grey70]items:[/grey70] [white]{len(rows)}[/white] · "
+            f"[grey70]evidence:[/grey70] [white]{', '.join(map(str, evidence)) or '-'}[/white] · "
+            f"[grey70]source:[/grey70] [white]{document.path}[/white]"
+        )
+        return 0
+
+    def _meta(client: FlexSoC, sets: tuple[str, ...], *, less: bool, as_json: bool) -> int:
+        """Render the configured run metadata, highlighting release-critical JSON."""
+
+        from .backend.core.show import meta_documents, meta_entries
+
+        run, _ = _configured_run(client, sets)
+        rows = meta_entries(run)
+        documents = meta_documents(run)
+        if as_json:
+            print(json.dumps({"files": rows, "documents": documents}, indent=2))
+            return 0
+        if not rows:
+            error_console.print(f"[red]no metadata found below {run / 'meta'}[/red]")
+            return 2
+
+        def state(value: object) -> str:
+            token = str(value or "-").upper()
+            color = "green" if token == "PASS" else "red" if token in {"FAIL", "FAILED", "INVALID"} else "orange1"
+            return f"[{color}]{token}[/{color}]"
+
+        if not less:
+            for document in documents:
+                kind = str(document["kind"])
+                pdk = document.get("pdk")
+                data = document.get("data")
+                path = str(document["path"])
+                if not isinstance(data, Mapping):
+                    error_console.print(f"[red]{path}: invalid JSON[/red]")
+                    continue
+
+                if kind == "design_intent":
+                    intent = data.get("design_intent", {})
+                    table = Table(title="Design intent", header_style="bold white")
+                    table.add_column("Field", style="bright_cyan", no_wrap=True)
+                    table.add_column("Value", style="white", overflow="fold")
+                    for key in ("TOP", "REG_ITF", "N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS"):
+                        if isinstance(intent, Mapping) and key in intent:
+                            table.add_row(key, str(intent[key]))
+                    table.add_row("Intent SHA256", str(data.get("ip_intent_sha256", "-")))
+                    table.add_row("Sources", str(len(data.get("sources", []) or ())))
+                    console.print(table)
+                    sources = data.get("sources", [])
+                    if isinstance(sources, list) and sources:
+                        source_table = Table(title="Design-intent sources", header_style="bold grey70")
+                        source_table.add_column("Path", style="white", overflow="fold")
+                        source_table.add_column("SHA256", style="grey70", no_wrap=True)
+                        for item in sources:
+                            if isinstance(item, Mapping):
+                                source_table.add_row(str(item.get("path", "-")), str(item.get("sha256", "-")))
+                        console.print(source_table)
+
+                elif kind == "qualification":
+                    title = f"Qualification · {pdk or '-'}"
+                    requirements = data.get("requirements", {})
+                    req_text = "-"
+                    if isinstance(requirements, Mapping):
+                        req_text = f"{requirements.get('covered', '-')} / {requirements.get('total', '-')} · {requirements.get('status', '-')}"
+                    summary = Table(title=title, header_style="bold white")
+                    summary.add_column("Field", style="bright_cyan", no_wrap=True)
+                    summary.add_column("Value", style="white", overflow="fold")
+                    summary.add_row("Maximum", f"L{data.get('maximum_level', '-')} · {data.get('maximum_qualification', '-')}")
+                    summary.add_row("Maximum PASS", f"L{data.get('maximum_pass_level', '-')} · {data.get('maximum_pass_qualification', '-')}")
+                    summary.add_row("Status", state(data.get("qualification_status")))
+                    summary.add_row("Requirements", req_text)
+                    console.print(summary)
+
+                    levels = data.get("levels", {})
+                    if isinstance(levels, Mapping) and levels:
+                        level_table = Table(title=f"Qualification levels · {pdk or '-'}", header_style="bold grey70")
+                        level_table.add_column("Level", style="bright_cyan", no_wrap=True)
+                        level_table.add_column("Name", style="white")
+                        level_table.add_column("Status", no_wrap=True)
+                        level_table.add_column("Blocking evidence", style="white", overflow="fold")
+                        for level, item in levels.items():
+                            if not isinstance(item, Mapping):
+                                continue
+                            blocking = ", ".join(map(str, item.get("blocking_evidence", []) or ())) or "-"
+                            level_table.add_row(f"L{level}", str(item.get("name", "-")), state(item.get("status")), blocking)
+                        console.print(level_table)
+
+                    evidence = data.get("evidence", {})
+                    if isinstance(evidence, Mapping) and evidence:
+                        evidence_table = Table(title=f"Qualification evidence · {pdk or '-'}", header_style="bold grey70")
+                        evidence_table.add_column("Stage", style="bright_cyan")
+                        evidence_table.add_column("State", no_wrap=True)
+                        for stage, value in evidence.items():
+                            evidence_table.add_row(str(stage), state(value))
+                        console.print(evidence_table)
+
+                elif kind == "provenance":
+                    stages = data.get("stages", {})
+                    table = Table(title=f"Provenance · {pdk or '-'}", header_style="bold white")
+                    table.add_column("Stage", style="bright_cyan")
+                    table.add_column("Inputs", justify="right")
+                    table.add_column("Generated", justify="right")
+                    table.add_column("Parents", justify="right")
+                    table.add_column("Paths", no_wrap=True)
+                    table.add_column("Fingerprint", style="grey70", no_wrap=True)
+                    if isinstance(stages, Mapping):
+                        for stage, item in stages.items():
+                            if not isinstance(item, Mapping):
+                                continue
+                            path_state = "OK" if item.get("input_paths_match", True) else "MISMATCH"
+                            table.add_row(
+                                str(stage),
+                                str(len(item.get("inputs", []) or ())),
+                                str(len(item.get("generated", []) or ())),
+                                str(len(item.get("parents", {}) or {})),
+                                state("PASS" if path_state == "OK" else "INVALID"),
+                                str(item.get("fingerprint", "-"))[:16],
+                            )
+                    console.print(table)
+
+            console.print(
+                "[grey70]Raw JSON:[/grey70] [white]fx show design_intent[/white] · "
+                "[white]fx show qualification[/white] · [white]fx show provenance[/white]"
+            )
+
+        table = Table(title=f"Metadata files · {run.name}", header_style="bold white", expand=not less)
+        table.add_column("Path", style="bright_cyan")
+        table.add_column("Bytes", justify="right", no_wrap=True)
+        if not less:
+            table.add_column("Summary", overflow="fold")
+        for item in rows:
+            values = [str(item["path"]), str(item["size"])]
+            if not less:
+                values.append(str(item.get("summary") or "-"))
+            table.add_row(*values)
+        console.print(table)
+        console.print(f"[grey70]files:[/grey70] [white]{len(rows)}[/white] · [grey70]root:[/grey70] [white]{run / 'meta'}[/white]")
+        return 0
+
+    def _tests_gen_check(client: FlexSoC, sets: tuple[str, ...], *, as_json: bool) -> int:
+        """Verify generated vector files against the authoritative Python generators."""
+
+        flow = client.flows(**_assignments(sets))
+        paths = flow.context.paths
+        try:
+            result = flow.dv.functional.check_tests(paths.tests, paths.top)
+        except (FileNotFoundError, RuntimeError, OSError) as exc:
+            error_console.print(f"[red]{exc}[/red]")
+            return 2
+        if as_json:
+            print(json.dumps(result, indent=2))
+            return 0 if result["ok"] else 1
+        if result["ok"]:
+            console.print(
+                f"[green]PASS[/green] generated tests match Python source · "
+                f"[white]{result['files']} files[/white]"
+            )
+            return 0
+        table = Table(title="Generated-test drift", header_style="bold white")
+        table.add_column("State", no_wrap=True)
+        table.add_column("Path", style="white")
+        for state in ("missing", "extra", "modified"):
+            for path in result[state]:
+                color = "red" if state != "extra" else "orange1"
+                table.add_row(f"[{color}]{state.upper()}[/{color}]", str(path))
+        console.print(table)
+        error_console.print("[red]generated tests do not match the authoritative Python source; run `fx tests_gen`[/red]")
+        return 1
+
     # -----------------------------------------------------------------------
     # Technology and equivalence diagnostics
     # -----------------------------------------------------------------------
@@ -1451,7 +1741,7 @@ Use `fx commands` to list every backend target.
         effective = client.values(values)
         context = BackendContext(client.project_root, client.workdir, effective)
         paths = context.paths
-        analysis = paths.cdc_rdc_analysis
+        analysis = paths.cdc_rdc
         payload = CdcFlow().debug_from_context(context)
 
         if save_output is not None:
@@ -1817,6 +2107,14 @@ Use `fx commands` to list every backend target.
             bool,
             typer.Option("--json", help="Print machine-readable JSON.", rich_help_panel="Output"),
         ] = False,
+        less: Annotated[
+            bool,
+            typer.Option("--less", help="Use the compact human-readable view for requirements, testplan, or meta.", rich_help_panel="Output"),
+        ] = False,
+        check_generated: Annotated[
+            bool,
+            typer.Option("--check", help="For tests_gen, verify generated vectors without modifying them.", rich_help_panel="Output"),
+        ] = False,
         info: Annotated[
             bool,
             typer.Option("--info", help="Describe targets instead of running them.", rich_help_panel="Output"),
@@ -1858,6 +2156,24 @@ Use `fx commands` to list every backend target.
             return
         if args[0] == "show":
             raise typer.Exit(_show(client, args[1:], set_args, as_json=as_json))
+        if args[0] == "requirements":
+            if len(args) != 1:
+                raise click.BadParameter("fx requirements accepts no positional arguments")
+            raise typer.Exit(_requirements(client, set_args, less=less, as_json=as_json))
+        if args[0] == "testplan":
+            if len(args) != 1:
+                raise click.BadParameter("fx testplan accepts no positional arguments")
+            raise typer.Exit(_testplan(client, set_args, less=less, as_json=as_json))
+        if args[0] == "meta":
+            if len(args) != 1:
+                raise click.BadParameter("fx meta accepts no positional arguments")
+            raise typer.Exit(_meta(client, set_args, less=less, as_json=as_json))
+        if less:
+            raise click.BadParameter("--less is only valid with requirements, testplan, or meta")
+        if check_generated:
+            if args != ("tests_gen",):
+                raise click.BadParameter("--check is only valid with `fx tests_gen`")
+            raise typer.Exit(_tests_gen_check(client, set_args, as_json=as_json))
         if args[0] == "doctor":
             from .backend.core.toolchain import run as run_doctor
 

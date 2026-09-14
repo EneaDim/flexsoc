@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+import yaml
+
 
 @dataclass(frozen=True)
 class ShowSpec:
@@ -27,6 +29,105 @@ class ShowDocument:
     path: Path
     data: Any
     root: Any
+
+
+def spec_root(run: Path) -> Path:
+    """Return the live specification root or the frozen loaded-package contract."""
+
+    run = Path(run)
+    live = run / "spec"
+    if live.is_dir():
+        return live
+    frozen = run / "contract"
+    return frozen if frozen.is_dir() else live
+
+
+def load_spec(run: Path, key: str) -> ShowDocument:
+    """Load requirements.yaml or testplan.yaml from the canonical spec root."""
+
+    normalized = str(key).strip().lower().replace("-", "_")
+    names = {
+        "requirements": ("Requirements", "requirements.yaml"),
+        "testplan": ("Test plan", "testplan.yaml"),
+    }
+    if normalized not in names:
+        raise KeyError(f"unknown spec document {key!r}")
+    title, filename = names[normalized]
+    path = spec_root(run) / filename
+    if not path.is_file():
+        raise FileNotFoundError(f"{title} not found: {path}")
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError(f"invalid YAML in {path}: {exc}") from exc
+    if not isinstance(data, Mapping):
+        raise ValueError(f"{path} must contain a mapping")
+    return ShowDocument(normalized, title, path, data, data)
+
+
+def meta_entries(run: Path) -> tuple[dict[str, object], ...]:
+    """Return a deterministic inventory of files below one run's meta directory."""
+
+    root = Path(run) / "meta"
+    if not root.is_dir():
+        return ()
+    rows: list[dict[str, object]] = []
+    for path in sorted(item for item in root.rglob("*") if item.is_file()):
+        relative = path.relative_to(root).as_posix()
+        summary = ""
+        if path.suffix.lower() == ".json":
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                data = None
+            if isinstance(data, Mapping):
+                parts: list[str] = []
+                for key in ("status", "level_name", "qualification_level", "pdk", "top", "ip", "version"):
+                    value = data.get(key)
+                    if value not in (None, "", [], {}):
+                        parts.append(f"{key}={value}")
+                summary = " · ".join(parts[:4])
+        rows.append({
+            "path": relative,
+            "size": path.stat().st_size,
+            "summary": summary,
+            "source": str(path),
+        })
+    return tuple(rows)
+
+
+def meta_documents(run: Path) -> tuple[dict[str, object], ...]:
+    """Load canonical design-intent, qualification, and provenance JSON documents."""
+
+    root = Path(run) / "meta"
+    if not root.is_dir():
+        return ()
+    candidates: list[tuple[str, str | None, Path]] = [
+        ("design_intent", None, root / "design_intent.json"),
+    ]
+    for branch in sorted(path for path in root.iterdir() if path.is_dir()):
+        candidates.extend((
+            ("qualification", branch.name, branch / "qualification.json"),
+            ("provenance", branch.name, branch / "provenance.json"),
+        ))
+
+    documents: list[dict[str, object]] = []
+    for kind, pdk, path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            documents.append({
+                "kind": kind, "pdk": pdk, "path": path.relative_to(root).as_posix(),
+                "source": str(path), "error": str(exc), "data": None,
+            })
+            continue
+        documents.append({
+            "kind": kind, "pdk": pdk, "path": path.relative_to(root).as_posix(),
+            "source": str(path), "error": None, "data": data,
+        })
+    return tuple(documents)
 
 
 def _select(data: Any, selector: tuple[str, ...]) -> Any:
@@ -65,7 +166,7 @@ def catalog(run: Path, *, top: str, pdk: str) -> dict[str, ShowSpec]:
         ShowSpec("synthesis", "Synthesis metrics", metrics, ("synthesis",)),
         ShowSpec("implementation", "Implementation metrics", metrics, ("implementation",)),
         ShowSpec("closure", "Technical closure", metrics, ("closure",)),
-        ShowSpec("cdc_rdc", "CDC/RDC summary", run / "analysis" / "cdc_rdc" / "summary.json"),
+        ShowSpec("cdc_rdc", "CDC/RDC summary", run / "dv" / "cdc_rdc" / "summary.json"),
         ShowSpec("coverage", "Coverage matrix", run / "dv" / "functional" / "coverage" / "summary.json"),
         ShowSpec("syn", "Synthesis report", run / "syn" / pdk / f"{top}_synth.json"),
         ShowSpec("gls_post_syn", "Post-synthesis GLS matrix", sim / "post_syn" / pdk / "summary_sv.json"),

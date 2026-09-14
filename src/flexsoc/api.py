@@ -164,9 +164,9 @@ GATE_SIM = (
 )
 GATE_SIM_ALL = tuple(dict.fromkeys((*GATE_SIM, "TEST_NAMES", "TIMING_MODES")))
 PNR = (*COMMON, "PDK", "PDK_ROOT", "CLK_PERIOD", "ORS", "ORS_TECH")
-IP_LOAD = (*COMMON, "REG_ITF", "IP_NAME")
-QUALIFY = (*COMMON, "REG_ITF", "IP_NAME", "QUAL_LEVEL")
-IP_SAVE = tuple(dict.fromkeys((*EQUIV, *SIGNOFF, "REG_ITF", "IP_NAME", "IP_LIBRARY_ROOT", "QUAL_LEVEL")))
+IP_LOAD = (*COMMON, "REG_ITF", "IP_NAME", "IP_VERSION")
+QUALIFY = (*COMMON, "REG_ITF", "IP_NAME", "IP_VERSION", "QUAL_LEVEL")
+IP_SAVE = tuple(dict.fromkeys((*EQUIV, *SIGNOFF, "REG_ITF", "IP_NAME", "IP_VERSION", "IP_LIBRARY_ROOT", "QUAL_LEVEL")))
 SOC = (*COMMON, "HOST", "SOC_CFG_MODE", "DEVLIST")
 FSM = (*BASE, "FSM", "FORCE")
 TUTORIAL = ("TUTORIAL_WS", "TUTORIAL_RUN_ID", *COMMON)
@@ -694,9 +694,9 @@ STAGE_CONTRACTS = {
     "pnr.setup": StageContract((*CLOCKS, "TOP", "PDK", "ORS_TECH"), ("syn.setup", "signoff.setup"), scope="pdk"),
 
     # Runtime qualification evidence. Paths are run-relative and may use {pdk}/{top}.
-    "lint_slang_suite": StageContract(("TOP",), evidence=("analysis/lint/slang/{top}_lint_slang_all.log",), tools=("SLANG",)),
-    "lint_verilator_suite": StageContract(("TOP",), evidence=("analysis/lint/verilator/{top}_lint_verilator_all.log",), tools=("VERILATOR",)),
-    "cdc_rdc": StageContract((*CLOCKS, "TOP", "CDC_RDC_STRICT"), ("cdc_rdc.setup",), ("analysis/cdc_rdc/summary.json", "analysis/cdc_rdc/cdc_rdc.rpt"), tools=("SLANG", "YOSYS")),
+    "lint_slang_suite": StageContract(("TOP",), evidence=("dv/lint/slang/{top}_lint_slang_all.log",), tools=("SLANG",)),
+    "lint_verilator_suite": StageContract(("TOP",), evidence=("dv/lint/verilator/{top}_lint_verilator_all.log",), tools=("VERILATOR",)),
+    "cdc_rdc": StageContract((*CLOCKS, "TOP", "CDC_RDC_STRICT"), ("cdc_rdc.setup",), ("dv/cdc_rdc/summary.json", "dv/cdc_rdc/cdc_rdc.rpt"), tools=("SLANG", "YOSYS")),
     "regression": StageContract(
         (*CLOCKS, "TOP", "COMPILER", "REGRESSION_BACKENDS", "SEED", "RESET_SETTLE_CYCLES"),
         ("tb.setup", "cocotb.setup"),
@@ -1268,7 +1268,7 @@ class FlexSoCTarget:
             return self._evidence_paths(stage)
         paths = self._result_paths(result)
         if stage == "cdc_rdc.setup":
-            paths = (self.paths.run / "analysis" / "cdc_rdc" / "extract.ys",)
+            paths = (self.paths.cdc_rdc / "extract.ys",)
         elif stage == "eqy.setup":
             out = self.context.layout.equivalence_dir
             bindings = [
@@ -1917,7 +1917,7 @@ class FlexSoCTarget:
             return b.design.rtl.fetch_vendor(self.client.project_root / "vendor" / f"{vendor}.vendor.hjson", target_dir=self.client.project_root, force=force, on=self.on)
         if target in {"slang_hier", "slang_ast"}:
             root, top_file, search_roots, extra_args = self._slang_inputs()
-            output = p.slang_analysis / f"{top}_{'hier.txt' if target == 'slang_hier' else 'ast.json'}"
+            output = p.slang / f"{top}_{'hier.txt' if target == 'slang_hier' else 'ast.json'}"
             if target == "slang_hier":
                 return b.design.rtl.show_hierarchy(root=root, top_file=top_file, output=output, search_roots=search_roots, top=v.get("SLANG_TOP", top), extra_args=extra_args, slang_hier=v.get("SLANG_HIER", "slang-hier"), on=self.on)
             return b.design.rtl.show_ast(root=root, top_file=top_file, output=output, search_roots=search_roots, top=v.get("SLANG_TOP", top), extra_args=extra_args, slang=v.get("SLANG", "slang"), scope=v.get("SLANG_AST_SCOPE"), on=self.on)
@@ -1956,7 +1956,7 @@ class FlexSoCTarget:
             return b.dv.lint_suite(tools=(v.get("LINT_TOOL", "slang"),), part=v.get("LINT_PART", "ip"), on=self.on) if kind not in {"latch","undriven","width","unconnected","unused"} else (b.dv.lint_slang(kind=kind, part=v.get("LINT_PART","ip"), on=self.on), b.dv.lint_verilator(kind=kind, part=v.get("LINT_PART","ip"), on=self.on))
 
         if target in {"cdc_rdc.setup", "cdc_rdc"}:
-            analysis = p.cdc_rdc_analysis
+            analysis = p.cdc_rdc
             script, design_json = analysis / "extract.ys", analysis / "design.json"
             if target == "cdc_rdc.setup":
                 return b.dv.cdc.setup(top=top, script=script, design_json=design_json, repo_root=self.client.project_root, filelists=(p.rtl_common, p.rtl_ip))
@@ -2120,6 +2120,7 @@ class FlexSoCTarget:
                 ip_name=v.get("IP_NAME", top), reg_interface=interface,
                 run_top=p.run_top, run_id=p.run_id,
                 workspace=self.client.workdir, load_as=v.get("LOAD_AS") or None,
+                version=v.get("IP_VERSION") or None,
             )
         if target == "ip_save":
             from .backend.core.reporting import collect_implementation
@@ -2155,6 +2156,7 @@ class FlexSoCTarget:
                 design_intent_json=p.run / "meta" / "design_intent.json",
                 qualification_json=p.meta / "qualification.json",
                 spec_root=self._spec_root(),
+                version=v.get("IP_VERSION") or None,
                 force=force,
             )
 

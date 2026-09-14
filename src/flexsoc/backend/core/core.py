@@ -1626,15 +1626,13 @@ class FlowPaths:
     @property
     def logs(self) -> Path: return self.run / "logs"
     @property
-    def analysis(self) -> Path: return self.run / "analysis"
-    @property
-    def slang_analysis(self) -> Path: return self.analysis / "slang"
-    @property
-    def lint_analysis(self) -> Path: return self.analysis / "lint"
-    @property
-    def cdc_rdc_analysis(self) -> Path: return self.analysis / "cdc_rdc"
-    @property
     def dv(self) -> Path: return self.run / "dv"
+    @property
+    def slang(self) -> Path: return self.dv / "slang"
+    @property
+    def lint(self) -> Path: return self.dv / "lint"
+    @property
+    def cdc_rdc(self) -> Path: return self.dv / "cdc_rdc"
     @property
     def functional(self) -> Path: return self.dv / "functional"
     @property
@@ -1675,8 +1673,7 @@ class FlowPaths:
         """Create the canonical run directories and return this layout."""
         for path in (
             self.csr, self.rtl, self.doc, self.drivers, self.logs,
-            self.slang_analysis, self.lint_analysis / "slang",
-            self.lint_analysis / "verilator", self.cdc_rdc_analysis,
+            self.slang, self.lint / "slang", self.lint / "verilator", self.cdc_rdc,
             self.model, self.tests, self.tb, self.sim, self.coverage,
             self.formal, self.constraints, self.syn, self.signoff, self.impl, self.meta,
         ):

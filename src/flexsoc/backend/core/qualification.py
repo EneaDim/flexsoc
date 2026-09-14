@@ -388,6 +388,13 @@ def validate_spec_bundle(spec_root: Path, *, ip_name: str | None = None) -> dict
         raise ValueError(
             f"spec identity mismatch: requirements.ip={req_ip!r} testplan.ip={plan_ip!r} expected={ip_name!r}"
         )
+    req_version = str(requirements_doc.get("version", "")).strip() or None
+    plan_version = str(testplan_doc.get("version", "")).strip() or None
+    if req_version != plan_version:
+        raise ValueError(
+            f"spec version mismatch: requirements.version={req_version!r} "
+            f"testplan.version={plan_version!r}"
+        )
 
     requirements = requirements_doc.get("requirements", [])
     items = testplan_doc.get("items", [])
@@ -475,6 +482,7 @@ def validate_spec_bundle(spec_root: Path, *, ip_name: str | None = None) -> dict
     return {
         "schema": 1,
         "ip": req_ip or plan_ip or ip_name,
+        "version": req_version,
         "requirements": len(req_ids),
         "baselined_requirements": len(baselined),
         "covered_requirements": len(baselined & covered),
@@ -627,6 +635,7 @@ def write_contract_snapshot(
     spec_root: Path,
     ip_name: str,
     reg_interface: str,
+    version: str | None = None,
 ) -> Path:
     """Write one release contract metadata file against the common IP spec."""
 
@@ -682,6 +691,8 @@ def write_contract_snapshot(
         "spec_fingerprint": spec["fingerprint"],
         "source_of_truth": source_of_truth,
     }
+    if version:
+        contract["version"] = version
     design_intent = meta / "design_intent.json"
     if design_intent.is_file():
         intent = json.loads(design_intent.read_text(encoding="utf-8"))
@@ -769,6 +780,17 @@ def validate_release_package(
         raise ValueError(
             f"release path/interface mismatch: path={root.name!r} reg_interface={reg_interface!r}"
         )
+    version = str(manifest.get("version", "")).strip() or None
+    interfaces_root = next(
+        (parent for parent in root.parents if parent.name == "interfaces"),
+        None,
+    )
+    if version:
+        path_version = interfaces_root.parent.name if interfaces_root is not None else None
+        if path_version != version:
+            raise ValueError(
+                f"release path/version mismatch: path={path_version!r} version={version!r}"
+            )
 
     contract_data = validate_contract_snapshot(root, spec_root=spec_root)
     contract = contract_data["contract"]
@@ -776,9 +798,17 @@ def validate_release_package(
         raise ValueError("release manifest and contract snapshot disagree on reg_interface")
     if contract.get("ip") != manifest.get("name"):
         raise ValueError("release manifest and contract snapshot disagree on IP identity")
+    if version and contract.get("version") != version:
+        raise ValueError("release manifest and contract snapshot disagree on version")
 
-    common_spec_root = Path(spec_root) if spec_root is not None else root.parent.parent / "spec"
+    common_spec_root = (
+        Path(spec_root)
+        if spec_root is not None
+        else (interfaces_root.parent / "spec" if interfaces_root is not None else root.parent.parent / "spec")
+    )
     common_spec = validate_spec_bundle(common_spec_root, ip_name=str(manifest.get("name", "")))
+    if version and common_spec.get("version") != version:
+        raise ValueError("release manifest and common spec disagree on version")
     if common_spec.get("fingerprint") != contract.get("spec_fingerprint"):
         raise ValueError("IP-level spec fingerprint does not match packaged contract snapshot")
 
@@ -849,6 +879,7 @@ def validate_release_package(
     return {
         "schema": 1,
         "ip": manifest.get("name"),
+        "version": version,
         "reg_interface": reg_interface,
         "contract_fingerprint": contract.get("spec_fingerprint"),
         "technology_branches": sorted(str(item) for item in technologies),

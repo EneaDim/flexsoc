@@ -111,7 +111,9 @@ def _package_interface(value: str) -> str:
     return normalize_register_interface(value)
 
 
-def _validate_package_manifest(source: Path, *, ip_name: str, reg_interface: str) -> None:
+def _validate_package_manifest(
+    source: Path, *, ip_name: str, reg_interface: str, version: str | None = None
+) -> None:
     """Reject packages whose identity does not match their interface path."""
 
     manifest = source / "ip.json"
@@ -123,6 +125,8 @@ def _validate_package_manifest(source: Path, *, ip_name: str, reg_interface: str
         "name": ip_name,
         "reg_interface": reg_interface,
     }
+    if version is not None:
+        expected["version"] = version
     mismatches = [
         f"{key}={data.get(key)!r} (expected {value!r})"
         for key, value in expected.items()
@@ -235,14 +239,20 @@ class PackageFlow:
         run_id: str,
         workspace: Path,
         load_as: str | None = None,
+        version: str | None = None,
     ) -> Path:
         """Load one frozen register-interface release into a canonical run workspace."""
 
         reg_interface = _package_interface(reg_interface)
-        source = self.project_root / "hw" / "ips" / ip_name / "interfaces" / reg_interface
+        release_root = self.project_root / "hw" / "ips" / ip_name
+        if version:
+            release_root = release_root / version
+        source = release_root / "interfaces" / reg_interface
         if not source.is_dir():
             raise FileNotFoundError(f"missing source IP interface release: {source}")
-        _validate_package_manifest(source, ip_name=ip_name, reg_interface=reg_interface)
+        _validate_package_manifest(
+            source, ip_name=ip_name, reg_interface=reg_interface, version=version
+        )
         from .qualification import validate_release_package
         validate_release_package(source)
         run = Path(workspace) / "runs" / run_top / run_id
@@ -407,6 +417,7 @@ class PackageFlow:
         design_intent_json: Path | None = None,
         qualification_json: Path | None = None,
         spec_root: Path | None = None,
+        version: str | None = None,
         force: bool = False,
     ) -> Path:
         """Atomically update one PDK branch in the reusable interface release."""
@@ -418,7 +429,10 @@ class PackageFlow:
 
         library_root = Path(library_root)
         reg_interface = _package_interface(reg_interface)
-        interface_root = library_root / ip_name / "interfaces"
+        release_root = library_root / ip_name
+        if version:
+            release_root = release_root / version
+        interface_root = release_root / "interfaces"
         target = interface_root / reg_interface
         conflicts = [target / "syn" / pdk, target / "signoff" / pdk / "post_syn"]
         if impl_dir and Path(impl_dir).is_dir():
@@ -440,7 +454,7 @@ class PackageFlow:
 
             run = Path(synth_dir).parents[1]
             self._stage_sources(staged, run)
-            self._stage_analysis_evidence(staged, run)
+            self._stage_dv_evidence(staged, run)
             self._stage_synthesis(staged, pdk, synth_dir, top)
             self._stage_post_syn_signoff(staged, pdk, signoff_dir, sdc_file, top)
             self._stage_equivalence(
@@ -471,7 +485,7 @@ class PackageFlow:
             from .qualification import SPEC_FILES, write_contract_snapshot
             write_contract_snapshot(
                 staged=staged, spec_root=spec_root, ip_name=ip_name,
-                reg_interface=reg_interface,
+                reg_interface=reg_interface, version=version,
             )
             staged_spec = Path(tmp) / "spec"
             staged_spec.mkdir()
@@ -480,13 +494,15 @@ class PackageFlow:
             _portable_filelists(staged, self.project_root, run)
             _clean_python_cache(staged)
             _clean_hidden_paths(staged)
-            self._write_package_manifest(staged, ip_name, top, reg_interface)
+            self._write_package_manifest(
+                staged, ip_name, top, reg_interface, version=version
+            )
             from .qualification import validate_release_package
             validate_release_package(staged, spec_root=staged_spec)
 
             backup = interface_root / f".{reg_interface}.backup"
-            spec_target = library_root / ip_name / "spec"
-            spec_backup = library_root / ip_name / ".spec.backup"
+            spec_target = release_root / "spec"
+            spec_backup = release_root / ".spec.backup"
             for path in (backup, spec_backup):
                 if path.exists():
                     shutil.rmtree(path)
@@ -530,13 +546,14 @@ class PackageFlow:
         if (run / "component.xml").is_file():
             shutil.copy2(run / "component.xml", staged / "component.xml")
 
-    def _stage_analysis_evidence(self, staged: Path, run: Path) -> None:
-        """Retain compact lint and CDC/RDC evidence under analysis/."""
+    def _stage_dv_evidence(self, staged: Path, run: Path) -> None:
+        """Retain compact lint and CDC/RDC evidence below dv/."""
 
         shutil.rmtree(staged / "logs", ignore_errors=True)
+        shutil.rmtree(staged / "analysis", ignore_errors=True)
 
-        lint = run / "analysis" / "lint"
-        destination = staged / "analysis" / "lint"
+        lint = run / "dv" / "lint"
+        destination = staged / "dv" / "lint"
         shutil.rmtree(destination, ignore_errors=True)
         if lint.is_dir():
             for tool in ("slang", "verilator"):
@@ -544,9 +561,10 @@ class PackageFlow:
                 if source.is_dir():
                     self._replace_tree(source, destination / tool)
 
-        cdc = run / "analysis" / "cdc_rdc"
+        cdc = run / "dv" / "cdc_rdc"
+        destination = staged / "dv" / "cdc_rdc"
+        shutil.rmtree(destination, ignore_errors=True)
         if cdc.is_dir():
-            destination = staged / "analysis" / "cdc_rdc"
             destination.mkdir(parents=True, exist_ok=True)
             for name in ("summary.json", "cdc_rdc.rpt"):
                 source = cdc / name
@@ -554,7 +572,8 @@ class PackageFlow:
                     shutil.copy2(source, destination / name)
 
     def _write_package_manifest(
-        self, staged: Path, ip_name: str, top: str, reg_interface: str
+        self, staged: Path, ip_name: str, top: str, reg_interface: str,
+        *, version: str | None = None,
     ) -> None:
         """Write the minimal native package index without duplicating design intent."""
 
@@ -628,6 +647,8 @@ class PackageFlow:
             "content": content,
             "qualification": {"summary": summary, "technologies": qualification},
         }
+        if version:
+            data["version"] = version
         (staged / "ip.json").write_text(
             json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )

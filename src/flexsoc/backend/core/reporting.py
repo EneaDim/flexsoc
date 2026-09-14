@@ -82,8 +82,8 @@ def marked_section(text: str, start: str, end: str) -> str:
 def collect_lint_tool(top: str, run_dir: Path, tool: str) -> dict[str, Any] | None:
     """Collect one lint backend from its tool-specific logs."""
 
-    analysis_dir = run_dir / "analysis" / "lint" / tool
-    raw_dir = run_dir / "logs" / "analysis" / "lint" / tool / "raw"
+    analysis_dir = run_dir / "dv" / "lint" / tool
+    raw_dir = run_dir / "logs" / "dv" / "lint" / tool / "raw"
     full_log = analysis_dir / f"{top}_lint_{tool}_all.log"
     raw_log = raw_dir / f"{top}_lint_{tool}_all_raw.log"
     if not full_log.is_file():
@@ -129,7 +129,7 @@ def collect_lint(top: str, run_dir: Path) -> dict[str, Any] | None:
 def collect_cdc_rdc(top: str, run_dir: Path) -> dict[str, Any] | None:
     """Collect the custom structural CDC/RDC summary emitted after lint."""
 
-    summary_path = run_dir / "analysis" / "cdc_rdc" / "summary.json"
+    summary_path = run_dir / "dv" / "cdc_rdc" / "summary.json"
     if not summary_path.is_file():
         return None
     try:
@@ -155,7 +155,7 @@ def collect_cdc_rdc(top: str, run_dir: Path) -> dict[str, Any] | None:
                 if name not in {"findings", "crossings"}
             }
     result["summary"] = relative(summary_path, run_dir)
-    report_path = run_dir / "analysis" / "cdc_rdc" / "cdc_rdc.rpt"
+    report_path = run_dir / "dv" / "cdc_rdc" / "cdc_rdc.rpt"
     if report_path.is_file():
         result["report"] = relative(report_path, run_dir)
     return result
@@ -2325,10 +2325,10 @@ def _analysis_evidence(run_root: Path) -> dict[str, object]:
     """Return lightweight post-lint analysis evidence for the run manifest."""
 
     result: dict[str, object] = {}
-    lint_dir = run_root / "analysis" / "lint"
+    lint_dir = run_root / "dv" / "lint"
     if lint_dir.is_dir():
         result["lint"] = {"path": lint_dir.relative_to(run_root).as_posix()}
-    summary = run_root / "analysis" / "cdc_rdc" / "summary.json"
+    summary = run_root / "dv" / "cdc_rdc" / "summary.json"
     if summary.is_file():
         record: dict[str, object] = {
             "path": summary.relative_to(run_root).as_posix(),

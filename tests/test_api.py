@@ -744,16 +744,17 @@ def test_run_exception_is_visible_and_persisted_in_command_log(
     assert log.read_text(encoding="utf-8") == "[error] missing routed SDF\n"
 
 
-def test_setup_creates_canonical_csr_and_analysis_layout(tmp_path: Path) -> None:
+def test_setup_creates_canonical_csr_and_dv_layout(tmp_path: Path) -> None:
     fx = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work")
     fx.run("setup", TOP="demo", RUN_ID="api")
 
     run = tmp_path / "work" / "runs" / "demo" / "api"
     for relative in (
-        "csr", "analysis/slang", "analysis/lint/slang",
-        "analysis/lint/verilator", "analysis/cdc_rdc",
+        "csr", "dv/slang", "dv/lint/slang",
+        "dv/lint/verilator", "dv/cdc_rdc",
     ):
         assert (run / relative).is_dir(), relative
+    assert not (run / "analysis").exists()
     assert not (run / "data").exists()
     assert not (run / "interchange" / "systemrdl").exists()
 
@@ -1470,7 +1471,7 @@ def test_ip_load_requires_exact_frozen_interface_layout(tmp_path: Path) -> None:
     (source / "csr" / "systemrdl" / "demo.rdl").write_text(
         "addrmap demo {};\n", encoding="utf-8"
     )
-    lint = source / "analysis" / "lint"
+    lint = source / "dv" / "lint"
     (lint / "slang").mkdir(parents=True)
     (lint / "verilator").mkdir(parents=True)
     (lint / "slang" / "demo_lint_slang_all.log").write_text("slang pass\n", encoding="utf-8")
@@ -1506,8 +1507,8 @@ def test_ip_load_requires_exact_frozen_interface_layout(tmp_path: Path) -> None:
 
     assert (destination / "csr" / "demo.hjson").is_file()
     assert (destination / "csr" / "systemrdl" / "demo.rdl").is_file()
-    assert (destination / "analysis" / "lint" / "slang" / "demo_lint_slang_all.log").is_file()
-    assert (destination / "analysis" / "lint" / "verilator" / "demo_lint_verilator_all.log").is_file()
+    assert (destination / "dv" / "lint" / "slang" / "demo_lint_slang_all.log").is_file()
+    assert (destination / "dv" / "lint" / "verilator" / "demo_lint_verilator_all.log").is_file()
 
     (source / "csr" / "demo.hjson").write_text('{name: "demo", changed: true}\n', encoding="utf-8")
     with pytest.raises(ValueError, match="source-of-truth artifact is stale"):
@@ -1523,6 +1524,99 @@ def test_ip_load_requires_exact_frozen_interface_layout(tmp_path: Path) -> None:
             ip_name="legacy", reg_interface="tlul", run_top="legacy", run_id="dev", workspace=workspace,
         )
 
+
+
+def test_ip_load_supports_explicit_versioned_release(tmp_path: Path) -> None:
+    from flexsoc.backend.core.package import PackageFlow
+    from flexsoc.backend.core.qualification import write_contract_snapshot
+
+    project = tmp_path / "project"
+    release = project / "hw" / "ips" / "demo" / "1.2.3"
+    source = release / "interfaces" / "tlul"
+    (source / "csr").mkdir(parents=True)
+    (source / "csr" / "demo.hjson").write_text('{name: "demo"}\n', encoding="utf-8")
+    spec_root = _write_minimal_ip_spec(release, "demo")
+    import yaml
+    for name in ("requirements.yaml", "testplan.yaml"):
+        path = spec_root / name
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        document["version"] = "1.2.3"
+        path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    write_contract_snapshot(
+        staged=source, spec_root=spec_root, ip_name="demo", reg_interface="tlul",
+        version="1.2.3",
+    )
+    (source / "ip.json").write_text(
+        json.dumps({
+            "schema": 2, "format": "flexsoc-ip", "name": "demo", "version": "1.2.3",
+            "top": "demo", "reg_interface": "tlul",
+            "content": {"contract": "meta/contract.json"},
+            "qualification": {
+                "summary": {"maximum_level": 1, "maximum_qualification": "Contract Valid"},
+                "technologies": {},
+            },
+        }) + "\n",
+        encoding="utf-8",
+    )
+
+    destination = PackageFlow(project, {}).load(
+        ip_name="demo", version="1.2.3", reg_interface="tlul",
+        run_top="demo", run_id="dev", workspace=tmp_path / "work",
+    )
+    assert (destination / "csr" / "demo.hjson").is_file()
+    assert (destination / "spec" / "requirements.yaml").is_file()
+
+    with pytest.raises(FileNotFoundError, match="missing source IP interface release"):
+        PackageFlow(project, {}).load(
+            ip_name="demo", version="9.9.9", reg_interface="tlul",
+            run_top="demo", run_id="wrong", workspace=tmp_path / "work",
+        )
+
+def test_release_validator_accepts_atomic_versioned_staging_path(tmp_path: Path) -> None:
+    """Version checks follow the interfaces ancestor, not a temporary staging parent."""
+    from flexsoc.backend.core.qualification import validate_release_package, write_contract_snapshot
+
+    release = tmp_path / "hw" / "ips" / "demo" / "1.2.3"
+    spec_root = _write_minimal_ip_spec(release, "demo")
+
+    import yaml
+    for name in ("requirements.yaml", "testplan.yaml"):
+        path = spec_root / name
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        document["version"] = "1.2.3"
+        path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+
+    staged = release / "interfaces" / ".ip-save.demo.tlul.test" / "tlul"
+    staged.mkdir(parents=True)
+    write_contract_snapshot(
+        staged=staged,
+        spec_root=spec_root,
+        ip_name="demo",
+        reg_interface="tlul",
+        version="1.2.3",
+    )
+    (staged / "ip.json").write_text(
+        json.dumps({
+            "schema": 2,
+            "format": "flexsoc-ip",
+            "name": "demo",
+            "version": "1.2.3",
+            "top": "demo",
+            "reg_interface": "tlul",
+            "content": {"contract": "meta/contract.json"},
+            "qualification": {
+                "summary": {
+                    "maximum_level": 1,
+                    "maximum_qualification": "Contract Valid",
+                },
+                "technologies": {},
+            },
+        }) + "\n",
+        encoding="utf-8",
+    )
+
+    result = validate_release_package(staged, spec_root=spec_root)
+    assert result["version"] == "1.2.3"
 
 
 def test_release_validator_recomputes_multitech_summary_and_common_spec(tmp_path: Path) -> None:
@@ -1661,13 +1755,13 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     csr = run / "csr"
     csr.mkdir()
     (csr / f"{top}.hjson").write_text('{name: "demo"}\n', encoding="utf-8")
-    lint = run / "analysis" / "lint" / "slang"
+    lint = run / "dv" / "lint" / "slang"
     lint.mkdir(parents=True)
     (lint / f"{top}_lint_slang_all.log").write_text("lint pass\n", encoding="utf-8")
-    raw = run / "logs" / "analysis" / "lint" / "slang" / "raw"
+    raw = run / "logs" / "dv" / "lint" / "slang" / "raw"
     raw.mkdir(parents=True)
     (raw / f"{top}_lint_slang_all_raw.log").write_text("raw command\n", encoding="utf-8")
-    cdc = run / "analysis" / "cdc_rdc"
+    cdc = run / "dv" / "cdc_rdc"
     cdc.mkdir(parents=True)
     (cdc / "summary.json").write_text(json.dumps({"top": top, "status": "pass"}) + "\n", encoding="utf-8")
     (cdc / "cdc_rdc.rpt").write_text("cdc pass\n", encoding="utf-8")
@@ -1683,6 +1777,9 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     stale_logs = library / top / "interfaces" / "tlul" / "logs" / "lint"
     stale_logs.mkdir(parents=True)
     (stale_logs / "stale.log").write_text("old package log\n", encoding="utf-8")
+    stale_analysis = library / top / "interfaces" / "tlul" / "analysis" / "lint"
+    stale_analysis.mkdir(parents=True)
+    (stale_analysis / "stale.log").write_text("old analysis layout\n", encoding="utf-8")
     sibling = library / top / "interfaces" / "axi_lite"
     sibling.mkdir(parents=True)
     (sibling / "sentinel.txt").write_text("keep sibling profile\n", encoding="utf-8")
@@ -1731,11 +1828,12 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     assert package_index["qualification"]["technologies"][pdk]["settings"] == f"meta/{pdk}/settings.json"
     assert (saved / "constraints" / f"{top}.sdc").is_file()
     assert not (saved / "signoff" / pdk / "post_syn" / f"{top}.sdc").exists()
-    assert (saved / "analysis" / "lint" / "slang" / f"{top}_lint_slang_all.log").is_file()
-    assert not (saved / "analysis" / "lint" / "slang" / "raw").exists()
+    assert (saved / "dv" / "lint" / "slang" / f"{top}_lint_slang_all.log").is_file()
+    assert not (saved / "dv" / "lint" / "slang" / "raw").exists()
     assert not (saved / "logs").exists()
-    assert (saved / "analysis" / "cdc_rdc" / "summary.json").is_file()
-    assert (saved / "analysis" / "cdc_rdc" / "cdc_rdc.rpt").is_file()
+    assert not (saved / "analysis").exists()
+    assert (saved / "dv" / "cdc_rdc" / "summary.json").is_file()
+    assert (saved / "dv" / "cdc_rdc" / "cdc_rdc.rpt").is_file()
     assert not (saved / "syn" / pdk / f"{top}_generic.il").exists()
     saved_signoff = saved / "signoff" / pdk / "post_syn"
     saved_tcl = {
@@ -3368,7 +3466,8 @@ def test_systemverilog_setup_returns_canonical_generated_paths(tmp_path: Path) -
 
 def test_reg_iface_sv_driver_is_procedural_and_gls_portable(tmp_path: Path) -> None:
     from flexsoc.backend.dv.testbench import (
-        render_reg_interface, render_sv_reg_sequence, render_verilator_include,
+        render_axi_lite_utils, render_reg_driver_py, render_reg_interface,
+        render_sv_reg_sequence, render_verilator_include,
     )
 
     interface = render_reg_interface("demo")
@@ -3386,13 +3485,111 @@ def test_reg_iface_sv_driver_is_procedural_and_gls_portable(tmp_path: Path) -> N
     assert "task automatic read(" in interface
     assert "@(posedge clk_i);\n    @(negedge clk_i);" in interface
     assert "idle-high ready is not a response" in interface
+
+    # reg_iface response data/error are combinational with the accepted
+    # request. Capture them before deasserting req_q; read-side effects such
+    # as FIFO pop may change rdata on the following edge.
+    write_body = interface.split("task automatic write(", 1)[1].split("endtask", 1)[0]
+    read_body = interface.split("task automatic read(", 1)[1].split("endtask", 1)[0]
+    assert write_body.index("response_error = rsp.error;") < write_body.index("req_q.valid = 1'b0;")
+    assert read_body.index("data = rsp.rdata;") < read_body.index("req_q.valid = 1'b0;")
+    assert read_body.index("response_error = rsp.error;") < read_body.index("req_q.valid = 1'b0;")
+    assert "if (response_error) begin" in write_body
+    assert "if (response_error) begin" in read_body
+
     assert "virtual reg_if" not in interface
     assert "class reg_utils" not in interface
     assert "regif.write(" in sequence
     assert "regif.read(" in sequence
+    write_addr_body = sequence.split("task automatic tb_reg_write_addr(", 1)[1].split("endtask", 1)[0]
+    read_addr_body = sequence.split("task automatic tb_reg_read_addr(", 1)[1].split("endtask", 1)[0]
+    assert "@(posedge clk_i);" not in write_addr_body
+    assert "@(posedge clk_i);" not in read_addr_body
+
+    # The vector layer is protocol-neutral.  Each bus driver owns the full
+    # transaction and returns quiescent, so none of the wrapper tasks may add
+    # an interface-dependent clock edge after read/write.
+    for bus in ("tlul", "reg_iface", "axi_lite"):
+        bus_sequence = render_sv_reg_sequence(
+            "demo", bus, "clk_i", active=True, registers=()
+        )
+        bus_write = bus_sequence.split("task automatic tb_reg_write_addr(", 1)[1].split("endtask", 1)[0]
+        bus_read = bus_sequence.split("task automatic tb_reg_read_addr(", 1)[1].split("endtask", 1)[0]
+        assert "@(posedge clk_i);" not in bus_write
+        assert "@(posedge clk_i);" not in bus_read
+
+    # AXI-Lite channels are independent.  A ready-high slave must see each
+    # logical AW/W/AR request exactly once, so VALID is removed in the same
+    # sampled cycle as its own handshake rather than after another edge.
+    axi = render_axi_lite_utils("demo")
+    axi_write = axi.split("task automatic axi_lite_write(", 1)[1].split("endtask", 1)[0]
+    axi_read = axi.split("task automatic axi_lite_read(", 1)[1].split("endtask", 1)[0]
+    assert "while (!(aw_done && w_done)) begin" in axi_write
+    assert "if (!aw_done && axi_lite_o.aw_ready) begin" in axi_write
+    assert "axi_lite_i.aw_valid = 1'b0;" in axi_write
+    assert "if (!w_done && axi_lite_o.w_ready) begin" in axi_write
+    assert "axi_lite_i.w_valid = 1'b0;" in axi_write
+    assert "axi_lite_o.aw_ready && axi_lite_o.w_ready" not in axi_write
+    assert axi_write.index("axi_lite_i.aw_valid = 1'b0;") < axi_write.index("axi_lite_o.b_valid")
+    assert axi_write.index("axi_lite_i.w_valid = 1'b0;") < axi_write.index("axi_lite_o.b_valid")
+    assert "axi_lite_i.b_ready = 1'b1;\n  axi_lite_sample_cycle();\n  axi_lite_i.b_ready = 1'b0;" in axi_write
+
+    assert "end while (!axi_lite_o.ar_ready);\n\n  // ARVALID" in axi_read
+    assert "axi_lite_i.ar_valid = 1'b0;" in axi_read
+    assert axi_read.index("axi_lite_i.ar_valid = 1'b0;") < axi_read.index("axi_lite_o.r_valid")
+    assert "axi_lite_i.r_ready = 1'b1;\n  axi_lite_sample_cycle();\n  axi_lite_i.r_ready = 1'b0;" in axi_read
+
+    cocotb_driver = render_reg_driver_py()
+    assert "aw_done = False" in cocotb_driver
+    assert "w_done = False" in cocotb_driver
+    assert "while not (aw_done and w_done):" in cocotb_driver
+    assert 'aw_accept = (' in cocotb_driver
+    assert 'w_accept = (' in cocotb_driver
+    assert 'and bool(_known_int(dut, "axi_aw_ready_o"' in cocotb_driver
+    assert 'and bool(_known_int(dut, "axi_w_ready_o"' in cocotb_driver
+    # READY is sampled before the acceptance edge.  The driver must cross to
+    # the following drive phase before it drops VALID, otherwise cocotb can
+    # remove the request before the DUT ever samples it.
+    aw_sample = cocotb_driver.index('aw_accept = (')
+    aw_drop = cocotb_driver.index('_get(dut, "axi_aw_valid_i").value = 0', aw_sample)
+    assert cocotb_driver.index('await _drive_cycle(clk)', aw_sample) < aw_drop
+    w_sample = cocotb_driver.index('w_accept = (')
+    w_drop = cocotb_driver.index('_get(dut, "axi_w_valid_i").value = 0', w_sample)
+    assert cocotb_driver.index('await _drive_cycle(clk)', w_sample) < w_drop
+
+    ar_sample = cocotb_driver.index('ar_accept = bool(')
+    ar_drop = cocotb_driver.index('_get(dut, "axi_ar_valid_i").value = 0', ar_sample)
+    assert cocotb_driver.index('await _drive_cycle(clk)', ar_sample) < ar_drop
+    assert "axi_aw_ready_o\", \"waiting AXI write AWREADY\") and" not in cocotb_driver
+
     assert "reg_utils_inst" not in sequence
     assert '`include "reg_if.sv"' in include
     assert "reg_utils.sv" not in include
+
+
+def test_serial_rx_idle_high_policy_is_shared_by_sv_and_cocotb() -> None:
+    from flexsoc.backend.dv.testbench import (
+        _sv_input_default, render_extra_input_initializers, render_vec_driver_py,
+    )
+
+    for name in ("rx_i", "cio_rx_i", "uart_rx_i", "serial_rx_i"):
+        assert _sv_input_default(name) == "'1"
+
+    info = {
+        "clk": ["clk_i"],
+        "rst": ["rst_ni"],
+        "inputs": [
+            {"name": "rx_i", "width": 1},
+            {"name": "data_i", "width": 8},
+        ],
+        "outputs": [],
+    }
+    initializers = render_extra_input_initializers(info)
+    assert "rx_i = '1;" in initializers
+    assert "data_i = '0;" in initializers
+
+    cocotb_driver = render_vec_driver_py()
+    assert 'for name in ("rx_i", "cio_rx_i", "uart_rx_i", "serial_rx_i"):' in cocotb_driver
 
 
 def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> None:
@@ -4921,30 +5118,36 @@ def test_checked_in_ip_technology_roots_are_pdk_first() -> None:
     root = Path(__file__).resolve().parents[1] / "hw/ips"
     technology_packages = set()
     for package in sorted(path for path in root.iterdir() if path.is_dir()):
-        interfaces = package / "interfaces"
-        candidates = (
-            sorted(path for path in interfaces.iterdir() if path.is_dir())
-            if interfaces.is_dir()
-            else [package]
+        release_roots = [package]
+        release_roots.extend(
+            path for path in sorted(package.iterdir())
+            if path.is_dir() and (path / "interfaces").is_dir()
         )
-        for candidate in candidates:
-            if not any((candidate / stage).is_dir() for stage in ("syn", "impl", "signoff")):
-                continue
-            technology_packages.add(package.name)
-            for stage in ("syn", "impl", "signoff"):
-                directory = candidate / stage
-                if directory.is_dir():
-                    assert not any(path.is_file() for path in directory.iterdir()), (
-                        package.name, candidate.name, stage,
-                    )
-            signoff = candidate / "signoff"
-            if interfaces.is_dir() and signoff.is_dir():
-                for pdk_dir in (path for path in signoff.iterdir() if path.is_dir()):
-                    assert not (pdk_dir / "equivalence").exists(), (package.name, candidate.name)
-                    assert all(
-                        child.is_dir() and child.name in {"post_syn", "post_pnr"}
-                        for child in pdk_dir.iterdir()
-                    ), (package.name, candidate.name, pdk_dir.name)
+        for release in release_roots:
+            interfaces = release / "interfaces"
+            candidates = (
+                sorted(path for path in interfaces.iterdir() if path.is_dir())
+                if interfaces.is_dir()
+                else [release]
+            )
+            for candidate in candidates:
+                if not any((candidate / stage).is_dir() for stage in ("syn", "impl", "signoff")):
+                    continue
+                technology_packages.add(package.name)
+                for stage in ("syn", "impl", "signoff"):
+                    directory = candidate / stage
+                    if directory.is_dir():
+                        assert not any(path.is_file() for path in directory.iterdir()), (
+                            package.name, candidate.name, stage,
+                        )
+                signoff = candidate / "signoff"
+                if interfaces.is_dir() and signoff.is_dir():
+                    for pdk_dir in (path for path in signoff.iterdir() if path.is_dir()):
+                        assert not (pdk_dir / "equivalence").exists(), (package.name, candidate.name)
+                        assert all(
+                            child.is_dir() and child.name in {"post_syn", "post_pnr"}
+                            for child in pdk_dir.iterdir()
+                        ), (package.name, candidate.name, pdk_dir.name)
 
     assert {"cordic", "uart", "cache_wrapper", "fft_core", "gpio", "pwm"}.issubset(
         technology_packages
@@ -7178,7 +7381,7 @@ def test_router_run_requires_existing_setup_and_setup_force_regenerates(tmp_path
 
     router.execute("cdc_rdc.setup")
     assert router._provenance_state("cdc_rdc.setup") == "CLEAN"
-    script = router.paths.run / "analysis" / "cdc_rdc" / "extract.ys"
+    script = router.paths.run / "dv" / "cdc_rdc" / "extract.ys"
     canonical = script.read_text(encoding="utf-8")
     assert "read_slang " in canonical
     assert "--keep-hierarchy" in canonical.splitlines()[0]
@@ -7290,7 +7493,7 @@ def test_cdc_debug_diagnoses_contract_loss_compactly(tmp_path: Path) -> None:
     from flexsoc.backend.dv.cdc import collect_cdc_debug
 
     run = tmp_path / "runs/demo/dev"
-    analysis = run / "analysis/cdc_rdc"
+    analysis = run / "dv/cdc_rdc"
     rtl = run / "rtl"
     analysis.mkdir(parents=True)
     rtl.mkdir(parents=True)
@@ -7358,7 +7561,7 @@ def test_cli_cdc_rdc_debug_reads_existing_artifacts_without_rerun(
     project.mkdir()
     workspace = tmp_path / "workspace"
     run = workspace / "runs/demo/dev"
-    analysis = run / "analysis/cdc_rdc"
+    analysis = run / "dv/cdc_rdc"
     rtl = run / "rtl"
     analysis.mkdir(parents=True)
     rtl.mkdir(parents=True)
@@ -7405,7 +7608,7 @@ def test_cdc_debug_distinguishes_ineffective_guard_and_atomic_obligations(tmp_pa
     from flexsoc.backend.dv.cdc import collect_cdc_debug
 
     run = tmp_path / "runs/demo/dev"
-    analysis = run / "analysis/cdc_rdc"
+    analysis = run / "dv/cdc_rdc"
     rtl = run / "rtl"
     analysis.mkdir(parents=True)
     rtl.mkdir(parents=True)
@@ -7448,7 +7651,7 @@ def test_cdc_debug_triages_synchronized_reconvergence_without_waiving_it(tmp_pat
     from flexsoc.backend.dv.cdc import collect_cdc_debug
 
     run = tmp_path / "runs/demo/dev"
-    analysis = run / "analysis/cdc_rdc"
+    analysis = run / "dv/cdc_rdc"
     rtl = run / "rtl"
     analysis.mkdir(parents=True)
     rtl.mkdir(parents=True)
@@ -7828,7 +8031,7 @@ def test_metrics_snapshots_provenance_and_check_does_not_refresh(tmp_path: Path)
     assert metrics["technical_status"] == "REVIEW"
     assert metrics["provenance"]["status"] == "CLEAN"
 
-    script = router.paths.run / "analysis" / "cdc_rdc" / "extract.ys"
+    script = router.paths.run / "dv" / "cdc_rdc" / "extract.ys"
     script.write_text(script.read_text(encoding="utf-8") + "# override\n", encoding="utf-8")
     router._report("check")
     assert router.paths.metrics.read_bytes() == snapshot
@@ -7952,11 +8155,64 @@ def test_systemverilog_functional_seed_drives_clock_jitter(tmp_path: Path) -> No
     assert "+verilator+seed+17" in runner.request.argv
 
 
+def test_release_vector_catalogues_cover_authored_directed_scenarios(tmp_path: Path) -> None:
+    import importlib.util
+    import sys
+
+    root = Path(__file__).resolve().parents[1]
+
+    def load(module_name: str, path: Path):
+        sys.path.insert(0, str(path.parent))
+        try:
+            spec = importlib.util.spec_from_file_location(module_name, path)
+            assert spec and spec.loader
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+        finally:
+            sys.path.pop(0)
+
+    uart_dir = root / "hw/ips/uart/1.0.0/interfaces/tlul/dv/functional/model"
+    uart = load("release_uart_tests", uart_dir / "uart_tests.py")
+    assert {"fifo_reset", "noise_filter", "parity_error"}.issubset(set(uart.TESTS))
+    for name in ("fifo_reset", "noise_filter", "parity_error"):
+        uart.write_test(tmp_path / "uart", name)
+        assert (tmp_path / "uart" / name / "config.regs").is_file()
+        assert (tmp_path / "uart" / name / "data_in.vec").is_file()
+        assert (tmp_path / "uart" / name / "data_out.vec").is_file()
+
+    # Initial UART mode belongs in config.regs, not a cycle-indexed bus write.
+    # This keeps the serial stimulus timing independent of TL-UL/reg_iface/
+    # AXI-Lite transaction latency. Runtime @write remains for real reconfig.
+    for name in ("corners", "random_seed_1", "fifo_reset", "noise_filter", "parity_error"):
+        uart.write_test(tmp_path / "uart_static", name)
+        folder = tmp_path / "uart_static" / name
+        config_text = (folder / "config.regs").read_text(encoding="utf-8")
+        input_text = (folder / "data_in.vec").read_text(encoding="utf-8")
+        assert uart.CSR.CTRL.write(**uart.ctrl_fields(name)) in config_text
+        assert "@write clk_i.CTRL" not in input_text
+
+    parity = uart.ctrl_fields("parity_error")
+    assert parity["PARITY_EN"] == 1
+    assert parity["PARITY_ODD"] == 1
+    assert parity.get("LLPBK", 0) == 0
+
+    uart.write_test(tmp_path / "uart_runtime", "reconfig")
+    assert "@write clk_i.CTRL" in (
+        tmp_path / "uart_runtime" / "reconfig" / "data_in.vec"
+    ).read_text(encoding="utf-8")
+
+    timer_dir = root / "hw/ips/rv_timer/1.0.0/interfaces/tlul/dv/functional/model"
+    timer = load("release_rv_timer_tests", timer_dir / "rv_timer_tests.py")
+    assert "interrupt_test" in timer.TESTS
+    timer.write_test(tmp_path / "timer", "interrupt_test")
+    assert "INTR_TEST0" in (tmp_path / "timer" / "interrupt_test" / "data_in.vec").read_text()
+
 def test_uart_authored_formal_bind_tracks_real_core_io() -> None:
     root = Path(__file__).resolve().parents[1]
     prove = (
         root
-        / "hw/ips/uart/interfaces/tlul/dv/formal/properties/prove/uart_prove.sv"
+        / "hw/ips/uart/1.0.0/interfaces/tlul/dv/formal/properties/prove/uart_prove.sv"
     ).read_text(encoding="utf-8")
 
     assert "input logic rx_i, tx_o" in prove
@@ -7970,7 +8226,7 @@ def test_uart_master_host_bridge_splits_reset_by_functional_island() -> None:
     root = Path(__file__).resolve().parents[1]
     bridge = (
         root
-        / "hw/ips/uart_master/interfaces/tlul/rtl/uart_host_bridge.sv"
+        / "hw/ips/uart_master/1.0.0/interfaces/tlul/rtl/uart_host_bridge.sv"
     ).read_text(encoding="utf-8")
 
     for branch in ("parser_rst_ni", "bus_rst_ni", "response_rst_ni"):
@@ -7987,7 +8243,7 @@ def test_gpio_authored_formal_bind_tracks_state_reset_branch() -> None:
     root = Path(__file__).resolve().parents[1]
     prove = (
         root
-        / "hw/ips/gpio/interfaces/tlul/dv/formal/properties/prove/gpio_prove.sv"
+        / "hw/ips/gpio/1.0.0/interfaces/tlul/dv/formal/properties/prove/gpio_prove.sv"
     ).read_text(encoding="utf-8")
 
     assert ".rst_ni        (state_rst_ni)," in prove
@@ -7998,7 +8254,7 @@ def test_rv_timer_authored_formal_bind_tracks_timer_reset_branch() -> None:
     root = Path(__file__).resolve().parents[1]
     prove = (
         root
-        / "hw/ips/rv_timer/interfaces/tlul/dv/formal/properties/prove/rv_timer_prove.sv"
+        / "hw/ips/rv_timer/1.0.0/interfaces/tlul/dv/formal/properties/prove/rv_timer_prove.sv"
     ).read_text(encoding="utf-8")
 
     assert ".rst_ni(timer_rst_ni)," in prove
@@ -8069,3 +8325,159 @@ def test_openroad_post_synth_repair_report_and_script_contract(tmp_path):
     assert data["wns_after"] == 0.0
     assert data["tns_before"] == -559.61
     assert data["tns_after"] == 0.0
+
+
+def test_cli_requirements_testplan_and_meta_views(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    work = tmp_path / "work"
+    run = work / "runs" / "demo" / "dev"
+    _write_minimal_ip_spec(run, "demo")
+    meta = run / "meta"
+    (meta / "sky130").mkdir(parents=True)
+    (meta / "design_intent.json").write_text(
+        json.dumps({
+            "schema": 2,
+            "top": "demo",
+            "run_id": "dev",
+            "ip_intent_sha256": "abc123",
+            "design_intent": {
+                "TOP": "demo", "REG_ITF": "tlul", "N_CLOCKS": "1",
+                "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+            },
+            "sources": [{"path": "rtl/demo.sv", "sha256": "deadbeef"}],
+        }), encoding="utf-8"
+    )
+    (meta / "sky130" / "qualification.json").write_text(
+        json.dumps({
+            "pdk": "sky130",
+            "maximum_level": 2,
+            "maximum_qualification": "RTL Qualified",
+            "maximum_pass_level": 2,
+            "maximum_pass_qualification": "RTL Qualified",
+            "qualification_status": "PASS",
+            "requirements": {"covered": 1, "total": 1, "status": "PASS"},
+            "levels": {
+                "1": {"name": "Contract Valid", "status": "PASS", "blocking_evidence": []},
+                "2": {"name": "RTL Qualified", "status": "PASS", "blocking_evidence": []},
+                "3": {"name": "Synthesis Qualified", "status": "BLOCKED", "blocking_evidence": ["eqy"]},
+            },
+            "evidence": {"lint_slang_suite": "PASS", "eqy": "MISSING"},
+        }), encoding="utf-8"
+    )
+    (meta / "sky130" / "provenance.json").write_text(
+        json.dumps({
+            "schema_version": 1,
+            "stages": {
+                "lint_slang_suite": {
+                    "fingerprint": "1234567890abcdef1234",
+                    "inputs": [{"path": "rtl/demo.sv", "sha256": "aa"}],
+                    "generated": [{"path": "dv/lint/slang/demo_lint_slang_all.log", "generated_sha256": "bb"}],
+                    "parents": {},
+                    "input_paths_match": True,
+                }
+            },
+        }), encoding="utf-8"
+    )
+    (meta / "sky130" / "manifest.json").write_text(
+        json.dumps({"top": "demo", "pdk": "sky130", "status": "PASS"}), encoding="utf-8"
+    )
+    common = [
+        "--project-root", str(tmp_path),
+        "--workdir", str(work),
+        "--set", "TOP=demo",
+        "--set", "RUN_TOP=demo",
+        "--set", "RUN_ID=dev",
+        "--set", "PDK=sky130",
+    ]
+
+    assert app(["requirements", *common]) == 0
+    full = capsys.readouterr().out
+    assert "DEMO-FUNC-001" in full
+    assert "Scope" in full and "Origin" in full
+
+    assert app(["requirements", "--less", *common]) == 0
+    compact = capsys.readouterr().out
+    assert "DEMO-FUNC-001" in compact
+    assert "Scope" not in compact and "Origin" not in compact
+
+    assert app(["testplan", *common]) == 0
+    plan = capsys.readouterr().out
+    assert "DEMO-TP-001" in plan
+    assert "Methods" in plan and "Properties" in plan
+
+    assert app(["testplan", "--less", *common]) == 0
+    plan_compact = capsys.readouterr().out
+    assert "DEMO-TP-001" in plan_compact
+    assert "Methods" not in plan_compact and "Properties" not in plan_compact
+
+    assert app(["meta", *common]) == 0
+    meta_full = capsys.readouterr().out
+    assert "Design intent" in meta_full
+    assert "Qualification · sky130" in meta_full
+    assert "Provenance · sky130" in meta_full
+    assert "lint_slang_suite" in meta_full
+    assert "design_intent.json" in meta_full
+    assert "sky130/manifest.json" in meta_full
+    assert "fx show design_intent" in meta_full
+
+    assert app(["meta", "--less", *common]) == 0
+    meta_less = capsys.readouterr().out
+    assert "sky130/manifest.json" in meta_less
+    assert "Summary" not in meta_less
+
+
+def test_tests_gen_check_detects_generated_vector_drift(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    work = tmp_path / "work"
+    run = work / "runs" / "demo" / "dev"
+    model = run / "dv" / "functional" / "model"
+    model.mkdir(parents=True)
+
+    generator = '''\
+from __future__ import annotations
+import argparse
+from pathlib import Path
+
+NAME = {name!r}
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--tests-dir", required=True)
+    parser.add_argument("--test", action="append", default=[])
+    args = parser.parse_args()
+    selected = args.test or [NAME]
+    for test in selected:
+        if test != NAME:
+            continue
+        root = Path(args.tests_dir) / NAME
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "config.regs").write_text("# config\\n", encoding="utf-8")
+        (root / "data_in.vec").write_text("0 in_i 0x1\\n", encoding="utf-8")
+        (root / "data_out.vec").write_text("1 out_o 0x1\\n", encoding="utf-8")
+    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+'''
+    (model / "demo_tests.py").write_text(generator.format(name="smoke"), encoding="utf-8")
+    (model / "demo_regmap_tests.py").write_text(generator.format(name="auto_toggle"), encoding="utf-8")
+
+    common = [
+        "--project-root", str(tmp_path),
+        "--workdir", str(work),
+        "--set", "TOP=demo",
+        "--set", "RUN_TOP=demo",
+        "--set", "RUN_ID=dev",
+    ]
+    assert app(["tests_gen", *common]) == 0
+    capsys.readouterr()
+
+    assert app(["tests_gen", "--check", *common]) == 0
+    assert "PASS" in capsys.readouterr().out
+
+    generated = run / "dv" / "functional" / "tests" / "smoke" / "data_in.vec"
+    generated.write_text("0 in_i 0x0\n", encoding="utf-8")
+    assert app(["tests_gen", "--check", *common]) == 1
+    output = capsys.readouterr()
+    assert "MODIFIED" in output.out
+    assert "generated tests do not match" in output.err

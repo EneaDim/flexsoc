@@ -8,6 +8,7 @@ import re
 import shlex
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -293,10 +294,12 @@ class FunctionalFlow:
     runner: object | None = None
 
     @staticmethod
-    def _run_generator(base_dir: Path, top: str, suffix: str, *args: str) -> None:
+    def _run_generator(
+        base_dir: Path, top: str, suffix: str, *args: str, model_dir: Path | None = None,
+    ) -> None:
         """Run one model-owned vector generator without modifying its source."""
 
-        model_dir = Path(base_dir).parent / "model"
+        model_dir = Path(model_dir) if model_dir is not None else Path(base_dir).parent / "model"
         script = model_dir / f"{top}_{suffix}.py"
         if not script.is_file():
             raise FileNotFoundError(f"missing vector generator: {script}")
@@ -339,6 +342,43 @@ class FunctionalFlow:
         self._run_generator(base_dir, top, suffix, "--test", name)
         root = Path(base_dir) / name
         return sorted(path for path in root.iterdir() if path.is_file())
+
+    def check_tests(self, base_dir: Path, top: str) -> dict[str, object]:
+        """Regenerate vectors in staging and compare them with the checked run catalogue."""
+
+        root = Path(base_dir)
+        model_dir = root.parent / "model"
+        with tempfile.TemporaryDirectory(prefix=f"flexsoc-{top}-tests-check-") as temporary:
+            staged = Path(temporary) / "tests"
+            self._run_generator(staged, top, "tests", model_dir=model_dir)
+            self._run_generator(staged, top, "regmap_tests", model_dir=model_dir)
+
+            expected = {
+                path.relative_to(staged).as_posix(): path.read_bytes()
+                for path in staged.rglob("*")
+                if path.is_file()
+            }
+            actual = {
+                path.relative_to(root).as_posix(): path.read_bytes()
+                for path in root.rglob("*")
+                if path.is_file()
+            } if root.is_dir() else {}
+
+        expected_names = set(expected)
+        actual_names = set(actual)
+        missing = sorted(expected_names - actual_names)
+        extra = sorted(actual_names - expected_names)
+        modified = sorted(
+            name for name in expected_names & actual_names
+            if expected[name] != actual[name]
+        )
+        return {
+            "ok": not (missing or extra or modified),
+            "missing": missing,
+            "extra": extra,
+            "modified": modified,
+            "files": len(expected),
+        }
 
     def tests(self, base_dir: Path) -> tuple[str, ...]:
         """Return generated tests in deterministic order."""

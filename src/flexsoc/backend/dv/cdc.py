@@ -2514,7 +2514,7 @@ class CdcFlow:
         """Read CDC/RDC debug state from one BackendContext without rerunning analysis."""
 
         paths = context.paths
-        analysis = paths.run / "analysis" / "cdc_rdc"
+        analysis = paths.cdc_rdc
         return self.debug(
             summary_path=analysis / "summary.json",
             design_json=analysis / "design.json",
@@ -2528,13 +2528,13 @@ class CdcFlow:
         """Run CDC/RDC from an already prepared extraction script."""
 
         paths, values = context.paths, context.values
-        analysis = paths.run / "analysis" / "cdc_rdc"
+        analysis = paths.cdc_rdc
         from flexsoc.backend.signoff.sdc import read_clock_config
         clocks = read_clock_config(paths.sdc, context.clocks)
         clock_values = clocks.to_settings()
         return self.run(
             top=paths.top, script=analysis / "extract.ys", design_json=analysis / "design.json",
-            analysis_dir=analysis, log_dir=paths.logs / "analysis" / "cdc_rdc",
+            analysis_dir=analysis, log_dir=paths.logs / "dv" / "cdc_rdc",
             yosys=values.get("YOSYS", "yosys"), n_clocks=clocks.n_clocks,
             clock_domains=clock_values["CLOCK_DOMAINS"],
             clock_relationships=clock_values["CLOCK_RELATIONSHIPS"],
@@ -2548,7 +2548,7 @@ class CdcFlow:
         """Prepare and run CDC/RDC from one BackendContext."""
 
         paths = context.paths
-        analysis = paths.run / "analysis" / "cdc_rdc"
+        analysis = paths.cdc_rdc
         self.setup(
             top=paths.top, script=analysis / "extract.ys", design_json=analysis / "design.json",
             repo_root=context.project_root, filelists=(paths.rtl_common, paths.rtl_ip),

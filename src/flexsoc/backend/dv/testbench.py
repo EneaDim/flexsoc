@@ -23,6 +23,48 @@ from flexsoc.backend.core import (
 )
 from flexsoc.backend.design.regs import normalize_register_interface
 
+@dataclass(frozen=True)
+class _SVRegisterBusAccess:
+    """Protocol-specific calls implementing the common CSR access contract."""
+
+    write_call: str
+    read_call: str
+
+
+def _sv_register_bus_access(top: str, interface: str) -> _SVRegisterBusAccess:
+    """Return SV driver calls for one normalized register interface.
+
+    Contract: one helper call performs exactly one CSR transaction, captures
+    its response before any read side effect can change it, and returns with
+    the bus handshake controls quiescent.  Vector scheduling is intentionally
+    interface-neutral and must not add protocol timing around these calls.
+    """
+
+    interface = normalize_register_interface(interface)
+    if interface == "tlul":
+        return _SVRegisterBusAccess(
+            write_call="tl_if.tlul_write(addr[31:0], data, 8'h00, mask[3:0]);",
+            read_call="tl_if.tlul_read(addr[31:0], data, 8'h00);",
+        )
+    if interface == "axi_lite":
+        return _SVRegisterBusAccess(
+            write_call=(
+                f"axi_lite_write(addr[{top}_reg_pkg::AW-1:0], data, "
+                f"mask[{top}_reg_pkg::DBW-1:0]);"
+            ),
+            read_call=f"axi_lite_read(addr[{top}_reg_pkg::AW-1:0], data);",
+        )
+    if interface == "reg_iface":
+        return _SVRegisterBusAccess(
+            write_call=(
+                f"regif.write(addr[{top}_reg_pkg::AW-1:0], data, "
+                f"mask[{top}_reg_pkg::DBW-1:0]);"
+            ),
+            read_call=f"regif.read(addr[{top}_reg_pkg::AW-1:0], data);",
+        )
+    raise ValueError(f"unsupported register interface for SV driver: {interface}")
+
+
 
 def _render_sv_reg_sequence_string(
     top: str,
@@ -77,15 +119,16 @@ endtask
 """
 
     interface = normalize_register_interface(interface)
-    if interface == "tlul":
-        write_addr_call = "tl_if.tlul_write(addr[31:0], data, 8'h00, mask[3:0]);"
-        read_addr_call = "tl_if.tlul_read(addr[31:0], data, 8'h00);"
-    elif interface == "axi_lite":
-        write_addr_call = f"axi_lite_write(addr[{top}_reg_pkg::AW-1:0], data, mask[{top}_reg_pkg::DBW-1:0]);"
-        read_addr_call = f"axi_lite_read(addr[{top}_reg_pkg::AW-1:0], data);"
-    else:
-        write_addr_call = f"regif.write(addr[{top}_reg_pkg::AW-1:0], data, mask[{top}_reg_pkg::DBW-1:0]);"
-        read_addr_call = f"regif.read(addr[{top}_reg_pkg::AW-1:0], data);"
+    access = _sv_register_bus_access(top, interface)
+    write_addr_call = access.write_call
+    read_addr_call = access.read_call
+
+    # Register-bus tasks own their complete protocol transaction and must
+    # return with request/response handshake controls quiescent.  The vector
+    # layer therefore never adds a protocol-independent clock edge here: that
+    # would make logical vector timing depend on TL-UL/reg_iface/AXI-Lite
+    # latency and can race registered request drivers.
+    post_access_wait = ""
 
     cases: list[str] = []
     seen: set[str] = set()
@@ -280,7 +323,7 @@ task automatic tb_reg_write_addr(
   input logic [31:0] mask
 );
   {write_addr_call}
-  @(posedge {clk});
+{post_access_wait}
 endtask
 
 task automatic tb_reg_read_addr(
@@ -288,7 +331,7 @@ task automatic tb_reg_read_addr(
   output logic [31:0] data
 );
   {read_addr_call}
-  @(posedge {clk});
+{post_access_wait}
 endtask
 
 task automatic tb_reg_write_key(
@@ -873,10 +916,19 @@ task automatic tb_check_outputs(input string out_path, input int cycle);
 endtask
 """
 
+_SERIAL_IDLE_HIGH_INPUTS = frozenset({"rx_i", "cio_rx_i", "uart_rx_i", "serial_rx_i"})
+
+
+def _serial_idle_high(name: str) -> bool:
+    """Return true for asynchronous serial receive pins that idle high."""
+
+    return name.lower() in _SERIAL_IDLE_HIGH_INPUTS
+
+
 def _sv_input_default(name: str) -> str:
     """Return the reset-time default for a generated top-level input."""
 
-    return "'1" if name.lower() in {"cio_rx_i", "uart_rx_i", "serial_rx_i"} else "'0"
+    return "'1" if _serial_idle_high(name) else "'0"
 
 
 def _render_sv_vec_driver_string(
@@ -1855,6 +1907,8 @@ interface reg_if (
       input logic [{top}_reg_pkg::AW-1:0]  addr,
       input logic [{top}_reg_pkg::DW-1:0]  data,
       input logic [{top}_reg_pkg::DBW-1:0] strb);
+    logic response_error;
+
     $display("[%0t] REG WRITE: Addr = 0x%0h Data = 0x%0h WSTRB = 0x%0h", $time, addr, data, strb);
 
     req_q.valid = 1'b1;
@@ -1868,12 +1922,14 @@ interface reg_if (
     cycle();
     while (!rsp.ready) cycle();
 
-    // Drop the staged request before the acceptance edge.  req remains valid
-    // for this edge and is cleared by the interface register afterwards.
+    // Capture the response while the accepted request is still visible.
+    // Response fields may return to their idle values after the acceptance
+    // edge, so never sample them after deasserting the staged request.
+    response_error = rsp.error;
     req_q.valid = 1'b0;
     cycle();
 
-    if (rsp.error) begin
+    if (response_error) begin
       $display("[%0t] REG WRITE ERROR: Addr = 0x%0h", $time, addr);
     end else begin
       $display("[%0t] REG WRITE DONE: Addr = 0x%0h", $time, addr);
@@ -1884,6 +1940,8 @@ interface reg_if (
   task automatic read(
       input  logic [{top}_reg_pkg::AW-1:0] addr,
       output logic [{top}_reg_pkg::DW-1:0] data);
+    logic response_error;
+
     $display("[%0t] REG READ: Addr = 0x%0h", $time, addr);
 
     req_q.valid = 1'b1;
@@ -1896,11 +1954,15 @@ interface reg_if (
     cycle();
     while (!rsp.ready) cycle();
 
+    // Capture read data before the acceptance edge can trigger read-side
+    // effects such as FIFO pop/clear-on-read.  Sampling one cycle later can
+    // observe the next element or the idle response instead of this read.
+    data = rsp.rdata;
+    response_error = rsp.error;
     req_q.valid = 1'b0;
     cycle();
-    data = rsp.rdata;
 
-    if (rsp.error) begin
+    if (response_error) begin
       $display("[%0t] REG READ ERROR: Addr = 0x%0h", $time, addr);
     end else begin
       $display("[%0t] REG READ DONE: Addr = 0x%0h Data = 0x%0h", $time, addr, data);
@@ -1925,7 +1987,7 @@ endinterface
 """
 
 def render_axi_lite_utils(top: str, period_ns: float = 10.0, io_delay_pct: float = 0.2) -> str:
-    """Render minimal AXI4-Lite read/write tasks for the generated SV testbench."""
+    """Render AXI4-Lite read/write tasks with one handshake per channel."""
 
     drive_ns, sample_ns = _tb_phases(period_ns, io_delay_pct)
     return f"""// Auto-generated AXI4-Lite testbench helper.
@@ -1949,6 +2011,9 @@ task automatic axi_lite_write(
     input logic [{top}_reg_pkg::DW-1:0] data,
     input logic [{top}_reg_pkg::DBW-1:0] strb);
   int guard;
+  bit aw_done;
+  bit w_done;
+
   axi_lite_drive_cycle();
   axi_lite_i.aw.addr = addr;
   axi_lite_i.aw.prot = '0;
@@ -1956,15 +2021,29 @@ task automatic axi_lite_write(
   axi_lite_i.w.data = data;
   axi_lite_i.w.strb = strb;
   axi_lite_i.w_valid = 1'b1;
+
+  // AW and W are independent AXI4-Lite channels.  Each VALID must be
+  // removed immediately after its own handshake so a ready-high slave
+  // cannot accept the same logical transaction twice.
+  aw_done = 1'b0;
+  w_done = 1'b0;
   guard = 0;
-  do begin
+  while (!(aw_done && w_done)) begin
     axi_lite_sample_cycle();
+    if (!aw_done && axi_lite_o.aw_ready) begin
+      aw_done = 1'b1;
+      axi_lite_i.aw_valid = 1'b0;
+    end
+    if (!w_done && axi_lite_o.w_ready) begin
+      w_done = 1'b1;
+      axi_lite_i.w_valid = 1'b0;
+    end
     guard++;
     if (guard > 1000) $fatal(1, "AXI4-Lite write request timeout addr=0x%0h", addr);
-  end while (!(axi_lite_o.aw_ready && axi_lite_o.w_ready));
-  axi_lite_drive_cycle();
-  axi_lite_i.aw_valid = 1'b0;
-  axi_lite_i.w_valid = 1'b0;
+  end
+
+  // Keep BREADY low until the response is observed.  Then acknowledge it
+  // for exactly one edge and return with the channel quiescent.
   guard = 0;
   do begin
     axi_lite_sample_cycle();
@@ -1972,29 +2051,33 @@ task automatic axi_lite_write(
     if (guard > 1000) $fatal(1, "AXI4-Lite write response timeout addr=0x%0h", addr);
   end while (!axi_lite_o.b_valid);
   if (axi_lite_o.b.resp != 2'b00) $fatal(1, "AXI4-Lite write error addr=0x%0h resp=%0h", addr, axi_lite_o.b.resp);
-  axi_lite_drive_cycle();
   axi_lite_i.b_ready = 1'b1;
   axi_lite_sample_cycle();
-  axi_lite_drive_cycle();
   axi_lite_i.b_ready = 1'b0;
+  #1;
 endtask
 
 task automatic axi_lite_read(
     input logic [{top}_reg_pkg::AW-1:0] addr,
     output logic [{top}_reg_pkg::DW-1:0] data);
   int guard;
+
   axi_lite_drive_cycle();
   axi_lite_i.ar.addr = addr;
   axi_lite_i.ar.prot = '0;
   axi_lite_i.ar_valid = 1'b1;
+
   guard = 0;
   do begin
     axi_lite_sample_cycle();
     guard++;
     if (guard > 1000) $fatal(1, "AXI4-Lite read request timeout addr=0x%0h", addr);
   end while (!axi_lite_o.ar_ready);
-  axi_lite_drive_cycle();
+
+  // ARVALID is deasserted in the same sampled cycle as its handshake,
+  // before the next rising edge, preventing duplicate read requests.
   axi_lite_i.ar_valid = 1'b0;
+
   guard = 0;
   do begin
     axi_lite_sample_cycle();
@@ -2003,14 +2086,14 @@ task automatic axi_lite_read(
   end while (!axi_lite_o.r_valid);
   if (axi_lite_o.r.resp != 2'b00) $fatal(1, "AXI4-Lite read error addr=0x%0h resp=%0h", addr, axi_lite_o.r.resp);
   data = axi_lite_o.r.data;
-  axi_lite_drive_cycle();
+
+  // Hold RREADY for one acceptance edge only, then return idle.
   axi_lite_i.r_ready = 1'b1;
   axi_lite_sample_cycle();
-  axi_lite_drive_cycle();
   axi_lite_i.r_ready = 1'b0;
+  #1;
 endtask
 """
-
 
 def render_sv_test_selector(tests: Sequence[str] = TEST_NAMES) -> str:
     """Render plusarg-based test selection by name or explicit files."""
@@ -3481,6 +3564,7 @@ def _sv_axi_lite_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float)
           task automatic {domain}_write(input logic [31:0] addr, input logic [31:0] data);
             bit aw_done;
             bit w_done;
+            int guard;
             {domain}_drive_cycle();
             {domain}_axi_lite_i.aw.addr = addr[{pkg}::AW-1:0];
             {domain}_axi_lite_i.aw.prot = '0;
@@ -3490,40 +3574,60 @@ def _sv_axi_lite_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float)
             {domain}_axi_lite_i.w_valid = 1'b1;
             aw_done = 1'b0;
             w_done = 1'b0;
+            guard = 0;
             while (!(aw_done && w_done)) begin
               {domain}_sample_cycle();
-              aw_done |= {domain}_axi_lite_o.aw_ready;
-              w_done |= {domain}_axi_lite_o.w_ready;
-              {domain}_drive_cycle();
-              if (aw_done) {domain}_axi_lite_i.aw_valid = 1'b0;
-              if (w_done) {domain}_axi_lite_i.w_valid = 1'b0;
+              if (!aw_done && {domain}_axi_lite_o.aw_ready) begin
+                aw_done = 1'b1;
+                {domain}_axi_lite_i.aw_valid = 1'b0;
+              end
+              if (!w_done && {domain}_axi_lite_o.w_ready) begin
+                w_done = 1'b1;
+                {domain}_axi_lite_i.w_valid = 1'b0;
+              end
+              guard++;
+              if (guard > 1000) $fatal(1, "AXI4-Lite write request timeout");
             end
-            {domain}_axi_lite_i.b_ready = 1'b1;
-            do {domain}_sample_cycle(); while (!{domain}_axi_lite_o.b_valid);
+            guard = 0;
+            do begin
+              {domain}_sample_cycle();
+              guard++;
+              if (guard > 1000) $fatal(1, "AXI4-Lite write response timeout");
+            end while (!{domain}_axi_lite_o.b_valid);
             if ({domain}_axi_lite_o.b.resp != 2'b00) errors++;
-            {domain}_drive_cycle();
+            {domain}_axi_lite_i.b_ready = 1'b1;
+            {domain}_sample_cycle();
             {domain}_axi_lite_i.b_ready = 1'b0;
           endtask
 
           task automatic {domain}_read(input logic [31:0] addr, output logic [31:0] data);
+            int guard;
             {domain}_drive_cycle();
             {domain}_axi_lite_i.ar.addr = addr[{pkg}::AW-1:0];
             {domain}_axi_lite_i.ar.prot = '0;
             {domain}_axi_lite_i.ar_valid = 1'b1;
-            do {domain}_sample_cycle(); while (!{domain}_axi_lite_o.ar_ready);
-            {domain}_drive_cycle();
+            guard = 0;
+            do begin
+              {domain}_sample_cycle();
+              guard++;
+              if (guard > 1000) $fatal(1, "AXI4-Lite read request timeout");
+            end while (!{domain}_axi_lite_o.ar_ready);
             {domain}_axi_lite_i.ar_valid = 1'b0;
-            {domain}_axi_lite_i.r_ready = 1'b1;
-            do {domain}_sample_cycle(); while (!{domain}_axi_lite_o.r_valid);
+            guard = 0;
+            do begin
+              {domain}_sample_cycle();
+              guard++;
+              if (guard > 1000) $fatal(1, "AXI4-Lite read response timeout");
+            end while (!{domain}_axi_lite_o.r_valid);
             data = {domain}_axi_lite_o.r.data;
             if ({domain}_axi_lite_o.r.resp != 2'b00) errors++;
-            {domain}_drive_cycle();
+            {domain}_axi_lite_i.r_ready = 1'b1;
+            {domain}_sample_cycle();
             {domain}_axi_lite_i.r_ready = 1'b0;
           endtask
 
         """))
     return base[:protocol] + "\n".join(defaults) + base[reset:access] + "".join(tasks) + base[apply:]
-
 
 def sv_driver_text(
     top: str, clocks: ClockConfig, io_delay_pct: float = 0.2, interface: str = "tlul"
@@ -3991,12 +4095,6 @@ def render_extra_port_declarations(info: dict[str, list]) -> str:
             continue
         decls.append(f"  {render_width(entry.get('width', 1))} {name};")
     return "\n".join(decls)
-
-def _serial_idle_high(name: str) -> bool:
-    """Return true for asynchronous serial receive pins that idle high."""
-
-    return name.lower() in {"rx_i", "cio_rx_i", "uart_rx_i", "serial_rx_i"}
-
 
 def render_extra_input_initializers(info: dict[str, list]) -> str:
     """Initialize non-control DUT inputs before reset and configuration."""
@@ -4553,18 +4651,38 @@ async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None
         _get(dut, "axi_w_data_i").value = data
         _get(dut, "axi_w_strb_i").value = mask
         _get(dut, "axi_w_valid_i").value = 1
+
+        # AW and W are independent.  The shared cocotb phase model samples
+        # READY before the next active edge, so READY observed here denotes
+        # an acceptance on the following rising edge.  Cross that edge first,
+        # then drop only the VALID(s) whose channel was accepted.  This mirrors
+        # the generated SV BFM and prevents both lost and duplicate transfers.
+        aw_done = False
+        w_done = False
         guard = 0
-        while True:
+        while not (aw_done and w_done):
             await _sample_cycle(clk)
-            if (_known_int(dut, "axi_aw_ready_o", "waiting AXI write AWREADY") and
-                    _known_int(dut, "axi_w_ready_o", "waiting AXI write WREADY")):
-                break
+            aw_accept = (
+                not aw_done
+                and bool(_known_int(dut, "axi_aw_ready_o", "waiting AXI write AWREADY"))
+            )
+            w_accept = (
+                not w_done
+                and bool(_known_int(dut, "axi_w_ready_o", "waiting AXI write WREADY"))
+            )
+            await _drive_cycle(clk)
+            if aw_accept:
+                aw_done = True
+                _get(dut, "axi_aw_valid_i").value = 0
+            if w_accept:
+                w_done = True
+                _get(dut, "axi_w_valid_i").value = 0
             guard += 1
             if guard > 1000:
                 raise TimeoutError(f"timeout waiting AXI4-Lite write request addr=0x{addr:08x}")
-        await _drive_cycle(clk)
-        _get(dut, "axi_aw_valid_i").value = 0
-        _get(dut, "axi_w_valid_i").value = 0
+
+        # Hold BREADY low while observing the response; acknowledge exactly
+        # one response edge, then return with all request/ready signals idle.
         guard = 0
         while True:
             await _sample_cycle(clk)
@@ -4575,12 +4693,9 @@ async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None
                 raise TimeoutError(f"timeout waiting AXI4-Lite write response addr=0x{addr:08x}")
         if _known_int(dut, "axi_b_resp_o", "checking AXI write response") != 0:
             raise AssertionError(f"AXI4-Lite write error at addr=0x{addr:08x}")
-        await _drive_cycle(clk)
         _get(dut, "axi_b_ready_i").value = 1
         await _sample_cycle(clk)
-        await _drive_cycle(clk)
-        _drive_idle(dut)
-        await _sample_cycle(clk)
+        _get(dut, "axi_b_ready_i").value = 0
         return
 
     await _drive_cycle(clk)
@@ -4660,16 +4775,23 @@ async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
         _get(dut, "axi_ar_addr_i").value = addr
         _get(dut, "axi_ar_prot_i").value = 0
         _get(dut, "axi_ar_valid_i").value = 1
+
         guard = 0
         while True:
             await _sample_cycle(clk)
-            if _known_int(dut, "axi_ar_ready_o", "waiting AXI read ARREADY"):
+            ar_accept = bool(
+                _known_int(dut, "axi_ar_ready_o", "waiting AXI read ARREADY")
+            )
+            await _drive_cycle(clk)
+            if ar_accept:
+                # The intervening rising edge accepted AR.  Drop ARVALID now,
+                # before another acceptance edge can occur.
+                _get(dut, "axi_ar_valid_i").value = 0
                 break
             guard += 1
             if guard > 1000:
                 raise TimeoutError(f"timeout waiting AXI4-Lite read request addr=0x{addr:08x}")
-        await _drive_cycle(clk)
-        _get(dut, "axi_ar_valid_i").value = 0
+
         guard = 0
         while True:
             await _sample_cycle(clk)
@@ -4681,12 +4803,10 @@ async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
         if _known_int(dut, "axi_r_resp_o", "checking AXI read response") != 0:
             raise AssertionError(f"AXI4-Lite read error at addr=0x{addr:08x}")
         data = _known_int(dut, "axi_r_data_o", "reading AXI response data") & 0xFFFFFFFF
-        await _drive_cycle(clk)
+
         _get(dut, "axi_r_ready_i").value = 1
         await _sample_cycle(clk)
-        await _drive_cycle(clk)
-        _drive_idle(dut)
-        await _sample_cycle(clk)
+        _get(dut, "axi_r_ready_i").value = 0
         return data
 
     await _drive_cycle(clk)
@@ -5052,7 +5172,7 @@ def _selected_reset_domains(selector):
 
 async def _default_reset_runner(dut, selector, cycles):
     selected = _selected_reset_domains(selector)
-    for name in ("cio_rx_i", "uart_rx_i", "serial_rx_i"):
+    for name in ("rx_i", "cio_rx_i", "uart_rx_i", "serial_rx_i"):
         if hasattr(dut, name):
             getattr(dut, name).value = 1
     for _, _, reset, polarity in selected:
@@ -5269,7 +5389,7 @@ async def apply_reset(dut, selector="all", cycles=5, settle_cycles=None):
     selected = _selected_resets(selector)
     if settle_cycles is None:
         settle_cycles = max(0, int(os.environ.get("RESET_SETTLE_CYCLES", "8")))
-    for name in ("cio_rx_i", "uart_rx_i", "serial_rx_i"):
+    for name in ("rx_i", "cio_rx_i", "uart_rx_i", "serial_rx_i"):
         if hasattr(dut, name):
             getattr(dut, name).value = 1
     for _, reset, polarity in selected:
