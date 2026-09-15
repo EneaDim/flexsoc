@@ -1,0 +1,57 @@
+[options]
+splitnets off
+
+[gold]
+read_slang -D SYNTHESIS --ignore-assertions -f rtl_common.f -f rtl_ip.f --top gpio
+
+[gate]
+read_liberty -ignore_miss_func library.lib
+read_verilog -formal -sv netlist.v
+
+[script]
+hierarchy -check -top gpio
+proc
+prep -top gpio -flatten
+# Normalize inferred clock gating to clock enables for formal engines.
+formalff -declockgate
+memory -nomap
+memory_map -formal
+async2sync
+# FlexSoC EQY reset normalization begin
+uniquify
+sim -clock clk_i -resetn rst_ni -rstlen 2 -n 2 -w
+# FlexSoC EQY reset normalization end
+
+[match gpio]
+nodefault
+gold-match clk_i
+gold-match rst_ni
+gold-match axi_lite_i
+gold-match axi_lite_o
+gold-match cio_gpio_en_o
+gold-match cio_gpio_i
+gold-match cio_gpio_o
+gold-match intr_gpio_o
+
+[collect gpio]
+join axi_lite_o
+join cio_gpio_en_o
+join cio_gpio_o
+join intr_gpio_o
+
+[strategy sat]
+use sat
+depth 20
+
+[strategy pdr]
+use sby
+engine abc pdr
+timeout 60
+xprop on
+
+[strategy smt]
+use sby
+engine smtbmc bitwuzla
+depth 2
+timeout 60
+xprop on

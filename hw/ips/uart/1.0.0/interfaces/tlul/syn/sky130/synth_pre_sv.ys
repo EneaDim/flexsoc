@@ -5,8 +5,8 @@ read_slang -I /home/eneadim/github/flexsoc/hw/ips/pkgs \
            -I /home/eneadim/github/flexsoc/hw/ips/prim_opentitan \
            -D SYNTHESIS \
            --ignore-assertions \
-           -f /tmp/flexsoc-uart-interface-contract-20260914/tlul/runs/uart/contract/rtl/rtl_common.f \
-           -f /tmp/flexsoc-uart-interface-contract-20260914/tlul/runs/uart/contract/rtl/rtl_ip.f \
+           -f /tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/rtl/rtl_common.f \
+           -f /tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/rtl/rtl_ip.f \
            --top uart
 
 hierarchy -check -top uart
@@ -15,5 +15,5 @@ select -module uart
 # flatten only the structural analysis view so hierarchical reset FFs are visible
 flatten
 check -assert
-write_json -selected /tmp/flexsoc-uart-interface-contract-20260914/tlul/runs/uart/contract/syn/sky130/uart_pre.json
+write_json -selected /tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/syn/sky130/uart_pre.json
 select -clear

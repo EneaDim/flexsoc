@@ -1,0 +1,11 @@
+`ifndef SYN
+  `include "top_pkg.sv"
+  `include "prim_util_pkg.sv"
+  `include "prim_mubi_pkg.sv"
+  `include "prim_secded_pkg.sv"
+  `include "gpio_reg_pkg.sv"
+  `include "reg_if.sv"
+  `include "gpio.sv"
+`else
+  `include "gpio_synth.v"
+`endif

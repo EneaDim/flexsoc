@@ -20,7 +20,7 @@
     "power_analysis_post_pnr_all": "MISSING",
     "power_estimate": "PASS",
     "power_estimate_post_pnr": "MISSING",
-    "regression": "PASS",
+    "regression": "STALE",
     "requirements_traceability": "PASS",
     "sdf": "PASS",
     "sdf_post_pnr": "MISSING",
@@ -49,7 +49,7 @@
     "power_analysis_post_pnr_all": "MISSING",
     "power_estimate": "CLEAN",
     "power_estimate_post_pnr": "MISSING",
-    "regression": "CLEAN",
+    "regression": "STALE",
     "requirements_traceability": "CLEAN",
     "sdf": "CLEAN",
     "sdf_post_pnr": "MISSING",
@@ -69,7 +69,9 @@
       "waived_evidence": []
     },
     "2": {
-      "blocking_evidence": [],
+      "blocking_evidence": [
+        "regression"
+      ],
       "name": "RTL Qualified",
       "required_evidence": [
         "requirements_traceability",
@@ -84,11 +86,12 @@
         "formal_csr_cover",
         "formal_cover"
       ],
-      "status": "PASS",
+      "status": "BLOCKED",
       "waived_evidence": []
     },
     "3": {
       "blocking_evidence": [
+        "regression",
         "eqy"
       ],
       "name": "Netlist Qualified",
@@ -113,6 +116,7 @@
     },
     "4": {
       "blocking_evidence": [
+        "regression",
         "eqy"
       ],
       "name": "Technology Qualified",
@@ -142,6 +146,7 @@
     },
     "5": {
       "blocking_evidence": [
+        "regression",
         "eqy",
         "pnr",
         "physical_signoff",
@@ -186,10 +191,10 @@
       "waived_evidence": []
     }
   },
-  "maximum_level": 2,
-  "maximum_pass_level": 2,
-  "maximum_pass_qualification": "RTL Qualified",
-  "maximum_qualification": "RTL Qualified",
+  "maximum_level": 1,
+  "maximum_pass_level": 1,
+  "maximum_pass_qualification": "Contract Valid",
+  "maximum_qualification": "Contract Valid",
   "outcomes": {
     "cdc_rdc": "PASS",
     "formal_bmc": "PASS",

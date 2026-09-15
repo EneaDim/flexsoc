@@ -5,8 +5,8 @@ export DESIGN_NAME     = uart
 export PLATFORM        = sky130hd
 
 # FlexSoC owns synthesis and timing intent.
-export SYNTH_NETLIST_FILES := /tmp/flexsoc-uart-interface-contract-20260914/tlul/runs/uart/contract/syn/sky130/uart_synth_raw.v
-export SDC_FILE             := /tmp/flexsoc-uart-interface-contract-20260914/tlul/runs/uart/contract/constraints/uart.sdc
+export SYNTH_NETLIST_FILES := /tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/syn/sky130/uart_synth_raw.v
+export SDC_FILE             := /tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/constraints/uart.sdc
 
 # Platform-owned physical views (LEF/GDS/CDL/LVS decks) stay with ORFS.
 # Physical defaults; synthesis strategy does not alter these.

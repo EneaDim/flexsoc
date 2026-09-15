@@ -16,6 +16,10 @@ vendor/lowrisc_ip/ip/tlul/rtl/tlul_data_integ_dec.sv
 vendor/lowrisc_ip/ip/tlul/rtl/tlul_cmd_intg_chk.sv
 vendor/lowrisc_ip/ip/tlul/rtl/tlul_err.sv
 vendor/lowrisc_ip/ip/tlul/rtl/tlul_adapter_reg.sv
+hw/ips/prim_opentitan/prim_buf.sv
+hw/ips/prim_opentitan/prim_onehot_check.sv
+hw/ips/pkgs/prim_util_pkg.sv
+hw/ips/prim_opentitan/prim_reg_we_check.sv
 hw/ips/pkgs/prim_subreg_pkg.sv
 hw/ips/prim_opentitan/prim_subreg_arb.sv
 hw/ips/prim_opentitan/prim_subreg.sv

@@ -3,24 +3,23 @@
   "run": {
     "top": "gpio",
     "run_top": "gpio",
-    "run_id": "refresh_tlul_repo",
+    "run_id": "release",
     "pdk": "sky130",
-    "run_root": "/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo",
+    "run_root": "/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release",
     "artifacts": {
-      "synthesis": "/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/syn/sky130",
-      "equivalence": "/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/signoff/sky130/equivalence/rtl_vs_syn",
-      "post_syn_sim": "/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/dv/functional/sim/post_syn/sky130",
-      "implementation": "/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/impl/sky130",
-      "sdc": "/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/constraints/gpio.sdc",
-      "sta": "/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/signoff/sky130/sta",
-      "power": "/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/signoff/sky130/power",
-      "fusion": "/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/signoff/sky130/fusion",
-      "sdf": "/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/signoff/sky130/sdf",
-      "meta": "/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/meta/sky130"
+      "synthesis": "/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/syn/sky130",
+      "equivalence": "/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/sky130/equivalence/rtl_vs_syn",
+      "post_syn_sim": "/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/dv/functional/sim/post_syn/sky130",
+      "sdc": "/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/constraints/gpio.sdc",
+      "sta": "/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/sky130/sta",
+      "power": "/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/sky130/power",
+      "fusion": "/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/sky130/fusion",
+      "sdf": "/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/sky130/sdf",
+      "meta": "/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/meta/sky130"
     }
   },
   "git": {
-    "commit": "d49c1ac2a8c98e077de56cb49d405efc1895d001",
+    "commit": "825fcab67848155e4d881d65c0f3c6f3495aceec",
     "dirty": true
   },
   "environment": {
@@ -99,15 +98,15 @@
   },
   "analysis": {
     "lint": {
-      "path": "analysis/lint"
+      "path": "dv/lint"
     },
     "cdc_rdc": {
-      "path": "analysis/cdc_rdc/summary.json",
-      "sha256": "b5bd2a85e2422e95f1701a4dc24ca87a555e5481419ed578827cfbdd31054f35",
-      "status": "fail",
+      "path": "dv/cdc_rdc/summary.json",
+      "sha256": "e4d6bd3b91f53b52309478c1311ffb764c93f2d816fd5c20c1ccafab8228f882",
+      "status": "pass",
       "cdc_raw": 0,
-      "rdc_raw": 268,
-      "obligations": 1
+      "rdc_raw": 0,
+      "obligations": 0
     }
   },
   "flow": {
@@ -124,31 +123,20 @@
     ],
     "stages": {
       "lint": "pass",
-      "cdc_rdc": "fail",
+      "cdc_rdc": "pass",
       "functional": "pass",
       "formal": "pass",
       "synthesis": "pass",
-      "equivalence": "partial",
+      "equivalence": "missing",
       "pre_implementation_signoff": "pass",
       "implementation": "missing",
       "post_implementation_signoff": "incomplete"
     },
-    "status": "fail",
+    "status": "incomplete",
     "complete": false
   },
   "implementation": null,
   "signoff": {
-    "equivalence": {
-      "status": "partial",
-      "proven": 0,
-      "failed": 0,
-      "errors": 0,
-      "timeouts": 0,
-      "unknown": 2,
-      "total": 2,
-      "percent": 0.0,
-      "strategies": {}
-    },
     "sdf": {
       "status": "pass",
       "count": 3
@@ -163,18 +151,18 @@
     },
     "power_activity": {
       "status": "pass",
-      "passed": 24,
-      "total": 24
+      "passed": 9,
+      "total": 9
     },
     "fusion": {
       "status": "pass",
-      "passed": 24,
-      "total": 24
+      "passed": 9,
+      "total": 9
     },
     "post_syn_gls": {
       "status": "pass",
-      "passed": 40,
-      "total": 40,
+      "passed": 9,
+      "total": 9,
       "failed": 0,
       "missing": 0,
       "interconnect_delays": "none"
@@ -206,11 +194,11 @@
     ],
     "stages": {
       "lint": "pass",
-      "cdc_rdc": "fail",
+      "cdc_rdc": "pass",
       "regression": "pass",
       "formal": "pass",
       "synthesis": "pass",
-      "equivalence": "partial",
+      "equivalence": "missing",
       "sdf": "pass",
       "sta": "pass",
       "power": "pass",
@@ -226,7 +214,7 @@
       "post_pnr_power_activity": "missing",
       "post_pnr_fusion": "missing"
     },
-    "status": "fail",
+    "status": "incomplete",
     "complete": false
   },
   "tools": {

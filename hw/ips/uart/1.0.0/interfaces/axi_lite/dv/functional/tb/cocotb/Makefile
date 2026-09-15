@@ -78,13 +78,13 @@ else
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv \
-    /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/rtl/uart_reg_pkg.sv \
-    /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/rtl/uart_reg_core.sv \
-    /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/rtl/uart_reg_top.sv \
-    /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/rtl/uart_tx.sv \
-    /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/rtl/uart_rx.sv \
-    /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/rtl/uart_core.sv \
-    /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/rtl/uart.sv
+    /tmp/flexsoc-ip-v1-release-20260914/uart-axi_lite/runs/uart/release/rtl/uart_reg_pkg.sv \
+    /tmp/flexsoc-ip-v1-release-20260914/uart-axi_lite/runs/uart/release/rtl/uart_reg_core.sv \
+    /tmp/flexsoc-ip-v1-release-20260914/uart-axi_lite/runs/uart/release/rtl/uart_reg_top.sv \
+    /tmp/flexsoc-ip-v1-release-20260914/uart-axi_lite/runs/uart/release/rtl/uart_tx.sv \
+    /tmp/flexsoc-ip-v1-release-20260914/uart-axi_lite/runs/uart/release/rtl/uart_rx.sv \
+    /tmp/flexsoc-ip-v1-release-20260914/uart-axi_lite/runs/uart/release/rtl/uart_core.sv \
+    /tmp/flexsoc-ip-v1-release-20260914/uart-axi_lite/runs/uart/release/rtl/uart.sv
 
   COMPILE_ARGS += --sv --timing
   WAVE_FORMAT ?= fst
@@ -100,7 +100,7 @@ else
   COMPILE_ARGS += -Wno-UNOPTFLAT
 endif
 
-COMPILE_ARGS += -I/tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/vendor/pulp/axi/include -I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include
+COMPILE_ARGS += -I/tmp/flexsoc-ip-v1-release-20260914/uart-axi_lite/runs/uart/release/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/vendor/pulp/axi/include -I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include
 export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
 TEST_NAME ?= smoke
 SEED ?= 1
@@ -135,7 +135,7 @@ export CFG ?= $(REG_CONFIG)
 export DATA_IN  ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
 export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
 export PYTHONPATH := $(PWD):$(PYTHONPATH)
-VERILOG_SOURCES += /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/dv/functional/tb/cocotb/uart_tb.sv
+VERILOG_SOURCES += /tmp/flexsoc-ip-v1-release-20260914/uart-axi_lite/runs/uart/release/dv/functional/tb/cocotb/uart_tb.sv
 
 COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
 ifeq ($(strip $(COCOTB_MAKEFILES)),)

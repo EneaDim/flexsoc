@@ -1,5 +1,13 @@
 {
+  "design_intent": {
+    "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+    "CLOCK_RELATIONSHIPS": "",
+    "N_CLOCKS": "1",
+    "REG_ITF": "tlul",
+    "TOP": "gpio"
+  },
   "ip": "gpio",
+  "ip_intent_sha256": "7b38bdb9d12610ee6357c0969512c2a62ffb7b284ea32361cfa8748aaa5a933c",
   "reg_interface": "tlul",
   "schema": 2,
   "source_of_truth": {
@@ -9,18 +17,18 @@
         "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
       },
       {
-        "path": "rtl/gpio_reg_pkg.sv",
-        "sha256": "7a0293b4becd621f49055b8b06837c4ea26c6a176be9e6067eff00d846a4c05d"
+        "path": "rtl/gpio_reg_core.sv",
+        "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
       },
       {
-        "path": "rtl/gpio_reg_top.sv",
-        "sha256": "4434b433f0807b7be535238b2c7816daa1055fd3bd94918cc0a97d26a9f6cabc"
+        "path": "rtl/gpio_reg_pkg.sv",
+        "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
       }
     ],
     "constraints": [
       {
         "path": "constraints/gpio.sdc",
-        "sha256": "42679e1d4742cac5489d4e3b7863de97c07b266889bf1f63fa59de3ed2faca9a"
+        "sha256": "6f2ee173e988c70e0e19b30d2f2c73030fadc3709c872ec7c3bf5a54bb98b98d"
       }
     ],
     "formal_properties": [
@@ -54,6 +62,37 @@
       }
     }
   },
+  "sources": [
+    {
+      "path": "csr/gpio.hjson",
+      "sha256": "477e8bbf9740a8edc24a3b3a70e1e0da8a875332ba5f5a92c67f47bf389f5203"
+    },
+    {
+      "path": "constraints/gpio.sdc",
+      "sha256": "6f2ee173e988c70e0e19b30d2f2c73030fadc3709c872ec7c3bf5a54bb98b98d"
+    },
+    {
+      "path": "rtl/gpio_core.sv",
+      "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+    },
+    {
+      "path": "dv/functional/model/gpio_model.py",
+      "sha256": "223647b4380c08739c21fa21745f42b54bc232f52a463424583febfb5a1a1920"
+    },
+    {
+      "path": "dv/functional/model/gpio_tests.py",
+      "sha256": "3bfc8e51c5884fec7ee5bec2342a5afd2e82985d823849b483af50fbcc50196c"
+    },
+    {
+      "path": "dv/formal/properties/cover/gpio_cover.sv",
+      "sha256": "ac515283490a3c99d93629db7c5f38963c2e8ea58be8da3725fb79830a9c09d0"
+    },
+    {
+      "path": "dv/formal/properties/prove/gpio_prove.sv",
+      "sha256": "8084f269a824da5eafe8669f8a02aa8979c7aedb27c51ee3e4577e933bbdecd5"
+    }
+  ],
   "spec_fingerprint": "6be7c71adb2b29df4d6cc94ed0cdb468e482a2f11f316e96055efac37895aa5d",
+  "top": "gpio",
   "version": "1.0.0"
 }

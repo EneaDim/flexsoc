@@ -15,38 +15,25 @@ module gpio
   gpio_reg2hw_t reg2hw;
   gpio_hw2reg_t hw2reg;
 
-  logic rst_sync_ni;
   logic reg_rst_ni;
   logic core_rst_ni;
 
-  // Async assertion, synchronous release at the domain root.
   prim_ff_2sync #(
     .Width      (1),
     .ResetValue (1'b0)
-  ) u_reset_sync (
+  ) u_reg_reset_sync (
     .clk_i (clk_i),
     .rst_ni(rst_ni),
-    .d_i   (1'b1),
-    .q_o   (rst_sync_ni)
-  );
-
-  // Provide separate reset launch stages for the CSR and functional islands.
-  prim_flop #(
-    .Width      (1),
-    .ResetValue (1'b0)
-  ) u_reg_reset_branch (
-    .clk_i (clk_i),
-    .rst_ni(rst_sync_ni),
     .d_i   (1'b1),
     .q_o   (reg_rst_ni)
   );
 
-  prim_flop #(
+  prim_ff_2sync #(
     .Width      (1),
     .ResetValue (1'b0)
-  ) u_core_reset_branch (
+  ) u_core_reset_sync (
     .clk_i (clk_i),
-    .rst_ni(rst_sync_ni),
+    .rst_ni(rst_ni),
     .d_i   (1'b1),
     .q_o   (core_rst_ni)
   );

@@ -3,8 +3,8 @@ Technical REVIEW · Provenance CLEAN
 
 Flow
 Main step                    Status    
-RTL lint                     MISSING   
-CDC / RDC                    MISSING   
+RTL lint                     PASS      
+CDC / RDC                    PASS      
 Functional verification      PASS      
 Formal verification          PASS      
 Synthesis                    PASS      
@@ -44,6 +44,19 @@ syn                     CLEAN  -
 syn.setup               CLEAN  -     
 tb.setup                CLEAN  -     
 
+RTL lint  Slang → Verilator
+Tool       Status  Errors  Warnings  Latch  Width  Unused
+slang      PASS         0         1      0      0       0
+verilator  PASS         0        93      0      0      30
+
+CDC / RDC  post-lint structural analysis
+Status       PASS                                        
+Domains      clocks=1 · resets=6 · sequential=67         
+CDC          raw=0 · safe=0 · review=0 · warn=0 · error=0
+RDC          raw=0 · safe=2 · review=0 · warn=0 · error=0
+Obligations  0                                           
+Report       dv/cdc_rdc/cdc_rdc.rpt                      
+
 Functional verification
 Status           PASS             
 Generated tests  12               
@@ -70,7 +83,7 @@ Suite       Stage  Status  Time  Traces
 csr         bmc    PASS      3s       0
 csr         prove  PASS      0s       0
 csr         cover  PASS      0s       6
-properties  bmc    PASS      4s       0
+properties  bmc    PASS      3s       0
 properties  prove  PASS      0s       0
 properties  cover  PASS      0s       8
 
@@ -131,4 +144,4 @@ corners_sv_ss   corners     sv      max    PASS
 reconfig_sv_ss  reconfig    sv      max    PASS  
 smoke_sv_ss     smoke       sv      max    PASS  
 
-Detailed metrics: /home/eneadim/github/flexsoc/hw/ips/uart/1.0.0/interfaces/.ip-save.uart.reg_iface.hyuo6d2q/reg_iface/meta/sky130/metrics.json
+Detailed metrics: /home/eneadim/github/flexsoc/hw/ips/uart/1.0.0/interfaces/.ip-save.uart.reg_iface.ctsaqhx_/reg_iface/meta/sky130/metrics.json

@@ -1,0 +1,269 @@
+
+==========================================================================
+floorplan final report_tns
+--------------------------------------------------------------------------
+tns max 0.00
+
+==========================================================================
+floorplan final report_wns
+--------------------------------------------------------------------------
+wns max 0.00
+
+==========================================================================
+floorplan final report_worst_slack
+--------------------------------------------------------------------------
+worst slack max 7.06
+
+==========================================================================
+floorplan final report_clock_min_period
+--------------------------------------------------------------------------
+core period_min = 2.94 fmax = 340.53
+
+==========================================================================
+floorplan final report_checks -path_delay min
+--------------------------------------------------------------------------
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _612_ (removal check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: min
+
+Fanout     Cap    Slew   Delay    Time   Description
+-----------------------------------------------------------------------------
+                  0.00    0.05    0.05   clock core (rise edge)
+                          0.05    0.10   clock network delay (ideal)
+                          0.00    0.10 ^ input external delay
+     4    0.02    0.00    0.00    0.10 ^ rst_ni (in)
+                                         rst_ni (net)
+                  0.00    0.00    0.10 ^ _612_/RESET_B (sg13g2_dfrbpq_1)
+                                  0.10   data arrival time
+
+                  0.00    0.05    0.05   clock core (rise edge)
+                          0.05    0.10   clock network delay (ideal)
+                          0.01    0.11   clock uncertainty
+                          0.00    0.11   clock reconvergence pessimism
+                                  0.11 ^ _612_/CLK (sg13g2_dfrbpq_1)
+                         -0.10    0.01   library removal time
+                                  0.01   data required time
+-----------------------------------------------------------------------------
+                                  0.01   data required time
+                                 -0.10   data arrival time
+-----------------------------------------------------------------------------
+                                  0.09   slack (MET)
+
+
+Startpoint: cio_gpio_i[3] (input port clocked by core)
+Endpoint: _621_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout     Cap    Slew   Delay    Time   Description
+-----------------------------------------------------------------------------
+                  0.00    0.05    0.05   clock core (rise edge)
+                          0.05    0.10   clock network delay (ideal)
+                          0.00    0.10 v input external delay
+     1    0.00    0.00    0.00    0.10 v cio_gpio_i[3] (in)
+                                         cio_gpio_i[3] (net)
+                  0.00    0.00    0.10 v _621_/D (sg13g2_dfrbpq_1)
+                                  0.10   data arrival time
+
+                  0.00    0.05    0.05   clock core (rise edge)
+                          0.05    0.10   clock network delay (ideal)
+                          0.01    0.11   clock uncertainty
+                          0.00    0.11   clock reconvergence pessimism
+                                  0.11 ^ _621_/CLK (sg13g2_dfrbpq_1)
+                         -0.03    0.08   library hold time
+                                  0.08   data required time
+-----------------------------------------------------------------------------
+                                  0.08   data required time
+                                 -0.10   data arrival time
+-----------------------------------------------------------------------------
+                                  0.02   slack (MET)
+
+
+
+==========================================================================
+floorplan final report_checks -path_delay max
+--------------------------------------------------------------------------
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _612_ (recovery check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: max
+
+Fanout     Cap    Slew   Delay    Time   Description
+-----------------------------------------------------------------------------
+                  0.00    0.05    0.05   clock core (rise edge)
+                          0.05    0.10   clock network delay (ideal)
+                          2.00    2.10 ^ input external delay
+     4    0.02    0.00    0.00    2.10 ^ rst_ni (in)
+                                         rst_ni (net)
+                  0.00    0.00    2.10 ^ _612_/RESET_B (sg13g2_dfrbpq_1)
+                                  2.10   data arrival time
+
+                  0.00   10.05   10.05   clock core (rise edge)
+                          0.05   10.10   clock network delay (ideal)
+                         -0.02   10.08   clock uncertainty
+                          0.00   10.08   clock reconvergence pessimism
+                                 10.08 ^ _612_/CLK (sg13g2_dfrbpq_1)
+                         -0.12    9.96   library recovery time
+                                  9.96   data required time
+-----------------------------------------------------------------------------
+                                  9.96   data required time
+                                 -2.10   data arrival time
+-----------------------------------------------------------------------------
+                                  7.86   slack (MET)
+
+
+Startpoint: tl_i[108] (input port clocked by core)
+Endpoint: _596_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: max
+
+Fanout     Cap    Slew   Delay    Time   Description
+-----------------------------------------------------------------------------
+                  0.00    0.05    0.05   clock core (rise edge)
+                          0.05    0.10   clock network delay (ideal)
+                          2.00    2.10 ^ input external delay
+     1    0.01    0.00    0.00    2.10 ^ tl_i[108] (in)
+                                         tl_i[108] (net)
+                  0.00    0.00    2.10 ^ _287_/B (sg13g2_nand2_2)
+     4    0.02    0.06    0.06    2.16 v _287_/Y (sg13g2_nand2_2)
+                                         _099_ (net)
+                  0.06    0.00    2.16 v _288_/C (sg13g2_nor3_2)
+     2    0.01    0.08    0.08    2.24 ^ _288_/Y (sg13g2_nor3_2)
+                                         _100_ (net)
+                  0.08    0.00    2.24 ^ _291_/A (sg13g2_nand3_1)
+     3    0.01    0.11    0.12    2.36 v _291_/Y (sg13g2_nand3_1)
+                                         _103_ (net)
+                  0.11    0.00    2.36 v _298_/A2 (sg13g2_o21ai_1)
+     3    0.01    0.13    0.15    2.51 ^ _298_/Y (sg13g2_o21ai_1)
+                                         _110_ (net)
+                  0.13    0.00    2.51 ^ _299_/B (sg13g2_nor2_1)
+     1    0.00    0.04    0.06    2.56 v _299_/Y (sg13g2_nor2_1)
+                                         _111_ (net)
+                  0.04    0.00    2.56 v _300_/A (sg13g2_nand2_1)
+     1    0.01    0.05    0.05    2.62 ^ _300_/Y (sg13g2_nand2_1)
+                                         _112_ (net)
+                  0.05    0.00    2.62 ^ _301_/A (sg13g2_buf_8)
+    21    0.10    0.06    0.11    2.73 ^ _301_/X (sg13g2_buf_8)
+                                         _113_ (net)
+                  0.06    0.00    2.73 ^ _314_/S (sg13g2_mux2_1)
+     1    0.00    0.03    0.16    2.89 v _314_/X (sg13g2_mux2_1)
+                                         _011_ (net)
+                  0.03    0.00    2.89 v _596_/D (sg13g2_dfrbpq_1)
+                                  2.89   data arrival time
+
+                  0.00   10.05   10.05   clock core (rise edge)
+                          0.05   10.10   clock network delay (ideal)
+                         -0.02   10.08   clock uncertainty
+                          0.00   10.08   clock reconvergence pessimism
+                                 10.08 ^ _596_/CLK (sg13g2_dfrbpq_1)
+                         -0.12    9.95   library setup time
+                                  9.95   data required time
+-----------------------------------------------------------------------------
+                                  9.95   data required time
+                                 -2.89   data arrival time
+-----------------------------------------------------------------------------
+                                  7.06   slack (MET)
+
+
+
+==========================================================================
+floorplan final report_checks -unconstrained
+--------------------------------------------------------------------------
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _612_ (recovery check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: max
+
+Fanout     Cap    Slew   Delay    Time   Description
+-----------------------------------------------------------------------------
+                  0.00    0.05    0.05   clock core (rise edge)
+                          0.05    0.10   clock network delay (ideal)
+                          2.00    2.10 ^ input external delay
+     4    0.02    0.00    0.00    2.10 ^ rst_ni (in)
+                                         rst_ni (net)
+                  0.00    0.00    2.10 ^ _612_/RESET_B (sg13g2_dfrbpq_1)
+                                  2.10   data arrival time
+
+                  0.00   10.05   10.05   clock core (rise edge)
+                          0.05   10.10   clock network delay (ideal)
+                         -0.02   10.08   clock uncertainty
+                          0.00   10.08   clock reconvergence pessimism
+                                 10.08 ^ _612_/CLK (sg13g2_dfrbpq_1)
+                         -0.12    9.96   library recovery time
+                                  9.96   data required time
+-----------------------------------------------------------------------------
+                                  9.96   data required time
+                                 -2.10   data arrival time
+-----------------------------------------------------------------------------
+                                  7.86   slack (MET)
+
+
+Startpoint: tl_i[108] (input port clocked by core)
+Endpoint: _596_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: max
+
+Fanout     Cap    Slew   Delay    Time   Description
+-----------------------------------------------------------------------------
+                  0.00    0.05    0.05   clock core (rise edge)
+                          0.05    0.10   clock network delay (ideal)
+                          2.00    2.10 ^ input external delay
+     1    0.01    0.00    0.00    2.10 ^ tl_i[108] (in)
+                                         tl_i[108] (net)
+                  0.00    0.00    2.10 ^ _287_/B (sg13g2_nand2_2)
+     4    0.02    0.06    0.06    2.16 v _287_/Y (sg13g2_nand2_2)
+                                         _099_ (net)
+                  0.06    0.00    2.16 v _288_/C (sg13g2_nor3_2)
+     2    0.01    0.08    0.08    2.24 ^ _288_/Y (sg13g2_nor3_2)
+                                         _100_ (net)
+                  0.08    0.00    2.24 ^ _291_/A (sg13g2_nand3_1)
+     3    0.01    0.11    0.12    2.36 v _291_/Y (sg13g2_nand3_1)
+                                         _103_ (net)
+                  0.11    0.00    2.36 v _298_/A2 (sg13g2_o21ai_1)
+     3    0.01    0.13    0.15    2.51 ^ _298_/Y (sg13g2_o21ai_1)
+                                         _110_ (net)
+                  0.13    0.00    2.51 ^ _299_/B (sg13g2_nor2_1)
+     1    0.00    0.04    0.06    2.56 v _299_/Y (sg13g2_nor2_1)
+                                         _111_ (net)
+                  0.04    0.00    2.56 v _300_/A (sg13g2_nand2_1)
+     1    0.01    0.05    0.05    2.62 ^ _300_/Y (sg13g2_nand2_1)
+                                         _112_ (net)
+                  0.05    0.00    2.62 ^ _301_/A (sg13g2_buf_8)
+    21    0.10    0.06    0.11    2.73 ^ _301_/X (sg13g2_buf_8)
+                                         _113_ (net)
+                  0.06    0.00    2.73 ^ _314_/S (sg13g2_mux2_1)
+     1    0.00    0.03    0.16    2.89 v _314_/X (sg13g2_mux2_1)
+                                         _011_ (net)
+                  0.03    0.00    2.89 v _596_/D (sg13g2_dfrbpq_1)
+                                  2.89   data arrival time
+
+                  0.00   10.05   10.05   clock core (rise edge)
+                          0.05   10.10   clock network delay (ideal)
+                         -0.02   10.08   clock uncertainty
+                          0.00   10.08   clock reconvergence pessimism
+                                 10.08 ^ _596_/CLK (sg13g2_dfrbpq_1)
+                         -0.12    9.95   library setup time
+                                  9.95   data required time
+-----------------------------------------------------------------------------
+                                  9.95   data required time
+                                 -2.89   data arrival time
+-----------------------------------------------------------------------------
+                                  7.06   slack (MET)
+
+
+
+==========================================================================
+floorplan final report_power
+--------------------------------------------------------------------------
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             7.19e-04   1.69e-05   5.89e-08   7.36e-04  90.4%
+Combinational          4.20e-05   3.62e-05   4.49e-08   7.83e-05   9.6%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  7.61e-04   5.31e-05   1.04e-07   8.14e-04 100.0%
+                          93.5%       6.5%       0.0%

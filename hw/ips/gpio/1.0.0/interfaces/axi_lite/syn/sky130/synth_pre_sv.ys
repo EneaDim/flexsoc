@@ -1,0 +1,19 @@
+# pre-synthesis structural snapshot; no optimization
+read_liberty -overwrite -setattr liberty_cell -lib /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
+read_slang -I /home/eneadim/github/flexsoc/hw/ips/pkgs \
+           -I /home/eneadim/github/flexsoc/hw/ips/prim \
+           -I /home/eneadim/github/flexsoc/hw/ips/prim_opentitan \
+           -D SYNTHESIS \
+           --ignore-assertions \
+           -f /tmp/flexsoc-ip-v1-release-20260914/gpio-axi_lite/runs/gpio/release/rtl/rtl_common.f \
+           -f /tmp/flexsoc-ip-v1-release-20260914/gpio-axi_lite/runs/gpio/release/rtl/rtl_ip.f \
+           --top gpio
+
+hierarchy -check -top gpio
+proc
+select -module gpio
+# flatten only the structural analysis view so hierarchical reset FFs are visible
+flatten
+check -assert
+write_json -selected /tmp/flexsoc-ip-v1-release-20260914/gpio-axi_lite/runs/gpio/release/syn/sky130/gpio_pre.json
+select -clear

@@ -180,7 +180,7 @@ task automatic tb_reg_write_addr(
   input logic [31:0] mask
 );
   tl_if.tlul_write(addr[31:0], data, 8'h00, mask[3:0]);
-  @(posedge clk_i);
+
 endtask
 
 task automatic tb_reg_read_addr(
@@ -188,7 +188,7 @@ task automatic tb_reg_read_addr(
   output logic [31:0] data
 );
   tl_if.tlul_read(addr[31:0], data, 8'h00);
-  @(posedge clk_i);
+
 endtask
 
 task automatic tb_reg_write_key(
@@ -453,7 +453,7 @@ task automatic tb_reg_write_addr(
   input logic [31:0] mask
 );
   tl_if.tlul_write(addr[31:0], data, 8'h00, mask[3:0]);
-  @(posedge clk_i);
+
 endtask
 
 task automatic tb_reg_read_addr(
@@ -461,7 +461,7 @@ task automatic tb_reg_read_addr(
   output logic [31:0] data
 );
   tl_if.tlul_read(addr[31:0], data, 8'h00);
-  @(posedge clk_i);
+
 endtask
 
 task automatic tb_reg_write_key(

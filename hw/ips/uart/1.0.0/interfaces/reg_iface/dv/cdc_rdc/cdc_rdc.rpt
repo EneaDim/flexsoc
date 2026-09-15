@@ -1,0 +1,19 @@
+FlexSoC CDC/RDC structural analysis
+top=uart
+status=pass
+clock_domains=1
+reset_domains=6
+sequential_elements=67
+dependencies=25671
+verification_obligations=0
+
+[CDC]
+
+[RDC]
+RDC-0001 SAFE reset_synchronizer issues=- obligations=- evidence=clock_domain=core,reset=rst_ni,stages=2,consumers=3
+RDC-0002 SAFE reset_synchronizer issues=- obligations=- evidence=clock_domain=core,reset=rst_ni,stages=2,consumers=13
+
+[setup]
+SETUP-0001 INFO distributed_reset_family issues=clock_domain=core,reset_family=rst_ni obligations=- evidence=core_rst_ni,reg_rst_ni,rst_ni,u_uart_core.rx_rst_ni,u_uart_core.timing_rst_ni,u_uart_core.tx_rst_ni
+
+[glitch]

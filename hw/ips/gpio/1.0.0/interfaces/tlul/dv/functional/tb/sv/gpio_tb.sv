@@ -42,13 +42,30 @@ module gpio_tb;
   );
 
   initial begin
+    integer flexsoc_seed;
+    integer jitter_prev_ps;
+    integer jitter_next_ps;
+    real low_delay_ns;
+    logic [31:0] jitter_state;
     clk_i = 1'b0;
-    #0;
+    if (!$value$plusargs("FLEXSOC_SEED=%d", flexsoc_seed)) flexsoc_seed = 1;
+    jitter_state = flexsoc_seed ^ 32'hdd5e607e;
+    if (jitter_state == 0) jitter_state = 32'h6d2b79f5;
+    jitter_prev_ps = 0;
+    $display("[FLEXSOC CLOCK] clock=core jitter=uniform bound_ps=25 seed=%0d", flexsoc_seed);
+    #0.1;
     forever begin
       clk_i = 1'b1;
-      #5;
+      #4.95;
       clk_i = 1'b0;
-      #5;
+      jitter_state = jitter_state ^ (jitter_state << 13);
+      jitter_state = jitter_state ^ (jitter_state >> 17);
+      jitter_state = jitter_state ^ (jitter_state << 5);
+      jitter_next_ps = (jitter_state % 51) - 25;
+      low_delay_ns = (5050 + jitter_next_ps - jitter_prev_ps) / 1000.0;
+      if (low_delay_ns <= 0.0) $fatal(1, "invalid FlexSoC jittered clock delay");
+      #(low_delay_ns);
+      jitter_prev_ps = jitter_next_ps;
     end
   end
 

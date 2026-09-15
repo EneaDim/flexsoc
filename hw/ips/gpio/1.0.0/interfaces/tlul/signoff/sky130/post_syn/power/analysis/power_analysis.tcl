@@ -3,7 +3,7 @@
 #
 # Analysis : power_analysis
 # Design   : gpio
-# Variant  : refresh_tlul_repo
+# Variant  : release
 # PDK      : sky130
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/syn/sky130/gpio_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/constraints/gpio.sdc
+#   Netlist       : /tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/syn/sky130/gpio_synth.v
+#   SDC           : /tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/constraints/gpio.sdc
 #   SPEF          : not used
-#   VCD or SAIF   : /home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd
+#   VCD or SAIF   : /tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd
 #   Activity scope: DUT_SCOPE_REQUIRED
-#   GLS report    : /home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json
-#   Report dir    : /home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/signoff/sky130/power/analysis/template_reports
+#   GLS report    : /tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json
+#   Report dir    : /tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/sky130/power/analysis/template_reports
 #
 # Limitations:
 #   - Power is average cell power derived from the selected Liberty models and annotated activity.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/signoff/sky130/power/analysis/template_reports}
+set report_dir {/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/sky130/power/analysis/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/syn/sky130/gpio_synth.v}
-set sdc {/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/constraints/gpio.sdc}
+set netlist {/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/syn/sky130/gpio_synth.v}
+set sdc {/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/constraints/gpio.sdc}
 set spef {}
 set top {gpio}
 set stage {post_syn}
@@ -202,7 +202,7 @@ proc flexsoc_append_activity_coverage {path} {
 }
 
 puts "=== Step 7/7: Read activity ==="
-set activity_file {/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd}
+set activity_file {/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd}
 set activity_scope {DUT_SCOPE_REQUIRED}
 flexsoc_require_readable "activity VCD/SAIF" $activity_file
 puts "activity_file=$activity_file"
@@ -225,8 +225,8 @@ set report [file join $report_dir power.rpt]
 set fp [open $report w]
 puts $fp "analysis=power_analysis corner=tt stage=post_syn"
 puts $fp "workload=GLS_WORKLOAD_REQUIRED"
-puts $fp "gls_report=/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json"
-puts $fp "activity_file=/home/eneadim/github/flexsoc/runs/gpio/refresh_tlul_repo/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd"
+puts $fp "gls_report=/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json"
+puts $fp "activity_file=/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd"
 puts $fp "activity_scope=DUT_SCOPE_REQUIRED"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"

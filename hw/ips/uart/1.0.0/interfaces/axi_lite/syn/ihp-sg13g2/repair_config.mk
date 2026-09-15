@@ -5,8 +5,8 @@ export DESIGN_NAME     = uart
 export PLATFORM        = ihp-sg13g2
 
 # FlexSoC owns synthesis and timing intent.
-export SYNTH_NETLIST_FILES := /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/syn/ihp-sg13g2/uart_synth_raw.v
-export SDC_FILE             := /tmp/flexsoc-uart-interface-contract-20260914/axi_lite/runs/uart/contract/constraints/uart.sdc
+export SYNTH_NETLIST_FILES := /tmp/flexsoc-ip-v1-release-20260914/uart-axi_lite/runs/uart/release/syn/ihp-sg13g2/uart_synth_raw.v
+export SDC_FILE             := /tmp/flexsoc-ip-v1-release-20260914/uart-axi_lite/runs/uart/release/constraints/uart.sdc
 
 # Platform-owned physical views (LEF/GDS/CDL/LVS decks) stay with ORFS.
 # Physical defaults; synthesis strategy does not alter these.

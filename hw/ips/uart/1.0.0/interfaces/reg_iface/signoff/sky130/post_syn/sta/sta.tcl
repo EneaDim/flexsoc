@@ -3,7 +3,7 @@
 #
 # Analysis : sta
 # Design   : uart
-# Variant  : contract
+# Variant  : release
 # PDK      : sky130
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-uart-interface-contract-20260914/reg_iface/runs/uart/contract/syn/sky130/uart_synth.v
-#   SDC           : /tmp/flexsoc-uart-interface-contract-20260914/reg_iface/runs/uart/contract/constraints/uart.sdc
+#   Netlist       : /tmp/flexsoc-ip-v1-release-20260914/uart-reg_iface/runs/uart/release/syn/sky130/uart_synth.v
+#   SDC           : /tmp/flexsoc-ip-v1-release-20260914/uart-reg_iface/runs/uart/release/constraints/uart.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /tmp/flexsoc-uart-interface-contract-20260914/reg_iface/runs/uart/contract/signoff/sky130/sta/template_reports
+#   Report dir    : /tmp/flexsoc-ip-v1-release-20260914/uart-reg_iface/runs/uart/release/signoff/sky130/sta/template_reports
 #
 # Limitations:
 #   - Violating, near-critical and unconstrained paths are separate sections of one report.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-uart-interface-contract-20260914/reg_iface/runs/uart/contract/signoff/sky130/sta/template_reports}
+set report_dir {/tmp/flexsoc-ip-v1-release-20260914/uart-reg_iface/runs/uart/release/signoff/sky130/sta/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-uart-interface-contract-20260914/reg_iface/runs/uart/contract/syn/sky130/uart_synth.v}
-set sdc {/tmp/flexsoc-uart-interface-contract-20260914/reg_iface/runs/uart/contract/constraints/uart.sdc}
+set netlist {/tmp/flexsoc-ip-v1-release-20260914/uart-reg_iface/runs/uart/release/syn/sky130/uart_synth.v}
+set sdc {/tmp/flexsoc-ip-v1-release-20260914/uart-reg_iface/runs/uart/release/constraints/uart.sdc}
 set spef {}
 set top {uart}
 set stage {post_syn}

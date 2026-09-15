@@ -1,0 +1,7 @@
+# GPIO checks: direct outputs and CSR reads.
+# <cycle> <signal> <expected> or <cycle> @read <reg> <expected> [mask]
+20 cio_gpio_o 0x00000003
+20 cio_gpio_en_o 0x00000003
+40 cio_gpio_o 0x0000000c
+40 cio_gpio_en_o 0x0000000a
+40 @read clk_i.DIRECT 0x000000ac 0x000000ff

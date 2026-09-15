@@ -1,0 +1,46 @@
+analysis=power_analysis corner=ss stage=post_syn
+workload=interrupt_levels_sv_ss
+gls_report=/tmp/flexsoc-ip-v1-release-20260914/gpio-axi_lite/runs/gpio/release/dv/functional/sim/post_syn/sky130/gpio_post_syn_interrupt_levels_sv_ss.json
+activity_file=/tmp/flexsoc-ip-v1-release-20260914/gpio-axi_lite/runs/gpio/release/signoff/sky130/power/activity/captures/gpio_sky130_interrupt_levels_sv_ss.vcd
+activity_scope=gpio_tb/u_gpio
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib
+netlist=/tmp/flexsoc-ip-v1-release-20260914/gpio-axi_lite/runs/gpio/release/syn/sky130/gpio_synth.v
+sdc=/tmp/flexsoc-ip-v1-release-20260914/gpio-axi_lite/runs/gpio/release/constraints/gpio.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1mA
+ power 1nW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Activity annotation ===
+annotated_percent=100.00%
+Unannotated pins: none
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             8.77e-04   3.50e-06   1.04e-09   8.81e-04  94.3%
+Combinational          2.32e-05   2.98e-05   1.54e-09   5.30e-05   5.7%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  9.00e-04   3.33e-05   2.58e-09   9.34e-04 100.0%
+                          96.4%       3.6%       0.0%
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.0009
+switching_power=3.33e-05
+dynamic_power=0.0009333
+leakage_power=2.58e-09
+total_power=0.000934

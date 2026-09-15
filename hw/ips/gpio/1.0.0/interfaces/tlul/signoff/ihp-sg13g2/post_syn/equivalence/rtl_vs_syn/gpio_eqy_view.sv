@@ -2,9 +2,9 @@
 module gpio (
   input wire clk_i,
   input wire rst_ni,
+  output wire [3:0] cio_gpio_en_o,
   input wire [3:0] cio_gpio_i,
   output wire [3:0] cio_gpio_o,
-  output wire [3:0] cio_gpio_en_o,
   output wire [3:0] intr_gpio_o,
   input wire [108:0] tl_i,
   output wire [1:0] tl_o__flexsoc_eqy_handshake,
@@ -18,9 +18,9 @@ module gpio (
   gpio__eqy_impl u_impl (
     .clk_i (clk_i),
     .rst_ni (rst_ni),
+    .cio_gpio_en_o (cio_gpio_en_o),
     .cio_gpio_i (cio_gpio_i),
     .cio_gpio_o (cio_gpio_o),
-    .cio_gpio_en_o (cio_gpio_en_o),
     .intr_gpio_o (intr_gpio_o),
     .tl_i (tl_i),
     .tl_o (tl_o__raw)
