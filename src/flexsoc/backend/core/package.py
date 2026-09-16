@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
-import io
 import json
 import os
 import re
@@ -12,15 +10,33 @@ import tempfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Sequence
-
-from .reporting import Reporting
+from typing import TYPE_CHECKING, Mapping, Sequence
 
 
 IPXACT_NS = "http://www.accellera.org/XMLSchema/IPXACT/1685-2022"
 XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
 ET.register_namespace("ipxact", IPXACT_NS)
 ET.register_namespace("xsi", XSI_NS)
+
+
+if TYPE_CHECKING:
+    from flexsoc.backend.core.core import BackendContext
+    from flexsoc.backend.core.target import Target
+
+
+SYNTHESIS_RELEASE_FILES = (
+    "abc.constr", "synth_pre.ys", "synth_pre_sv.ys", "synth.ys", "synth_sv.ys",
+    "repair_config.mk", "repair.tcl", "repair_json.ys",
+)
+SIGNOFF_RELEASE_FILES = (
+    "sta/sta.tcl", "sta/summary.json",
+    "sdf/write_sdf.tcl",
+    "power/estimate/power_estimate.tcl", "power/estimate/summary.json",
+    "power/analysis/power_analysis.tcl", "power/analysis/summary.json",
+    "fusion/fusion_analysis.tcl", "fusion/summary.json",
+)
+PHYSICAL_RELEASE_FILES = ("physical/summary.json",)
+PNR_FINAL_FILES = ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds")
 
 
 def _xe(parent: ET.Element, name: str, text: str | None = None, **attrs: str) -> ET.Element:
@@ -156,6 +172,27 @@ def _clean_hidden_paths(root: Path) -> None:
             path.unlink(missing_ok=True)
 
 
+_RUNTIME_QOR_KEYS = frozenset({
+    "activity_file", "conversion_log", "detail_log", "detail_report", "liberty", "log",
+    "power_detail_log", "report", "script", "source_gls_report", "source_wave", "spef",
+    "table", "vcd_scopes",
+})
+
+
+def _portable_qor(value: object) -> object:
+    """Drop runtime-only paths from a machine-readable release summary."""
+
+    if isinstance(value, dict):
+        return {
+            key: _portable_qor(item)
+            for key, item in value.items()
+            if key not in _RUNTIME_QOR_KEYS
+        }
+    if isinstance(value, list):
+        return [_portable_qor(item) for item in value]
+    return value
+
+
 def _portable_filelists(root: Path, project_root: Path, run_root: Path) -> None:
     """Store operational filelists without checkout/workspace absolute paths."""
 
@@ -229,6 +266,75 @@ class PackageFlow:
 
     project_root: Path
     values: Mapping[str, str]
+
+    def run_target(
+        self,
+        target: "Target",
+        context: "BackendContext",
+        *,
+        qualification: Mapping[str, object] | None = None,
+        cell_models: Sequence[Path] = (),
+        force: bool = False,
+    ) -> Path:
+        """Execute one package target from the declarative registry."""
+
+        paths = context.paths
+        values = context.values
+        interface = values.get("REG_ITF", "tlul")
+        ip_name = values.get("IP_NAME", paths.top)
+
+        if target.action == "load":
+            return self.load(
+                ip_name=ip_name, reg_interface=interface,
+                run_top=paths.run_top, run_id=paths.run_id,
+                workspace=context.workspace, load_as=values.get("LOAD_AS") or None,
+                version=values.get("IP_VERSION") or None,
+            )
+        if target.action == "ipxact":
+            return self.export_ipxact(
+                top=paths.top, csr_dir=paths.csr, rtl_dir=paths.rtl, output=paths.run / "component.xml",
+                vendor=values.get("IPXACT_VENDOR", "flexsoc"),
+                library=values.get("IPXACT_LIBRARY", "ip"),
+                version=values.get("IPXACT_VERSION", "1.0.0"),
+            )
+        if target.action != "save":
+            raise ValueError(f"unsupported package target: {target.name}")
+        if qualification is None:
+            raise ValueError("ip_save requires qualification evidence")
+
+        from .qualification import normalize_qualification_level
+        from .reporting import collect_implementation
+
+        requested = normalize_qualification_level(values.get("QUAL_LEVEL", "auto"))
+        if requested is not None and not qualification.get("target_satisfied", False):
+            raise RuntimeError(
+                f"requested qualification level L{requested} is not satisfied; "
+                f"maximum is L{qualification.get('maximum_level', 0)}"
+            )
+
+        implementation = collect_implementation(paths.top, paths.run, paths.pdk)
+        impl_available = (
+            isinstance(implementation, dict) and implementation.get("status") == "pass"
+        )
+        eqy = context.layout.equivalence_dir
+        return self.save(
+            ip_name=ip_name, reg_interface=interface, top=paths.top, pdk=paths.pdk,
+            library_root=Path(values.get("IP_LIBRARY_ROOT", context.project_root / "hw" / "ips")),
+            synth_dir=paths.syn, signoff_dir=paths.signoff, sdc_file=paths.sdc,
+            eqy_config=eqy / f"{paths.top}_rtl_vs_syn.eqy",
+            eqy_view=eqy / f"{paths.top}_eqy_view.sv",
+            filelists=(paths.rtl_common, paths.rtl_ip),
+            netlist=paths.syn / f"{paths.top}_synth.v",
+            liberty=Path(values["LIB_SYN"]), cell_models=cell_models,
+            clock_gate_model=eqy / "sky130_clock_gates_formal.v",
+            impl_dir=paths.impl if impl_available else None,
+            post_syn_sim_dir=context.layout.post_syn_sim_dir,
+            coverage_dir=paths.coverage, manifest_json=paths.manifest, metrics_json=paths.metrics,
+            settings_json=paths.meta / "settings.json",
+            design_intent_json=paths.run / "meta" / "design_intent.json",
+            qualification_json=paths.meta / "qualification.json",
+            version=values.get("IP_VERSION") or None, force=force,
+        )
 
     def load(
         self,
@@ -454,7 +560,7 @@ class PackageFlow:
 
             run = Path(synth_dir).parents[1]
             self._stage_sources(staged, run)
-            self._stage_dv_evidence(staged, run)
+            self._stage_dv_evidence(staged, run, top)
             self._stage_synthesis(staged, pdk, synth_dir, top)
             self._stage_post_syn_signoff(staged, pdk, signoff_dir, sdc_file, top)
             self._stage_equivalence(
@@ -463,9 +569,8 @@ class PackageFlow:
             )
             packaged_impl = staged / "impl" / pdk
             if impl_dir and Path(impl_dir).is_dir():
-                self._replace_tree(Path(impl_dir), packaged_impl)
-                shutil.rmtree(packaged_impl / "logs", ignore_errors=True)
-                self._stage_physical_signoff(staged, pdk, Path(signoff_dir) / "post_pnr")
+                self._stage_implementation(staged, pdk, Path(impl_dir), top)
+                self._stage_physical_signoff(staged, pdk, Path(signoff_dir) / "post_pnr", top)
             else:
                 shutil.rmtree(packaged_impl, ignore_errors=True)
                 impl_root = staged / "impl"
@@ -533,7 +638,7 @@ class PackageFlow:
         shutil.copytree(source, destination, symlinks=True)
 
     def _stage_sources(self, staged: Path, run: Path) -> None:
-        """Copy reusable source and generated collateral from the current run."""
+        """Copy reusable source/generated collateral and drop simulator runtime state."""
 
         for relative in (
             "csr", "rtl", "doc", "sw/drivers",
@@ -546,30 +651,43 @@ class PackageFlow:
         if (run / "component.xml").is_file():
             shutil.copy2(run / "component.xml", staged / "component.xml")
 
-    def _stage_dv_evidence(self, staged: Path, run: Path) -> None:
-        """Retain compact lint and CDC/RDC evidence below dv/."""
+        tb = staged / "dv" / "functional" / "tb"
+        if tb.is_dir():
+            for name in ("sim_build", "obj_dir", "__pycache__"):
+                for path in sorted(tb.rglob(name), key=lambda item: len(item.parts), reverse=True):
+                    if path.is_dir():
+                        shutil.rmtree(path, ignore_errors=True)
+            for pattern in ("*.fst", "*.vcd", "*.vvp", "*.pyc", "*.pyo", "results.xml"):
+                for path in tb.rglob(pattern):
+                    if path.is_file():
+                        path.unlink()
+
+    def _stage_dv_evidence(self, staged: Path, run: Path, top: str) -> None:
+        """Retain only machine-readable lint and CDC/RDC QoR below dv/."""
+
+        from .reporting import collect_lint
 
         shutil.rmtree(staged / "logs", ignore_errors=True)
         shutil.rmtree(staged / "analysis", ignore_errors=True)
 
-        lint = run / "dv" / "lint"
         destination = staged / "dv" / "lint"
         shutil.rmtree(destination, ignore_errors=True)
-        if lint.is_dir():
-            for tool in ("slang", "verilator"):
-                source = lint / tool
-                if source.is_dir():
-                    self._replace_tree(source, destination / tool)
+        summary = collect_lint(top, run)
+        if summary:
+            for values in summary.get("tools", {}).values():
+                values.pop("command", None)
+                values.pop("log", None)
+            destination.mkdir(parents=True, exist_ok=True)
+            (destination / "summary.json").write_text(
+                json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
 
-        cdc = run / "dv" / "cdc_rdc"
+        source = run / "dv" / "cdc_rdc" / "summary.json"
         destination = staged / "dv" / "cdc_rdc"
         shutil.rmtree(destination, ignore_errors=True)
-        if cdc.is_dir():
+        if source.is_file():
             destination.mkdir(parents=True, exist_ok=True)
-            for name in ("summary.json", "cdc_rdc.rpt"):
-                source = cdc / name
-                if source.is_file():
-                    shutil.copy2(source, destination / name)
+            shutil.copy2(source, destination / "summary.json")
 
     def _write_package_manifest(
         self, staged: Path, ip_name: str, top: str, reg_interface: str,
@@ -607,7 +725,7 @@ class PackageFlow:
                 for key, name in (
                     ("manifest", "manifest.json"), ("metrics", "metrics.json"),
                     ("provenance", "provenance.json"), ("settings", "settings.json"),
-                    ("check", "check.rpt"), ("qualification", "qualification.json"),
+                    ("qualification", "qualification.json"),
                 ):
                     if (branch / name).is_file():
                         evidence[key] = f"meta/{branch.name}/{name}"
@@ -654,10 +772,19 @@ class PackageFlow:
         )
 
     def _stage_synthesis(self, staged: Path, pdk: str, source: Path, top: str) -> None:
+        """Retain synthesis setup plus the canonical stage outputs, not ORFS repair work."""
+
+        source = Path(source)
         destination = staged / "syn" / pdk
-        self._replace_tree(Path(source), destination)
-        for checkpoint in ("generic", "dffmap", "abc", "clean"):
-            (destination / f"{top}_{checkpoint}.il").unlink(missing_ok=True)
+        shutil.rmtree(destination, ignore_errors=True)
+        destination.mkdir(parents=True, exist_ok=True)
+        names = (*SYNTHESIS_RELEASE_FILES, f"{top}_synth.v", f"{top}_synth.json", f"{top}_synth_repair.json")
+        for name in names:
+            path = source / name
+            if path.is_file():
+                shutil.copy2(path, destination / name)
+        for path in source.glob("*.abc"):
+            shutil.copy2(path, destination / path.name)
 
     def _stage_equivalence(
         self,
@@ -687,51 +814,102 @@ class PackageFlow:
         )
 
     @staticmethod
-    def _stage_post_syn_signoff(staged: Path, pdk: str, source: Path, sdc: Path, top: str) -> None:
-        """Save canonical post-synthesis signoff evidence.
+    def _copy_signoff_evidence(source: Path, destination: Path, *, physical: bool = False) -> None:
+        """Copy setup-owned collateral and compact QoR only."""
 
-        Scenario-local Tcl files are runtime copies of setup-owned collateral;
-        they are useful inside a run but must not become reusable package state.
-        """
-
-        destination = staged / "signoff" / pdk / "post_syn"
-        if destination.exists():
-            shutil.rmtree(destination)
+        source = Path(source)
+        shutil.rmtree(destination, ignore_errors=True)
         destination.mkdir(parents=True, exist_ok=True)
-        constraints = staged / "constraints"
-        constraints.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(sdc, constraints / sdc.name)
-        canonical_tcl = {
-            Path("sta/sta.tcl"),
-            Path("sdf/write_sdf.tcl"),
-            Path("power/estimate/power_estimate.tcl"),
-            Path("power/analysis/power_analysis.tcl"),
-            Path("fusion/fusion_analysis.tcl"),
-        }
-        for path in Path(source).rglob("*"):
-            if not path.is_file() or path.name.startswith("."):
-                continue
-            relative = path.relative_to(source)
-            if relative.parts and relative.parts[0] == "post_pnr":
-                continue
-            if path.suffix == ".tcl" and relative not in canonical_tcl:
-                continue
-            if path.name == "timing.rpt" and len(relative.parts) >= 4 and relative.parts[0] == "sta":
-                continue
-            if path.suffix not in {".tcl", ".rpt", ".json", ".sdf"}:
+        keep = SIGNOFF_RELEASE_FILES + (PHYSICAL_RELEASE_FILES if physical else ())
+        for relative in keep:
+            path = source / relative
+            if not path.is_file():
                 continue
             target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(path, target)
+            if path.suffix == ".json":
+                data = json.loads(path.read_text(encoding="utf-8"))
+                target.write_text(
+                    json.dumps(_portable_qor(data), indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+            else:
+                shutil.copy2(path, target)
+    @classmethod
+    def _stage_post_syn_signoff(
+        cls, staged: Path, pdk: str, source: Path, sdc: Path, top: str
+    ) -> None:
+        """Save reusable post-synthesis signoff without scenario-local reports."""
+
+        destination = staged / "signoff" / pdk / "post_syn"
+        cls._copy_signoff_evidence(Path(source), destination)
+        constraints = staged / "constraints"
+        constraints.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(sdc, constraints / sdc.name)
+
+        estimate = destination / "power" / "estimate" / "summary.json"
+        if not estimate.is_file():
+            from .reporting import collect_power_estimate
+
+            run = Path(source).parents[1]
+            summary = collect_power_estimate(top, run, pdk)
+            if summary:
+                for values in summary.get("corners", {}).values():
+                    values.pop("report", None)
+                    values.pop("log", None)
+                estimate.parent.mkdir(parents=True, exist_ok=True)
+                estimate.write_text(
+                    json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+                )
 
     @classmethod
-    def _stage_physical_signoff(cls, staged: Path, pdk: str, source: Path) -> None:
-        """Package Level-5 physical/signoff evidence only when it actually exists."""
+    def _stage_physical_signoff(
+        cls, staged: Path, pdk: str, source: Path, top: str
+    ) -> None:
+        """Package Level-5 signoff as setup-owned collateral plus canonical summaries."""
 
         destination = staged / "signoff" / pdk / "post_pnr"
+        if not Path(source).is_dir():
+            shutil.rmtree(destination, ignore_errors=True)
+            return
+        cls._copy_signoff_evidence(Path(source), destination, physical=True)
+
+        estimate = destination / "power" / "estimate" / "summary.json"
+        if not estimate.is_file():
+            from .reporting import collect_power_estimate
+
+            run = Path(source).parents[2]
+            summary = collect_power_estimate(top, run, pdk, "post_route")
+            if summary:
+                for values in summary.get("corners", {}).values():
+                    values.pop("report", None)
+                    values.pop("log", None)
+                estimate.parent.mkdir(parents=True, exist_ok=True)
+                estimate.write_text(
+                    json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+                )
+
+    @staticmethod
+    def _stage_implementation(staged: Path, pdk: str, source: Path, top: str) -> None:
+        """Retain PnR setup plus only the five canonical final ORFS artifacts."""
+
+        destination = staged / "impl" / pdk
         shutil.rmtree(destination, ignore_errors=True)
-        if Path(source).is_dir():
-            cls._replace_tree(Path(source), destination)
+        destination.mkdir(parents=True, exist_ok=True)
+        config = Path(source) / "config.mk"
+        if config.is_file():
+            shutil.copy2(config, destination / "config.mk")
+        roots = sorted(path for path in (Path(source) / "results").glob(f"*/{top}/base") if path.is_dir())
+        if len(roots) != 1:
+            raise ValueError(f"expected one canonical ORFS result branch for {top}, found {len(roots)}")
+        root = roots[0]
+        target_root = destination / root.relative_to(source)
+        target_root.mkdir(parents=True, exist_ok=True)
+        for name in PNR_FINAL_FILES:
+            path = root / name
+            if not path.is_file():
+                raise FileNotFoundError(f"missing canonical PnR artifact: {path}")
+            shutil.copy2(path, target_root / name)
 
     @staticmethod
     def _stage_optional_reports(
@@ -747,14 +925,18 @@ class PackageFlow:
         qualification_json: Path | None,
     ) -> None:
         if post_syn_sim_dir and Path(post_syn_sim_dir).is_dir():
-            reports = list(Path(post_syn_sim_dir).glob("*.json"))
+            reports = list(Path(post_syn_sim_dir).glob("summary*.json"))
             if reports:
                 target = staged / "dv" / "functional" / "sim" / "post_syn" / pdk
                 target.mkdir(parents=True, exist_ok=True)
                 for report in reports:
-                    shutil.copy2(report, target / report.name)
+                    data = json.loads(report.read_text(encoding="utf-8"))
+                    (target / report.name).write_text(
+                        json.dumps(_portable_qor(data), indent=2, sort_keys=True) + "\n",
+                        encoding="utf-8",
+                    )
         if coverage_dir:
-            reports = [Path(coverage_dir) / name for name in ("summary.txt", "summary.json")]
+            reports = [Path(coverage_dir) / "summary.json"]
             reports = [path for path in reports if path.is_file()]
             if reports:
                 target = staged / "dv" / "functional" / "coverage"
@@ -775,12 +957,7 @@ class PackageFlow:
         if manifest_json and Path(manifest_json).is_file():
             shutil.copy2(manifest_json, target / "manifest.json")
         if metrics_json and Path(metrics_json).is_file():
-            metrics = target / "metrics.json"
-            shutil.copy2(metrics_json, metrics)
-            buffer = io.StringIO()
-            with contextlib.redirect_stdout(buffer):
-                Reporting().check(metrics)
-            (target / "check.rpt").write_text(buffer.getvalue(), encoding="utf-8")
+            shutil.copy2(metrics_json, target / "metrics.json")
         if provenance_json and Path(provenance_json).is_file():
             shutil.copy2(provenance_json, target / "provenance.json")
         if settings_json and Path(settings_json).is_file():

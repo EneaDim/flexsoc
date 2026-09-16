@@ -1,0 +1,39 @@
+{
+  name:               "<<: top :>>_<<: regmap :>>",
+  human_name:         "<<: top :>>_<<: regmap :>>",
+  one_line_desc:      "Generated <<: regmap :>>-domain control/status registers.",
+  one_paragraph_desc: "Starter control/status map for a generated N-clock domain.",
+  cip_id:             "1",
+  design_spec:        "",
+  dv_doc:             "",
+  hw_checklist:       "",
+  sw_checklist:       "",
+  revisions: [{
+    version:            "1.0.0",
+    life_stage:         "L0",
+    design_stage:       "D0",
+    verification_stage: "V0",
+    commit_id:          "",
+    notes:              "Generated N-clock domain regmap."
+  }],
+  clocking: [{ clock: "clk_i", reset: "rst_ni" }],
+  bus_interfaces: [{ protocol: "<<: protocol :>>", direction: "device" }],
+  regwidth: "32",
+  registers: [
+    {
+      name: "CTRL",
+      desc: "Domain control.",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [{ bits: "0", name: "ENABLE", desc: "Enable this domain." }]
+    },
+    {
+      name: "STATUS",
+      desc: "Domain status.",
+      swaccess: "ro",
+      hwaccess: "hrw",
+      hwext: "true",
+      fields: [{ bits: "0", name: "BUSY", desc: "Domain busy." }]
+    }
+  ]
+}

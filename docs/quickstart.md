@@ -224,7 +224,7 @@ fx power_estimate
 ```
 
 STA sources `constraints/<TOP>.sdc` directly and writes the canonical human and
-machine-readable timing evidence to `signoff/<pdk>/sta/sta.rpt` and `sta.json`.
+machine-readable timing evidence to `signoff/<pdk>/sta/sta.rpt` and `summary.json`.
 The report is QoR-first: scenario status, WNS/TNS, minimum period/Fmax, constraint
 coverage, electrical checks, and detailed setup/hold paths without duplicating
 the same information across many public reports.
@@ -391,25 +391,40 @@ fx eqy --setup --force
 Preserve the IP-owned HJSON, RTL, model, tests, and properties. Regenerate only
 the explicitly derived collateral.
 
-## 12. Complete automated flow
+## 12. Complete IP flow
 
-After the authored sources and tests are ready:
-
-```bash
-fx ip_flow --force
-```
-
-Include OpenROAD implementation:
+FlexSoC intentionally has no hidden composite IP-flow target. Run each lifecycle step explicitly so authored scaffolds, runtime outcomes, provenance, and qualification remain visible. A typical closure sequence is:
 
 ```bash
-fx ip_flow_all --force
+fx lint_suite
+fx sdc --setup
+fx cdc_rdc --setup
+fx cdc_rdc
+fx tb cocotb --setup
+fx regression
+fx coverage_detail
+fx formal --setup
+fx formal
+fx syn --setup
+fx syn
+fx eqy --setup
+fx signoff --setup
+fx sdf
+fx sta
+fx power_estimate
+fx pnr --setup
+fx pnr
+fx physical_signoff
+fx signoff_post_pnr --setup
+fx sdf_post_pnr
+fx sta_post_pnr
+fx metrics
+fx check
+fx qualify
+fx ip_save
 ```
 
-For a flow that must not regenerate register RTL/docs:
-
-```bash
-fx ip_flow_noreg --force
-```
+EQY remains setup-only until an actual equivalence run is part of the qualified flow.
 
 ## 13. Project regression
 

@@ -1,0 +1,13 @@
+(* techmap_celltype = "prim_clk_gate" *)
+module _flexsoc_prim_clk_gate_map (
+  input  wire clk_i,
+  input  wire en_i,
+  input  wire test_en_i,
+  output wire clk_o
+);
+<<% if needs_gate_en %>>  wire gate_en;
+  assign gate_en = en_i | test_en_i;
+<<% endif %>>  <<: cell_name :>> _TECHMAP_REPLACE_ (
+<<: connections :>>
+  );
+endmodule

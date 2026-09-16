@@ -1,0 +1,41 @@
+`timescale 1ns/1ps
+module <<: top :>>_tb;
+  import <<: top :>>_reg_pkg::*;
+  logic <<: clk :>>;
+  logic <<: rst :>>;
+<<: extra_decls :>>
+  axi_lite_req_t axi_lite_i;
+  axi_lite_rsp_t axi_lite_o;
+<<: proxy_decls :>>
+
+<<: proxy_assigns :>>
+
+  initial begin
+<<: extra_init :>>
+<<: proxy_init :>>
+  end
+
+  string wave_path;
+  initial begin
+    if (!$value$plusargs("WAVE=%s", wave_path)) begin
+      if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
+    end
+    if (wave_path != "") begin
+      `ifdef FLEXSOC_COCOTB_WAVE_OWNER
+        $display("[TB] dumpfile = %s owner=cocotb", wave_path);
+      `else
+        $dumpfile(wave_path);
+        $dumpvars(0, <<: top :>>_tb);
+      `endif
+    end
+    #1;
+  end
+  `ifdef FLEXSOC_ENABLE_SDF
+    string sdf_path;
+    initial begin
+      if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
+      if (sdf_path != "") $sdf_annotate(sdf_path, u_<<: top :>>);
+    end
+  `endif
+  <<: top :>> u_<<: top :>> (.*);
+endmodule

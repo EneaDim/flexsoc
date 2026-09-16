@@ -1,0 +1,23 @@
+// Generated starter covers for <<: top :>>_core.
+// This file becomes designer-owned after creation and is never overwritten.
+module <<: top :>>_scaffold_cover (
+  input logic clk_i, rst_ni, valid_i, valid_o,
+  input logic [31:0] data_o
+);
+  logic past_valid = 1'b0;
+
+  always_ff @(posedge clk_i) begin
+    if (rst_ni) begin
+      cover (valid_i);
+      cover (valid_o);
+      cover (valid_o && |data_o);
+      if (past_valid) cover (valid_i && !$past(valid_i));
+    end
+    past_valid <= 1'b1;
+  end
+endmodule
+
+bind <<: top :>>_core <<: top :>>_scaffold_cover <<: top :>>_scaffold_cover_i (
+  .clk_i(clk_i), .rst_ni(rst_ni), .valid_i(valid_i),
+  .valid_o(valid_o), .data_o(data_o)
+);

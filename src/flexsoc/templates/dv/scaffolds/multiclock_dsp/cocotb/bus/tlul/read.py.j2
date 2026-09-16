@@ -1,0 +1,16 @@
+
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    for name, value in (("a_valid", 1), ("a_opcode", 4), ("a_param", 0), ("a_size", 2),
+                        ("a_source", 0), ("a_address", addr & 0xFFFFFFFF), ("a_mask", 0xF)):
+        getattr(dut, f"{domain}_{name}").value = value
+    await _wait_high(dut, f"{domain}_a_ready", clk)
+    await _drive_cycle(clk)
+    getattr(dut, f"{domain}_a_valid").value = 0
+    await _wait_high(dut, f"{domain}_d_valid", clk)
+    data = int(getattr(dut, f"{domain}_d_data").value) & 0xFFFFFFFF
+    if int(getattr(dut, f"{domain}_d_error").value):
+        raise AssertionError(f"TL-UL read error on {domain} addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    return data

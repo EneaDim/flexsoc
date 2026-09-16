@@ -1,0 +1,52 @@
+
+localparam integer FLEXSOC_TB_LINE_BYTES = 4096;
+localparam integer FLEXSOC_TB_TOKEN_BYTES = 256;
+typedef reg [8*FLEXSOC_TB_LINE_BYTES-1:0] tb_line_t;
+typedef reg [8*FLEXSOC_TB_TOKEN_BYTES-1:0] tb_token_t;
+
+function automatic bit tb_token_empty(input tb_token_t token);
+  return token == '0;
+endfunction
+
+function automatic bit tb_token_comment(input tb_token_t token);
+  tb_token_t ignored;
+  integer matched;
+  ignored = '0;
+  matched = $sscanf(token, "#%s", ignored);
+  return token == "#" || matched == 1;
+endfunction
+
+function automatic logic [32:0] tb_parse_u32(input tb_token_t raw);
+  logic [31:0] value;
+  integer ok;
+
+  value = '0;
+  ok = 0;
+  if (!tb_token_empty(raw) && !tb_token_comment(raw)) begin
+    ok = $sscanf(raw, "0x%h", value);
+    if (ok != 1) ok = $sscanf(raw, "0X%h", value);
+    if (ok != 1) ok = $sscanf(raw, "%d", value);
+    if (ok != 1) ok = $sscanf(raw, "%h", value);
+  end
+  return {ok == 1, value};
+endfunction
+
+task automatic tb_tokenize9(
+  input tb_line_t line,
+  output integer count,
+  output tb_token_t w0,
+  output tb_token_t w1,
+  output tb_token_t w2,
+  output tb_token_t w3,
+  output tb_token_t w4,
+  output tb_token_t w5,
+  output tb_token_t w6,
+  output tb_token_t w7,
+  output tb_token_t w8
+);
+  w0 = '0; w1 = '0; w2 = '0; w3 = '0; w4 = '0;
+  w5 = '0; w6 = '0; w7 = '0; w8 = '0;
+  count = $sscanf(line, "%s %s %s %s %s %s %s %s %s",
+                  w0, w1, w2, w3, w4, w5, w6, w7, w8);
+  if (count < 0) count = 0;
+endtask

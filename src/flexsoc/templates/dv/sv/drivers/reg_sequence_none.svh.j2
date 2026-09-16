@@ -1,0 +1,39 @@
+// Auto-generated register helper for <<: top :>>.
+// This DUT has no generated register bus helper in the current testbench.
+function automatic logic [32:0] tb_lookup_reg_addr(input string reg_key);
+  return 33'b0;
+endfunction
+
+function automatic logic [32:0] tb_parse_cfg_u32(input string raw);
+  logic [31:0] value;
+  int ok;
+  value = '0;
+  ok = $sscanf(raw, "%d", value);
+  return {ok == 1, value};
+endfunction
+
+task automatic tb_reg_write_key(
+  input string reg_key,
+  input logic [31:0] data,
+  input logic [31:0] mask,
+  output bit ok
+);
+  ok = 1'b0;
+  $display("[TB][ERROR] register write requested but no register bus is active: %s", reg_key);
+  error_count++;
+endtask
+
+task automatic tb_reg_read_key(
+  input string reg_key,
+  output logic [31:0] data,
+  output bit ok
+);
+  data = '0;
+  ok = 1'b0;
+  $display("[TB][ERROR] register read requested but no register bus is active: %s", reg_key);
+  error_count++;
+endtask
+
+task automatic run_reg_config(input string cfg_path);
+  $display("[TB] register config skipped: %s", cfg_path);
+endtask

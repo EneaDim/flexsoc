@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+from .reg_driver import (
+    _drive_cycle, _sample_cycle, apply_reg, expect_reg, reset, rows, settle,
+)
+
+
+async def send_sample(dut, sample: int, coeff: int):
+    "Hold one RX transaction across a sampled ready/valid handshake."
+    await _drive_cycle(dut.rx_clk_i)
+    dut.rx_sample_i.value = sample & 0xFFFF
+    dut.rx_coeff_i.value = coeff & 0xFFFF
+    dut.rx_valid_i.value = 1
+    for _ in range(64):
+        await _sample_cycle(dut.rx_clk_i)
+        if bool(dut.rx_ready_o.value):
+            break
+    else:
+        raise TimeoutError("rx_ready_o timeout")
+    await _drive_cycle(dut.rx_clk_i)
+    dut.rx_valid_i.value = 0
+
+
+async def drive_inputs(dut, path: str):
+    "Execute signal, CSR and reset commands from data_in.vec."
+    sample = 0
+    coeff = 0
+    for parts in rows(path):
+        if len(parts) < 2:
+            continue
+        token = parts[1]
+        if token in {"@wait_output", "wait_output"}:
+            for _ in range(64):
+                await _sample_cycle(dut.dsp_clk_i)
+                if bool(dut.dsp_valid_o.value):
+                    break
+            else:
+                raise TimeoutError("@wait_output timeout waiting for dsp_valid_o")
+            continue
+        if token in {"@write", "write"} and len(parts) >= 4:
+            mask = int(parts[4], 0) if len(parts) >= 5 else 0xFFFFFFFF
+            await apply_reg(dut, parts[2], int(parts[3], 0), mask)
+            await settle(dut)
+            continue
+        if token in {"@read", "read"} and len(parts) >= 4:
+            mask = int(parts[4], 0) if len(parts) >= 5 else 0xFFFFFFFF
+            await expect_reg(dut, parts[2], int(parts[3], 0), mask)
+            continue
+        if token in {"@reset", "reset"}:
+            if len(parts) == 3:
+                selector, cycles = "all", parts[2]
+            elif len(parts) == 4:
+                selector, cycles = parts[2], parts[3]
+            else:
+                raise AssertionError(
+                    "@reset format: cycle @reset [domain|reset] cycles"
+                )
+            dut._log.info(
+                "[TB][RESET] cycle=%s selector=%s cycles=%s",
+                parts[0], selector, cycles,
+            )
+            await reset(dut, selector, int(cycles, 0))
+            continue
+        if len(parts) < 3:
+            continue
+        value = int(parts[2], 0)
+        if token == "rx_sample_i":
+            sample = value
+        elif token == "rx_coeff_i":
+            coeff = value
+        elif token == "rx_valid_i" and value:
+            await send_sample(dut, sample, coeff)

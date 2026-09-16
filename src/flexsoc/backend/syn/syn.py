@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+from ..core.templates import templates
+
 
 SYNTHESIS_PROFILES = (
     "area0", "area1", "area2", "area3",
@@ -500,26 +502,16 @@ def render_clock_gate_techmap(cell: ClockGateCell) -> str:
     if cell.test_pin:
         connections.append((cell.test_pin, "test_en_i"))
     connections.extend((pin, "1'b0") for pin in cell.tie_lo_pins)
-    lines = [
-        '(* techmap_celltype = "prim_clk_gate" *)',
-        "module _flexsoc_prim_clk_gate_map (",
-        "  input  wire clk_i,",
-        "  input  wire en_i,",
-        "  input  wire test_en_i,",
-        "  output wire clk_o",
-        ");",
-    ]
-    if not cell.test_pin:
-        lines += [
-            "  wire gate_en;",
-            "  assign gate_en = en_i | test_en_i;",
-        ]
-    lines.append(f"  {cell.name} _TECHMAP_REPLACE_ (")
-    for index, (pin, signal) in enumerate(connections):
-        comma = "," if index + 1 < len(connections) else ""
-        lines.append(f"    .{pin} ({signal}){comma}")
-    lines += ["  );", "endmodule", ""]
-    return "\n".join(lines)
+    rendered = "\n".join(
+        f"    .{pin} ({signal}){',' if index + 1 < len(connections) else ''}"
+        for index, (pin, signal) in enumerate(connections)
+    )
+    return templates.render(
+        "syn/yosys/clock_gate_map.v.j2",
+        cell_name=cell.name,
+        needs_gate_en=not cell.test_pin,
+        connections=rendered,
+    )
 
 
 def _uses_explicit_clock_gate(topdir: Path) -> bool:
@@ -608,68 +600,32 @@ def _abc_command_comment(command: str) -> str:
 
 
 def abc_script(profile: str, clk_ns: float) -> str:
-    """Render one self-documenting ABC optimization profile.
-
-    Yosys substitutes ``{D}`` only in its built-in ABC command strings. Custom
-    ``-script <file>`` recipes are sourced by ABC as ordinary files, so FlexSoC
-    writes the numeric picosecond target directly into delay-oriented commands.
-    """
+    """Render one self-documenting ABC optimization profile."""
 
     profile = _validate_profile(profile)
     delay_ps = int(round(clk_ns * 1000.0))
     recipes: dict[str, tuple[str, ...]] = {
-        "area0": (
-            "strash", "dch", "balance", "rewrite", "refactor", "rewrite -z",
-            "balance", "dch", "map -a", "topo", "dnsize -c",
-        ),
-        "area1": (
-            "strash", "dch", "balance", "rewrite", "refactor", "rewrite -z",
-            "balance", "rewrite", "refactor", "rewrite -z", "dch",
-            "map -a", "topo", "dnsize -c",
-        ),
-        "area2": (
-            "strash", "dch", "balance", "resub -K 6", "rewrite", "refactor",
-            "resub -K 8", "rewrite -z", "balance", "dch", "map -a", "topo",
-            "buffer -c -N 32", "dnsize -c",
-        ),
-        "area3": (
-            "strash", "dch", "map -B 0.9", "topo", "stime -c",
-            "buffer -c -N 24", "upsize -c", "dnsize -c",
-        ),
-        "delay0": (
-            "strash", "balance", "rewrite", "refactor", "rewrite -z", "balance",
-            "dch", f"map -D {delay_ps}", "topo", f"upsize {delay_ps}",
-        ),
-        "delay1": (
-            "strash", "dch", "balance", "rewrite", "refactor", "dch",
-            f"map -D {delay_ps}", "topo", "buffer -c -N 32",
-            f"upsize {delay_ps}", f"dnsize {delay_ps}",
-        ),
-        "delay2": (
-            "strash", "dch", "balance", "rewrite", "refactor", "rewrite -z",
-            "balance", "dch", f"map -D {delay_ps}", "topo", "stime -c",
-            "buffer -c -N 32", f"upsize {delay_ps}",
-        ),
-        "delay3": (
-            "strash", "dch", "balance", "rewrite", "refactor", "rewrite -z",
-            "balance", "rewrite", "refactor", "dch", f"map -D {delay_ps}", "topo",
-            "stime -c", "buffer -c -N 24", f"upsize {delay_ps}", f"dnsize {delay_ps}",
-        ),
-        "delay4": (
-            "strash", "dch", "balance", "rewrite", "refactor", "rewrite -z",
-            "balance", "rewrite", "refactor", "rewrite -z", "dch",
-            f"map -D {delay_ps}", "topo", "stime -c", "buffer -c -N 16",
-            f"upsize {delay_ps}",
-        ),
+        "area0": ("strash", "dch", "balance", "rewrite", "refactor", "rewrite -z", "balance", "dch", "map -a", "topo", "dnsize -c"),
+        "area1": ("strash", "dch", "balance", "rewrite", "refactor", "rewrite -z", "balance", "rewrite", "refactor", "rewrite -z", "dch", "map -a", "topo", "dnsize -c"),
+        "area2": ("strash", "dch", "balance", "resub -K 6", "rewrite", "refactor", "resub -K 8", "rewrite -z", "balance", "dch", "map -a", "topo", "buffer -c -N 32", "dnsize -c"),
+        "area3": ("strash", "dch", "map -B 0.9", "topo", "stime -c", "buffer -c -N 24", "upsize -c", "dnsize -c"),
+        "delay0": ("strash", "balance", "rewrite", "refactor", "rewrite -z", "balance", "dch", f"map -D {delay_ps}", "topo", f"upsize {delay_ps}"),
+        "delay1": ("strash", "dch", "balance", "rewrite", "refactor", "dch", f"map -D {delay_ps}", "topo", "buffer -c -N 32", f"upsize {delay_ps}", f"dnsize {delay_ps}"),
+        "delay2": ("strash", "dch", "balance", "rewrite", "refactor", "rewrite -z", "balance", "dch", f"map -D {delay_ps}", "topo", "stime -c", "buffer -c -N 32", f"upsize {delay_ps}"),
+        "delay3": ("strash", "dch", "balance", "rewrite", "refactor", "rewrite -z", "balance", "rewrite", "refactor", "dch", f"map -D {delay_ps}", "topo", "stime -c", "buffer -c -N 24", f"upsize {delay_ps}", f"dnsize {delay_ps}"),
+        "delay4": ("strash", "dch", "balance", "rewrite", "refactor", "rewrite -z", "balance", "rewrite", "refactor", "rewrite -z", "dch", f"map -D {delay_ps}", "topo", "stime -c", "buffer -c -N 16", f"upsize {delay_ps}"),
     }
-    title = profile.upper().replace("AREA", "AREA ").replace("DELAY", "DELAY ")
-    lines = [
-        f"# {title} ABC profile",
-        f"# Clock target: {clk_ns:g} ns ({delay_ps} ps).",
-    ]
-    for command in (*recipes[profile], "stime -p", "print_stats -m"):
-        lines.extend((f"# {_abc_command_comment(command)}", command))
-    return "\n".join((*lines, ""))
+    commands = tuple(
+        (_abc_command_comment(command), command)
+        for command in (*recipes[profile], "stime -p", "print_stats -m")
+    )
+    return templates.render(
+        "syn/yosys/abc_profile.abc.j2",
+        title=profile.upper().replace("AREA", "AREA ").replace("DELAY", "DELAY "),
+        clk_ns=f"{clk_ns:g}",
+        delay_ps=delay_ps,
+        commands=commands,
+    )
 
 
 def _abc_load_ff(liberty: Path, load: float) -> float:
@@ -689,11 +645,11 @@ def _abc_load_ff(liberty: Path, load: float) -> float:
 def render_abc_constraints(driving_cell: str = "", load: float = 10.0) -> str:
     """Render the ABC subset derivable from authored SDC I/O intent."""
 
-    lines: list[str] = []
-    if driving_cell.strip():
-        lines.append(f"set_driving_cell {driving_cell.strip()}")
-    lines.append(f"set_load {load:g}")
-    return "\n".join(lines) + "\n"
+    return templates.render(
+        "syn/yosys/abc_constraints.constr.j2",
+        driving_cell=driving_cell.strip(),
+        load=f"{load:g}",
+    )
 
 
 def _abc_script_name(opt: str) -> str:
@@ -719,105 +675,61 @@ def render_abc_command(cfg: SynthesisConfig, script_name: str) -> str:
     return f"{base} -script {pjoin(cfg.output, script_name)} \\" + _abc_constraint_arg(cfg)
 
 
-def _asic_tail(cfg: SynthesisConfig, script_name: str) -> list[str]:
-    """Return shared ASIC mapping, cleanup, and output commands."""
+def _render_asic_synth(cfg: SynthesisConfig, script_name: str, *, plot: bool) -> str:
+    """Render the common ASIC synthesis script from semantic configuration."""
 
     if cfg.liberty is None:
         raise ValueError("ASIC synthesis requires a Liberty file.")
-
-    return [
-        "",
-        "# technology-boundary checkpoints used by equivalence diagnostics",
-        f"write_rtlil {pjoin(cfg.output, cfg.top + '_generic.il')}",
-        "",
-        "# prepare FF types while keeping Yosys FF boundaries visible to ABC",
-        f"dfflibmap -prepare -liberty {cfg.liberty.as_posix()}",
-        f"write_rtlil {pjoin(cfg.output, cfg.top + '_dffmap.il')}",
-        "",
-        "# map combinational logic and preserve FF output wires used by EQY",
-        render_abc_command(cfg, script_name),
-        f"write_rtlil {pjoin(cfg.output, cfg.top + '_abc.il')}",
-        "",
-        "# bind the prepared FF types to final technology cells after ABC",
-        f"dfflibmap -map-only -liberty {cfg.liberty.as_posix()}",
-        "",
-        "# Validate mapped connectivity before physical-only netlist finalization",
-        "check -assert",
-        "",
-        "# Finalize the implementation-ready technology netlist",
-        "splitnets",
-        "opt_clean -purge",
-        *(
-            [
-                f"hilomap -singleton -hicell {cfg.tie_hi[0]} {cfg.tie_hi[1]} "
-                f"-locell {cfg.tie_lo[0]} {cfg.tie_lo[1]}"
-            ]
-            if cfg.tie_hi and cfg.tie_lo
-            else []
-        ),
-        *(
-            [f"insbuf -buf {cfg.min_buffer[0]} {cfg.min_buffer[1]} {cfg.min_buffer[2]}"]
-            if cfg.min_buffer
-            else []
-        ),
-        "# keep final public identifiers portable across Verilog, SDF and P&R consumers",
-        "rename -unescape",
-        "check -assert -mapped",
-        f"write_rtlil {pjoin(cfg.output, cfg.top + '_clean.il')}",
-        "",
-        "# Basic stats of std cells and area",
-        f"stat -liberty {cfg.liberty.as_posix()}",
-        "",
-        "# Raw mapped netlist; OpenROAD pre-placement repair publishes the canonical netlist",
-        f"write_verilog -nohex -nodec {pjoin(cfg.output, cfg.top + '_synth_raw.v')}",
-        f"write_json {pjoin(cfg.output, cfg.top + '_synth_raw.json')}",
-        "",
-    ]
-
+    hilomap = ""
+    if cfg.tie_hi and cfg.tie_lo:
+        hilomap = (
+            f"hilomap -singleton -hicell {cfg.tie_hi[0]} {cfg.tie_hi[1]} "
+            f"-locell {cfg.tie_lo[0]} {cfg.tie_lo[1]}"
+        )
+    insbuf = (
+        f"insbuf -buf {cfg.min_buffer[0]} {cfg.min_buffer[1]} {cfg.min_buffer[2]}"
+        if cfg.min_buffer else ""
+    )
+    return templates.render(
+        "syn/yosys/synth_asic.ys.j2",
+        top=cfg.top,
+        liberty=cfg.liberty.as_posix(),
+        preserved_json=pjoin(cfg.output, cfg.top + "_pre_preserved.json"),
+        plot=pjoin(cfg.output, "plots", cfg.top + "_postsyn") if plot else "",
+        generic_il=pjoin(cfg.output, cfg.top + "_generic.il"),
+        dffmap_il=pjoin(cfg.output, cfg.top + "_dffmap.il"),
+        abc_command=render_abc_command(cfg, script_name),
+        abc_il=pjoin(cfg.output, cfg.top + "_abc.il"),
+        hilomap=hilomap,
+        insbuf=insbuf,
+        clean_il=pjoin(cfg.output, cfg.top + "_clean.il"),
+        raw_v=pjoin(cfg.output, cfg.top + "_synth_raw.v"),
+        raw_json=pjoin(cfg.output, cfg.top + "_synth_raw.json"),
+    )
 
 
 def render_openroad_syn_repair_tcl(*, slew_margin: int = 10, cap_margin: int = 10) -> str:
-    """Render the lightweight OpenROAD post-synthesis electrical repair stage.
-
-    The stage intentionally stops before global placement, CTS and routing.  ORFS
-    supplies only a minimal floorplan/OpenDB import so Resizer has technology and
-    physical-library context; ``repair_design -pre_placement`` then repairs
-    fanout, capacitance and slew on the mapped netlist.
-    """
+    """Render the lightweight OpenROAD post-synthesis electrical repair stage."""
 
     if not 0 <= slew_margin <= 100 or not 0 <= cap_margin <= 100:
         raise ValueError("OpenROAD synthesis-repair margins must be in [0, 100]")
-    return "\n".join([
-        "# FlexSoC post-synthesis electrical repair; no placement/CTS/routing",
-        "read_liberty $::env(FLEXSOC_REPAIR_LIBERTY)",
-        "read_db $::env(FLEXSOC_REPAIR_ODB)",
-        "read_sdc $::env(FLEXSOC_REPAIR_SDC)",
-        "",
-        "puts {=== FLEXSOC BEFORE REPAIR ===}",
-        "report_wns",
-        "report_tns",
-        "",
-        f"repair_design -pre_placement -slew_margin {slew_margin} -cap_margin {cap_margin} -verbose",
-        "",
-        "puts {=== FLEXSOC AFTER REPAIR ===}",
-        "report_wns",
-        "report_tns",
-        "write_verilog $::env(FLEXSOC_REPAIR_OUT)",
-        "",
-    ])
+    return templates.render(
+        "syn/yosys/openroad_repair.tcl.j2",
+        slew_margin=slew_margin,
+        cap_margin=cap_margin,
+    )
 
 
 def yosys_repaired_json(top: str, outdir: Path, liberty: Path) -> str:
     """Render the tiny Yosys import used to publish JSON for the repaired netlist."""
 
-    return "\n".join([
-        "# Canonical machine-readable view of the OpenROAD-repaired netlist",
-        f"read_liberty -overwrite -setattr liberty_cell -lib {liberty.as_posix()}",
-        f"read_verilog {pjoin(outdir, top + '_synth.v')}",
-        f"hierarchy -check -top {top}",
-        f"write_json {pjoin(outdir, top + '_synth.json')}",
-        "",
-    ])
+    return templates.render(
+        "syn/yosys/repair_json.ys.j2",
+        liberty=liberty.as_posix(),
+        netlist=pjoin(outdir, top + "_synth.v"),
+        top=top,
+        json=pjoin(outdir, top + "_synth.json"),
+    )
 
 
 def synthesis_repair_report(log: Path, *, top: str, raw: Path, repaired: Path, floorplan: Path, liberty: Path) -> dict[str, object]:
@@ -845,120 +757,56 @@ def synthesis_repair_report(log: Path, *, top: str, raw: Path, repaired: Path, f
         "tns_after": float(tns[-1]) if len(tns) >= 2 else None,
     }
 
-def yosys_presynth_asic_verilog(
-    top: str,
-    topdir: Path,
-    liberty: Path,
-    outdir: Path,
-) -> str:
+def yosys_presynth_asic_verilog(top: str, topdir: Path, liberty: Path, outdir: Path) -> str:
     """Render the process-lowering prepass used for structural reset analysis."""
 
-    return "\n".join([
-        "# pre-synthesis structural snapshot; no optimization",
-        f"read_liberty -overwrite -setattr liberty_cell -lib {liberty.as_posix()}",
-        f"read_verilog {pjoin(topdir, top + '.v')}",
-        f"hierarchy -check -top {top}",
-        "proc",
-        f"select -module {top}",
-        "# flatten only the structural analysis view so hierarchical reset FFs are visible",
-        "flatten",
-        "check -assert",
-        f"write_json -selected {pjoin(outdir, top + '_pre.json')}",
-        "select -clear",
-        "",
-    ])
+    return templates.render(
+        "syn/yosys/presynth_verilog.ys.j2",
+        liberty=liberty.as_posix(),
+        rtl=pjoin(topdir, top + ".v"),
+        top=top,
+        output=pjoin(outdir, top + "_pre.json"),
+    )
 
 
 def yosys_presynth_asic_slang(
-    top: str,
-    liberty: Path,
-    outdir: Path,
-    filelists: Sequence[Path] = (Path("rtl_common.f"), Path("rtl_ip.f")),
-    *,
+    top: str, liberty: Path, outdir: Path,
+    filelists: Sequence[Path] = (Path("rtl_common.f"), Path("rtl_ip.f")), *,
     clock_gate_map: Path | None = None,
 ) -> str:
     """Render the SystemVerilog process-lowering prepass for reset analysis."""
 
-    lines = [
-        "# pre-synthesis structural snapshot; no optimization",
-        f"read_liberty -overwrite -setattr liberty_cell -lib {liberty.as_posix()}",
-        f"read_slang -I {(_repo_root() / 'hw' / 'ips' / 'pkgs').as_posix()} \\",
-        "           -I ../hw/ips/prim \\",
-        "           -I ../hw/ips/prim_opentitan \\",
-        "           -D SYNTHESIS \\",
-        "           --ignore-assertions \\",
-        *(
-            ["           --blackboxed-module prim_clk_gate \\"]
-            if clock_gate_map is not None else []
-        ),
-        *(f"           -f {Path(filelist).resolve().as_posix()} \\" for filelist in filelists),
-        f"           --top {top}",
-        "",
-        f"hierarchy -check -top {top}",
-        *(
-            [
-                "# legalize explicit RTL clock-gating intent before structural snapshot",
-                f"techmap -map {clock_gate_map.resolve().as_posix()}",
-                "select -assert-count 0 t:prim_clk_gate",
-                "select -clear",
-            ] if clock_gate_map is not None else []
-        ),
-        "proc",
-        f"select -module {top}",
-        "# flatten only the structural analysis view so hierarchical reset FFs are visible",
-        "flatten",
-        "check -assert",
-        f"write_json -selected {pjoin(outdir, top + '_pre.json')}",
-        "select -clear",
-        "",
-    ]
-    return _rewrite_hw_ip_include_paths("\n".join(lines))
+    script = templates.render(
+        "syn/yosys/presynth_slang.ys.j2",
+        liberty=liberty.as_posix(),
+        pkgs=(_repo_root() / "hw" / "ips" / "pkgs").as_posix(),
+        clock_gate_map=clock_gate_map.resolve().as_posix() if clock_gate_map else "",
+        filelists=tuple(Path(path).resolve().as_posix() for path in filelists),
+        top=top,
+        output=pjoin(outdir, top + "_pre.json"),
+    )
+    return _rewrite_hw_ip_include_paths(script)
 
 
 def yosys_synth_asic_verilog(
-    top: str,
-    topdir: Path,
-    liberty: Path,
-    clk_ns: float,
-    opt: str,
-    sdcdir: Path | None,
-    outdir: Path,
-    *,
+    top: str, topdir: Path, liberty: Path, clk_ns: float, opt: str,
+    sdcdir: Path | None, outdir: Path, *,
     tie_hi: tuple[str, str] | None = None,
     tie_lo: tuple[str, str] | None = None,
     min_buffer: tuple[str, str, str] | None = None,
 ) -> str:
     """Render a Verilog ASIC Yosys script from preserved pre-synthesis JSON."""
 
-    profile = _validate_profile(opt)
     cfg = SynthesisConfig(
-        top, topdir, "asic", clk_ns, outdir, liberty,
-        sdcdir=sdcdir, opt=profile,
-        tie_hi=tie_hi, tie_lo=tie_lo, min_buffer=min_buffer,
+        top, topdir, "asic", clk_ns, outdir, liberty, sdcdir=sdcdir,
+        opt=_validate_profile(opt), tie_hi=tie_hi, tie_lo=tie_lo, min_buffer=min_buffer,
     )
-    script_name = _abc_script_name(profile)
-    lines = [
-        "# read target standard cells as library modules for mapped-cell pin directions",
-        f"read_liberty -overwrite -setattr liberty_cell -lib {liberty.as_posix()}",
-        "# read process-lowered design with backend-only reset preservation attributes",
-        f"read_json {pjoin(outdir, top + '_pre_preserved.json')}",
-        "# basic synth",
-        f"synth -top {top} -noabc",
-        f"show -width -format dot -prefix {pjoin(outdir, 'plots', top + '_postsyn')}",
-        *_asic_tail(cfg, script_name),
-    ]
-    return "\n".join(lines)
+    return _render_asic_synth(cfg, _abc_script_name(cfg.opt), plot=True)
 
 
 def yosys_synth_asic_slang(
-    top: str,
-    liberty: Path,
-    clk_ns: float,
-    opt: str,
-    sdcdir: Path | None,
-    outdir: Path,
-    filelists: Sequence[Path] = (Path("rtl_common.f"), Path("rtl_ip.f")),
-    *,
+    top: str, liberty: Path, clk_ns: float, opt: str, sdcdir: Path | None, outdir: Path,
+    filelists: Sequence[Path] = (Path("rtl_common.f"), Path("rtl_ip.f")), *,
     tie_hi: tuple[str, str] | None = None,
     tie_lo: tuple[str, str] | None = None,
     min_buffer: tuple[str, str, str] | None = None,
@@ -966,68 +814,35 @@ def yosys_synth_asic_slang(
 ) -> str:
     """Render the SystemVerilog ASIC Yosys script from preserved JSON."""
 
-    profile = _validate_profile(opt)
     cfg = SynthesisConfig(
-        top, Path("rtl"), "asic", clk_ns, outdir, liberty,
-        sdcdir=sdcdir, opt=profile, filelists=tuple(filelists),
-        tie_hi=tie_hi, tie_lo=tie_lo, min_buffer=min_buffer,
+        top, Path("rtl"), "asic", clk_ns, outdir, liberty, sdcdir=sdcdir,
+        opt=_validate_profile(opt), filelists=tuple(filelists), tie_hi=tie_hi,
+        tie_lo=tie_lo, min_buffer=min_buffer,
     )
-    script_name = _abc_script_name(profile)
-    lines = [
-        "# read target standard cells as library modules for mapped-cell pin directions",
-        f"read_liberty -overwrite -setattr liberty_cell -lib {liberty.as_posix()}",
-        "# read process-lowered design with backend-only reset preservation attributes",
-        f"read_json {pjoin(outdir, top + '_pre_preserved.json')}",
-        "# basic synth",
-        f"synth -top {top} -noabc",
-        *_asic_tail(cfg, script_name),
-    ]
-    return "\n".join(lines)
+    return _render_asic_synth(cfg, _abc_script_name(cfg.opt), plot=False)
+
 
 def yosys_synth_xilinx(top: str, topdir: Path, outdir: Path) -> str:
     """Render a Xilinx-oriented Yosys script."""
 
-    return "\n".join(
-        [
-            "# read files",
-            f"read_verilog {pjoin(topdir, top + '.v')}",
-            "# basic synth",
-            f"synth_xilinx -top {top} -flatten -edif {pjoin(outdir, top + '.edif')}",
-            "",
-        ]
+    return templates.render(
+        "syn/yosys/xilinx.ys.j2", top=top, rtl=pjoin(topdir, top + ".v"),
+        edif=pjoin(outdir, top + ".edif"),
     )
 
 
 def vivado_tcl_xilinx(top: str) -> str:
     """Render a compact Vivado TCL implementation script."""
 
-    return "\n".join(
-        [
-            f"read_xdc {top}.xdc",
-            f"read_edif {top}.edif",
-            f"link_design -part xc7a35tcpg236-1 -top {top}",
-            "opt_design",
-            "place_design",
-            "route_design",
-            "report_utilization",
-            "report_timing",
-            f"write_bitstream -force {top}.bit",
-            "",
-        ]
-    )
+    return templates.render("syn/yosys/xilinx.tcl.j2", top=top)
 
 
 def yosys_synth_ice40(top: str, topdir: Path, outdir: Path) -> str:
     """Render an iCE40-oriented Yosys script."""
 
-    return "\n".join(
-        [
-            "# read files",
-            f"read_verilog {pjoin(topdir, top + '.v')}",
-            "# basic synth",
-            f"synth_ice40 -top {top} -json {pjoin(outdir, top + '.json')}",
-            "",
-        ]
+    return templates.render(
+        "syn/yosys/ice40.ys.j2", top=top, rtl=pjoin(topdir, top + ".v"),
+        json=pjoin(outdir, top + ".json"),
     )
 
 

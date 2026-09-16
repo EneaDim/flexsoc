@@ -1,0 +1,12 @@
+flexsoc_section $report {Routed parasitic annotation}
+# Show SPEF coverage; unannotated routed nets remain explicit instead of silently using zero parasitics.
+flexsoc_append_opensta $report report_parasitic_annotation -report_unannotated
+flexsoc_section $report {Clock latency and skew}
+# Report propagated clock-tree latency including Liberty internal clock latency where available.
+flexsoc_append_opensta $report report_clock_latency -include_internal_latency -digits 6
+# Report both setup and hold clock skew from the propagated post-route clock network.
+flexsoc_append_opensta $report report_clock_skew -setup -include_internal_latency -digits 6
+flexsoc_append_opensta $report report_clock_skew -hold -include_internal_latency -digits 6
+flexsoc_section $report {Worst routed paths}
+# Always show routed paths, even when timing is met, so cell and interconnect delay remain inspectable.
+flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count 50 -endpoint_path_count 1 -unique_paths_to_endpoint -sort_by_slack -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6

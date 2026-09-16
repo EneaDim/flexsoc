@@ -1,0 +1,70 @@
+      // Shared timing intent: every domain drives/samples from its clock period and IO delay.
+      task automatic apply_defaults();
+        cfg_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    32'b0, 4'b0, 32'b0, 1'b1);
+        dsp_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    32'b0, 4'b0, 32'b0, 1'b1);
+        rx_valid_i = 1'b0;
+        rx_sample_i = '0;
+        rx_coeff_i = '0;
+        dsp_ready_i = 1'b1;
+      endtask
+
+<<: reset_tasks :>>      task automatic cfg_write(input logic [31:0] addr, input logic [31:0] data);
+        cfg_drive_cycle();
+        cfg_tl_i = flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_PUT_FULL, 3'b0, 2'd2, 8'b0,
+                                    addr, 4'hf, data, 1'b1);
+        do cfg_sample_cycle(); while (!cfg_tl_o[0]);
+        cfg_drive_cycle();
+        cfg_tl_i[108] = 1'b0;
+        do cfg_sample_cycle(); while (!cfg_tl_o[65]);
+        if (cfg_tl_o[1]) errors++;
+        cfg_drive_cycle();
+        cfg_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    32'b0, 4'b0, 32'b0, 1'b1);
+      endtask
+
+      task automatic dsp_write(input logic [31:0] addr, input logic [31:0] data);
+        dsp_drive_cycle();
+        dsp_tl_i = flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_PUT_FULL, 3'b0, 2'd2, 8'b0,
+                                    addr, 4'hf, data, 1'b1);
+        do dsp_sample_cycle(); while (!dsp_tl_o[0]);
+        dsp_drive_cycle();
+        dsp_tl_i[108] = 1'b0;
+        do dsp_sample_cycle(); while (!dsp_tl_o[65]);
+        if (dsp_tl_o[1]) errors++;
+        dsp_drive_cycle();
+        dsp_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    32'b0, 4'b0, 32'b0, 1'b1);
+      endtask
+
+      task automatic cfg_read(input logic [31:0] addr, output logic [31:0] data);
+        cfg_drive_cycle();
+        cfg_tl_i = flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    addr, 4'hf, 32'b0, 1'b1);
+        do cfg_sample_cycle(); while (!cfg_tl_o[0]);
+        cfg_drive_cycle();
+        cfg_tl_i[108] = 1'b0;
+        do cfg_sample_cycle(); while (!cfg_tl_o[65]);
+        data = cfg_tl_o[47:16];
+        if (cfg_tl_o[1]) errors++;
+        cfg_drive_cycle();
+        cfg_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    32'b0, 4'b0, 32'b0, 1'b1);
+      endtask
+
+      task automatic dsp_read(input logic [31:0] addr, output logic [31:0] data);
+        dsp_drive_cycle();
+        dsp_tl_i = flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    addr, 4'hf, 32'b0, 1'b1);
+        do dsp_sample_cycle(); while (!dsp_tl_o[0]);
+        dsp_drive_cycle();
+        dsp_tl_i[108] = 1'b0;
+        do dsp_sample_cycle(); while (!dsp_tl_o[65]);
+        data = dsp_tl_o[47:16];
+        if (dsp_tl_o[1]) errors++;
+        dsp_drive_cycle();
+        dsp_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    32'b0, 4'b0, 32'b0, 1'b1);
+      endtask
+

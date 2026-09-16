@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from textwrap import dedent
 from typing import Sequence
 
 from flexsoc.backend.core import clock_config
+from flexsoc.backend.core.templates import templates
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,288 +94,22 @@ def _read_slang_command(
 def render_csr_properties(mode: str) -> str:
     """Render automatic prove or cover checks for reggen CSR primitives."""
 
-    if mode == "cover":
-        return r'''
-module flexsoc_csr_subreg_cover #(
-  parameter prim_subreg_pkg::sw_access_e SwAccess = prim_subreg_pkg::SwAccessRW
-) (
-  input logic clk_i, rst_ni, we
-);
-  if (SwAccess != prim_subreg_pkg::SwAccessRO) begin : gen_sw_cover
-    always_ff @(posedge clk_i) if (rst_ni) cover (we);
-  end
-endmodule
-
-bind prim_subreg flexsoc_csr_subreg_cover #(.SwAccess(SwAccess))
-  flexsoc_csr_subreg_cover_i (.clk_i(clk_i), .rst_ni(rst_ni), .we(we));
-'''
-
-    return r'''
-module flexsoc_csr_arb_checker #(
-  parameter int DW = 32,
-  parameter prim_subreg_pkg::sw_access_e SwAccess = prim_subreg_pkg::SwAccessRW,
-  parameter bit Mubi = 1'b0
-) (
-  input logic we, de,
-  input logic [DW-1:0] wd, d, q,
-  input logic wr_en,
-  input logic [DW-1:0] wr_data
-);
-  logic exp_en;
-  logic [DW-1:0] exp_data;
-
-  always_comb begin
-    exp_en = we | de;
-    exp_data = d;
-    case (SwAccess)
-      prim_subreg_pkg::SwAccessRW,
-      prim_subreg_pkg::SwAccessWO: exp_data = we ? wd : d;
-      prim_subreg_pkg::SwAccessRO: begin exp_en = de; exp_data = d; end
-      prim_subreg_pkg::SwAccessW1S: begin
-        if (!Mubi) exp_data = (de ? d : q) | (we ? wd : '0);
-        else if (DW == 4)  exp_data = prim_mubi_pkg::mubi4_or_hi(prim_mubi_pkg::mubi4_t'(de ? d : q), we ? prim_mubi_pkg::mubi4_t'(wd) : prim_mubi_pkg::MuBi4False);
-        else if (DW == 8)  exp_data = prim_mubi_pkg::mubi8_or_hi(prim_mubi_pkg::mubi8_t'(de ? d : q), we ? prim_mubi_pkg::mubi8_t'(wd) : prim_mubi_pkg::MuBi8False);
-        else if (DW == 12) exp_data = prim_mubi_pkg::mubi12_or_hi(prim_mubi_pkg::mubi12_t'(de ? d : q), we ? prim_mubi_pkg::mubi12_t'(wd) : prim_mubi_pkg::MuBi12False);
-        else if (DW == 16) exp_data = prim_mubi_pkg::mubi16_or_hi(prim_mubi_pkg::mubi16_t'(de ? d : q), we ? prim_mubi_pkg::mubi16_t'(wd) : prim_mubi_pkg::MuBi16False);
-      end
-      prim_subreg_pkg::SwAccessW1C: begin
-        if (!Mubi) exp_data = (de ? d : q) & (we ? ~wd : '1);
-        else if (DW == 4)  exp_data = prim_mubi_pkg::mubi4_and_hi(prim_mubi_pkg::mubi4_t'(de ? d : q), we ? prim_mubi_pkg::mubi4_t'(~wd) : prim_mubi_pkg::MuBi4True);
-        else if (DW == 8)  exp_data = prim_mubi_pkg::mubi8_and_hi(prim_mubi_pkg::mubi8_t'(de ? d : q), we ? prim_mubi_pkg::mubi8_t'(~wd) : prim_mubi_pkg::MuBi8True);
-        else if (DW == 12) exp_data = prim_mubi_pkg::mubi12_and_hi(prim_mubi_pkg::mubi12_t'(de ? d : q), we ? prim_mubi_pkg::mubi12_t'(~wd) : prim_mubi_pkg::MuBi12True);
-        else if (DW == 16) exp_data = prim_mubi_pkg::mubi16_and_hi(prim_mubi_pkg::mubi16_t'(de ? d : q), we ? prim_mubi_pkg::mubi16_t'(~wd) : prim_mubi_pkg::MuBi16True);
-      end
-      prim_subreg_pkg::SwAccessW0C: begin
-        if (!Mubi) exp_data = (de ? d : q) & (we ? wd : '1);
-        else if (DW == 4)  exp_data = prim_mubi_pkg::mubi4_and_hi(prim_mubi_pkg::mubi4_t'(de ? d : q), we ? prim_mubi_pkg::mubi4_t'(wd) : prim_mubi_pkg::MuBi4True);
-        else if (DW == 8)  exp_data = prim_mubi_pkg::mubi8_and_hi(prim_mubi_pkg::mubi8_t'(de ? d : q), we ? prim_mubi_pkg::mubi8_t'(wd) : prim_mubi_pkg::MuBi8True);
-        else if (DW == 12) exp_data = prim_mubi_pkg::mubi12_and_hi(prim_mubi_pkg::mubi12_t'(de ? d : q), we ? prim_mubi_pkg::mubi12_t'(wd) : prim_mubi_pkg::MuBi12True);
-        else if (DW == 16) exp_data = prim_mubi_pkg::mubi16_and_hi(prim_mubi_pkg::mubi16_t'(de ? d : q), we ? prim_mubi_pkg::mubi16_t'(wd) : prim_mubi_pkg::MuBi16True);
-      end
-      prim_subreg_pkg::SwAccessRC: begin
-        if (!Mubi) exp_data = (de ? d : q) & (we ? '0 : '1);
-        else if (DW == 4)  exp_data = prim_mubi_pkg::mubi4_and_hi(prim_mubi_pkg::mubi4_t'(de ? d : q), we ? prim_mubi_pkg::MuBi4False : prim_mubi_pkg::MuBi4True);
-        else if (DW == 8)  exp_data = prim_mubi_pkg::mubi8_and_hi(prim_mubi_pkg::mubi8_t'(de ? d : q), we ? prim_mubi_pkg::MuBi8False : prim_mubi_pkg::MuBi8True);
-        else if (DW == 12) exp_data = prim_mubi_pkg::mubi12_and_hi(prim_mubi_pkg::mubi12_t'(de ? d : q), we ? prim_mubi_pkg::MuBi12False : prim_mubi_pkg::MuBi12True);
-        else if (DW == 16) exp_data = prim_mubi_pkg::mubi16_and_hi(prim_mubi_pkg::mubi16_t'(de ? d : q), we ? prim_mubi_pkg::MuBi16False : prim_mubi_pkg::MuBi16True);
-      end
-      default: begin exp_en = de; exp_data = d; end
-    endcase
-
-    assert (!Mubi || DW == 4 || DW == 8 || DW == 12 || DW == 16);
-    assert (wr_en == exp_en);
-    if (!Mubi || DW == 4 || DW == 8 || DW == 12 || DW == 16)
-      assert (wr_data == exp_data);
-  end
-endmodule
-
-module flexsoc_csr_subreg_checker #(
-  parameter int DW = 32,
-  parameter prim_subreg_pkg::sw_access_e SwAccess = prim_subreg_pkg::SwAccessRW,
-  parameter logic [DW-1:0] RESVAL = '0
-) (
-  input logic clk_i, rst_ni, we, de, wr_en,
-  input logic [DW-1:0] wd, d, q, wr_data, ds, qs,
-  input logic qe
-);
-  logic past_valid = 1'b0;
-  logic prev_wr_en;
-  logic [DW-1:0] prev_wr_data, prev_q;
-
-  always_comb begin
-    assert (qe == wr_en);
-    assert (ds == (wr_en ? wr_data : qs));
-    if (SwAccess == prim_subreg_pkg::SwAccessRC)
-      assert (qs == (de && we ? d : q));
-    else
-      assert (qs == q);
-    if (!rst_ni) assert (q == RESVAL);
-  end
-
-  // Keep one-cycle history explicitly for frontend portability.
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) begin
-      past_valid <= 1'b0;
-      prev_wr_en <= 1'b0;
-      prev_wr_data <= '0;
-      prev_q <= RESVAL;
-    end else begin
-      if (past_valid && prev_wr_en) assert (q == prev_wr_data);
-      else if (past_valid) assert (q == prev_q);
-      prev_wr_en <= wr_en;
-      prev_wr_data <= wr_data;
-      prev_q <= q;
-      past_valid <= 1'b1;
-    end
-  end
-
-endmodule
-
-module flexsoc_csr_subreg_ext_checker #(parameter int DW = 32) (
-  input logic re, we,
-  input logic [DW-1:0] wd, d,
-  input logic qe, qre,
-  input logic [DW-1:0] q, ds, qs
-);
-  always_comb begin
-    assert (ds == d);
-    assert (qs == d);
-    assert (q == wd);
-    assert (qe == we);
-    assert (qre == re);
-  end
-endmodule
-
-bind prim_subreg_arb flexsoc_csr_arb_checker #(
-  .DW(DW), .SwAccess(SwAccess), .Mubi(Mubi)
-) flexsoc_csr_arb_checker_i (
-  .we(we), .de(de), .wd(wd), .d(d), .q(q), .wr_en(wr_en), .wr_data(wr_data)
-);
-
-bind prim_subreg flexsoc_csr_subreg_checker #(
-  .DW(DW), .SwAccess(SwAccess), .RESVAL(RESVAL)
-) flexsoc_csr_subreg_checker_i (
-  .clk_i(clk_i), .rst_ni(rst_ni), .we(we), .de(de), .wd(wd), .d(d),
-  .q(q), .wr_en(wr_en), .wr_data(wr_data), .ds(ds), .qs(qs), .qe(qe)
-);
-
-bind prim_subreg_ext flexsoc_csr_subreg_ext_checker #(.DW(DW))
-  flexsoc_csr_subreg_ext_checker_i (
-    .re(re), .we(we), .wd(wd), .d(d), .qe(qe), .qre(qre), .q(q), .ds(ds), .qs(qs)
-  );
-'''
+    name = "csr_cover.sv.j2" if mode == "cover" else "csr_prove.sv.j2"
+    return templates.render(f"dv/formal/{name}")
 
 
 def render_design_prove(top: str, *, multiclock: bool) -> str:
     """Render starter assertions for the generated single- or N-clock core."""
 
-    if multiclock:
-        return dedent(f"""\
-        // Generated starter assertions for {top}_core.
-        // This file becomes designer-owned after creation and is never overwritten.
-        module {top}_scaffold_prove (
-          input logic dsp_clk_i, dsp_clk_gated, dsp_rst_ni,
-          input logic enable_rx, fifo_wready, rx_ready_o,
-          input logic enable_dsp, fifo_rvalid, dsp_pipe_valid_q, dsp_valid_o, dsp_ready_i, fifo_rready,
-          input logic dsp_clk_req_en, dsp_clk_active, soft_reset_dsp,
-          input logic signed [31:0] dsp_result_o,
-          input logic dsp_above_threshold_o, dsp_overflow_o
-        );
-          logic past_valid = 1'b0;
-
-          always_comb begin
-            assert (rx_ready_o == (enable_rx & fifo_wready));
-            assert (fifo_rready == (enable_dsp & dsp_clk_req_en & (!dsp_pipe_valid_q | !dsp_valid_o | dsp_ready_i)));
-            assert (dsp_clk_active == ((enable_dsp & dsp_clk_req_en) | soft_reset_dsp | dsp_pipe_valid_q | dsp_valid_o));
-          end
-
-          always_ff @(posedge dsp_clk_gated) begin
-            if (past_valid && (!$past(dsp_rst_ni) || $past(soft_reset_dsp))) begin
-              assert (!dsp_valid_o);
-              assert (dsp_result_o == '0);
-              assert (!dsp_above_threshold_o);
-              assert (!dsp_overflow_o);
-            end
-            past_valid <= 1'b1;
-          end
-        endmodule
-
-        bind {top}_core {top}_scaffold_prove {top}_scaffold_prove_i (
-          .dsp_clk_i(dsp_clk_i), .dsp_clk_gated(dsp_clk_gated), .dsp_rst_ni(dsp_rst_ni),
-          .enable_rx(enable_rx), .fifo_wready(fifo_wready), .rx_ready_o(rx_ready_o),
-          .enable_dsp(enable_dsp), .fifo_rvalid(fifo_rvalid), .dsp_pipe_valid_q(dsp_pipe_valid_q),
-          .dsp_valid_o(dsp_valid_o), .dsp_ready_i(dsp_ready_i), .fifo_rready(fifo_rready),
-          .dsp_clk_req_en(dsp_clk_req_en), .dsp_clk_active(dsp_clk_active),
-          .soft_reset_dsp(soft_reset_dsp), .dsp_result_o(dsp_result_o),
-          .dsp_above_threshold_o(dsp_above_threshold_o), .dsp_overflow_o(dsp_overflow_o)
-        );
-        """)
-
-    return dedent(f"""\
-    // Generated starter assertions for {top}_core.
-    // This file becomes designer-owned after creation and is never overwritten.
-    module {top}_scaffold_prove (
-      input logic clk_i, rst_ni,
-      input logic [31:0] data_o, pipe_q1,
-      input logic valid_o, valid_q1
-    );
-      logic past_valid = 1'b0;
-
-      always_comb begin
-        assert (data_o == pipe_q1);
-        assert (valid_o == valid_q1);
-      end
-
-      always_ff @(posedge clk_i) begin
-        if (past_valid && !$past(rst_ni)) begin
-          assert (data_o == '0);
-          assert (!valid_o);
-        end
-        past_valid <= 1'b1;
-      end
-    endmodule
-
-    bind {top}_core {top}_scaffold_prove {top}_scaffold_prove_i (
-      .clk_i(clk_i), .rst_ni(rst_ni), .data_o(data_o), .pipe_q1(pipe_q1),
-      .valid_o(valid_o), .valid_q1(valid_q1)
-    );
-    """)
+    kind = "multiclock" if multiclock else "single"
+    return templates.render(f"dv/formal/design_prove_{kind}.sv.j2", top=top)
 
 
 def render_design_cover(top: str, *, multiclock: bool) -> str:
     """Render starter covers for the generated single- or N-clock core."""
 
-    if multiclock:
-        return dedent(f"""\
-        // Generated starter covers for {top}_core.
-        // This file becomes designer-owned after creation and is never overwritten.
-        module {top}_scaffold_cover (
-          input logic cfg_clk_i, cfg_rst_ni, cfg_enable,
-          input logic rx_clk_i, rx_rst_ni, rx_valid_i, rx_ready_o,
-          input logic dsp_clk_i, dsp_rst_ni, fifo_rvalid, dsp_valid_o, dsp_ready_i
-        );
-          always_ff @(posedge cfg_clk_i) if (cfg_rst_ni) cover (cfg_enable);
-          always_ff @(posedge rx_clk_i) if (rx_rst_ni) cover (rx_valid_i && rx_ready_o);
-          always_ff @(posedge dsp_clk_i) if (dsp_rst_ni) begin
-            cover (fifo_rvalid);
-            cover (dsp_valid_o);
-            cover (dsp_valid_o && dsp_ready_i);
-          end
-        endmodule
-
-        bind {top}_core {top}_scaffold_cover {top}_scaffold_cover_i (
-          .cfg_clk_i(cfg_clk_i), .cfg_rst_ni(cfg_rst_ni), .cfg_enable(cfg_enable),
-          .rx_clk_i(rx_clk_i), .rx_rst_ni(rx_rst_ni), .rx_valid_i(rx_valid_i),
-          .rx_ready_o(rx_ready_o), .dsp_clk_i(dsp_clk_i), .dsp_rst_ni(dsp_rst_ni),
-          .fifo_rvalid(fifo_rvalid), .dsp_valid_o(dsp_valid_o), .dsp_ready_i(dsp_ready_i)
-        );
-        """)
-
-    return dedent(f"""\
-    // Generated starter covers for {top}_core.
-    // This file becomes designer-owned after creation and is never overwritten.
-    module {top}_scaffold_cover (
-      input logic clk_i, rst_ni, valid_i, valid_o,
-      input logic [31:0] data_o
-    );
-      logic past_valid = 1'b0;
-
-      always_ff @(posedge clk_i) begin
-        if (rst_ni) begin
-          cover (valid_i);
-          cover (valid_o);
-          cover (valid_o && |data_o);
-          if (past_valid) cover (valid_i && !$past(valid_i));
-        end
-        past_valid <= 1'b1;
-      end
-    endmodule
-
-    bind {top}_core {top}_scaffold_cover {top}_scaffold_cover_i (
-      .clk_i(clk_i), .rst_ni(rst_ni), .valid_i(valid_i),
-      .valid_o(valid_o), .data_o(data_o)
-    );
-    """)
+    kind = "multiclock" if multiclock else "single"
+    return templates.render(f"dv/formal/design_cover_{kind}.sv.j2", top=top)
 
 
 def _write_scaffold(path: Path, text: str, *, incompatible: str | None = None) -> Path:
@@ -469,15 +203,11 @@ def render_sby(cfg: PropertyFormalConfig, generated_sources: Sequence[Path] = ()
             cfg.engine.strip(),
         ]
 
-    return "\n".join(
-        [
-            *header,
-            "",
-            "[script]",
-            read_cmd,
-            f"prep -top {cfg.top}",
-            "",
-        ]
+    return templates.render(
+        "dv/formal/sby.sby.j2",
+        header="\n".join(header),
+        read_cmd=read_cmd,
+        top=cfg.top,
     )
 
 
@@ -672,27 +402,82 @@ class FormalFlow:
             config, task=None, run_name=None, log=log, sby=sby, inputs=inputs, on=on
         )
 
+    @staticmethod
+    def _config_from_context(context, *, csr: bool, mode: str) -> Path:
+        paths = context.paths
+        kind = "csr" if csr else "properties"
+        name = f"{paths.top}_{'csr_' if csr else ''}{mode}.sby"
+        return paths.formal / "runs" / kind / mode / name
+
+    def setup_from_context(self, context, *, csr: bool, mode: str) -> Path:
+        """Generate one formal scaffold/configuration from BackendContext."""
+
+        paths, values = context.paths, context.values
+        top = paths.top
+        self.init_properties(top, paths.formal, multiclock=context.clocks.multiclock)
+        props = paths.formal / ("csr" if csr else "properties") / mode
+        output = self._config_from_context(context, csr=csr, mode=mode)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        kwargs = dict(
+            top=top,
+            filelists=(paths.rtl_common, paths.rtl_ip),
+            properties_dir=props,
+            mode=mode,
+            engine=values.get(
+                "FORMAL_PROVE_ENGINE" if mode == "prove" else "FORMAL_COVER_ENGINE",
+                "abc pdr" if mode == "prove" else "btor btormc",
+            ),
+            output=output,
+            depth=int(values.get("FORMAL_DEPTH", "20")),
+            bmc_engine=values.get("FORMAL_BMC_ENGINE", "smtbmc bitwuzla"),
+            bmc_depth=int(values.get("FORMAL_BMC_DEPTH", "30")),
+            bmc_append=int(values.get("FORMAL_BMC_APPEND", "5")),
+            multiclock=context.clocks.multiclock,
+        )
+        if csr:
+            return self.setup_csr(
+                **kwargs, generated=props / f"{top}_csr_auto_{mode}.sv",
+            )
+        return self.setup_design(**kwargs)
+
+    def run_target(self, target, context, *, inputs=(), on: str = "local"):
+        """Execute one registered formal setup or run target."""
+
+        action = target.action or ""
+        if action in {"formal_setup", "formal_csr_setup"}:
+            return self.setup_from_context(
+                context, csr=action == "formal_csr_setup", mode=target.stage or "prove",
+            )
+
+        paths, values = context.paths, context.values
+        csr = action.startswith("formal_csr_")
+        mode = action.rsplit("_", 1)[-1]
+        config_mode = "cover" if mode == "cover" else "prove"
+        config = self._config_from_context(context, csr=csr, mode=config_mode)
+        suite = "csr" if csr else "properties"
+        log = paths.logs / "dv" / "formal" / suite / f"{paths.top}_{mode}.log"
+        method = getattr(self, f"run_{'csr_' if csr else ''}{mode}")
+        kwargs = dict(log=log, sby=values.get("SBY", "sby"), inputs=inputs, on=on)
+        if mode != "cover":
+            kwargs["top"] = paths.top
+        return method(config, **kwargs)
+
     def flow_from_context(self, context, *, on: str = "local"):
         """Prepare and run the canonical CSR + authored formal sequence."""
-        paths = context.paths
-        values = context.values
-        top = paths.top
-        common=(paths.rtl_common, paths.rtl_ip)
-        props=paths.formal / "properties"
-        runs=paths.formal / "runs"
-        logs=paths.logs / "dv" / "formal"
-        self.init_properties(top, paths.formal, multiclock=context.clocks.multiclock)
-        prove=self.setup_design(top=top, filelists=common, properties_dir=props/"prove", mode="prove", engine=values.get("FORMAL_PROVE_ENGINE","abc pdr"), output=runs/"properties"/"prove"/f"{top}_prove.sby", depth=int(values.get("FORMAL_DEPTH","20")), bmc_engine=values.get("FORMAL_BMC_ENGINE","smtbmc bitwuzla"), bmc_depth=int(values.get("FORMAL_BMC_DEPTH","30")), bmc_append=int(values.get("FORMAL_BMC_APPEND","5")), multiclock=context.clocks.multiclock)
-        cover=self.setup_design(top=top, filelists=common, properties_dir=props/"cover", mode="cover", engine=values.get("FORMAL_COVER_ENGINE","btor btormc"), output=runs/"properties"/"cover"/f"{top}_cover.sby", depth=int(values.get("FORMAL_DEPTH","20")), multiclock=context.clocks.multiclock)
-        csr_prove=self.setup_csr(top=top, filelists=common, properties_dir=paths.formal/"csr"/"prove", generated=paths.formal/"csr"/"prove"/f"{top}_csr_auto_prove.sv", mode="prove", engine=values.get("FORMAL_PROVE_ENGINE","abc pdr"), output=runs/"csr"/"prove"/f"{top}_csr_prove.sby", depth=int(values.get("FORMAL_DEPTH","20")), bmc_engine=values.get("FORMAL_BMC_ENGINE","smtbmc bitwuzla"), bmc_depth=int(values.get("FORMAL_BMC_DEPTH","30")), bmc_append=int(values.get("FORMAL_BMC_APPEND","5")), multiclock=context.clocks.multiclock)
-        csr_cover=self.setup_csr(top=top, filelists=common, properties_dir=paths.formal/"csr"/"cover", generated=paths.formal/"csr"/"cover"/f"{top}_csr_auto_cover.sv", mode="cover", engine=values.get("FORMAL_COVER_ENGINE","btor btormc"), output=runs/"csr"/"cover"/f"{top}_csr_cover.sby", depth=int(values.get("FORMAL_DEPTH","20")), multiclock=context.clocks.multiclock)
-        sby=values.get("SBY","sby")
-        return (
-            self.run_csr_bmc(csr_prove, top=top, log=logs/"csr"/f"{top}_bmc.log", sby=sby, on=on),
-            self.run_bmc(prove, top=top, log=logs/"properties"/f"{top}_bmc.log", sby=sby, on=on),
-            self.run_csr_prove(csr_prove, top=top, log=logs/"csr"/f"{top}_prove.log", sby=sby, on=on),
-            self.run_prove(prove, top=top, log=logs/"properties"/f"{top}_prove.log", sby=sby, on=on),
-            self.run_csr_cover(csr_cover, log=logs/"csr"/f"{top}_cover.log", sby=sby, on=on),
-            self.run_cover(cover, log=logs/"properties"/f"{top}_cover.log", sby=sby, on=on),
-        )
 
+        paths, values = context.paths, context.values
+        top = paths.top
+        logs = paths.logs / "dv" / "formal"
+        sby = values.get("SBY", "sby")
+        prove = self.setup_from_context(context, csr=False, mode="prove")
+        cover = self.setup_from_context(context, csr=False, mode="cover")
+        csr_prove = self.setup_from_context(context, csr=True, mode="prove")
+        csr_cover = self.setup_from_context(context, csr=True, mode="cover")
+        return (
+            self.run_csr_bmc(csr_prove, top=top, log=logs / "csr" / f"{top}_bmc.log", sby=sby, on=on),
+            self.run_bmc(prove, top=top, log=logs / "properties" / f"{top}_bmc.log", sby=sby, on=on),
+            self.run_csr_prove(csr_prove, top=top, log=logs / "csr" / f"{top}_prove.log", sby=sby, on=on),
+            self.run_prove(prove, top=top, log=logs / "properties" / f"{top}_prove.log", sby=sby, on=on),
+            self.run_csr_cover(csr_cover, log=logs / "csr" / f"{top}_cover.log", sby=sby, on=on),
+            self.run_cover(cover, log=logs / "properties" / f"{top}_cover.log", sby=sby, on=on),
+        )

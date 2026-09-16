@@ -1,0 +1,20 @@
+[options]
+splitnets <<: splitnets :>>
+
+[gold]
+<<: gold_read :>>
+<<: gold_view :>>
+[gate]
+<<: gate_reads :>>
+<<: gate_view :>>
+[script]
+hierarchy -check -top <<: top :>>
+proc
+prep -top <<: top :>> -flatten
+# Normalize inferred clock gating to clock enables for formal engines.
+formalff -declockgate
+memory -nomap
+memory_map -formal
+<<% if not multiclock %>>async2sync
+<<% endif %>><<: reset_normalization :>>
+<<: match_sections :>><<: collect_sections :>><<: strategies :>>

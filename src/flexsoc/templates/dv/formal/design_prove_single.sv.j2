@@ -1,0 +1,27 @@
+// Generated starter assertions for <<: top :>>_core.
+// This file becomes designer-owned after creation and is never overwritten.
+module <<: top :>>_scaffold_prove (
+  input logic clk_i, rst_ni,
+  input logic [31:0] data_o, pipe_q1,
+  input logic valid_o, valid_q1
+);
+  logic past_valid = 1'b0;
+
+  always_comb begin
+    assert (data_o == pipe_q1);
+    assert (valid_o == valid_q1);
+  end
+
+  always_ff @(posedge clk_i) begin
+    if (past_valid && !$past(rst_ni)) begin
+      assert (data_o == '0);
+      assert (!valid_o);
+    end
+    past_valid <= 1'b1;
+  end
+endmodule
+
+bind <<: top :>>_core <<: top :>>_scaffold_prove <<: top :>>_scaffold_prove_i (
+  .clk_i(clk_i), .rst_ni(rst_ni), .data_o(data_o), .pipe_q1(pipe_q1),
+  .valid_o(valid_o), .valid_q1(valid_q1)
+);

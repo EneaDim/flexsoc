@@ -8,7 +8,6 @@ import json
 import os
 from pathlib import Path
 import re
-import subprocess
 import threading
 import time
 from typing import Any, Callable, Mapping, Sequence, TypeVar
@@ -2240,16 +2239,16 @@ def run_analysis(
 
     def extract():
         command = (args.yosys, "-ql", str(extract_log), str(script))
-        if runner is None:
-            return subprocess.run(command, check=False, text=True)
-        from flexsoc.backend.core import CommandRequest
+        from flexsoc.backend.core import CommandRequest, ToolRunner
+
+        active_runner = runner or ToolRunner(project_root=script.parent)
         driver_log = log_dir / "extract_driver.log"
         request = CommandRequest(
             command, script.parent, {}, driver_log,
             inputs=tuple(dict.fromkeys((script, *(path.resolve() for path in inputs)))),
             outputs=(design_json, extract_log),
         )
-        return runner.run(request, on=on)
+        return active_runner.run(request, on=on)
 
     proc, extract_dt = _timed("extract", extract, heartbeat, f"log={extract_log}")
     if proc.returncode:

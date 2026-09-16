@@ -1,0 +1,15 @@
+event flexsoc_<<: domain_name :>>_drive_phase;
+event flexsoc_<<: domain_name :>>_sample_phase;
+initial forever begin
+  @(posedge <<: signal :>>);
+  fork
+    begin #(<<: drive_ns :>>) -> flexsoc_<<: domain_name :>>_drive_phase; end
+    begin #(<<: sample_ns :>>) -> flexsoc_<<: domain_name :>>_sample_phase; end
+  join_none
+end
+task automatic <<: domain_name :>>_drive_cycle();
+  @flexsoc_<<: domain_name :>>_drive_phase;
+endtask
+task automatic <<: domain_name :>>_sample_cycle();
+  @flexsoc_<<: domain_name :>>_sample_phase;
+endtask

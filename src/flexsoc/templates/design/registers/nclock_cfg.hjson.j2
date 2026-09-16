@@ -1,0 +1,43 @@
+{
+  name:               "<<: top :>>_cfg",
+  human_name:         "<<: top :>>_cfg",
+  one_line_desc:      "Cfg-domain controls for the generated N-clock IP.",
+  one_paragraph_desc: "Global control and cfg-domain status registers for the generated N-clock scaffold.",
+  cip_id:             "1",
+  design_spec:        "",
+  dv_doc:             "",
+  hw_checklist:       "",
+  sw_checklist:       "",
+  revisions: [{
+    version:            "1.0.0",
+    life_stage:         "L0",
+    design_stage:       "D0",
+    verification_stage: "V0",
+    commit_id:          "",
+    notes:              "Generated N-clock cfg regmap."
+  }],
+  clocking: [{ clock: "clk_i", reset: "rst_ni" }],
+  bus_interfaces: [{ protocol: "<<: protocol :>>", direction: "device" }],
+  regwidth: "32",
+  registers: [
+    {
+      name: "CTRL",
+      desc: "Global control written from the cfg clock domain.",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "0", name: "ENABLE", desc: "Enable RX input and DSP processing." }
+      ]
+    },
+    {
+      name: "CFG_STATUS",
+      desc: "Cfg-domain view of the synchronized global busy indication.",
+      swaccess: "ro",
+      hwaccess: "hrw",
+      hwext: "true",
+      fields: [
+        { bits: "0", name: "BUSY", desc: "The DSP pipeline currently owns an output sample." }
+      ]
+    }
+  ]
+}

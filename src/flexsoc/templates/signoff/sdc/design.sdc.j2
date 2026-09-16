@@ -1,0 +1,70 @@
+# FlexSoC canonical design timing intent.
+# Authored after first generation: edit this file, then validate it through the flows.
+current_design <<: top :>>
+
+# ============================================================
+# 1. CLOCKS
+# ============================================================
+<<% for line in clock_lines %>><<: line :>>
+<<% endfor %>>
+# ============================================================
+# 2. GENERATED CLOCKS
+# ============================================================
+# Add generated clocks here when they are architectural timing intent.
+# Example:
+# create_generated_clock -name divided_clk -source [get_ports clk_i] -divide_by 2 [get_pins u_div/clk_o]
+
+# ============================================================
+# 3. CLOCK QUALITY / ENVIRONMENT
+# ============================================================
+<<% for line in clock_quality_lines %>><<: line :>>
+<<% endfor %>>
+# ============================================================
+# 4. CLOCK RELATIONSHIPS
+# ============================================================
+<<% for line in relationship_lines %>><<: line :>>
+<<% endfor %>>
+# ============================================================
+# 5. INPUT TIMING
+# ============================================================
+<<% for line in input_timing_lines %>><<: line :>>
+<<% endfor %>>
+# ============================================================
+# 6. INPUT DRIVE
+# ============================================================
+set_drive 0.1 [all_inputs -no_clocks]
+# If the external driver is a known library cell, replace set_drive with:
+# set_driving_cell -lib_cell <driver_cell> -pin <output_pin> [all_inputs -no_clocks]
+
+# ============================================================
+# 7. OUTPUT TIMING
+# ============================================================
+<<% for line in output_timing_lines %>><<: line :>>
+<<% endfor %>>
+# ============================================================
+# 8. FUNCTIONAL MODE CONTROLS
+# ============================================================
+<<% for line in functional_mode_lines %>><<: line :>>
+<<% endfor %>>
+# ============================================================
+# 9. OUTPUT LOAD
+# ============================================================
+set_load <<: output_load :>> [all_outputs]
+
+# ============================================================
+# 10. TIMING EXCEPTIONS
+# ============================================================
+# False paths and multicycle paths are architectural intent and are never inferred.
+# Example false path:
+# set_false_path -from <startpoints> -to <endpoints>
+# Example multicycle path pair:
+# set_multicycle_path 2 -setup -from <startpoints> -to <endpoints>
+# set_multicycle_path 1 -hold  -from <startpoints> -to <endpoints>
+
+# ============================================================
+# 11. OPTIONAL DESIGN-RULE CONSTRAINTS
+# ============================================================
+# Enable only when these limits are part of the intended interface/technology contract.
+# set_max_transition <value> [current_design]
+# set_max_fanout <value> [current_design]
+# set_max_capacitance <value> [all_outputs]

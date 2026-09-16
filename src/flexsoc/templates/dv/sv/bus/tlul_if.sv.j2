@@ -1,0 +1,110 @@
+`timescale 1ns/1ps
+
+interface tlul_if (
+  input logic clk_i,
+  input logic rst_ni
+);
+
+  logic [108:0] h2d /* simulator public*/;
+  logic [65:0]  d2h /* simulator public*/;
+
+<<: helpers :>>
+
+  modport drv (output h2d, input d2h);
+  modport dut (input h2d, output d2h);
+
+  // Shared timing intent: drive at input-delay phase, sample at output-deadline phase.
+  localparam realtime FLEXSOC_TB_DRIVE_NS  = <<: drive_ns :>>;
+  localparam realtime FLEXSOC_TB_SAMPLE_NS = <<: sample_ns :>>;
+  event flexsoc_tb_drive_phase;
+  event flexsoc_tb_sample_phase;
+
+  initial forever begin
+    @(posedge clk_i);
+    fork
+      begin #(FLEXSOC_TB_DRIVE_NS)  -> flexsoc_tb_drive_phase;  end
+      begin #(FLEXSOC_TB_SAMPLE_NS) -> flexsoc_tb_sample_phase; end
+    join_none
+  end
+
+  task automatic sample_cycle();
+    @flexsoc_tb_sample_phase;
+  endtask
+
+  task automatic drive_cycle();
+    @flexsoc_tb_drive_phase;
+  endtask
+
+  task automatic drive_idle();
+    h2d <= flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                            32'b0, 4'b0, 32'b0, 1'b1);
+  endtask
+
+  task automatic init();
+    drive_idle();
+    sample_cycle();
+  endtask
+
+  task automatic wait_d2h_high(input integer bit_index, input string signal_name);
+    integer guard;
+    guard = 0;
+    sample_cycle();
+    while (d2h[bit_index] !== 1'b1) begin
+      if (d2h[bit_index] !== 1'b0)
+        $fatal(1, "[%0t] TLUL %s is X/Z; check reset and gate-level cell model mode",
+               $time, signal_name);
+      guard++;
+      if (guard > 1000)
+        $fatal(1, "[%0t] TLUL timeout waiting for %s", $time, signal_name);
+      sample_cycle();
+    end
+  endtask
+
+  task automatic tlul_write(
+    input logic [31:0] addr,
+    input logic [31:0] data,
+    input logic [7:0] source,
+    input logic [3:0] mask = 4'hf
+  );
+    logic [2:0] opcode;
+    $display("[%0t] TLUL WRITE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);
+    opcode = (mask == 4'hf) ? FLEXSOC_TL_PUT_FULL : FLEXSOC_TL_PUT_PARTIAL;
+    drive_cycle();
+    h2d <= flexsoc_tlul_h2d(1'b1, opcode, 3'b0, 2'd2, source,
+                            addr, mask, data, 1'b1);
+    wait_d2h_high(0, "write a_ready");
+    drive_cycle();
+    h2d[108] <= 1'b0;
+    wait_d2h_high(65, "write d_valid");
+    if (d2h[1])
+      $fatal(1, "[%0t] TLUL WRITE ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
+    drive_cycle();
+    drive_idle();
+    sample_cycle();
+    #1;
+  endtask
+
+  task automatic tlul_read(
+    input logic [31:0] addr,
+    output logic [31:0] data,
+    input logic [7:0] source
+  );
+    $display("[%0t] TLUL READ: Addr = 0x%08x", $time, addr);
+    data = '0;
+    drive_cycle();
+    h2d <= flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_GET, 3'b0, 2'd2, source,
+                            addr, 4'hf, 32'b0, 1'b1);
+    wait_d2h_high(0, "read a_ready");
+    drive_cycle();
+    h2d[108] <= 1'b0;
+    wait_d2h_high(65, "read d_valid");
+    data = d2h[47:16];
+    if (d2h[1])
+      $fatal(1, "[%0t] TLUL READ ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
+    drive_cycle();
+    drive_idle();
+    sample_cycle();
+    #1;
+  endtask
+
+endinterface

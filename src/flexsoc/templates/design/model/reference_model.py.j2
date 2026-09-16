@@ -1,0 +1,84 @@
+"""Editable behavioral reference model for <<: top :>>.
+
+This file models what the RTL does. Keep test selection, vector-file
+formatting and CSR layout out of this module; those belong in
+``<<: top :>>_tests.py`` and ``<<: top :>>_regmap.py`` respectively.
+
+``ReferenceModel.compute()`` models the functional transformation of one
+accepted transaction. ``LATENCY`` describes the default fixed pipeline
+delay used by the generated tests. Stateful models may keep internal
+state, while protocol-driven models can replace this simple contract.
+"""
+
+from __future__ import annotations
+
+TOP = <<: top_repr :>>
+INPUTS = <<: inputs_repr :>>
+OUTPUTS = <<: outputs_repr :>>
+
+# Fixed-latency contract used by the generated tests. The default
+# from-scratch RTL stub has two registered pipeline stages.
+LATENCY = <<: latency :>>
+
+# True when this model was generated for the standard ``rtl_stub``
+# interface. Other/custom interfaces fall back to conservative
+# ``*_i`` -> ``*_o`` passthrough pairs until specialized.
+STARTER_RTL = <<: starter_rtl :>>
+PIPELINE_MAP = <<: pipeline_map_repr :>>
+
+
+class ReferenceModel:
+    """Behavioral reference for one RTL transaction."""
+
+    def __init__(self, *, enabled: bool = True, mode: int = 0, scale: int = 0):
+        self.enabled = bool(enabled)
+        self.mode = int(mode) & 0x3
+        self.scale = int(scale) & 0x1F
+
+    def reset(self) -> None:
+        """Restore the starter RTL's model-side configuration defaults."""
+
+        self.enabled = True
+        self.mode = 0
+        self.scale = 0
+
+    def compute(self, inputs: dict[str, int]) -> dict[str, int]:
+        """Return the transaction result before pipeline delay is applied.
+
+        For the standard from-scratch RTL scaffold this mirrors
+        ``rtl_stub_gen``: MODE 0 adds, MODE 1 XORs, MODE 2 shifts, and
+        MODE 3 passes ``data_i`` through. ``CTRL.EN`` gates both the
+        result and ``valid_o``. ``<<: top :>>_tests.py`` checks the returned
+        outputs at ``drive_cycle + LATENCY``.
+
+        Custom interfaces use the conservative ``PIPELINE_MAP`` until
+        this model is specialized for the real RTL behavior.
+        """
+
+        unknown = set(inputs) - set(INPUTS)
+        if unknown:
+            raise KeyError(f"unknown functional input(s): {sorted(unknown)}")
+
+        if STARTER_RTL:
+            data = int(inputs.get("data_i", 0)) & 0xFFFF_FFFF
+            coeff = int(inputs.get("coeff_i", 0)) & 0xFFFF_FFFF
+            valid = int(inputs.get("valid_i", 0)) & 0x1
+            if self.mode == 0:
+                result = data + coeff
+            elif self.mode == 1:
+                result = data ^ coeff
+            elif self.mode == 2:
+                result = data << self.scale
+            else:
+                result = data
+            if not self.enabled:
+                result = 0
+            return {
+                "data_o": result & 0xFFFF_FFFF,
+                "valid_o": valid & int(self.enabled),
+            }
+
+        return {
+            output: inputs[source]
+            for output, source in PIPELINE_MAP.items()
+        }

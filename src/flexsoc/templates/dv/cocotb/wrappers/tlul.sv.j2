@@ -1,0 +1,78 @@
+`timescale 1ns/1ps
+module <<: top :>>_tb;
+  logic <<: clk :>>;
+  logic <<: rst :>>;
+<<: extra_decls :>>
+  logic         tl_i_a_valid;
+  logic [2:0]   tl_i_a_opcode;
+  logic [2:0]   tl_i_a_param;
+  logic [1:0]   tl_i_a_size;
+  logic [7:0]   tl_i_a_source;
+  logic [31:0]  tl_i_a_address;
+  logic [3:0]   tl_i_a_mask;
+  logic [31:0]  tl_i_a_data;
+  logic         tl_i_d_ready;
+  logic         tl_o_d_valid;
+  logic [2:0]   tl_o_d_opcode;
+  logic [31:0]  tl_o_d_data;
+  logic         tl_o_d_error;
+  logic         tl_o_a_ready;
+  logic [108:0] tl_i;
+  logic [65:0]  tl_o;
+
+<<: tlul_helpers :>>
+
+  initial begin
+<<: extra_init :>>
+  end
+
+  assign tl_i = flexsoc_tlul_h2d(
+    tl_i_a_valid, tl_i_a_opcode, tl_i_a_param, tl_i_a_size,
+    tl_i_a_source, tl_i_a_address, tl_i_a_mask, tl_i_a_data, tl_i_d_ready
+  );
+  assign tl_o_d_valid  = tl_o[65];
+  assign tl_o_d_opcode = tl_o[64:62];
+  assign tl_o_d_data   = tl_o[47:16];
+  assign tl_o_d_error  = tl_o[1];
+  assign tl_o_a_ready  = tl_o[0];
+
+  string wave_path;
+  initial begin
+    if (!$value$plusargs("WAVE=%s", wave_path)) begin
+      if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
+    end
+    if (wave_path != "") begin
+      `ifdef FLEXSOC_COCOTB_WAVE_OWNER
+        $display("[TB] dumpfile = %s owner=cocotb", wave_path);
+      `else
+        $display("[TB] dumpfile = %s owner=wrapper", wave_path);
+        $dumpfile(wave_path);
+        $dumpvars(0, <<: top :>>_tb);
+      `endif
+    end
+    #1;
+  end
+  `ifdef FLEXSOC_ENABLE_SDF
+    string sdf_path;
+    initial begin
+      if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
+      if (sdf_path != "") begin
+        `ifdef FLEXSOC_SDF_MIN
+          $display("[TB] sdf = %s scope=u_<<: top :>> mode=MINIMUM", sdf_path);
+          $sdf_annotate(sdf_path, u_<<: top :>>);
+        `elsif FLEXSOC_SDF_TYP
+          $display("[TB] sdf = %s scope=u_<<: top :>> mode=TYPICAL", sdf_path);
+          $sdf_annotate(sdf_path, u_<<: top :>>);
+        `else
+          $display("[TB] sdf = %s scope=u_<<: top :>> mode=MAXIMUM", sdf_path);
+          $sdf_annotate(sdf_path, u_<<: top :>>);
+        `endif
+      end
+    end
+  `endif
+  <<: top :>> u_<<: top :>> (
+    .<<: clk :>>(<<: clk :>>),
+    .<<: rst :>>(<<: rst :>>),
+    .*
+  );
+endmodule

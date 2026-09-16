@@ -1,0 +1,29 @@
+
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    for name, value in (("aw_addr_i", addr), ("aw_prot_i", 0), ("aw_valid_i", 1),
+                        ("w_data_i", data), ("w_strb_i", 0xF), ("w_valid_i", 1)):
+        getattr(dut, f"{domain}_axi_{name}").value = value
+    aw_done = w_done = False
+    for _ in range(256):
+        await _sample_cycle(clk)
+        aw_done |= bool(getattr(dut, f"{domain}_axi_aw_ready_o").value)
+        w_done |= bool(getattr(dut, f"{domain}_axi_w_ready_o").value)
+        if aw_done and w_done:
+            break
+        await _drive_cycle(clk)
+        if aw_done:
+            getattr(dut, f"{domain}_axi_aw_valid_i").value = 0
+        if w_done:
+            getattr(dut, f"{domain}_axi_w_valid_i").value = 0
+    else:
+        raise TimeoutError(f"AXI4-Lite write request timeout on {domain} addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    getattr(dut, f"{domain}_axi_aw_valid_i").value = 0
+    getattr(dut, f"{domain}_axi_w_valid_i").value = 0
+    getattr(dut, f"{domain}_axi_b_ready_i").value = 1
+    await _wait_high(dut, f"{domain}_axi_b_valid_o", clk)
+    if int(getattr(dut, f"{domain}_axi_b_resp_o").value):
+        raise AssertionError(f"AXI4-Lite write error on {domain} addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)

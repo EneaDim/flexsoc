@@ -7,7 +7,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from flexsoc.backend.core import ClockConfig, ClockDomain, ClockRelationship
-from flexsoc.backend.design.regs import normalize_register_interface
+from flexsoc.backend.core.templates import templates
+from flexsoc.backend.design.rtl import parse_ports
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,39 +56,57 @@ def _port_name(command: str) -> str | None:
     return matches[-1] if matches else None
 
 
-def render_sdc_scaffold(
-    top: str,
-    clocks: ClockConfig,
-    *,
-    register_interface: str = "tlul",
-    io_delay_pct: float = 0.2,
-    output_load: float = 0.01,
-) -> str:
-    """Render one readable authored SDC scaffold from bootstrap clock/reset settings."""
+@dataclass(frozen=True, slots=True)
+class SdcIoGroup:
+    """I/O ports timed against one declared clock domain."""
 
-    if not 0.0 <= io_delay_pct <= 1.0:
-        raise ValueError("SDC_IO_DELAY_PCT must be between 0 and 1")
-    if output_load < 0.0:
-        raise ValueError("SDC output load must be non-negative")
+    clock: str
+    inputs: tuple[str, ...] = ()
+    outputs: tuple[str, ...] = ()
 
-    interface = normalize_register_interface(register_interface)
-    bus_suffix = {
-        "tlul": ("tl_i", "tl_o"),
-        "reg_iface": ("reg_req_i", "reg_rsp_o"),
-        "axi_lite": ("axi_lite_i", "axi_lite_o"),
-    }[interface]
 
+def infer_io_groups(top_file: Path, clocks: ClockConfig) -> tuple[tuple[SdcIoGroup, ...], tuple[str, ...]]:
+    """Infer scaffold I/O ownership from ``<clock-domain>_`` port prefixes.
+
+    FlexSoC multi-clock wrappers already use the clock-domain name as the
+    prefix for domain-owned ports and register windows. Ports that do not
+    follow that contract are deliberately left unassigned for the user to
+    constrain in the authored SDC.
+    """
+
+    path = Path(top_file)
+    if not path.is_file():
+        return (), ()
+
+    controls = {item for domain in clocks.domains for item in (domain.signal, domain.reset)}
+    grouped = {domain.name: {"input": [], "output": []} for domain in clocks.domains}
+    unassigned: list[str] = []
+
+    for port in parse_ports(path):
+        if port.name in controls:
+            continue
+        matches = [domain.name for domain in clocks.domains if port.name.startswith(f"{domain.name}_")]
+        if len(matches) != 1:
+            unassigned.append(port.name)
+            continue
+        grouped[matches[0]][port.direction].append(port.name)
+
+    groups = tuple(
+        SdcIoGroup(
+            domain.name,
+            tuple(grouped[domain.name]["input"]),
+            tuple(grouped[domain.name]["output"]),
+        )
+        for domain in clocks.domains
+        if grouped[domain.name]["input"] or grouped[domain.name]["output"]
+    )
+    return groups, tuple(unassigned)
+
+
+def _clock_lines(clocks: ClockConfig) -> tuple[str, ...]:
     by_name = {domain.name: domain for domain in clocks.domains}
     generated = {rel.target: rel for rel in clocks.relationships if rel.kind == "generated"}
-    lines = [
-        "# FlexSoC canonical design timing intent.",
-        "# Authored after first generation: edit this file, then validate it through the flows.",
-        f"current_design {top}",
-        "",
-        "# ============================================================",
-        "# 1. CLOCKS",
-        "# ============================================================",
-    ]
+    lines: list[str] = []
     for domain in clocks.domains:
         relation = generated.get(domain.name)
         if relation:
@@ -96,190 +115,142 @@ def render_sdc_scaffold(
                 f"create_generated_clock -name {domain.name} -source [get_ports {source.signal}] "
                 f"-divide_by {relation.divide_by} [get_ports {domain.signal}]"
             )
-        else:
-            fall = domain.fall_ns if domain.fall_ns is not None else domain.period_ns / 2.0
-            lines.append(
-                f"create_clock -name {domain.name} -period {domain.period_ns:g} "
-                f"-waveform {{{domain.rise_ns:g} {fall:g}}} [get_ports {domain.signal}]"
-            )
+            continue
+        fall = domain.fall_ns if domain.fall_ns is not None else domain.period_ns / 2.0
+        lines.append(
+            f"create_clock -name {domain.name} -period {domain.period_ns:g} "
+            f"-waveform {{{domain.rise_ns:g} {fall:g}}} [get_ports {domain.signal}]"
+        )
+    return tuple(lines)
 
-    lines += [
-        "",
-        "# ============================================================",
-        "# 2. GENERATED CLOCKS",
-        "# ============================================================",
-        "# Add generated clocks here when they are architectural timing intent.",
-        "# Example:",
-        "# create_generated_clock -name divided_clk -source [get_ports clk_i] -divide_by 2 [get_pins u_div/clk_o]",
-        "",
-        "# ============================================================",
-        "# 3. CLOCK QUALITY / ENVIRONMENT",
-        "# ============================================================",
-    ]
-    for domain in clocks.domains:
-        lines += [
+
+def _clock_quality_lines(clocks: ClockConfig) -> tuple[str, ...]:
+    return tuple(
+        line
+        for domain in clocks.domains
+        for line in (
             f"set_clock_latency -source {domain.source_latency_ns:g} [get_clocks {domain.name}]",
             f"set_clock_uncertainty -setup {domain.setup_uncertainty_ns:g} [get_clocks {domain.name}]",
             f"set_clock_uncertainty -hold {domain.hold_uncertainty_ns:g} [get_clocks {domain.name}]",
             f"set_clock_transition {domain.transition_ns:g} [get_clocks {domain.name}]",
-        ]
+        )
+    )
 
-    lines += [
-        "",
-        "# ============================================================",
-        "# 4. CLOCK RELATIONSHIPS",
-        "# ============================================================",
-    ]
+
+def _relationship_lines(clocks: ClockConfig) -> tuple[str, ...]:
     async_rel = [rel for rel in clocks.relationships if rel.kind == "async"]
-    if async_rel:
-        for rel in async_rel:
-            lines.append(
-                f"set_clock_groups -asynchronous -group [get_clocks {rel.source}] -group [get_clocks {rel.target}]"
-            )
-    else:
-        lines.append("# Clocks not declared asynchronous are treated as timing-related.")
+    if not async_rel:
+        return ("# Clocks not declared asynchronous are treated as timing-related.",)
+    return tuple(
+        f"set_clock_groups -asynchronous -group [get_clocks {rel.source}] -group [get_clocks {rel.target}]"
+        for rel in async_rel
+    )
 
-    lines += [
-        "",
-        "# ============================================================",
-        "# 5. INPUT TIMING",
-        "# ============================================================",
-    ]
+
+def _io_timing_lines(
+    clocks: ClockConfig,
+    groups: tuple[SdcIoGroup, ...],
+    unassigned: tuple[str, ...],
+    io_delay_pct: float,
+    *,
+    direction: str,
+) -> tuple[str, ...]:
     if clocks.n_clocks == 1:
         clock = clocks.domains[0]
         delay = clock.period_ns * io_delay_pct
+        ports = "$non_clock_inputs" if direction == "input" else "[all_outputs]"
+        prefix = ("set non_clock_inputs [all_inputs -no_clocks]",) if direction == "input" else ()
+        return (*prefix,
+            f"set_{direction}_delay -max {delay:g} -clock {clock.name} {ports}",
+            f"set_{direction}_delay -min 0.0 -clock {clock.name} {ports}",
+        )
+
+    by_clock = {group.clock: group for group in groups}
+    lines: list[str] = []
+    for domain in clocks.domains:
+        group = by_clock.get(domain.name)
+        names = getattr(group, f"{direction}s") if group else ()
+        if not names:
+            continue
+        delay = domain.period_ns * io_delay_pct
+        ports = " ".join(names)
         lines += [
-            "set non_clock_inputs [all_inputs -no_clocks]",
-            f"set_input_delay -max {delay:g} -clock {clock.name} $non_clock_inputs",
-            f"set_input_delay -min 0.0 -clock {clock.name} $non_clock_inputs",
+            f"set_{direction}_delay -max {delay:g} -clock {domain.name} [get_ports {{{ports}}}]",
+            f"set_{direction}_delay -min 0.0 -clock {domain.name} [get_ports {{{ports}}}]",
         ]
-    elif top == "tri_stream_dsp":
-        domains = {domain.name: domain for domain in clocks.domains}
-        required = {"cfg", "rx", "dsp"}
-        if set(domains) != required:
-            raise ValueError("tri_stream_dsp scaffold requires cfg, rx, and dsp clock domains")
-        cfg_delay = domains["cfg"].period_ns * io_delay_pct
-        rx_delay = domains["rx"].period_ns * io_delay_pct
-        dsp_delay = domains["dsp"].period_ns * io_delay_pct
-        cfg_bus_i = f"cfg_{bus_suffix[0]}"
-        dsp_bus_i = f"dsp_{bus_suffix[0]}"
+
+    if not lines:
+        label = "I/O" if direction == "input" else "output"
         lines += [
-            f"set_input_delay -max {cfg_delay:g} -clock cfg [get_ports {{{cfg_bus_i}}}]",
-            f"set_input_delay -min 0.0 -clock cfg [get_ports {{{cfg_bus_i}}}]",
-            f"set_input_delay -max {rx_delay:g} -clock rx [get_ports {{rx_valid_i rx_sample_i rx_coeff_i}}]",
-            "set_input_delay -min 0.0 -clock rx [get_ports {rx_valid_i rx_sample_i rx_coeff_i}]",
-            f"set_input_delay -max {dsp_delay:g} -clock dsp [get_ports {{dsp_ready_i {dsp_bus_i}}}]",
-            f"set_input_delay -min 0.0 -clock dsp [get_ports {{dsp_ready_i {dsp_bus_i}}}]",
-        ]
-    else:
-        lines += [
-            "# Multi-clock I/O timing is interface-specific and must be authored explicitly.",
+            f"# Multi-clock {label} timing is interface-specific and must be authored explicitly.",
             "# Example:",
-            "# set_input_delay -max <delay> -clock <clock> [get_ports {<input_port> ...}]",
-            "# set_input_delay -min 0.0     -clock <clock> [get_ports {<input_port> ...}]",
+            f"# set_{direction}_delay -max <delay> -clock <clock> [get_ports {{<{direction}_port> ...}}]",
+            f"# set_{direction}_delay -min 0.0     -clock <clock> [get_ports {{<{direction}_port> ...}}]",
         ]
+    if unassigned:
+        lines.append(f"# Unassigned non-clock ports: {' '.join(unassigned)}")
+    return tuple(lines)
 
-    lines += [
-        "",
-        "# ============================================================",
-        "# 6. INPUT DRIVE",
-        "# ============================================================",
-        "set_drive 0.1 [all_inputs -no_clocks]",
-        "# If the external driver is a known library cell, replace set_drive with:",
-        "# set_driving_cell -lib_cell <driver_cell> -pin <output_pin> [all_inputs -no_clocks]",
-        "",
-        "# ============================================================",
-        "# 7. OUTPUT TIMING",
-        "# ============================================================",
-    ]
-    if clocks.n_clocks == 1:
-        clock = clocks.domains[0]
-        delay = clock.period_ns * io_delay_pct
-        lines += [
-            f"set_output_delay -max {delay:g} -clock {clock.name} [all_outputs]",
-            f"set_output_delay -min 0.0 -clock {clock.name} [all_outputs]",
-        ]
-    elif top == "tri_stream_dsp":
-        domains = {domain.name: domain for domain in clocks.domains}
-        cfg_delay = domains["cfg"].period_ns * io_delay_pct
-        rx_delay = domains["rx"].period_ns * io_delay_pct
-        dsp_delay = domains["dsp"].period_ns * io_delay_pct
-        cfg_bus_o = f"cfg_{bus_suffix[1]}"
-        dsp_bus_o = f"dsp_{bus_suffix[1]}"
-        lines += [
-            f"set_output_delay -max {cfg_delay:g} -clock cfg [get_ports {{{cfg_bus_o}}}]",
-            f"set_output_delay -min 0.0 -clock cfg [get_ports {{{cfg_bus_o}}}]",
-            f"set_output_delay -max {rx_delay:g} -clock rx [get_ports {{rx_ready_o}}]",
-            "set_output_delay -min 0.0 -clock rx [get_ports {rx_ready_o}]",
-            f"set_output_delay -max {dsp_delay:g} -clock dsp [get_ports {{dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o {dsp_bus_o}}}]",
-            f"set_output_delay -min 0.0 -clock dsp [get_ports {{dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o {dsp_bus_o}}}]",
-        ]
-    else:
-        lines += [
-            "# Multi-clock output timing is interface-specific and must be authored explicitly.",
-            "# Example:",
-            "# set_output_delay -max <delay> -clock <clock> [get_ports {<output_port> ...}]",
-            "# set_output_delay -min 0.0     -clock <clock> [get_ports {<output_port> ...}]",
-        ]
 
-    lines += [
-        "",
-        "# ============================================================",
-        "# 8. FUNCTIONAL MODE CONTROLS",
-        "# ============================================================",
-    ]
-    if clocks.multiclock:
-        reset_ports: dict[int, list[str]] = {0: [], 1: []}
-        for domain in clocks.domains:
-            deasserted = 1 if domain.reset_polarity == "low" else 0
-            reset_ports[deasserted].append(domain.reset)
-        lines += [
-            "# External resets assert asynchronously; functional STA holds them deasserted.",
-            "# Generated RTL synchronizes reset release per clock domain; RDC qualifies that structure.",
-        ]
-        for value in (1, 0):
-            ports = reset_ports[value]
-            if ports:
-                lines.append(f"set_case_analysis {value} [get_ports {{{' '.join(ports)}}}]")
-    else:
-        lines.append("# No additional functional-mode controls are required by the single-clock scaffold.")
+def _functional_mode_lines(clocks: ClockConfig) -> tuple[str, ...]:
+    if not clocks.multiclock:
+        return ("# No additional functional-mode controls are required by the single-clock scaffold.",)
 
-    lines += [
-        "",
-        "# ============================================================",
-        "# 9. OUTPUT LOAD",
-        "# ============================================================",
-        f"set_load {output_load:g} [all_outputs]",
-        "",
-        "# ============================================================",
-        "# 10. TIMING EXCEPTIONS",
-        "# ============================================================",
-        "# False paths and multicycle paths are architectural intent and are never inferred.",
-        "# Example false path:",
-        "# set_false_path -from <startpoints> -to <endpoints>",
-        "# Example multicycle path pair:",
-        "# set_multicycle_path 2 -setup -from <startpoints> -to <endpoints>",
-        "# set_multicycle_path 1 -hold  -from <startpoints> -to <endpoints>",
-        "",
-        "# ============================================================",
-        "# 11. OPTIONAL DESIGN-RULE CONSTRAINTS",
-        "# ============================================================",
-        "# Enable only when these limits are part of the intended interface/technology contract.",
-        "# set_max_transition <value> [current_design]",
-        "# set_max_fanout <value> [current_design]",
-        "# set_max_capacitance <value> [all_outputs]",
-        "",
+    reset_ports: dict[int, list[str]] = {0: [], 1: []}
+    for domain in clocks.domains:
+        deasserted = 1 if domain.reset_polarity == "low" else 0
+        reset_ports[deasserted].append(domain.reset)
+    lines = [
+        "# External resets assert asynchronously; functional STA holds them deasserted.",
+        "# Generated RTL synchronizes reset release per clock domain; RDC qualifies that structure.",
     ]
-    return "\n".join(lines)
+    for value in (1, 0):
+        ports = reset_ports[value]
+        if ports:
+            lines.append(f"set_case_analysis {value} [get_ports {{{' '.join(ports)}}}]")
+    return tuple(lines)
+
+
+def render_sdc_scaffold(
+    top: str,
+    clocks: ClockConfig,
+    *,
+    io_delay_pct: float = 0.2,
+    output_load: float = 0.01,
+    io_groups: tuple[SdcIoGroup, ...] = (),
+    unassigned_ports: tuple[str, ...] = (),
+) -> str:
+    """Render one editable SDC from clock metadata and inferred I/O ownership."""
+
+    if not 0.0 <= io_delay_pct <= 1.0:
+        raise ValueError("SDC_IO_DELAY_PCT must be between 0 and 1")
+    if output_load < 0.0:
+        raise ValueError("SDC output load must be non-negative")
+
+    return templates.render(
+        "signoff/sdc/design.sdc.j2",
+        top=top,
+        clock_lines=_clock_lines(clocks),
+        clock_quality_lines=_clock_quality_lines(clocks),
+        relationship_lines=_relationship_lines(clocks),
+        input_timing_lines=_io_timing_lines(
+            clocks, io_groups, unassigned_ports, io_delay_pct, direction="input"
+        ),
+        output_timing_lines=_io_timing_lines(
+            clocks, io_groups, unassigned_ports, io_delay_pct, direction="output"
+        ),
+        functional_mode_lines=_functional_mode_lines(clocks),
+        output_load=f"{output_load:g}",
+    )
 
 
 def write_sdc(path: Path, text: str, *, force: bool = False) -> Path:
-    """Write the authored SDC once unless explicit regeneration was requested."""
+    """Write the authored SDC, preserving existing user edits unless forced."""
 
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not force:
-        raise FileExistsError(f"SDC already exists: {path}; use --force to regenerate it")
+        return path.resolve()
     path.write_text(text, encoding="utf-8")
     return path.resolve()
 
@@ -289,16 +260,24 @@ def init_sdc(
     *,
     top: str,
     clocks: ClockConfig,
-    register_interface: str = "tlul",
+    top_file: Path | None = None,
     io_delay_pct: float = 0.2,
     force: bool = False,
 ) -> Path:
     """Initialize the single canonical authored ``<top>.sdc``."""
 
+    groups: tuple[SdcIoGroup, ...] = ()
+    unassigned: tuple[str, ...] = ()
+    if clocks.multiclock and top_file is not None:
+        groups, unassigned = infer_io_groups(top_file, clocks)
     return write_sdc(
         path,
         render_sdc_scaffold(
-            top, clocks, register_interface=register_interface, io_delay_pct=io_delay_pct
+            top,
+            clocks,
+            io_delay_pct=io_delay_pct,
+            io_groups=groups,
+            unassigned_ports=unassigned,
         ),
         force=force,
     )

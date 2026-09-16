@@ -968,7 +968,7 @@ def _assert_saved_signoff_scripts(
     }
     assert all(path.is_file() for path in canonical)
     assert (signoff / "sta" / "sta.rpt").is_file()
-    assert (signoff / "sta" / "sta.json").is_file()
+    assert (signoff / "sta" / "summary.json").is_file()
     assert not any(signoff.glob("sta/*/*/timing.rpt")), "scenario-local timing reports must not be packaged"
     all_tcl = {path for path in signoff.rglob("*.tcl")}
     assert all_tcl == canonical, (
@@ -1025,10 +1025,11 @@ def _assert_saved_multitech_layout(library_root: Path, top: str, profile: str) -
     assert package_index["reg_interface"] == profile
     for common in ("csr", "doc", "sw/drivers", "rtl", "dv"):
         assert (root / common).is_dir(), f"missing saved {top}/{common}"
-    assert (root / "dv" / "lint" / "slang").is_dir(), f"missing saved {top} Slang lint evidence"
-    assert (root / "dv" / "lint" / "verilator").is_dir(), f"missing saved {top} Verilator lint evidence"
+    assert (root / "dv" / "lint" / "summary.json").is_file(), f"missing saved {top} lint summary"
+    assert not (root / "dv" / "lint" / "slang").exists(), "per-tool lint logs must not be packaged"
+    assert not (root / "dv" / "lint" / "verilator").exists(), "per-tool lint logs must not be packaged"
     assert (root / "dv" / "cdc_rdc" / "summary.json").is_file(), f"missing saved {top} CDC/RDC summary"
-    assert (root / "dv" / "cdc_rdc" / "cdc_rdc.rpt").is_file(), f"missing saved {top} CDC/RDC report"
+    assert not (root / "dv" / "cdc_rdc" / "cdc_rdc.rpt").exists(), "human CDC/RDC report must not be packaged"
     assert not (root / "logs" / "dv" / "cdc_rdc").exists(), "CDC/RDC raw logs must not be packaged"
     assert not (root / "logs" / "dv" / "lint").exists(), "raw lint logs must not be packaged"
     assert not (root / "analysis").exists(), "legacy top-level analysis directory must not be packaged"
@@ -1332,7 +1333,7 @@ def test_fx_single_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"fx settings --workdir {workdir}",
+                f"fx settings PNR_HOLD_SLACK_MARGIN=0.15 --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1679,7 +1680,7 @@ def test_fx_multi_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"fx settings --workdir {workdir}",
+                f"fx settings PNR_HOLD_SLACK_MARGIN=0.15 --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(

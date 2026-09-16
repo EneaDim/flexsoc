@@ -1,0 +1,359 @@
+"""Editable FlexSoC test catalogue and vector generator for <<: top :>>.
+
+Keep each scenario here as three explicit sections:
+
+* ``config`` -> initial CSR writes in ``config.regs``;
+* ``data_in`` -> functional input drives and/or CSR ``@write`` rows;
+* ``data_out`` -> functional output checks and/or CSR ``@read`` rows.
+
+Add or change tests in this file without modifying ``<<: top :>>_model.py``.
+Register names, fields, offsets and masks come only from
+``<<: top :>>_regmap.py`` and can be refreshed with ``fx regmap_py --force``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import random
+from dataclasses import dataclass
+from pathlib import Path
+
+import <<: top :>>_model as model
+import <<: top :>>_regmap as regmap
+
+
+TOP = '<<: top :>>'
+CSR = regmap.PRIMARY
+TESTS = <<: tests_repr :>>
+INPUTS = model.INPUTS
+OUTPUTS = model.OUTPUTS
+
+
+@dataclass
+class TestCase:
+    """All generated rows for one named test."""
+
+    config: list[str]
+    data_in: list[str]
+    data_out: list[str]
+
+
+def hx(value: int) -> str:
+    """Format one vector value as a 32-bit hexadecimal word."""
+
+    return f"0x{value & 0xFFFF_FFFF:08x}"
+
+
+def drive(cycle: int, signal: str, value: int) -> str:
+    """Format one direct DUT-input drive row."""
+
+    if signal not in INPUTS:
+        raise KeyError(f"unknown functional input {signal!r}; known: {INPUTS}")
+    return f"{cycle} {signal} {hx(value)}"
+
+
+def check(cycle: int, signal: str, expected: int) -> str:
+    """Format one fixed-cycle DUT-output check row."""
+
+    if signal not in OUTPUTS:
+        raise KeyError(f"unknown functional output {signal!r}; known: {OUTPUTS}")
+    return f"{cycle} {signal} {hx(expected)}"
+
+
+def check_when_valid(valid_signal: str, expected: dict[str, int]) -> str:
+    """Format one event-driven output check guarded by ``valid_signal``.
+
+    The first token replaces the numeric cycle in ``data_out.vec``.
+    When that DUT output is high, the monitor consumes this row and
+    checks every signal/value pair in ``expected`` on the same cycle.
+
+    Example::
+
+        data_valid_o data_o 0x0000002a
+
+    The starter tests below intentionally use fixed ``LATENCY`` checks;
+    this helper is ready for designs whose completion time is signaled
+    by a valid output instead.
+    """
+
+    if valid_signal not in OUTPUTS:
+        raise KeyError(
+            f"unknown valid output {valid_signal!r}; known: {OUTPUTS}"
+        )
+    unknown = set(expected) - set(OUTPUTS)
+    if unknown:
+        raise KeyError(f"unknown functional output(s): {sorted(unknown)}")
+    if not expected:
+        raise ValueError("event-driven check requires at least one output")
+    pairs = " ".join(
+        f"{name} {hx(value)}" for name, value in expected.items()
+    )
+    return f"{valid_signal} {pairs}"
+
+
+def functional_transaction(
+    reference: model.ReferenceModel,
+    *,
+    drive_cycle: int,
+    value: int,
+) -> tuple[list[str], list[str]]:
+    """Drive one transaction and check it after ``model.LATENCY`` cycles."""
+
+    inputs = {name: value for name in INPUTS}
+    outputs = reference.compute(inputs)
+    input_pairs = " ".join(
+        f"{name} {hx(item)}" for name, item in inputs.items()
+    )
+    data_in = [f"{drive_cycle} {input_pairs}"] if input_pairs else []
+    check_cycle = drive_cycle + model.LATENCY
+    output_pairs = " ".join(
+        f"{name} {hx(outputs[name])}"
+        for name in OUTPUTS
+        if name in outputs
+    )
+    data_out = [f"{check_cycle} {output_pairs}"] if output_pairs else []
+    return data_in, data_out
+
+
+def functional_transaction_when_valid(
+    reference: model.ReferenceModel,
+    *,
+    drive_cycle: int,
+    value: int,
+    valid_signal: str,
+) -> tuple[list[str], list[str]]:
+    """Alternative event-driven transaction helper.
+
+    Use this instead of ``functional_transaction`` when the DUT exposes
+    a completion/valid output and latency is not fixed.
+    """
+
+    inputs = {name: value for name in INPUTS}
+    outputs = reference.compute(inputs)
+    input_pairs = " ".join(
+        f"{name} {hx(item)}" for name, item in inputs.items()
+    )
+    data_in = [f"{drive_cycle} {input_pairs}"] if input_pairs else []
+    checks = {name: value for name, value in outputs.items() if name != valid_signal}
+    data_out = [check_when_valid(valid_signal, checks)] if checks else []
+    return data_in, data_out
+
+
+def _software_fields(register: regmap.Register) -> list[regmap.Field]:
+    """Return software-owned RW fields safe for scaffold CSR examples."""
+
+    return [
+        field
+        for field in register.fields
+        if field.swaccess == "rw" and field.hwaccess == "hro"
+    ]
+
+
+def csr_probe() -> tuple[regmap.Register, int] | None:
+    """Return a conservative RW register for write/read transport checks.
+
+    Prefer a register other than CTRL so an unrelated roundtrip does
+    not disable or clear the generated datapath before functional checks.
+    """
+
+    candidates = [register for register in CSR if _software_fields(register)]
+    candidates.sort(key=lambda register: register.name == "CTRL")
+    for register in candidates:
+        mask = 0
+        for field in _software_fields(register):
+            mask |= field.mask
+        return register, mask & 0xFFFF_FFFF
+    return None
+
+
+def csr_config() -> list[str]:
+    """Configure the starter datapath and demonstrate config.regs writes."""
+
+    if CSR.has("CTRL"):
+        ctrl = CSR.CTRL
+        try:
+            en = ctrl.field("EN")
+        except KeyError:
+            pass
+        else:
+            return [ctrl.write(EN=1, mask=en.mask)]
+
+    probe = csr_probe()
+    if probe is None:
+        return []
+    register, mask = probe
+    return [register.write(register.reset, mask=mask)]
+
+
+def csr_roundtrip(write_cycle: int, read_cycle: int) -> tuple[list[str], list[str]]:
+    """Exercise generated CSR ``@write`` and ``@read`` serialization."""
+
+    probe = csr_probe()
+    if probe is None:
+        return [], []
+    register, mask = probe
+    return (
+        [register.vector_write(write_cycle, register.reset, mask=mask)],
+        [register.vector_read(read_cycle, register.reset, mask=mask)],
+    )
+
+
+def smoke_test() -> TestCase:
+    """Basic functional-port and CSR transport smoke test."""
+
+    reference = model.ReferenceModel()
+    config = csr_config()
+    functional_in, functional_out = functional_transaction(
+        reference, drive_cycle=0, value=0
+    )
+    csr_in, csr_out = csr_roundtrip(4, 12)
+    data_in = [*functional_in, *csr_in]
+    data_out = [*functional_out, *csr_out]
+    return TestCase(config=config, data_in=data_in, data_out=data_out)
+
+
+def corners_test() -> TestCase:
+    """Starter 0/1 functional corners plus a CSR write/read check."""
+
+    reference = model.ReferenceModel()
+    config = csr_config()
+    data_in: list[str] = []
+    data_out: list[str] = []
+    for drive_cycle, value in ((0, 0), (12, 1)):
+        tx_in, tx_out = functional_transaction(
+            reference,
+            drive_cycle=drive_cycle,
+            value=value,
+        )
+        data_in.extend(tx_in)
+        data_out.extend(tx_out)
+    csr_in, csr_out = csr_roundtrip(24, 32)
+    data_in.extend(csr_in)
+    data_out.extend(csr_out)
+    return TestCase(config=config, data_in=data_in, data_out=data_out)
+
+
+def random_test(seed: int) -> TestCase:
+    """Deterministic random stimulus for one explicit seed."""
+
+    reference = model.ReferenceModel()
+    rng = random.Random(f"{TOP}:random:{seed}")
+    config = csr_config()
+    data_in: list[str] = []
+    data_out: list[str] = []
+    for index, drive_cycle in enumerate(range(0, 32, 8)):
+        value = rng.getrandbits(1)
+        tx_in, tx_out = functional_transaction(
+            reference,
+            drive_cycle=drive_cycle,
+            value=value,
+        )
+        data_in.extend(tx_in)
+        data_out.extend(tx_out)
+    csr_in, csr_out = csr_roundtrip(36, 44)
+    data_in.extend(csr_in)
+    data_out.extend(csr_out)
+    return TestCase(config=config, data_in=data_in, data_out=data_out)
+
+
+def reconfig_test() -> TestCase:
+    """Show initial config and repeated runtime CSR access in one test."""
+
+    reference = model.ReferenceModel()
+    config = csr_config()
+    first_in, first_out = csr_roundtrip(8, 16)
+    functional_in, functional_out = functional_transaction(
+        reference, drive_cycle=20, value=1
+    )
+    second_in, second_out = csr_roundtrip(24, 32)
+    data_in = [*first_in, *functional_in, *second_in]
+    data_out = [*first_out, *functional_out, *second_out]
+    return TestCase(config=config, data_in=data_in, data_out=data_out)
+
+
+def test_case(test: str) -> TestCase:
+    """Build one named scenario, including explicit random seeds."""
+
+    if test.startswith("random_seed_"):
+        try:
+            seed = int(test.removeprefix("random_seed_"))
+        except ValueError as exc:
+            raise ValueError(f"invalid random test name {test!r}") from exc
+        return random_test(seed)
+
+    scenarios = {
+        "smoke": smoke_test,
+        "corners": corners_test,
+        "reconfig": reconfig_test,
+    }
+    try:
+        return scenarios[test]()
+    except KeyError as exc:
+        raise ValueError(f"unknown test {test!r}; choose one of {TESTS}") from exc
+
+
+def write_test(root: str | Path, test: str) -> None:
+    """Write ``config.regs``, ``data_in.vec`` and ``data_out.vec``."""
+
+    case = test_case(test)
+    folder = Path(root) / test
+    folder.mkdir(parents=True, exist_ok=True)
+    regmap.write_config(folder / "config.regs", case.config)
+
+    seed_note = (
+        f" random_seed={test.removeprefix('random_seed_')}"
+        if test.startswith("random_seed_")
+        else ""
+    )
+    data_in = [
+        f"# {TOP}/{test}{seed_note} input stimulus: ports + CSR writes.",
+        "# <cycle> <signal> <value> or <cycle> @write <reg> <value> [mask]",
+        *case.data_in,
+    ]
+    data_out = [
+        f"# {TOP}/{test}{seed_note} output checks: ports + CSR reads.",
+        "# fixed: <cycle> <signal> <expected> or <cycle> @read <reg> <expected> [mask]",
+        "# valid: <valid_signal> <signal> <expected> [<signal> <expected> ...]",
+        *case.data_out,
+    ]
+    (folder / "data_in.vec").write_text("\n".join(data_in) + "\n", encoding="utf-8")
+    (folder / "data_out.vec").write_text("\n".join(data_out) + "\n", encoding="utf-8")
+
+
+def write_all_tests(
+    root: str | Path,
+    tests: list[str] | tuple[str, ...] | None = None,
+) -> None:
+    """Write requested tests, or every test listed in ``TESTS``."""
+
+    for test in tests or TESTS:
+        write_test(root, test)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Generate FlexSoC vectors from the editable test catalogue."
+    )
+    parser.add_argument("--tests-dir", default="../tests")
+    parser.add_argument(
+        "--test",
+        action="append",
+        default=[],
+        help="Generate only this TEST_NAME. May be repeated.",
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="Print the TESTS catalogue and exit.",
+    )
+    args = parser.parse_args()
+    if args.list:
+        for test in TESTS:
+            print(test)
+        return 0
+    write_all_tests(args.tests_dir, args.test or None)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

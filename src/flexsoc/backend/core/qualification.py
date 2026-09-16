@@ -6,10 +6,16 @@ import hashlib
 import json
 import re
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
 
 import yaml
+
+
+if TYPE_CHECKING:
+    from flexsoc.backend.core.core import BackendContext
+    from flexsoc.backend.core.target import Target
 
 
 PROVENANCE_STATES = (
@@ -30,10 +36,6 @@ EVIDENCE_STATES = (
     "STALE",
     "INVALID",
 )
-
-# Backward-compatible public union; provenance freshness and evidence outcome are
-# intentionally separate in the qualification report.
-ARTIFACT_STATES = tuple(dict.fromkeys((*PROVENANCE_STATES, *EVIDENCE_STATES)))
 
 QUALIFICATION_LEVELS = (
     ("Not Qualified", "none"),
@@ -532,8 +534,6 @@ def evidence_state(
     if waived:
         return "WAIVED"
     freshness = str(provenance_state).upper()
-    if freshness in {"PASS", "FAILED", "REVIEW", "WAIVED"}:
-        return freshness
     if freshness == "MISSING":
         return "MISSING"
     if freshness == "STALE":
@@ -547,9 +547,10 @@ def evidence_state(
     if freshness == "INVALID":
         return "INVALID"
     if freshness in {"CLEAN", "VALIDATED_OVERRIDE"}:
-        # Legacy records predate explicit runtime outcomes. Keeping them PASS here
-        # preserves previously-qualified evidence without pretending it gained new metadata.
-        return "PASS" if normalized in {None, "PASS"} else "INVALID"
+        if normalized == "PASS":
+            return "PASS"
+        # Fresh artifacts without a recorded runtime outcome are not an EDA PASS.
+        return "REVIEW" if normalized is None else "INVALID"
     return "INVALID"
 
 
@@ -627,6 +628,167 @@ def build_qualification_report(
             for stage, value in sorted(outcomes.items())
         },
     }
+
+
+@dataclass(slots=True)
+class QualificationFlow:
+    """Evaluate the Digital IP contract from canonical lifecycle evidence."""
+
+    context: "BackendContext"
+
+    def run_target(
+        self,
+        target: "Target",
+        *,
+        stage_states: Mapping[str, str] | None = None,
+        stage_outcomes: Mapping[str, str | None] | None = None,
+        rtl_sources: Sequence[Path] = (),
+        force: bool = False,
+    ) -> object:
+        """Execute one registered contract/qualification target."""
+
+        if target.action == "spec":
+            paths = self.context.paths
+            clocks = self.context.clocks
+            return write_spec_scaffold(
+                paths.spec,
+                ip_name=self.context.values.get("IP_NAME", paths.top),
+                clock_domains=tuple(domain.encode() for domain in clocks.domains),
+                clock_relationships=tuple(rel.encode() for rel in clocks.relationships),
+                force=force,
+            )
+        stage_states = stage_states or {}
+        stage_outcomes = stage_outcomes or {}
+        write = target.action == "qualify"
+        report = self.status(
+            stage_states=stage_states, stage_outcomes=stage_outcomes,
+            rtl_sources=rtl_sources, write=write,
+        )
+        if target.action == "status":
+            return report
+        if target.action == "qualify":
+            return 0 if report.get("target_satisfied", False) else 1
+        raise ValueError(f"unsupported qualification target: {target.name}")
+
+    def status(
+        self,
+        *,
+        stage_states: Mapping[str, str],
+        stage_outcomes: Mapping[str, str | None],
+        rtl_sources: Sequence[Path],
+        write: bool = False,
+    ) -> dict[str, object]:
+        """Validate the live contract and derive its maximum qualification level."""
+
+        paths = self.context.paths
+        values = self.context.values
+        ip_name = values.get("IP_NAME", paths.top)
+        reg_interface = values.get("REG_ITF", "tlul")
+        spec_root = paths.spec if paths.spec.is_dir() else paths.run / "contract"
+
+        spec_error = None
+        try:
+            spec = validate_spec_bundle(spec_root, ip_name=ip_name)
+        except Exception as exc:
+            spec_error = str(exc)
+            spec = {
+                "fingerprint": None,
+                "baselined_requirements": 0,
+                "covered_requirements": 0,
+                "required_evidence": ["traceability", "lint", "functional", "cdc_rdc", "formal"],
+                "tests": [],
+                "properties": [],
+                "traceability": {},
+            }
+
+        states = dict(stage_states)
+        outcomes = dict(stage_outcomes)
+        available_tests = {
+            path.name for path in paths.tests.iterdir() if path.is_dir()
+        } if paths.tests.is_dir() else set()
+        planned_tests = {str(item) for item in spec.get("tests", ())}
+        missing_tests = sorted(planned_tests - available_tests)
+
+        prove = paths.formal / "properties" / "prove"
+        cover = paths.formal / "properties" / "cover"
+        available_properties = {
+            path.stem for root in (prove, cover) if root.is_dir() for path in root.glob("*.sv")
+        }
+        planned_properties = {str(item) for item in spec.get("properties", ())}
+        missing_properties = sorted(
+            name for name in planned_properties
+            if not any(name == item or item.startswith(name) for item in available_properties)
+        )
+        states["requirements_traceability"] = "CLEAN"
+        outcomes["requirements_traceability"] = (
+            "FAILED" if missing_tests or missing_properties or spec_error else "PASS"
+        )
+
+        contract_ready = (
+            spec_error is None
+            and paths.sdc.is_file()
+            and bool(rtl_sources)
+            and any(paths.csr.glob("*.hjson"))
+        )
+        report = build_qualification_report(
+            ip_name=ip_name, reg_interface=reg_interface, pdk=paths.pdk,
+            spec=spec, stage_states=states, contract_ready=contract_ready,
+            requested_level=values.get("QUAL_LEVEL", "auto"), stage_outcomes=outcomes,
+        )
+        report["contract"] = "VALID" if contract_ready else "INVALID"
+        report["spec_error"] = spec_error
+
+        requirement_traceability: dict[str, object] = {}
+        for req_id, entries in (spec.get("traceability", {}) or {}).items():
+            traced_tests = sorted({
+                str(name) for entry in entries for name in entry.get("tests", [])
+            })
+            traced_properties = sorted({
+                str(name) for entry in entries for name in entry.get("properties", [])
+            })
+            req_missing_tests = sorted(set(traced_tests) - available_tests)
+            req_missing_properties = sorted(
+                name for name in traced_properties
+                if not any(name == item or item.startswith(name) for item in available_properties)
+            )
+            requirement_traceability[str(req_id)] = {
+                "status": "PASS" if not req_missing_tests and not req_missing_properties else "FAILED",
+                "testplan": entries,
+                "missing_tests": req_missing_tests,
+                "missing_properties": req_missing_properties,
+            }
+        report["traceability"] = {
+            "missing_tests": missing_tests,
+            "missing_properties": missing_properties,
+            "requirements": requirement_traceability,
+        }
+
+        print(
+            f"[contract] {report['contract']} fingerprint={report.get('contract_fingerprint')} "
+            f"requirements={report['requirements']['covered']}/{report['requirements']['total']}"
+        )
+        print(
+            f"[release] level={report['maximum_level']} "
+            f"{report['maximum_qualification']} interface={reg_interface} pdk={paths.pdk}"
+        )
+        for level, item in report["levels"].items():
+            blocking = item["blocking_evidence"]
+            suffix = "" if not blocking else " blocking=" + ",".join(blocking)
+            print(f"[level] L{level} {item['name']}: {item['status']}{suffix}")
+        for stage in required_stages(spec, 5):
+            state = report["evidence"].get(stage, "MISSING")
+            print(f"[evidence] {stage:<26} {state}")
+
+        if write:
+            output = paths.meta / "qualification.json"
+            output.parent.mkdir(parents=True, exist_ok=True)
+            temporary = output.with_name(f".{output.name}.tmp")
+            temporary.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            temporary.replace(output)
+            print(f"[qualification] {output}")
+        return report
 
 
 def write_contract_snapshot(

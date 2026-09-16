@@ -1,0 +1,261 @@
+    // Editable N-clock RTL core for <<: top :>>.
+    //
+    // User edit point:
+    //   Keep this file as the main design surface. After changing ports, run
+    //   `fx top_from_core --force` to refresh rtl/<<: top :>>.sv.
+    //
+    // Register path rule from reggen:
+    //   - multi-field registers use .<field>.q/.d, e.g. ctrl.enable.q.
+    //   - single-field registers are flat, e.g. gain.q and result.d.
+
+    module <<: top :>>_core
+      import <<: top :>>_cfg_reg_pkg::*;
+      import <<: top :>>_dsp_reg_pkg::*;
+    (
+      input  logic                     cfg_clk_i,
+      input  logic                     cfg_rst_ni,
+      input  logic                     rx_clk_i,
+      input  logic                     rx_rst_ni,
+      input  logic                     dsp_clk_i,
+      input  logic                     dsp_rst_ni,
+
+      input  <<: top :>>_cfg_reg2hw_t        cfg_reg2hw_i,
+      output <<: top :>>_cfg_hw2reg_t        cfg_hw2reg_o,
+      input  <<: top :>>_dsp_reg2hw_t        dsp_reg2hw_i,
+      output <<: top :>>_dsp_hw2reg_t        dsp_hw2reg_o,
+
+      input  logic                     rx_valid_i,
+      output logic                     rx_ready_o,
+      input  logic signed [15:0]       rx_sample_i,
+      input  logic signed [15:0]       rx_coeff_i,
+
+      output logic                     dsp_valid_o,
+      input  logic                     dsp_ready_i,
+      output logic signed [31:0]       dsp_result_o,
+      output logic                     dsp_above_threshold_o,
+      output logic                     dsp_overflow_o
+    );
+
+      localparam logic signed [63:0] I32_MAX = 64'sd2147483647;
+      localparam logic signed [63:0] I32_MIN = -64'sd2147483648;
+
+      // --------------------------------------------------------------------
+      // Register extraction
+      // --------------------------------------------------------------------
+      logic               cfg_enable;
+      logic signed [15:0] dsp_gain;
+      logic [1:0]         dsp_op;
+      logic               dsp_saturate;
+      logic               dsp_clk_req_en;
+      logic [31:0]        dsp_threshold;
+
+      assign cfg_enable     = cfg_reg2hw_i.ctrl.q;
+      assign dsp_gain       = dsp_reg2hw_i.gain.q[15:0];
+      assign dsp_op         = dsp_reg2hw_i.dsp_ctrl.op.q;
+      assign dsp_saturate   = dsp_reg2hw_i.dsp_ctrl.saturate.q;
+      assign dsp_clk_req_en = dsp_reg2hw_i.dsp_ctrl.clk_en.q;
+      assign dsp_threshold  = dsp_reg2hw_i.threshold.q;
+
+      // --------------------------------------------------------------------
+      // Single-bit CDC controls
+      // --------------------------------------------------------------------
+      logic enable_rx;
+      logic enable_dsp;
+      logic soft_reset_dsp;
+
+      prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_enable_rx_sync (
+        .clk_i  (rx_clk_i),
+        .rst_ni (rx_rst_ni),
+        .d_i    (cfg_enable),
+        .q_o    (enable_rx)
+      );
+
+      prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_enable_dsp_sync (
+        .clk_i  (dsp_clk_i),
+        .rst_ni (dsp_rst_ni),
+        .d_i    (cfg_enable),
+        .q_o    (enable_dsp)
+      );
+
+      // SOFT_RESET is owned by the always-clocked DSP CSR window, so it is
+      // domain-local and does not create an unnecessary cfg -> dsp crossing.
+      assign soft_reset_dsp = dsp_reg2hw_i.dsp_ctrl.soft_reset.q;
+
+      // --------------------------------------------------------------------
+      // RX -> DSP async FIFO
+      // --------------------------------------------------------------------
+      logic        fifo_wready;
+      logic        fifo_rvalid;
+      logic        fifo_rready;
+      logic        fifo_pop;
+      logic [31:0] fifo_wdata;
+      logic [31:0] fifo_rdata;
+      logic        dsp_pipe_valid_q;
+      logic        dsp_pipe_ready;
+      logic        dsp_out_ready;
+      logic        dsp_clk_gated;
+      logic        dsp_clk_active;
+
+      assign fifo_wdata  = {rx_sample_i, rx_coeff_i};
+      assign rx_ready_o  = enable_rx & fifo_wready;
+      assign fifo_rready = enable_dsp & dsp_clk_req_en & dsp_pipe_ready;
+      assign fifo_pop    = fifo_rvalid & fifo_rready;
+
+      // --------------------------------------------------------------------
+      // DSP datapath clock gate
+      // --------------------------------------------------------------------
+      // DSP_CTRL.CLK_EN is implemented in the always-clocked DSP register
+      // window, which uses dsp_clk_i. The FIFO read side and datapath share the
+      // gated clock so a physical ICG delay cannot advance the FIFO head before
+      // the datapath captures it. Software can still always write CLK_EN=1 to
+      // resume because the register window remains on the ungated parent clock.
+      assign dsp_clk_active = (enable_dsp & dsp_clk_req_en) | soft_reset_dsp | dsp_pipe_valid_q | dsp_valid_o;
+
+`ifdef FLEXSOC_CDC_ANALYSIS
+      (* keep_hierarchy = "yes",
+         flexsoc_cdc_contract = "clock_gate",
+         flexsoc_cdc_domain = "dsp",
+         flexsoc_cdc_clock_in_port = "clk_i",
+         flexsoc_cdc_clock_out_port = "clk_o" *)
+`endif
+      prim_clk_gate u_dsp_clk_gate (
+        .clk_i     (dsp_clk_i),
+        .en_i      (dsp_clk_active),
+        .test_en_i (1'b0),
+        .clk_o     (dsp_clk_gated)
+      );
+
+      // A one-entry RZ handshake FIFO keeps the scaffold partial-reset-safe
+      // while still exercising a real asynchronous payload crossing.
+`ifdef FLEXSOC_CDC_ANALYSIS
+      (* keep_hierarchy = "yes",
+         flexsoc_cdc_contract = "async_fifo",
+         flexsoc_cdc_source_domain = "rx",
+         flexsoc_cdc_destination_domain = "dsp",
+         flexsoc_cdc_source_clock_port = "clk_wr_i",
+         flexsoc_cdc_destination_clock_port = "clk_rd_i",
+         flexsoc_cdc_source_reset_port = "rst_wr_ni",
+         flexsoc_cdc_destination_reset_port = "rst_rd_ni",
+         flexsoc_cdc_partial_reset_safe = "true" *)
+`endif
+      prim_fifo_async_simple #(
+        .Width     (32),
+        .EnRstChks (1'b1),
+        .EnRzHs    (1'b1)
+      ) u_rx_to_dsp_fifo (
+        .clk_wr_i  (rx_clk_i),
+        .rst_wr_ni (rx_rst_ni),
+        .wvalid_i  (rx_valid_i & enable_rx),
+        .wready_o  (fifo_wready),
+        .wdata_i   (fifo_wdata),
+        .clk_rd_i  (dsp_clk_gated),
+        .rst_rd_ni (dsp_rst_ni),
+        .rvalid_o  (fifo_rvalid),
+        .rready_i  (fifo_rready),
+        .rdata_o   (fifo_rdata)
+      );
+
+      // --------------------------------------------------------------------
+      // Small DSP algorithm
+      // --------------------------------------------------------------------
+      logic signed [15:0] sample_d;
+      logic signed [15:0] coeff_d;
+      logic signed [63:0] sample_ext;
+      logic signed [63:0] coeff_ext;
+      logic signed [63:0] gain_ext;
+      logic signed [63:0] raw_result_d;
+      logic signed [63:0] raw_result_q;
+      logic signed [31:0] clipped_result_d;
+      logic               overflow_d;
+      logic               above_threshold_d;
+      logic               dsp_saturate_q;
+      logic [31:0]        dsp_threshold_q;
+
+      assign sample_d   = fifo_rdata[31:16];
+      assign coeff_d    = fifo_rdata[15:0];
+      assign sample_ext = {{48{sample_d[15]}}, sample_d};
+      assign coeff_ext  = {{48{coeff_d[15]}}, coeff_d};
+      assign gain_ext   = {{48{dsp_gain[15]}}, dsp_gain};
+
+      assign dsp_out_ready  = !dsp_valid_o | dsp_ready_i;
+      assign dsp_pipe_ready = !dsp_pipe_valid_q | dsp_out_ready;
+
+      always_comb begin
+        unique case (dsp_op)
+          2'd1: raw_result_d = (sample_ext >= coeff_ext) ? sample_ext - coeff_ext : coeff_ext - sample_ext;
+          2'd2: raw_result_d = (sample_ext * sample_ext) + (coeff_ext * coeff_ext);
+          default: raw_result_d = (sample_ext * coeff_ext) + gain_ext;
+        endcase
+
+        overflow_d = (raw_result_q > I32_MAX) | (raw_result_q < I32_MIN);
+        if (dsp_saturate_q && raw_result_q > I32_MAX) begin
+          clipped_result_d = 32'sh7fff_ffff;
+        end else if (dsp_saturate_q && raw_result_q < I32_MIN) begin
+          clipped_result_d = -32'sh8000_0000;
+        end else begin
+          clipped_result_d = raw_result_q[31:0];
+        end
+        above_threshold_d = $unsigned(clipped_result_d) > dsp_threshold_q;
+      end
+
+      always_ff @(posedge dsp_clk_gated or negedge dsp_rst_ni) begin
+        if (!dsp_rst_ni) begin
+          raw_result_q         <= '0;
+          dsp_saturate_q       <= 1'b0;
+          dsp_threshold_q      <= '0;
+          dsp_pipe_valid_q     <= 1'b0;
+          dsp_valid_o          <= 1'b0;
+          dsp_result_o         <= '0;
+          dsp_above_threshold_o <= 1'b0;
+          dsp_overflow_o       <= 1'b0;
+        end else if (soft_reset_dsp) begin
+          raw_result_q         <= '0;
+          dsp_saturate_q       <= 1'b0;
+          dsp_threshold_q      <= '0;
+          dsp_pipe_valid_q     <= 1'b0;
+          dsp_valid_o          <= 1'b0;
+          dsp_result_o         <= '0;
+          dsp_above_threshold_o <= 1'b0;
+          dsp_overflow_o       <= 1'b0;
+        end else begin
+          if (dsp_out_ready) begin
+            dsp_valid_o <= dsp_pipe_valid_q;
+            if (dsp_pipe_valid_q) begin
+              dsp_result_o          <= clipped_result_d;
+              dsp_above_threshold_o <= above_threshold_d;
+              dsp_overflow_o        <= overflow_d;
+            end
+          end
+
+          if (dsp_pipe_ready) begin
+            dsp_pipe_valid_q <= fifo_pop;
+            if (fifo_pop) begin
+              raw_result_q    <= raw_result_d;
+              dsp_saturate_q  <= dsp_saturate;
+              dsp_threshold_q <= dsp_threshold;
+            end
+          end
+        end
+      end
+
+      // --------------------------------------------------------------------
+      // HW -> register status/result
+      // --------------------------------------------------------------------
+      logic cfg_busy;
+
+      prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_busy_cfg_sync (
+        .clk_i  (cfg_clk_i),
+        .rst_ni (cfg_rst_ni),
+        .d_i    (dsp_valid_o),
+        .q_o    (cfg_busy)
+      );
+
+      assign cfg_hw2reg_o.cfg_status.d = cfg_busy;
+
+      assign dsp_hw2reg_o.result.d                     = dsp_result_o;
+      assign dsp_hw2reg_o.dsp_status.valid.d           = dsp_valid_o;
+      assign dsp_hw2reg_o.dsp_status.above_threshold.d = dsp_above_threshold_o;
+      assign dsp_hw2reg_o.dsp_status.fifo_empty.d      = ~fifo_rvalid;
+      assign dsp_hw2reg_o.dsp_status.overflow.d        = dsp_overflow_o;
+
+    endmodule

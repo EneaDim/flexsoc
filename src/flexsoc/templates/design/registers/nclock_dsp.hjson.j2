@@ -1,0 +1,71 @@
+{
+  name:               "<<: top :>>_dsp",
+  human_name:         "<<: top :>>_dsp",
+  one_line_desc:      "DSP-domain controls and status for the generated N-clock IP.",
+  one_paragraph_desc: "Algorithm selection, threshold, result and live DSP status registers for the generated N-clock scaffold.",
+  cip_id:             "1",
+  design_spec:        "",
+  dv_doc:             "",
+  hw_checklist:       "",
+  sw_checklist:       "",
+  revisions: [{
+    version:            "1.0.0",
+    life_stage:         "L0",
+    design_stage:       "D0",
+    verification_stage: "V0",
+    commit_id:          "",
+    notes:              "Generated N-clock dsp regmap."
+  }],
+  clocking: [{ clock: "clk_i", reset: "rst_ni" }],
+  bus_interfaces: [{ protocol: "<<: protocol :>>", direction: "device" }],
+  regwidth: "32",
+  registers: [
+    {
+      name: "DSP_CTRL",
+      desc: "DSP-domain algorithm control.",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0", name: "OP", desc: "0=MAC plus gain, 1=absolute difference, 2=energy estimate." },
+        { bits: "2", name: "SATURATE", desc: "Clamp overflowing results to signed 32-bit limits." },
+        { bits: "3", name: "CLK_EN", resval: "1", desc: "Enable the gated DSP datapath clock. The DSP register interface remains clocked by clk_i so software can always re-enable the datapath." },
+        { bits: "4", name: "SOFT_RESET", desc: "Synchronous DSP-domain datapath clear request; does not flush the RX-to-DSP FIFO." }
+      ]
+    },
+    {
+      name: "THRESHOLD",
+      desc: "Unsigned threshold compared with the DSP result.",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [{ bits: "31:0", name: "VALUE", desc: "Result threshold." }]
+    },
+    {
+      name: "RESULT",
+      desc: "Latest signed DSP result.",
+      swaccess: "ro",
+      hwaccess: "hrw",
+      hwext: "true",
+      fields: [{ bits: "31:0", name: "VALUE", desc: "Latest output result." }]
+    },
+    {
+      name: "DSP_STATUS",
+      desc: "DSP-domain live status.",
+      swaccess: "ro",
+      hwaccess: "hrw",
+      hwext: "true",
+      fields: [
+        { bits: "0", name: "VALID", desc: "RESULT contains a valid sample." },
+        { bits: "1", name: "ABOVE_THRESHOLD", desc: "RESULT is greater than THRESHOLD." },
+        { bits: "2", name: "FIFO_EMPTY", desc: "RX-to-DSP FIFO has no readable payload." },
+        { bits: "3", name: "OVERFLOW", desc: "The latest operation overflowed before saturation." }
+      ]
+    },
+    {
+      name: "GAIN",
+      desc: "Signed Q1.15 gain consumed directly in the DSP clock domain.",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [{ bits: "15:0", name: "VALUE", desc: "DSP gain coefficient." }]
+    }
+  ]
+}

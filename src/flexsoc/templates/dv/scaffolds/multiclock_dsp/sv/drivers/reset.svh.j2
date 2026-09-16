@@ -1,0 +1,20 @@
+      task automatic reset_dut(input string selector, input integer cycles);
+        bit matched;
+        matched = 1'b0;
+        if (selector == "" || selector == "all" || selector == "*") begin
+<<: assert_reset :>>
+          fork
+<<: wait_all :>>
+          join
+<<: release_reset :>>
+          matched = 1'b1;
+        end
+<<: named_reset :>>
+        if (!matched) begin
+          $display("[TB][ERROR] unknown reset selector: %s", selector);
+          errors++;
+        end
+        apply_defaults();
+        repeat (8) @(posedge <<: primary_clock :>>);
+      endtask
+

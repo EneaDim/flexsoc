@@ -687,7 +687,7 @@ Shared OpenSTA/SDF analysis engine:
 - STA/SDF Tcl generation that sources `constraints/<TOP>.sdc`;
 - deterministic post-synthesis/post-route input resolution;
 - WNS/TNS, violation, unconstrained-path, electrical, minimum-period/Fmax, and QoR extraction;
-- canonical `signoff/<pdk>/sta/sta.rpt` + `sta.json`;
+- canonical `signoff/<pdk>/sta/sta.rpt` + `summary.json`;
 - OpenSTA command execution;
 - `StaAnalysis`.
 
@@ -937,4 +937,4 @@ FlexSoC keeps exactly one authored timing contract per run: `constraints/<TOP>.s
 
 ### STA scenario evidence
 
-STA keeps the scenario model deliberately small: one scenario is a resolved Liberty corner plus `setup` or `hold`, for one lifecycle stage. The same authored `constraints/<TOP>.sdc` is used in every scenario. OpenSTA scenario-local reports are execution diagnostics; canonical qualification evidence is only `sta/sta.rpt` and `sta/sta.json`. The report is QoR-first (scenario status, WNS/TNS, violating/unconstrained paths, clock minimum-period/Fmax) followed by detailed scenario content. This avoids report proliferation while retaining complete evidence.
+STA keeps the scenario model deliberately small: one scenario is a resolved Liberty corner plus `setup` or `hold`, for one lifecycle stage. The same authored `constraints/<TOP>.sdc` is used in every scenario. OpenSTA scenario-local reports are execution diagnostics; canonical qualification evidence is only `sta/sta.rpt` and `sta/summary.json`. The report is QoR-first (scenario status, WNS/TNS, violating/unconstrained paths, clock minimum-period/Fmax) followed by detailed scenario content. This avoids report proliferation while retaining complete evidence.

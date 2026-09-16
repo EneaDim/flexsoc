@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -1550,6 +1551,80 @@ class SocFlow:
     def generate_software(self, config: SoCSoftwareConfig):
         """Generate the SoC software workspace from staged IP drivers."""
         return write_soc_software(config)
+
+
+    def run_target(self, target, context, *, on: str = "local"):
+        """Execute one atomic SoC target from the current backend context."""
+
+        paths, values = context.paths, context.values
+        host = values.get("HOST", "uart")
+        action = target.action or ""
+
+        if action == "start":
+            return self.start(SoCStartConfig(context.workspace, paths.run_top, paths.run_id))
+        if action == "config":
+            config = self.resolve_config(
+                workspace=context.workspace, run_top=paths.run_top, run_id=paths.run_id,
+                default_host=host, mode=values.get("SOC_CFG_MODE", "builtin"),
+            )
+            print(config)
+            return config
+        if action == "software":
+            return self.generate_software(SoCSoftwareConfig(context.workspace, paths.run_top, paths.run_id, host))
+        if action == "fusesoc_init":
+            return self.generate_fusesoc(
+                values.get("PRJ", "flexsoc"), paths.top, paths.rtl,
+                paths.run / "fusesoc" / host / "cores",
+            )
+        if action == "xbar_init":
+            config = self.resolve_config(
+                workspace=context.workspace, run_top=paths.run_top, run_id=paths.run_id,
+                default_host=host, mode=values.get("SOC_CFG_MODE", "builtin"),
+            )
+            devices = tuple(parse_device_rows([list(device.args()) for device in config.devices]))
+            return self.init_xbar(XbarConfig(host, devices), paths.run / "soc" / "xbar.hjson")
+        if action == "xbar_build":
+            config = paths.run / "soc" / "xbar.hjson"
+            output = paths.rtl / "xbar"
+            output.mkdir(parents=True, exist_ok=True)
+            return self.run_tool(
+                (sys.executable, str(context.project_root / "src" / "util" / "tlgen.py"), "-t", str(output), str(config)),
+                cwd=context.project_root, log=paths.logs / "soc" / "xbar.log",
+                inputs=(config,), outputs=(output,), on=on,
+            ).returncode
+        if action in {"generate", "generate_uart", "generate_ibex"}:
+            selected_host = "ibex" if action == "generate_ibex" else "uart" if action == "generate_uart" else host
+            config = self.resolve_config(
+                workspace=context.workspace, run_top=paths.run_top, run_id=paths.run_id,
+                default_host=selected_host, mode=values.get("SOC_CFG_MODE", "builtin"),
+            )
+            devices = tuple(
+                SoCModule(device.name, device.base, device.size, device.from_lr.strip().lower() in {"1", "true", "yes", "on"})
+                for device in config.devices
+            )
+            return self.generate(SoCGenerationConfig(config.host, devices, paths.run, paths.rtl / "soc.sv"))
+        if action in {"fusesoc_build", "prepare", "sim_build"}:
+            root = paths.run / "fusesoc" / host
+            selected = values.get("TARGET", "default" if action == "fusesoc_build" else "sim")
+            argv = (
+                values.get("FUSESOC", "fusesoc"),
+                f"--cores-root={context.project_root}", f"--cores-root={root / 'cores'}",
+                "run", "--setup", "--build", "--target", selected,
+                "--build-root", str(root / "build"), values.get("SOC_CORE_VLNV", "enea:soc:main"),
+            )
+            return self.run_tool(argv, cwd=root, log=paths.logs / "soc" / f"{target.name}.log", on=on).returncode
+        if action == "build_sw":
+            sw = paths.run / "sw"
+            if not (sw / "Makefile").is_file():
+                raise FileNotFoundError(f"missing SoC software scaffold: {sw / 'Makefile'}; run `fx sw_soc` first")
+            return self.run_tool(("make", "-C", str(sw)), cwd=paths.run, log=paths.logs / "soc" / "build_sw.log", inputs=(sw / "Makefile",), on=on).returncode
+        if action == "sim_run":
+            exe = paths.run / "fusesoc" / host / "build" / "sim-verilator" / "Vtop_verilator"
+            return self.run_tool((str(exe),), cwd=exe.parent, log=paths.logs / "soc" / "run.log", inputs=(exe,), on=on).returncode
+        if action == "view":
+            from ..core.workspace import WorkspaceFlow
+            return WorkspaceFlow(context, self.runner).view("view", on=on)
+        raise ValueError(f"unsupported SoC action: {action!r}")
 
     def run_tool(self, argv, *, cwd: Path, log: Path, inputs=(), outputs=(), on: str = "local"):
         """Run one external SoC tool through the shared execution layer."""

@@ -11,7 +11,7 @@ from typing import Any, Mapping, Sequence
 from .power import _power_instance_rows
 from .sta import (
     FLOAT_RE, PATH_PIN_RE, PATH_SLACK_RE, PATH_START_RE, SignoffContext,
-    _common_init, _header, _quote, _returncode_text, _run_sta, _write,
+    _common_init, _header, _quote, _returncode_text, _run_sta, _write, render_opensta_script,
 )
 
 def _timing_path_blocks(text: str) -> list[dict[str, Any]]:
@@ -487,66 +487,23 @@ def _enrich_fusion_report(
 def render_fusion_analysis_tcl(ctx: SignoffContext) -> str:
     """Render discovery reports used by public-API timing/power fusion."""
 
-    delay_type = "min" if ctx.mode == "hold" else "max"
     limitations = (
         "Timing and average power use the same netlist, corner, mode and activity trace.",
         "Per-cell values are average instance power, not incremental path energy.",
     )
-    return "\n".join(
-        [
-            _header(ctx, limitations),
-            _common_init(ctx, activity=True),
-            "",
-            f"set delay_type {delay_type}",
-            f"set endpoint_path_limit {ctx.endpoint_path_limit}",
-            "# Create the discovery report that keeps timing and power in the same netlist/corner/mode/activity context.",
-            "set report [file join $report_dir fusion.rpt]",
-            "set fp [open $report w]",
-            f'puts $fp "analysis=fusion_analysis corner={ctx.corner} mode={ctx.mode} stage={ctx.stage}"',
-            f'puts $fp "workload={ctx.workload}"',
-            'puts $fp "methodology=staged_public_opensta"',
-            'puts $fp "path_power_semantics=average_instance_power_in_same_analysis_context"',
-            f'puts $fp "activity_file={ctx.activity_file or ""}"',
-            f'puts $fp "activity_scope={ctx.activity_scope}"',
-            'puts $fp "liberty=$liberty"',
-            'puts $fp "netlist=$netlist"',
-            'puts $fp "sdc=$sdc"',
-            'puts $fp "spef=$spef"',
-            "close $fp",
-            "flexsoc_section $report Units",
-            "# Record units once so timing and power values can be interpreted together.",
-            "flexsoc_append_opensta $report report_units",
-            "flexsoc_section $report {Constraint validation}",
-            "# Re-check the timing setup before correlating paths with power.",
-            "flexsoc_append_opensta $report check_setup -verbose",
-            "flexsoc_section $report {Timing summary}",
-            "# OpenSTA supplies canonical WNS/TNS labels; capture them verbatim for stable parsing.",
-            "# Record worst negative slack for this setup/hold mode.",
-            "flexsoc_append_opensta $report report_wns -$delay_type",
-            "# Record total negative slack for the same mode and corner.",
-            "flexsoc_append_opensta $report report_tns -$delay_type",
-            "flexsoc_section $report {Activity annotation}",
-            "# Fusion is valid only when the aligned GLS activity is actually annotated.",
-            "flexsoc_append_activity_coverage $report",
-            "flexsoc_section $report {Power summary}",
-            "# Report design-average power using the already annotated GLS activity trace.",
-            "flexsoc_append_opensta $report report_power",
-            "flexsoc_section $report {Worst timing paths (violated or met)}",
-            "# Discover the worst paths even when timing is met; Python later correlates their gates with instance power.",
-            (
-                "flexsoc_append_opensta $report report_checks -path_delay $delay_type "
-                "-group_path_count $endpoint_path_limit -endpoint_path_count 1 "
-                "-unique_paths_to_endpoint -sort_by_slack "
-                "-format full_clock_expanded "
-                "-fields {slew capacitance input_pin net fanout} -digits 6"
-            ),
-            "# Collect public per-instance power rows; Python ranks the hottest instances for the second fusion pass.",
-            "set highest_power_report [file join $report_dir .highest_power.rpt]",
-            "file delete -force $highest_power_report",
-            "set all_instances [get_cells -hierarchical *]",
-            "flexsoc_append_opensta $highest_power_report report_power -instances $all_instances -digits 12",
-            'puts "report=$report"',
-        ]
+    return render_opensta_script(
+        ctx,
+        limitations,
+        "signoff/opensta/fusion.tcl.j2",
+        read_activity=True,
+        delay_type="min" if ctx.mode == "hold" else "max",
+        endpoint_path_limit=ctx.endpoint_path_limit,
+        corner=ctx.corner,
+        mode=ctx.mode,
+        stage=ctx.stage,
+        workload=ctx.workload,
+        activity_file=ctx.activity_file or "",
+        activity_scope=ctx.activity_scope,
     )
 
 

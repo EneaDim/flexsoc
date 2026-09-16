@@ -1,0 +1,26 @@
+
+# Seed vectorless switching activity on primary inputs (or globally) and let OpenSTA propagate it through the design.
+set_power_activity <<: activity_cmd :>> -activity <<: activity :>> -duty <<: duty :>>
+# Create one compact vectorless power report and record the assumptions used to produce it.
+set report [file join $report_dir power.rpt]
+set fp [open $report w]
+puts $fp "analysis=power_estimate activity_source=input_assumption"
+puts $fp "activity_model=<<: activity_model :>>"
+puts $fp "activity=<<: activity :>>"
+puts $fp "duty=<<: duty :>>"
+puts $fp "corner=<<: corner :>> stage=<<: stage :>>"
+puts $fp "liberty=$liberty"
+puts $fp "netlist=$netlist"
+puts $fp "sdc=$sdc"
+puts $fp "spef=$spef"
+close $fp
+flexsoc_section $report Units
+# Record the unit system used by the power and activity values below.
+flexsoc_append_opensta $report report_units
+flexsoc_section $report {Constraint validation}
+# Append timing-setup diagnostics because power must use the same correctly linked and constrained design.
+flexsoc_append_opensta $report check_setup -verbose
+flexsoc_section $report {Power summary}
+# Report average internal, switching, leakage, and total cell power for the complete design.
+flexsoc_append_opensta $report report_power
+puts "report=$report"

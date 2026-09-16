@@ -23,22 +23,21 @@ import flexsoc.backend.impl.impl as pnr_module
 import flexsoc.backend.signoff.gls as post_sim_module
 import flexsoc.cli as cli_module
 import flexsoc.backend.core.toolchain as doctor_module
+import flexsoc.backend.core.lifecycle as lifecycle_module
+import flexsoc.backend.core.workspace as workspace_module
+from flexsoc.backend.core.target import BACKEND_TARGETS, SIGNOFF_TARGETS
+from flexsoc.backend.core.session import (
+    ACTIVITY_ANALYSIS_TARGETS, DEFAULT_SETTINGS, SETUP_TARGETS,
+    STREAM_BY_DEFAULT_TARGETS, TargetSession,
+)
 from flexsoc import (
     FlexSoC,
     FlexSoCCommand,
     FlexSoCConfig,
     FlexSoCResult,
-    FlexSoCTarget,
     FlexSoCTargetInfo,
 )
-from flexsoc.api import (
-    ACTIVITY_ANALYSIS_TARGETS,
-    SETUP_TARGETS,
-    DEFAULT_SETTINGS,
-    NATIVE_TARGETS,
-    STREAM_BY_DEFAULT_TARGETS,
-    TARGETS,
-)
+from flexsoc.api import TARGETS
 from flexsoc.backend.core.package import PackageFlow
 from flexsoc.backend.core.reporting import collect_manifest
 from flexsoc.backend.core.reporting import (
@@ -51,21 +50,27 @@ from flexsoc.backend.core.reporting import (
     collect_sta,
     formal_stage,
     flow_summary,
-    provenance_summary,
     signoff_summary,
     status_word,
     technical_status,
 )
+from flexsoc.backend.core.provenance import Provenance, provenance_summary
 from flexsoc.backend.signoff.gls import _cocotb_wrapper, execute_all
-from flexsoc.backend.dv.testbench import (
+from flexsoc.backend.dv.cocotb_testbench import (
     CocotbConfig,
-    cocotb_reg_driver_py_text,
     render_gls_make_block,
     render_reg_driver_py,
+    write_cocotb_scaffold,
+)
+from flexsoc.backend.dv.sv_testbench import (
     render_tlul_interface,
     render_verilator_include,
+)
+from flexsoc.backend.dv.multiclock_testbench import (
+    cocotb_reg_driver_py_text,
+    cocotb_sv_text,
     sv_driver_text,
-    write_cocotb_scaffold,
+    sv_tb_text,
 )
 from flexsoc.backend.signoff.sta import (
     SIGNOFF_SCENARIOS,
@@ -92,6 +97,13 @@ from flexsoc.cli import app
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _target_session(client: FlexSoC, values: dict[str, str], *, on: str = "local") -> TargetSession:
+    return TargetSession(
+        client.project_root, client.workdir, values,
+        settings=client.settings, execution_targets=client.execution_targets, on=on,
+    )
 
 
 def _fake_pdk(root: Path) -> Path:
@@ -309,7 +321,11 @@ def test_commands_route_direct_backend_targets(tmp_path: Path) -> None:
     assert "make" not in lint.argv
     assert "flexsoc.backend.setup_" not in lint.shell_line()
 
-    for name in (*NATIVE_TARGETS, *ACTIVITY_ANALYSIS_TARGETS):
+    direct = [
+        name for name, target in SIGNOFF_TARGETS.items()
+        if target.is_gls or target.is_activity
+    ]
+    for name in direct:
         command = fx.command(name)
         assert command.argv[:2] == ("fx", name)
         assert "flexsoc.backend." not in command.shell_line()
@@ -339,11 +355,11 @@ def test_ip_save_preview_keeps_user_parameters_and_derives_artifacts_in_backend(
 
 
 def test_ip_save_packages_real_pnr_independently_of_physical_signoff() -> None:
-    source = (ROOT / "src" / "flexsoc" / "api.py").read_text(encoding="utf-8")
-    assert "collect_implementation(top, p.run, p.pdk)" in source
-    assert "collect_physical_signoff(p.run, p.pdk)" not in source
+    source = (ROOT / "src" / "flexsoc" / "backend" / "core" / "package.py").read_text(encoding="utf-8")
+    assert "collect_implementation(paths.top, paths.run, paths.pdk)" in source
+    assert "collect_physical_signoff(paths.run, paths.pdk)" not in source
     assert 'implementation.get("status") == "pass"' in source
-    assert "impl_dir=p.impl if impl_available else None" in source
+    assert "impl_dir=paths.impl if impl_available else None" in source
 
 def test_view_selects_named_gls_waveform_and_avoids_wayland_on_wsl(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -355,23 +371,140 @@ def test_view_selects_named_gls_waveform_and_avoids_wayland_on_wsl(
     wanted.write_text("wave\n", encoding="utf-8")
     other.write_text("wave\n", encoding="utf-8")
 
-    assert api_module._select_waveform(stage, "test", "smoke_sv_tt") == wanted
-    assert api_module._select_waveform(stage, "test", wanted.name) == wanted
+    assert workspace_module._select_waveform(stage, "test", "smoke_sv_tt") == wanted
+    assert workspace_module._select_waveform(stage, "test", wanted.name) == wanted
     with pytest.raises(FileNotFoundError, match="ambiguous waveform.*set SIM_NAME"):
-        api_module._select_waveform(stage, "test")
+        workspace_module._select_waveform(stage, "test")
     with pytest.raises(FileNotFoundError, match="available: corners_sv_ss, smoke_sv_tt"):
-        api_module._select_waveform(stage, "test", "missing_sv_tt")
+        workspace_module._select_waveform(stage, "test", "missing_sv_tt")
     empty = tmp_path / "empty"
     empty.mkdir()
     with pytest.raises(FileNotFoundError, match="run the matching simulation first"):
-        api_module._select_waveform(empty, "test", "smoke_sv_tt")
+        workspace_module._select_waveform(empty, "test", "smoke_sv_tt")
 
     monkeypatch.setenv("WSL_DISTRO_NAME", "Ubuntu")
-    assert api_module._viewer_environment("surfer", "auto") == {"WAYLAND_DISPLAY": ""}
-    assert api_module._viewer_environment("/usr/bin/surfer", "x11") == {"WAYLAND_DISPLAY": ""}
-    assert api_module._viewer_environment("surfer", "wayland") == {}
-    assert api_module._viewer_environment("gtkwave", "x11") == {}
+    assert workspace_module._viewer_environment("surfer", "auto") == {"WAYLAND_DISPLAY": ""}
+    assert workspace_module._viewer_environment("/usr/bin/surfer", "x11") == {"WAYLAND_DISPLAY": ""}
+    assert workspace_module._viewer_environment("surfer", "wayland") == {}
+    assert workspace_module._viewer_environment("gtkwave", "x11") == {}
     assert {"PDK", "SIGNOFF_STAGE", "SIM_NAME", "WAVE_VIEWER", "SURFER_BACKEND"} <= set(TARGETS["view"][2])
+
+
+def test_signoff_target_registry_owns_setup_debug_and_runtime_policy() -> None:
+    sta = SIGNOFF_TARGETS["sta"]
+    power = SIGNOFF_TARGETS["power_analysis_all"]
+    post_gls = SIGNOFF_TARGETS["sim_post_pnr_all"]
+
+    assert sta.setup == ("signoff.setup",)
+    assert sta.debug == "sta"
+    assert sta.show == "sta"
+    assert power.is_activity and power.action == "power_activity_all" and power.stream
+    assert post_gls.is_gls and post_gls.stage == "post_impl"
+    assert post_gls.show == "gls_post_pnr"
+
+
+def test_backend_target_registry_owns_dv_syn_impl_lifecycle() -> None:
+    assert BACKEND_TARGETS["hjson"].domain == "design"
+    assert BACKEND_TARGETS["reg"].action == "reg_rtl"
+    assert BACKEND_TARGETS["rtl_stub"].action == "rtl_scaffold"
+    assert BACKEND_TARGETS["model.setup"].domain == "design"
+    assert BACKEND_TARGETS["tests_gen"].domain == "dv"
+    assert BACKEND_TARGETS["test_gen"].action == "test_generate"
+
+    assert BACKEND_TARGETS["cdc_rdc"].domain == "dv"
+    assert BACKEND_TARGETS["cdc_rdc"].setup == ("cdc_rdc.setup",)
+    assert BACKEND_TARGETS["cdc_rdc"].show == "cdc_rdc"
+
+    assert BACKEND_TARGETS["formal"].domain == "dv"
+    assert BACKEND_TARGETS["formal"].setup == (
+        "formal.prove.setup", "formal.cover.setup",
+        "formal.csr_prove.setup", "formal.csr_cover.setup",
+    )
+    assert BACKEND_TARGETS["formal"].show == "formal"
+
+    assert BACKEND_TARGETS["tb.setup"].action == "tb_setup"
+    assert BACKEND_TARGETS["compile"].setup == ("tb.setup",)
+    assert BACKEND_TARGETS["compile"].debug == "functional"
+    assert BACKEND_TARGETS["cocotb"].setup == ("cocotb.setup",)
+    assert BACKEND_TARGETS["regression"].setup == ("tb.setup", "cocotb.setup")
+    assert BACKEND_TARGETS["regression"].show == "regression"
+    assert BACKEND_TARGETS["coverage_detail"].show == "coverage"
+
+    assert BACKEND_TARGETS["syn"].domain == "syn"
+    assert BACKEND_TARGETS["syn"].setup == ("syn.setup",)
+    assert BACKEND_TARGETS["syn"].show == "syn"
+    assert BACKEND_TARGETS["eqy"].show == "eqy"
+
+    assert BACKEND_TARGETS["pnr"].domain == "impl"
+    assert BACKEND_TARGETS["pnr"].setup == ("pnr.setup",)
+    assert BACKEND_TARGETS["pnr"].show == "implementation"
+
+    assert BACKEND_TARGETS["metrics"].domain == "reporting"
+    assert BACKEND_TARGETS["check"].show == "metrics"
+    assert BACKEND_TARGETS["qualify"].domain == "qualification"
+    assert BACKEND_TARGETS["qualify"].show == "qualification"
+    assert BACKEND_TARGETS["ip_load"].domain == "package"
+    assert BACKEND_TARGETS["ip_save"].action == "save"
+
+
+def test_design_scaffold_templates_are_package_owned() -> None:
+    root = ROOT / "src" / "flexsoc" / "templates" / "design"
+    expected = {
+        "registers/ip.hjson.j2",
+        "registers/nclock_cfg.hjson.j2",
+        "registers/nclock_dsp.hjson.j2",
+        "model/reference_model.py.j2",
+        "model/tests.py.j2",
+        "model/nclock_reference_model.py.j2",
+        "model/nclock_tests.py.j2",
+        "rtl/nclock_core.sv.j2",
+    }
+    assert expected <= {path.relative_to(root).as_posix() for path in root.rglob("*.j2")}
+    assert "model.setup" in lifecycle_module.STAGE_CONTRACTS
+
+
+def test_tests_gen_uses_shared_execution_target(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    from flexsoc.backend.core import BackendContext
+    from flexsoc.backend.dv import DvFlow
+
+    workdir = tmp_path / "work"
+    context = BackendContext(
+        tmp_path, workdir, {"TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"},
+    )
+    paths = context.paths
+    paths.model.mkdir(parents=True, exist_ok=True)
+    (paths.model / "demo_tests.py").write_text("# tests\n", encoding="utf-8")
+    (paths.model / "demo_regmap_tests.py").write_text("# regmap tests\n", encoding="utf-8")
+
+    class Runner:
+        def __init__(self):
+            self.calls = []
+
+        def run(self, request, *, on="local"):
+            self.calls.append((request, on))
+            return SimpleNamespace(returncode=0)
+
+    runner = Runner()
+    result = DvFlow(context, runner).run_target(BACKEND_TARGETS["tests_gen"], on="grid")
+    assert result == []
+    assert [on for _, on in runner.calls] == ["grid", "grid"]
+    assert all(call.inputs for call, _ in runner.calls)
+    assert all(call.outputs == (paths.tests,) for call, _ in runner.calls)
+
+
+
+def test_show_accepts_registered_target_name(tmp_path: Path) -> None:
+    from flexsoc.backend.core.show import load
+
+    run = tmp_path / "run"
+    summary = run / "signoff" / "sky130" / "power" / "analysis" / "summary.json"
+    summary.parent.mkdir(parents=True)
+    summary.write_text('{"passed": 1, "failed": 0, "reports": []}\n', encoding="utf-8")
+
+    document = load(run, top="demo", pdk="sky130", key="power_analysis_all")
+    assert document.key == "power"
+    assert document.path == summary
 
 
 def test_run_and_setup_are_explicit_lifecycle_modes(tmp_path: Path) -> None:
@@ -392,7 +525,7 @@ def test_run_and_setup_are_explicit_lifecycle_modes(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="sdc is setup-only"):
         fx.commands("sdc")
 
-    router = api_module.FlexSoCTarget(fx, fx.values())
+    router = _target_session(fx, fx.values())
     calls: list[str] = []
     router.execute = lambda name: calls.append(name) or 0
     router._execute_sequence(("syn.setup", "syn", "eqy.setup", "eqy"))
@@ -707,7 +840,10 @@ def test_setup_pnr_consumes_only_mapped_netlist_and_sdc(tmp_path: Path) -> None:
     assert "ABC_AREA" not in text
     assert "STRATEGY" not in text
     assert "PLACE_DENSITY ?= 0.58" in text
-    assert "HOLD_SLACK_MARGIN  := 0.10" in text
+    assert "HOLD_SLACK_MARGIN  := 0.1" in text
+    assert "HOLD_SLACK_MARGIN  := 0.2" in pnr_module.render_config(
+        "demo", "sky130hd", netlist, sdc, hold_slack_margin=0.2
+    )
     assert "CTS_CLUSTER_SIZE := 8" in text
 
 
@@ -733,7 +869,7 @@ def test_run_exception_is_visible_and_persisted_in_command_log(
     def execute(self, target: str) -> int:
         raise ValueError("missing routed SDF")
 
-    monkeypatch.setattr(api_module.FlexSoCTarget, "execute", execute)
+    monkeypatch.setattr(TargetSession, "execute", execute)
     fx = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work")
     with pytest.raises(RuntimeError, match="missing routed SDF"):
         fx.run("hjson", TOP="demo")
@@ -1257,7 +1393,7 @@ def test_sim_post_syn_all_continues_after_one_failed_case(
 def test_run_check_and_nonchecking_failure_modes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr(api_module.FlexSoCTarget, "execute", lambda self, target: 7)
+    monkeypatch.setattr(TargetSession, "execute", lambda self, target: 7)
     fx = FlexSoC(project_root=tmp_path)
 
     with pytest.raises(RuntimeError, match="exit code 7"):
@@ -1281,7 +1417,7 @@ def test_live_run_streams_direct_backend_and_keeps_plain_log(
         print("\033[38;5;208m[script]\033[0m file.tcl")
         return 0
 
-    monkeypatch.setattr(api_module.FlexSoCTarget, "execute", execute)
+    monkeypatch.setattr(TargetSession, "execute", execute)
     result, = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work").run(
         "hjson", live=True, TOP="demo"
     )
@@ -1310,7 +1446,7 @@ def test_sim_post_syn_all_prints_uniform_header_artifacts_and_done(
         print("[report] machine_summary=/tmp/summary_sv.json")
         return 0
 
-    monkeypatch.setattr(api_module.FlexSoCTarget, "execute", execute)
+    monkeypatch.setattr(TargetSession, "execute", execute)
     pdk = _fake_pdk(tmp_path / "pdk")
     result, = FlexSoC(
         project_root=tmp_path,
@@ -1356,7 +1492,7 @@ def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
         print("[report] tt/setup /tmp/fusion.rpt")
         return 0
 
-    monkeypatch.setattr(api_module.FlexSoCTarget, "execute", execute)
+    monkeypatch.setattr(TargetSession, "execute", execute)
     pdk = _fake_pdk(tmp_path / "pdk")
     result, = FlexSoC(
         project_root=tmp_path,
@@ -1708,6 +1844,9 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     eqy.mkdir(parents=True)
     (synth / f"{top}_synth.v").write_text("module demo; endmodule\n", encoding="utf-8")
     (synth / f"{top}_generic.il").write_text("checkpoint\n", encoding="utf-8")
+    repair_work = synth / "repair_work"
+    repair_work.mkdir()
+    (repair_work / "3_3_place_gp.odb").write_text("runtime odb\n", encoding="utf-8")
     sdc = run / "constraints" / f"{top}.sdc"
     sdc.parent.mkdir(parents=True)
     sdc.write_text("create_clock -period 10 clk_i\n", encoding="utf-8")
@@ -1728,9 +1867,21 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     runtime_report = signoff / "sta/ss/setup/timing.rpt"
     runtime_report.write_text("wns 0.1\n", encoding="utf-8")
     (signoff / "sta/sta.rpt").write_text("FlexSoC Static Timing Analysis\n", encoding="utf-8")
-    (signoff / "sta/sta.json").write_text(
+    (signoff / "sta/summary.json").write_text(
         json.dumps({"schema": 1, "status": "pass", "scenarios": []}) + "\n", encoding="utf-8"
     )
+    for corner in ("ss", "tt", "ff"):
+        sdf = signoff / "sdf" / corner / f"{top}_{corner}.sdf"
+        sdf.parent.mkdir(parents=True, exist_ok=True)
+        sdf.write_text(f"(DELAYFILE {corner})\n", encoding="utf-8")
+    for relative in ("power/estimate", "power/analysis", "fusion"):
+        root = signoff / relative
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "summary.json").write_text(
+            json.dumps({"status": "pass", "report": "/tmp/runtime.rpt", "total_w": 0.001}) + "\n",
+            encoding="utf-8",
+        )
+        (root / "detail.rpt").write_text("runtime detail\n", encoding="utf-8")
     config = eqy / f"{top}_rtl_vs_syn.eqy"
     view = eqy / f"{top}_eqy_view.sv"
     config.write_text("[gold]\n", encoding="utf-8")
@@ -1750,17 +1901,25 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     settings_json.write_text(json.dumps({"schema": 1, "pdk": pdk, "effective": {"TARGET_OPT": "delay1"}}) + "\n", encoding="utf-8")
     provenance_json = pdk_meta / "provenance.json"
     provenance_json.write_text(json.dumps({"schema_version": 1, "stages": {}}) + "\n", encoding="utf-8")
+    metrics_json = pdk_meta / "metrics.json"
+    metrics_json.write_text(json.dumps({"schema_version": 1, "flow": {"status": "review"}}) + "\n", encoding="utf-8")
     design_intent_json = meta / "design_intent.json"
     design_intent_json.write_text(json.dumps({"schema": 1, "design_intent": {"TOP": top}}) + "\n", encoding="utf-8")
     csr = run / "csr"
     csr.mkdir()
     (csr / f"{top}.hjson").write_text('{name: "demo"}\n', encoding="utf-8")
-    lint = run / "dv" / "lint" / "slang"
-    lint.mkdir(parents=True)
-    (lint / f"{top}_lint_slang_all.log").write_text("lint pass\n", encoding="utf-8")
-    raw = run / "logs" / "dv" / "lint" / "slang" / "raw"
-    raw.mkdir(parents=True)
-    (raw / f"{top}_lint_slang_all_raw.log").write_text("raw command\n", encoding="utf-8")
+    for tool in ("slang", "verilator"):
+        lint = run / "dv" / "lint" / tool
+        lint.mkdir(parents=True)
+        (lint / f"{top}_lint_{tool}_all.log").write_text("lint pass\n", encoding="utf-8")
+        raw = run / "logs" / "dv" / "lint" / tool / "raw"
+        raw.mkdir(parents=True)
+        (raw / f"{top}_lint_{tool}_all_raw.log").write_text("raw command\n", encoding="utf-8")
+    cocotb = run / "dv" / "functional" / "tb" / "cocotb"
+    sim_build = cocotb / "sim_build"
+    sim_build.mkdir(parents=True)
+    (cocotb / "test_demo.py").write_text("def test_demo(): pass\n", encoding="utf-8")
+    (sim_build / "Vdemo").write_text("runtime binary\n", encoding="utf-8")
     cdc = run / "dv" / "cdc_rdc"
     cdc.mkdir(parents=True)
     (cdc / "summary.json").write_text(json.dumps({"top": top, "status": "pass"}) + "\n", encoding="utf-8")
@@ -1803,6 +1962,7 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
         clock_gate_model=gate,
         settings_json=settings_json,
         design_intent_json=design_intent_json,
+        metrics_json=metrics_json,
     )
     assert not (saved / "impl" / pdk).exists()
     contract_json = saved / "meta" / "contract.json"
@@ -1826,15 +1986,25 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     assert (saved / "component.xml").is_file()
     assert (saved / "csr" / "systemrdl" / f"{top}.rdl").is_file()
     assert package_index["qualification"]["technologies"][pdk]["settings"] == f"meta/{pdk}/settings.json"
+    assert package_index["qualification"]["technologies"][pdk]["metrics"] == f"meta/{pdk}/metrics.json"
+    assert "check" not in package_index["qualification"]["technologies"][pdk]
+    assert (saved / "meta" / pdk / "metrics.json").is_file()
+    assert not (saved / "meta" / pdk / "check.rpt").exists()
     assert (saved / "constraints" / f"{top}.sdc").is_file()
     assert not (saved / "signoff" / pdk / "post_syn" / f"{top}.sdc").exists()
-    assert (saved / "dv" / "lint" / "slang" / f"{top}_lint_slang_all.log").is_file()
-    assert not (saved / "dv" / "lint" / "slang" / "raw").exists()
+    lint_summary = json.loads((saved / "dv" / "lint" / "summary.json").read_text(encoding="utf-8"))
+    assert lint_summary["status"] == "pass"
+    assert set(lint_summary["tools"]) == {"slang", "verilator"}
+    assert not (saved / "dv" / "lint" / "slang").exists()
+    assert not (saved / "dv" / "lint" / "verilator").exists()
     assert not (saved / "logs").exists()
     assert not (saved / "analysis").exists()
     assert (saved / "dv" / "cdc_rdc" / "summary.json").is_file()
-    assert (saved / "dv" / "cdc_rdc" / "cdc_rdc.rpt").is_file()
+    assert not (saved / "dv" / "cdc_rdc" / "cdc_rdc.rpt").exists()
+    assert (saved / "dv" / "functional" / "tb" / "cocotb" / "test_demo.py").is_file()
+    assert not (saved / "dv" / "functional" / "tb" / "cocotb" / "sim_build").exists()
     assert not (saved / "syn" / pdk / f"{top}_generic.il").exists()
+    assert not (saved / "syn" / pdk / "repair_work").exists()
     saved_signoff = saved / "signoff" / pdk / "post_syn"
     saved_tcl = {
         path.relative_to(saved_signoff).as_posix()
@@ -1843,8 +2013,15 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     assert saved_tcl == set(canonical_tcl)
     assert not (saved_signoff / "sta/ss/setup/sta.tcl").exists()
     assert not (saved_signoff / "sta/ss/setup/timing.rpt").exists()
-    assert (saved_signoff / "sta/sta.rpt").is_file()
-    assert (saved_signoff / "sta/sta.json").is_file()
+    assert not (saved_signoff / "sta/sta.rpt").exists()
+    assert (saved_signoff / "sta/summary.json").is_file()
+    assert (saved_signoff / "sdf" / "write_sdf.tcl").is_file()
+    assert not list(saved_signoff.rglob("*.sdf"))
+    for relative in ("power/estimate", "power/analysis", "fusion"):
+        summary = json.loads((saved_signoff / relative / "summary.json").read_text(encoding="utf-8"))
+        assert summary["status"] == "pass"
+        assert "report" not in summary
+        assert not (saved_signoff / relative / "detail.rpt").exists()
 
     implementation = run / "impl" / pdk
     implementation.mkdir(parents=True)
@@ -1854,7 +2031,27 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     (impl_logs / "openroad.log").write_text("runtime log\n", encoding="utf-8")
     impl_reports = implementation / "reports"
     impl_reports.mkdir()
-    (impl_reports / "final.rpt").write_text("release report\n", encoding="utf-8")
+    (impl_reports / "final.rpt").write_text("runtime report\n", encoding="utf-8")
+    final = implementation / "results" / "sky130hd" / top / "base"
+    final.mkdir(parents=True)
+    for name in ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds"):
+        (final / name).write_text(f"{name}\n", encoding="utf-8")
+    post_pnr = signoff / "post_pnr"
+    for relative in canonical_tcl:
+        path = post_pnr / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# physical {relative}\n", encoding="utf-8")
+    (post_pnr / "sta/summary.json").write_text(
+        json.dumps({"status": "pass", "detail_report": "/tmp/physical.rpt"}) + "\n", encoding="utf-8"
+    )
+    (post_pnr / "sta/sta.rpt").write_text("physical detail\n", encoding="utf-8")
+    for corner in ("ss", "tt", "ff"):
+        sdf = post_pnr / "sdf" / corner / f"{top}_{corner}.sdf"
+        sdf.parent.mkdir(parents=True, exist_ok=True)
+        sdf.write_text(f"(DELAYFILE {corner})\n", encoding="utf-8")
+    physical = post_pnr / "physical"
+    physical.mkdir(parents=True)
+    (physical / "summary.json").write_text(json.dumps({"status": "pass"}) + "\n", encoding="utf-8")
     flow.save(
         ip_name=top,
         reg_interface="tlul",
@@ -1877,7 +2074,17 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     )
     assert (saved / "impl" / pdk / "config.mk").is_file()
     assert not (saved / "impl" / pdk / "logs").exists()
-    assert (saved / "impl" / pdk / "reports" / "final.rpt").is_file()
+    assert not (saved / "impl" / pdk / "reports").exists()
+    saved_final = saved / "impl" / pdk / "results" / "sky130hd" / top / "base"
+    assert {path.name for path in saved_final.iterdir()} == {
+        "6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds"
+    }
+    saved_physical = saved / "signoff" / pdk / "post_pnr"
+    assert (saved_physical / "physical" / "summary.json").is_file()
+    assert (saved_physical / "sta" / "summary.json").is_file()
+    assert not (saved_physical / "sta" / "sta.rpt").exists()
+    assert (saved_physical / "sdf" / "write_sdf.tcl").is_file()
+    assert not list(saved_physical.rglob("*.sdf"))
     stale_runtime = saved / "signoff" / pdk / "post_syn" / "fusion/stale/setup/fusion_analysis.tcl"
     stale_runtime.parent.mkdir(parents=True)
     stale_runtime.write_text("# stale runtime copy\n", encoding="utf-8")
@@ -2329,9 +2536,125 @@ def test_cli_show_renders_qualification_gls_and_json(
     rendered = capsys.readouterr().out
     assert "smoke" in rendered and "ff" in rendered and "tt" in rendered and "ss" in rendered
 
+    assert app(["show", "evidence", *common]) == 0
+    rendered = capsys.readouterr().out
+    assert "Evidence" in rendered and "regression" in rendered and "eqy" in rendered
+
+    assert app(["show", "levels", *common]) == 0
+    rendered = capsys.readouterr().out
+    assert "Levels" in rendered and "RTL Qualified" in rendered and "Netlist Qualified" in rendered
+
     assert app(["show", "evidence", "--json", *common]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload == {"eqy": "MISSING", "regression": "PASS"}
+
+
+
+def test_show_discovers_all_summaries_and_provenance(tmp_path: Path) -> None:
+    from flexsoc.backend.core.show import files, keys, load_file
+
+    run = tmp_path / "runs" / "demo" / "dev"
+    (run / "analysis" / "custom").mkdir(parents=True)
+    (run / "analysis" / "custom" / "summary.json").write_text(
+        json.dumps({"status": "pass", "value": 7}), encoding="utf-8"
+    )
+    (run / "dv" / "lint").mkdir(parents=True)
+    (run / "dv" / "lint" / "summary.json").write_text(json.dumps({
+        "status": "pass", "order": ["slang", "verilator"],
+        "tools": {"slang": {"status": "pass", "errors": 0, "warnings": 2, "diagnostics": 2}},
+    }), encoding="utf-8")
+    for pdk in ("sky130", "ihp-sg13g2"):
+        meta = run / "meta" / pdk
+        meta.mkdir(parents=True)
+        (meta / "provenance.json").write_text(json.dumps({
+            "schema_version": 1,
+            "stages": {"syn": {
+                "fingerprint": "a" * 64, "parents": {"syn.setup": "b" * 64},
+                "inputs": [{"path": "rtl/demo.sv", "sha256": "c" * 64}],
+                "generated": [{"path": f"syn/{pdk}/demo_synth.v", "generated_sha256": "d" * 64}],
+                "input_paths_match": True, "tools": {"yosys": "e" * 64},
+            }},
+        }), encoding="utf-8")
+    estimate = run / "signoff" / "sky130" / "power" / "estimate"
+    estimate.mkdir(parents=True)
+    (estimate / "summary.json").write_text(json.dumps({
+        "analysis": "power_estimate", "status": "pass", "activity": 0.1, "duty": 0.5,
+        "corners": {"ss": {"internal_w": 0.001, "switching_w": 0.002, "dynamic_w": 0.003, "leakage_w": 1e-6, "total_w": 0.003001}},
+    }), encoding="utf-8")
+
+    rows = files(run, top="demo", pdk="sky130")
+    paths = {str(item["key"]) for item in rows}
+    assert "analysis/custom/summary.json" in paths
+    assert "meta/sky130/provenance.json" in paths
+    assert "meta/ihp-sg13g2/provenance.json" in paths
+    assert load_file(run, "dv/lint/summary.json").kind == "lint"
+    assert load_file(run, "signoff/sky130/power/estimate/summary.json").kind == "power_estimate"
+    assert load_file(run, "meta/ihp-sg13g2/provenance.json").kind == "provenance"
+    available = {item["key"]: item["available"] for item in keys(run, top="demo", pdk="sky130")}
+    assert available["lint"] is True
+    assert available["power_estimate"] is True
+    with pytest.raises(ValueError, match="escapes run root"):
+        load_file(run, "../outside.json")
+
+
+def test_cli_show_files_all_and_relative_json_path(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    workspace = tmp_path / "workspace"
+    run = workspace / "runs" / "demo" / "dev"
+    lint = run / "dv" / "lint"
+    lint.mkdir(parents=True)
+    (lint / "summary.json").write_text(json.dumps({
+        "status": "pass", "order": ["slang", "verilator"],
+        "tools": {
+            "slang": {"status": "pass", "errors": 0, "warnings": 1, "diagnostics": 1},
+            "verilator": {"status": "pass", "errors": 0, "warnings": 0, "diagnostics": 0},
+        },
+    }), encoding="utf-8")
+    meta = run / "meta" / "ihp-sg13g2"
+    meta.mkdir(parents=True)
+    (meta / "provenance.json").write_text(json.dumps({
+        "schema_version": 1,
+        "stages": {"pnr": {
+            "fingerprint": "f" * 64, "parents": {"pnr.setup": "e" * 64},
+            "inputs": [], "generated": [{"path": "impl/final.gds", "generated_sha256": "d" * 64}],
+            "input_paths_match": True, "tools": {"openroad": "c" * 64},
+        }},
+    }), encoding="utf-8")
+    estimate = run / "signoff" / "ihp-sg13g2" / "power" / "estimate"
+    estimate.mkdir(parents=True)
+    (estimate / "summary.json").write_text(json.dumps({
+        "analysis": "power_estimate", "status": "pass", "activity": 0.1, "duty": 0.5,
+        "corners": {"ff": {"internal_w": 0.001, "switching_w": 0.002, "dynamic_w": 0.003, "leakage_w": 1e-6, "total_w": 0.003001}},
+    }), encoding="utf-8")
+    common = [
+        "--project-root", str(tmp_path), "--workdir", str(workspace),
+        "--set", "TOP=demo", "--set", "RUN_TOP=demo", "--set", "RUN_ID=dev", "--set", "PDK=ihp-sg13g2",
+    ]
+
+    assert app(["show", "files", *common]) == 0
+    rendered = capsys.readouterr().out
+    assert "dv/lint/summary.json" in rendered
+    assert "meta/ihp-sg13g2/provenance.json" in rendered
+
+    assert app(["show", "meta/ihp-sg13g2/provenance.json", *common]) == 0
+    rendered = capsys.readouterr().out
+    assert "Stage provenance" in rendered and "pnr" in rendered and "pnr.setup" in rendered
+
+    assert app(["show", "all", *common]) == 0
+    rendered = capsys.readouterr().out
+    assert "Lint summary" in rendered
+    assert "Stage provenance" in rendered
+    assert "power_estimate" in rendered
+    assert "Total W" in rendered
+
+    assert app(["show", "all", "--json", *common]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert {item["path"] for item in payload} == {
+        "dv/lint/summary.json",
+        "meta/ihp-sg13g2/provenance.json",
+        "signoff/ihp-sg13g2/power/estimate/summary.json",
+    }
 
 def test_cli_execution_output_modes(
     monkeypatch: pytest.MonkeyPatch,
@@ -2414,7 +2737,7 @@ def test_signoff_debug_reads_filtered_artifacts_without_tools(
         "annotation": {"errors": ["SDF ERROR"], "warnings": [], "markers": []},
     }), encoding="utf-8")
 
-    flow = SignoffFlow(tmp_path, values, SignoffStage.PRE_IMPL)
+    flow = SignoffFlow(tmp_path, values, SignoffStage.POST_SYN)
     output = tmp_path / "debug-output"
     assert flow.debug_sta(output=str(output)) == 0
     assert flow.debug_power() == 0
@@ -2433,25 +2756,35 @@ def test_signoff_debug_reads_filtered_artifacts_without_tools(
     assert "STA debug" in text and "Corner" in text and "Unconstr" in text
 
 
-def test_metrics_tables_render_sta_gls_and_power_without_raw_report_parsing() -> None:
-    from flexsoc.backend.core.reporting import gls_matrix_table, power_estimate_table, sta_qor_table
+def test_show_renderer_renders_sta_gls_and_power_without_raw_report_parsing() -> None:
+    from rich.console import Console
+    from flexsoc.backend.core.show import ShowDocument, ShowRenderer
 
-    sta = sta_qor_table({
-        "ss": {
-            "setup": {"status": "pass", "wns": 0.0, "tns": 0.0, "reported_violating_paths": 0, "reported_unconstrained_paths": 0},
-            "hold": {"status": "warn", "wns": -0.1, "tns": -0.2, "reported_violating_paths": 2, "reported_unconstrained_paths": 0},
-        }
-    })
-    gls = gls_matrix_table({
-        "tests": ["smoke"], "timing_modes": ["typ"],
-        "scenario_records": [{"test": "smoke", "timing_mode": "typ", "status": "pass", "backend": "sv"}],
-    })
-    power = power_estimate_table({
-        "corners": {"tt": {"internal_w": 0.001, "switching_w": 0.0002, "leakage_w": 1e-6, "total_w": 0.001201}}
-    })
-    assert sta is not None and sta.row_count == 2
-    assert gls is not None and gls.row_count == 1
-    assert power is not None and power.row_count == 1
+    console = Console(record=True, width=160)
+    renderer = ShowRenderer(console)
+    renderer.render(ShowDocument(
+        "sta", "STA", Path("summary.json"),
+        {
+            "status": "review",
+            "qor": {"worst_wns": -0.1, "worst_tns": -0.2, "violating_paths": 2, "unconstrained_paths": 0},
+            "scenarios": [{"corner": "ss", "mode": "hold", "status": "review", "wns": -0.1, "tns": -0.2, "violating_paths": 2, "unconstrained_paths": 0}],
+        },
+        {}, "sta",
+    ))
+    renderer.render(ShowDocument(
+        "gls_post_syn", "GLS", Path("summary_sv.json"),
+        {"tests": ["smoke"], "scenarios": ["tt"], "reports": [{"test_name": "smoke", "scenario": "tt", "status": "pass"}]},
+        {}, "matrix",
+    ))
+    renderer.render(ShowDocument(
+        "power_estimate", "Power", Path("summary.json"),
+        {"status": "pass", "analysis": "power_estimate", "corners": {"tt": {"internal_w": 0.001, "switching_w": 0.0002, "leakage_w": 1e-6, "total_w": 0.001201}}},
+        {}, "power_estimate",
+    ))
+    rendered = console.export_text()
+    assert "STA" in rendered and "ss" in rendered and "-0.1" in rendered
+    assert "GLS" in rendered and "smoke" in rendered and "tt" in rendered
+    assert "Power" in rendered and "0.001201" in rendered
 
 
 # ---------------------------------------------------------------------------
@@ -2632,8 +2965,10 @@ def test_nclock_dsp_clock_gate_is_regmap_controlled_and_reenable_safe(tmp_path: 
     assert tests.count("wait_for_output=True") == 2
     assert "@wait_output" in tests
 
-    from flexsoc.backend.dv.testbench import (
+    from flexsoc.backend.dv.multiclock_testbench import (
         cocotb_reg_driver_py_text, cocotb_vec_driver_py_text,
+    )
+    from flexsoc.backend.dv.multiclock_testbench import (
         sv_driver_text, _sv_vec_driver_text_string,
     )
 
@@ -2856,12 +3191,12 @@ def test_top_from_core_reset_branches_preserve_active_high_core_polarity(tmp_pat
 def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> None:
     from flexsoc.backend.design.regs import add_axi_lite_types
     from flexsoc.backend.design.rtl import render_register_top, render_top_from_core
-    from flexsoc.backend.dv.testbench import (
-        render_axi_lite_utils,
+    from flexsoc.backend.dv.cocotb_testbench import (
         render_axi_lite_wrapper,
         render_makefile,
         render_reg_driver_py,
     )
+    from flexsoc.backend.dv.sv_testbench import render_axi_lite_utils
 
     pkg = tmp_path / "demo_reg_pkg.sv"
     pkg.write_text("package demo_reg_pkg;\n  parameter int AW=12, DW=32, DBW=4;\nendpackage\n", encoding="utf-8")
@@ -2929,7 +3264,7 @@ def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> N
     assert "vendor/pulp/register_interface/include" in makefile
     assert "COMPILE_ARGS += -Wno-fatal" in makefile
 
-    from flexsoc.backend.dv.testbench import render_reg_iface_wrapper
+    from flexsoc.backend.dv.cocotb_testbench import render_reg_iface_wrapper
 
     reg_core_wrapper = render_top_from_core("demo", core, "reg_iface")
     (rtl / "demo.sv").write_text(reg_core_wrapper, encoding="utf-8")
@@ -3375,18 +3710,13 @@ def test_formal_csr_cover_setup_dispatches_cover_mode(
         **api_module.DEFAULT_SETTINGS,
         "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     seen: dict[str, object] = {}
 
     monkeypatch.setattr(
         type(router.backend.dv.formal),
-        "init_properties",
-        lambda self, *args, **kwargs: None,
-    )
-    monkeypatch.setattr(
-        type(router),
-        "_formal_setup",
-        lambda self, **kwargs: seen.update(kwargs) or Path("done.sby"),
+        "setup_from_context",
+        lambda self, context, **kwargs: seen.update(kwargs) or Path("done.sby"),
     )
 
     router._execute_target("formal.csr_cover.setup")
@@ -3437,7 +3767,7 @@ def test_saved_cordic_registers_atan_before_z_arithmetic() -> None:
 
 
 def test_systemverilog_setup_returns_canonical_generated_paths(tmp_path: Path) -> None:
-    from flexsoc.backend.dv.testbench import TestbenchConfig, generate_testbench_files
+    from flexsoc.backend.dv.sv_testbench import TestbenchConfig, generate_testbench_files
 
     rtl = tmp_path / "rtl"
     rtl.mkdir()
@@ -3465,8 +3795,9 @@ def test_systemverilog_setup_returns_canonical_generated_paths(tmp_path: Path) -
 
 
 def test_reg_iface_sv_driver_is_procedural_and_gls_portable(tmp_path: Path) -> None:
-    from flexsoc.backend.dv.testbench import (
-        render_axi_lite_utils, render_reg_driver_py, render_reg_interface,
+    from flexsoc.backend.dv.cocotb_testbench import render_reg_driver_py
+    from flexsoc.backend.dv.sv_testbench import (
+        render_axi_lite_utils, render_reg_interface,
         render_sv_reg_sequence, render_verilator_include,
     )
 
@@ -3568,9 +3899,10 @@ def test_reg_iface_sv_driver_is_procedural_and_gls_portable(tmp_path: Path) -> N
 
 
 def test_serial_rx_idle_high_policy_is_shared_by_sv_and_cocotb() -> None:
-    from flexsoc.backend.dv.testbench import (
-        _sv_input_default, render_extra_input_initializers, render_vec_driver_py,
+    from flexsoc.backend.dv.cocotb_testbench import (
+        render_extra_input_initializers, render_vec_driver_py,
     )
+    from flexsoc.backend.dv.sv_testbench import _sv_input_default
 
     for name in ("rx_i", "cio_rx_i", "uart_rx_i", "serial_rx_i"):
         assert _sv_input_default(name) == "'1"
@@ -3593,9 +3925,8 @@ def test_serial_rx_idle_high_policy_is_shared_by_sv_and_cocotb() -> None:
 
 
 def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> None:
-    from flexsoc.backend.dv.testbench import (
-        cocotb_sv_text, render_makefile, render_tlul_wrapper, sv_tb_text,
-    )
+    from flexsoc.backend.dv.cocotb_testbench import render_makefile, render_tlul_wrapper
+    from flexsoc.backend.dv.multiclock_testbench import cocotb_sv_text, sv_tb_text
 
     rtl = tmp_path / "rtl"
     rtl.mkdir()
@@ -3696,7 +4027,8 @@ def test_multiclock_cocotb_uses_canonical_wrapper_name(tmp_path: Path) -> None:
             top="tri_stream_dsp", interface=interface, output=output, rtl_dir=tmp_path / "rtl",
             ips_root=tmp_path / "ips",
         )
-        write_cocotb_scaffold(cfg, clocks)
+        from flexsoc.backend.dv.multiclock_testbench import MulticlockDspTestbench
+        MulticlockDspTestbench().setup_cocotb(cfg, clocks)
         wrapper = output / "tri_stream_dsp_tb.sv"
         text = wrapper.read_text(encoding="utf-8")
         assert wrapper.is_file()
@@ -4994,6 +5326,45 @@ def test_timing_summary_parser_accepts_summary_and_path_fallback() -> None:
         "=== Near-critical paths ===\n"
     ) == {"wns": -0.494083}
 
+def test_power_estimate_execution_writes_compact_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    values = {
+        "TOP": "demo",
+        "RUN_TOP": "demo",
+        "RUN_ID": "dev",
+        "PDK": "sky130",
+        "WORKSPACE": str(tmp_path),
+        "SIGNOFF_STAGE": "post_syn",
+        "SIGNOFF_CORNERS": "ss",
+    }
+    ctx = _context(tmp_path, analysis="power_estimate", mode="")
+    ctx = replace(ctx, corner="ss")
+
+    monkeypatch.setattr(signoff_sta_module, "_liberties", lambda _: {"ss": ctx.liberty})
+    monkeypatch.setattr(signoff_sta_module, "_base_context", lambda *args, **kwargs: ctx)
+
+    def fake_execute(*args: object, **kwargs: object) -> int:
+        del args, kwargs
+        ctx.report_dir.mkdir(parents=True, exist_ok=True)
+        (ctx.report_dir / "power.rpt").write_text(
+            "activity=0.1\nduty=0.5\n"
+            "Total 1.00e-03 2.00e-03 3.00e-06 3.003e-03\n",
+            encoding="utf-8",
+        )
+        return 0
+
+    monkeypatch.setattr(signoff_sta_module, "_execute_script", fake_execute)
+
+    assert signoff_sta_module.execute_static("power_estimate", tmp_path, values) == 0
+    root = signoff_sta_module.layout_from_values(tmp_path, values).signoff_stage_root("post_syn")
+    summary = json.loads((root / "power/estimate/summary.json").read_text(encoding="utf-8"))
+    assert summary["activity"] == 0.1
+    assert summary["duty"] == 0.5
+    assert summary["corners"]["ss"]["dynamic_w"] == pytest.approx(0.003)
+    assert summary["corners"]["ss"]["total_w"] == pytest.approx(0.003003)
+
+
 def test_signoff_execution_rejects_truncated_zero_exit_and_stale_reports(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5278,9 +5649,9 @@ def test_multiclock_sdc_async_relationship_is_canonical(tmp_path: Path) -> None:
     assert parsed.relationships[0].target == "io"
 
 
-def test_tri_stream_dsp_sdc_scaffold_is_explicit_and_complete(tmp_path: Path) -> None:
+def test_multiclock_sdc_infers_domain_owned_io_from_top_metadata(tmp_path: Path) -> None:
     from flexsoc.backend.core import clock_config
-    from flexsoc.backend.signoff.sdc import init_sdc, render_sdc_scaffold
+    from flexsoc.backend.signoff.sdc import infer_io_groups, init_sdc
 
     bootstrap = clock_config({
         "N_CLOCKS": "3",
@@ -5291,49 +5662,110 @@ def test_tri_stream_dsp_sdc_scaffold_is_explicit_and_complete(tmp_path: Path) ->
         ),
         "CLOCK_RELATIONSHIPS": "async:cfg:rx,async:cfg:dsp,async:rx:dsp",
     })
-    path = tmp_path / "run/constraints/tri_stream_dsp.sdc"
-    init_sdc(path, top="tri_stream_dsp", clocks=bootstrap)
-    text = path.read_text(encoding="utf-8")
+    interfaces = {
+        "tlul": (
+            "tlul_pkg::tl_h2d_t", "cfg_tl_i", "tlul_pkg::tl_d2h_t", "cfg_tl_o",
+            "tlul_pkg::tl_h2d_t", "dsp_tl_i", "tlul_pkg::tl_d2h_t", "dsp_tl_o",
+        ),
+        "reg_iface": (
+            "demo_cfg_reg_pkg::reg_req_t", "cfg_reg_req_i", "demo_cfg_reg_pkg::reg_rsp_t", "cfg_reg_rsp_o",
+            "demo_dsp_reg_pkg::reg_req_t", "dsp_reg_req_i", "demo_dsp_reg_pkg::reg_rsp_t", "dsp_reg_rsp_o",
+        ),
+        "axi_lite": (
+            "demo_cfg_reg_pkg::axi_lite_req_t", "cfg_axi_lite_i", "demo_cfg_reg_pkg::axi_lite_rsp_t", "cfg_axi_lite_o",
+            "demo_dsp_reg_pkg::axi_lite_req_t", "dsp_axi_lite_i", "demo_dsp_reg_pkg::axi_lite_rsp_t", "dsp_axi_lite_o",
+        ),
+    }
 
-    assert "foreach " not in text
-    assert " if " not in text
-    assert "set_input_delay -max 4 -clock cfg [get_ports {cfg_tl_i}]" in text
-    assert (
-        "set_input_delay -max 3.2 -clock rx "
-        "[get_ports {rx_valid_i rx_sample_i rx_coeff_i}]"
-    ) in text
-    assert "set_input_delay -max 6 -clock dsp [get_ports {dsp_ready_i dsp_tl_i}]" in text
-    assert "set_output_delay -max 4 -clock cfg [get_ports {cfg_tl_o}]" in text
-    assert "set_output_delay -max 3.2 -clock rx [get_ports {rx_ready_o}]" in text
-    assert (
-        "set_output_delay -max 6 -clock dsp "
-        "[get_ports {dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o dsp_tl_o}]"
-    ) in text
-    assert "set_case_analysis 1 [get_ports {cfg_rst_ni rx_rst_ni dsp_rst_ni}]" in text
-    assert "test_en_i" not in text
-    assert all(
-        reset not in line
-        for line in text.splitlines()
-        if line.startswith("set_input_delay")
-        for reset in ("cfg_rst_ni", "rx_rst_ni", "dsp_rst_ni")
-    )
-    assert "set_drive 0.1 [all_inputs -no_clocks]" in text
-    assert "set_load 0.01 [all_outputs]" in text
-
-    for interface, cfg_i, cfg_o, dsp_i, dsp_o in (
-        ("tlul", "cfg_tl_i", "cfg_tl_o", "dsp_tl_i", "dsp_tl_o"),
-        ("reg_iface", "cfg_reg_req_i", "cfg_reg_rsp_o", "dsp_reg_req_i", "dsp_reg_rsp_o"),
-        ("axi_lite", "cfg_axi_lite_i", "cfg_axi_lite_o", "dsp_axi_lite_i", "dsp_axi_lite_o"),
-    ):
-        rendered = render_sdc_scaffold(
-            "tri_stream_dsp", bootstrap, register_interface=interface
+    for interface, bus in interfaces.items():
+        cfg_i_t, cfg_i, cfg_o_t, cfg_o, dsp_i_t, dsp_i, dsp_o_t, dsp_o = bus
+        top_file = tmp_path / f"demo_{interface}.sv"
+        top_file.write_text(
+            "module demo (\n"
+            "  input logic cfg_clk_i,\n"
+            "  input logic cfg_rst_ni,\n"
+            "  input logic rx_clk_i,\n"
+            "  input logic rx_rst_ni,\n"
+            "  input logic dsp_clk_i,\n"
+            "  input logic dsp_rst_ni,\n"
+            "  input logic rx_valid_i,\n"
+            "  input logic [15:0] rx_sample_i,\n"
+            "  input logic [15:0] rx_coeff_i,\n"
+            "  output logic rx_ready_o,\n"
+            "  input logic dsp_ready_i,\n"
+            "  output logic dsp_valid_o,\n"
+            "  output logic [31:0] dsp_result_o,\n"
+            "  output logic dsp_above_threshold_o,\n"
+            "  output logic dsp_overflow_o,\n"
+            f"  input {cfg_i_t} {cfg_i},\n"
+            f"  output {cfg_o_t} {cfg_o},\n"
+            f"  input {dsp_i_t} {dsp_i},\n"
+            f"  output {dsp_o_t} {dsp_o}\n"
+            ");\nendmodule\n",
+            encoding="utf-8",
         )
-        assert f"[get_ports {{{cfg_i}}}]" in rendered
-        assert f"[get_ports {{{cfg_o}}}]" in rendered
-        assert f"[get_ports {{dsp_ready_i {dsp_i}}}]" in rendered
-        assert f"dsp_overflow_o {dsp_o}}}]" in rendered
-        if interface != "tlul":
-            assert "cfg_tl_i" not in rendered and "dsp_tl_o" not in rendered
+
+        groups, unassigned = infer_io_groups(top_file, bootstrap)
+        assert unassigned == ()
+        assert [group.clock for group in groups] == ["cfg", "rx", "dsp"]
+
+        path = tmp_path / interface / "demo.sdc"
+        init_sdc(path, top="demo", clocks=bootstrap, top_file=top_file)
+        text = path.read_text(encoding="utf-8")
+
+        assert "foreach " not in text
+        assert " if " not in text
+        assert f"set_input_delay -max 4 -clock cfg [get_ports {{{cfg_i}}}]" in text
+        assert (
+            "set_input_delay -max 3.2 -clock rx "
+            "[get_ports {rx_valid_i rx_sample_i rx_coeff_i}]"
+        ) in text
+        assert f"set_input_delay -max 6 -clock dsp [get_ports {{dsp_ready_i {dsp_i}}}]" in text
+        assert f"set_output_delay -max 4 -clock cfg [get_ports {{{cfg_o}}}]" in text
+        assert "set_output_delay -max 3.2 -clock rx [get_ports {rx_ready_o}]" in text
+        assert (
+            "set_output_delay -max 6 -clock dsp "
+            f"[get_ports {{dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o {dsp_o}}}]"
+        ) in text
+        assert "set_case_analysis 1 [get_ports {cfg_rst_ni rx_rst_ni dsp_rst_ni}]" in text
+        assert all(
+            reset not in line
+            for line in text.splitlines()
+            if line.startswith("set_input_delay")
+            for reset in ("cfg_rst_ni", "rx_rst_ni", "dsp_rst_ni")
+        )
+        assert "set_drive 0.1 [all_inputs -no_clocks]" in text
+        assert "set_load 0.01 [all_outputs]" in text
+
+
+def test_multiclock_sdc_leaves_unowned_ports_for_authored_constraints(tmp_path: Path) -> None:
+    from flexsoc.backend.core import clock_config
+    from flexsoc.backend.signoff.sdc import init_sdc
+
+    clocks = clock_config({
+        "N_CLOCKS": "2",
+        "CLOCK_DOMAINS": "cfg:cfg_clk_i:cfg_rst_ni:10:low,dsp:dsp_clk_i:dsp_rst_ni:20:low",
+    })
+    top_file = tmp_path / "demo.sv"
+    top_file.write_text(
+        "module demo (\n"
+        "  input logic cfg_clk_i,\n"
+        "  input logic cfg_rst_ni,\n"
+        "  input logic dsp_clk_i,\n"
+        "  input logic dsp_rst_ni,\n"
+        "  input logic cfg_valid_i,\n"
+        "  output logic dsp_ready_o,\n"
+        "  input logic external_mode_i\n"
+        ");\nendmodule\n",
+        encoding="utf-8",
+    )
+    path = tmp_path / "demo.sdc"
+    init_sdc(path, top="demo", clocks=clocks, top_file=top_file)
+    text = path.read_text(encoding="utf-8")
+    assert "set_input_delay -max 2 -clock cfg [get_ports {cfg_valid_i}]" in text
+    assert "set_output_delay -max 4 -clock dsp [get_ports {dsp_ready_o}]" in text
+    assert "# Unassigned non-clock ports: external_mode_i" in text
+
 
 def test_setup_signoff_generates_five_families_without_activity_scripts(
     tmp_path: Path,
@@ -5505,7 +5937,7 @@ def test_sta_qor_is_one_canonical_report_plus_json(tmp_path: Path) -> None:
         root, top="demo", pdk="sky130", stage="post_syn", sdc=dummy,
         scenarios=[summary], failures=[],
     )
-    assert rpt.name == "sta.rpt" and js.name == "sta.json"
+    assert rpt.name == "sta.rpt" and js.name == "summary.json"
     payload = json.loads(js.read_text(encoding="utf-8"))
     assert payload["qor"]["worst_wns"] == -0.125
     assert payload["qor"]["unconstrained_paths"] == 1
@@ -5527,21 +5959,19 @@ def test_sta_qor_is_one_canonical_report_plus_json(tmp_path: Path) -> None:
     assert _sta_scenario_summary(replace(hold_ctx, stage="post_route"), hold)["status"] == "fail"
 
 
-def test_ip_flow_orders_sdc_before_cdc_setup() -> None:
-    target = object.__new__(FlexSoCTarget)
-    target._execute_sequence = lambda sequence: tuple(sequence)
-
-    generated = target._ip_flow("ip_flow")
-    assert generated.index("lint_suite") < generated.index("sdc.setup")
-    assert generated.index("sdc.setup") < generated.index("cdc_rdc.setup")
-    assert generated.index("cdc_rdc.setup") < generated.index("cdc_rdc")
-
-    generated_all = target._ip_flow("ip_flow_all")
-    assert generated_all.index("sdc.setup") < generated_all.index("cdc_rdc.setup")
-
-    loaded = target._ip_flow("ip_flow_noreg")
-    assert "sdc.setup" not in loaded
-    assert loaded.index("lint_suite") < loaded.index("cdc_rdc.setup")
+def test_ip_and_experimental_composite_targets_are_not_public() -> None:
+    removed = {
+        "ip_start", "ip_flow", "ip_flow_noreg", "ip_flow_all",
+        "soc_flow", "xbar", "fsm_flow", "fsm2rtl",
+        "full_tutorial", "fsm_tutorial", "ip_tutorial", "soc_pless",
+    }
+    assert removed.isdisjoint(TARGETS)
+    assert removed.isdisjoint(BACKEND_TARGETS)
+    assert BACKEND_TARGETS["soc_start"].domain == "soc"
+    assert BACKEND_TARGETS["xbar_init"].domain == "soc"
+    assert BACKEND_TARGETS["fsm_gen"].domain == "fsm"
+    assert BACKEND_TARGETS["setup"].domain == "workspace"
+    assert BACKEND_TARGETS["deps"].domain == "toolchain"
 
 
 def test_metrics_read_unified_timing_and_power_reports(tmp_path: Path) -> None:
@@ -5907,14 +6337,17 @@ def test_pnr_request_declares_config_inputs_and_result_trees(tmp_path: Path) -> 
             self.request = request
             return type("Result", (), {"returncode": 1})()
 
+    from flexsoc.backend.core import BackendContext
+
     runner = Runner()
-    rc = ImplementationFlow(runner).run(
+    context = BackendContext(tmp_path, tmp_path, {"TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"})
+    rc = ImplementationFlow(context, runner).run(
         makefile=makefile, config=config, workdir=workdir, log=tmp_path / "pnr.log"
     )
     assert rc == 1
     assert runner.request.inputs == (makefile.resolve(), config.resolve(), netlist.resolve(), sdc.resolve())
     assert runner.request.outputs == (workdir / "results", workdir / "reports", workdir / "logs")
-    assert "HOLD_SLACK_MARGIN=0.10" in runner.request.argv
+    assert "HOLD_SLACK_MARGIN=0.1" in runner.request.argv
     assert "SETUP_SLACK_MARGIN=0" in runner.request.argv
 
 
@@ -6070,7 +6503,7 @@ def test_flist_searches_only_shared_rtl_dependencies(
         **api_module.DEFAULT_SETTINGS,
         "TOP": "uart", "RUN_TOP": "uart", "RUN_ID": "dev",
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     seen: dict[str, object] = {}
 
     def capture(**kwargs):
@@ -6111,7 +6544,7 @@ def test_axi_lite_flist_carries_pulp_include_paths(
         **api_module.DEFAULT_SETTINGS,
         "TOP": "test", "RUN_TOP": "test", "RUN_ID": "dev", "REG_ITF": "axi_lite",
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     seen: dict[str, object] = {}
 
     def capture(**kwargs):
@@ -6151,7 +6584,7 @@ def test_reg_iface_flist_has_no_transport_vendor_root(
         **api_module.DEFAULT_SETTINGS,
         "TOP": "test", "RUN_TOP": "test", "RUN_ID": "dev", "REG_ITF": "reg_iface",
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     seen: dict[str, object] = {}
 
     monkeypatch.setattr(router.backend.design.rtl, "setup_filelists", lambda **kwargs: seen.update(kwargs))
@@ -6175,7 +6608,7 @@ def test_gate_sim_validates_explicit_driver_provenance(tmp_path: Path, monkeypat
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     seen: list[str] = []
     monkeypatch.setattr(router, "_require_provenance", seen.append)
     monkeypatch.setattr(router, "_execute_target", lambda target: 0)
@@ -6301,7 +6734,7 @@ def test_router_setup_pnr_leaves_platform_physical_views_to_orfs(tmp_path: Path)
         "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
         "PDK": "sky130", "ORS_TECH": "sky130hd",
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.syn.mkdir(parents=True, exist_ok=True)
     (router.paths.syn / "demo_synth.v").write_text(
         "module demo; endmodule\n", encoding="utf-8"
@@ -6309,7 +6742,7 @@ def test_router_setup_pnr_leaves_platform_physical_views_to_orfs(tmp_path: Path)
     router.paths.sdc.parent.mkdir(parents=True, exist_ok=True)
     router.paths.sdc.write_text("current_design demo\n", encoding="utf-8")
 
-    config = router._setup_pnr()
+    config = router._execute_target("pnr.setup")
     text = config.read_text(encoding="utf-8")
     assert "CDL_FILE" not in text
     assert "KLAYOUT" not in text
@@ -6337,9 +6770,9 @@ def test_router_pnr_defaults_to_standard_orfs_flow(
         "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
         "PDK": "sky130", "ORS_TECH": "sky130hd",
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
 
-    makefile, _ = router._orfs()
+    makefile, _ = pnr_module.orfs_paths(router.values, router.paths.impl)
     assert makefile == (flow / "Makefile").resolve()
     assert makefile != (project / "Makefile").resolve()
 
@@ -6357,9 +6790,9 @@ def test_router_pnr_explicit_orfs_overrides_default(tmp_path: Path) -> None:
         "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
         "PDK": "sky130", "ORS_TECH": "sky130hd", "ORS": str(flow),
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
 
-    makefile, _ = router._orfs()
+    makefile, _ = pnr_module.orfs_paths(router.values, router.paths.impl)
     assert makefile == (flow / "Makefile").resolve()
 
 
@@ -6545,26 +6978,27 @@ def test_physical_antenna_explicit_count_is_machine_readable(tmp_path: Path) -> 
     assert result["net_violations"] == 0
 
 def test_post_impl_signoff_maps_lifecycle_stage_to_post_pnr_gls(tmp_path: Path) -> None:
+    from flexsoc.backend.core import BackendContext
     from flexsoc.backend.signoff import Signoff, SignoffStage
 
-    signoff = Signoff(tmp_path, {"TOP": "demo", "PDK": "sky130"})
+    signoff = Signoff(BackendContext(tmp_path, tmp_path / "work", {"TOP": "demo", "PDK": "sky130"}))
 
-    pre = signoff.pre
-    post = signoff.post
-    assert pre.stage is SignoffStage.PRE_IMPL
-    assert pre.gls.stage == "post_syn"
-    assert post.stage is SignoffStage.POST_IMPL
-    assert post.stage.value == "post_route"
-    assert post.gls.stage == "post_pnr"
+    post_syn = signoff.post_syn
+    post_impl = signoff.post_impl
+    assert post_syn.stage is SignoffStage.POST_SYN
+    assert post_syn.gls.stage == "post_syn"
+    assert post_impl.stage is SignoffStage.POST_IMPL
+    assert post_impl.stage.value == "post_route"
+    assert post_impl.gls.stage == "post_pnr"
 
 
 
 def test_stage_contract_graph_is_single_source_and_acyclic() -> None:
-    contracts = api_module.STAGE_CONTRACTS
-    assert api_module.PROVENANCE_SETUPS == frozenset(stage for stage in contracts if stage.endswith(".setup"))
-    assert api_module.RUNTIME_STAGES == frozenset(contracts) - api_module.PROVENANCE_SETUPS
+    contracts = lifecycle_module.STAGE_CONTRACTS
+    assert lifecycle_module.PROVENANCE_SETUPS == frozenset(stage for stage in contracts if stage.endswith(".setup"))
+    assert lifecycle_module.RUNTIME_STAGES == frozenset(contracts) - lifecycle_module.PROVENANCE_SETUPS
     assert all(parent in contracts for spec in contracts.values() for parent in spec.parents)
-    assert all(contracts[stage].evidence for stage in api_module.RUNTIME_STAGES)
+    assert all(contracts[stage].evidence for stage in lifecycle_module.RUNTIME_STAGES)
     assert all(spec.scope in {"run", "pdk"} for spec in contracts.values())
     assert contracts["regression"].scope == "run"
     assert contracts["formal_prove"].scope == "run"
@@ -6574,8 +7008,11 @@ def test_stage_contract_graph_is_single_source_and_acyclic() -> None:
     assert contracts["syn"].tools == ("YOSYS", "OPENROAD", "ORFS")
     assert contracts["physical_signoff"].tools == ("ORFS", "OPENROAD", "KLAYOUT")
     assert contracts["eqy"].evidence == ("signoff/{pdk}/equivalence/{top}_rtl_vs_syn",)
-    assert "REG_ITF" in contracts["signoff.setup"].config
-    assert "REG_ITF" in contracts["signoff_post_pnr.setup"].config
+    assert contracts["sdc.setup"].scope == "run"
+    assert "SDC_IO_DELAY_PCT" in contracts["sdc.setup"].config
+    assert "REG_ITF" not in contracts["sdc.setup"].config
+    assert "REG_ITF" not in contracts["signoff.setup"].config
+    assert "REG_ITF" not in contracts["signoff_post_pnr.setup"].config
     assert contracts["power_analysis_all"].parents == ("signoff.setup", "sim_post_syn_all")
     assert contracts["fusion_analysis_all"].parents == ("power_analysis_all",)
     assert contracts["power_analysis_post_pnr_all"].parents == ("signoff_post_pnr.setup", "sim_post_pnr_all")
@@ -6597,12 +7034,54 @@ def test_stage_contract_graph_is_single_source_and_acyclic() -> None:
         visit(stage)
 
 
+def test_sdc_scaffold_preserves_authored_edits_and_tracks_multiclock_top(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
+        "N_CLOCKS": "2",
+        "CLOCK_DOMAINS": "cfg:cfg_clk_i:cfg_rst_ni:10:low,dsp:dsp_clk_i:dsp_rst_ni:20:low",
+        "CLOCK_RELATIONSHIPS": "async:cfg:dsp",
+    }
+    router = _target_session(client, values)
+    router.paths.ensure()
+    top = router.paths.rtl / "demo.sv"
+    top.write_text(
+        "module demo (\n"
+        "  input logic cfg_clk_i,\n"
+        "  input logic cfg_rst_ni,\n"
+        "  input logic dsp_clk_i,\n"
+        "  input logic dsp_rst_ni,\n"
+        "  input logic cfg_valid_i,\n"
+        "  output logic dsp_ready_o\n"
+        ");\nendmodule\n",
+        encoding="utf-8",
+    )
+    authored = "# authored SDC\ncreate_clock -period 10 [get_ports cfg_clk_i]\n"
+    router.paths.sdc.parent.mkdir(parents=True, exist_ok=True)
+    router.paths.sdc.write_text(authored, encoding="utf-8")
+
+    router.execute("sdc.setup")
+    assert router.paths.sdc.read_text(encoding="utf-8") == authored
+    assert router._provenance_state("sdc.setup") == "CLEAN"
+
+    router.paths.sdc.write_text(authored + "# reviewed edit\n", encoding="utf-8")
+    assert router._provenance_state("sdc.setup") == "MODIFIED"
+    router.values["STAGE"] = "sdc.setup"
+    assert router._validate_override() == "VALIDATED_OVERRIDE"
+
+    top.write_text(top.read_text(encoding="utf-8").replace("cfg_valid_i", "cfg_request_i"), encoding="utf-8")
+    assert router._provenance_state("sdc.setup") == "STALE"
+
+
 def test_runtime_contract_evidence_invalidates_downstream_selectively(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
     source = router.paths.rtl / "demo.sv"
     source.write_text("module demo(input clk_i); endmodule\n", encoding="utf-8")
@@ -6612,9 +7091,8 @@ def test_runtime_contract_evidence_invalidates_downstream_selectively(tmp_path: 
 
     setup = router.paths.syn / "synth.ys"
     setup.write_text("read_verilog demo.sv\n", encoding="utf-8")
-    router._provenance().record(
-        "syn.setup", inputs=router._provenance_inputs("syn.setup"), generated=(setup,),
-        config=router._provenance_config("syn.setup"), parents=router._provenance_parents("syn.setup"),
+    router.lifecycle.record(
+        "syn.setup", inputs_for=router._provenance_inputs, generated=(setup,),
     )
     netlist, netjson, repair = router._evidence_paths("syn")
     netlist.write_text("module demo; endmodule\n", encoding="utf-8")
@@ -6625,9 +7103,8 @@ def test_runtime_contract_evidence_invalidates_downstream_selectively(tmp_path: 
     signoff_setup = router.paths.signoff / "sta" / "sta.tcl"
     signoff_setup.parent.mkdir(parents=True, exist_ok=True)
     signoff_setup.write_text("read_verilog demo_synth.v\n", encoding="utf-8")
-    router._provenance().record(
-        "signoff.setup", inputs=router._provenance_inputs("signoff.setup"), generated=(signoff_setup,),
-        config=router._provenance_config("signoff.setup"), parents=router._provenance_parents("signoff.setup"),
+    router.lifecycle.record(
+        "signoff.setup", inputs_for=router._provenance_inputs, generated=(signoff_setup,),
     )
     sta_json = router._evidence_paths("sta")[0]
     sta_json.parent.mkdir(parents=True, exist_ok=True)
@@ -6654,7 +7131,7 @@ def test_tool_contract_invalidation_is_stage_selective(tmp_path: Path) -> None:
         **api_module.DEFAULT_SETTINGS,
         "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev", "PDK": "sky130",
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
     source = router.paths.rtl / "demo.sv"
     source.write_text("module demo(input clk_i); endmodule\n", encoding="utf-8")
@@ -6685,48 +7162,7 @@ def test_tool_contract_invalidation_is_stage_selective(tmp_path: Path) -> None:
     assert router._provenance_state("syn") == "STALE"
 
 
-def test_legacy_provenance_without_tool_contract_keeps_existing_lineage(tmp_path: Path) -> None:
-    from flexsoc.backend.core.reporting import Provenance
-
-    root = tmp_path / "run"
-    source = root / "source.sv"
-    parent_out = root / "parent.out"
-    child_out = root / "child.out"
-    root.mkdir()
-    source.write_text("source\n", encoding="utf-8")
-    parent_out.write_text("parent\n", encoding="utf-8")
-    child_out.write_text("child\n", encoding="utf-8")
-    store = Provenance(root / "meta/provenance.json", root)
-    store.record(
-        "parent", inputs=(source,), generated=(parent_out,), config={}, parents={},
-        tools={"YOSYS": {"version": "0.67"}},
-    )
-    data = json.loads(store.path.read_text(encoding="utf-8"))
-    parent = data["stages"]["parent"]
-    parent.pop("tools")
-    parent["fingerprint"] = store._fingerprint(parent)
-    store.path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    legacy_parent = store.current_fingerprint(
-        "parent", inputs=(source,), config={}, parents={},
-        tools={"YOSYS": {"version": "changed"}},
-    )
-    assert legacy_parent == parent["fingerprint"]
-    assert store.state(
-        "parent", inputs=(source,), config={}, parents={},
-        tools={"YOSYS": {"version": "changed"}},
-    ) == "CLEAN"
-    store.record(
-        "child", inputs=(parent_out,), generated=(child_out,), config={},
-        parents={"parent": legacy_parent}, tools={},
-    )
-    assert store.state(
-        "child", inputs=(parent_out,), config={}, parents={"parent": legacy_parent}, tools={},
-    ) == "CLEAN"
-
-
 def test_pnr_output_change_invalidates_only_post_pnr_lineage(tmp_path: Path) -> None:
-    from flexsoc.backend.core.reporting import Provenance
-
     root = tmp_path / "run"
     root.mkdir()
     source = root / "netlist.v"
@@ -6770,7 +7206,7 @@ def test_physical_signoff_inputs_are_canonical_pnr_outputs_not_impl_tree(tmp_pat
         "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
         "PDK": "sky130", "ORS_TECH": "sky130hd", "ORS": str(ors),
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
     config = router.paths.impl / "config.mk"
     config.write_text("export DESIGN_NAME = demo\n", encoding="utf-8")
@@ -6790,7 +7226,7 @@ def test_pnr_provenance_tracks_only_canonical_final_artifacts(tmp_path: Path) ->
         "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
         "PDK": "sky130", "ORS_TECH": "sky130hd",
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
 
     root = router.paths.impl / "results" / "sky130hd" / "demo" / "base"
@@ -6804,13 +7240,13 @@ def test_provenance_separates_rtl_and_pdk_scopes(tmp_path: Path) -> None:
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev", "PDK": "sky130"}
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
 
-    assert router._provenance("regression").path == router.paths.run / "meta" / "provenance.json"
-    assert router._provenance("tb.setup").path == router.paths.run / "meta" / "provenance.json"
-    assert router._provenance("syn").path == router.paths.meta / "provenance.json"
-    assert router._provenance("sta_post_pnr").path == router.paths.meta / "provenance.json"
+    assert router.lifecycle.store("regression").path == router.paths.run / "meta" / "provenance.json"
+    assert router.lifecycle.store("tb.setup").path == router.paths.run / "meta" / "provenance.json"
+    assert router.lifecycle.store("syn").path == router.paths.meta / "provenance.json"
+    assert router.lifecycle.store("sta_post_pnr").path == router.paths.meta / "provenance.json"
 
 
 def test_pdk_switch_keeps_rtl_provenance_and_isolates_technology(tmp_path: Path) -> None:
@@ -6818,7 +7254,7 @@ def test_pdk_switch_keeps_rtl_provenance_and_isolates_technology(tmp_path: Path)
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     base = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev", "REG_ITF": "tlul"}
-    sky = api_module.FlexSoCTarget(client, {**base, "PDK": "sky130"})
+    sky = _target_session(client, {**base, "PDK": "sky130"})
     sky.paths.ensure()
 
     source = sky.paths.rtl / "demo.sv"
@@ -6833,9 +7269,8 @@ def test_pdk_switch_keeps_rtl_provenance_and_isolates_technology(tmp_path: Path)
         generated = sky.paths.run / "generated" / setup_stage.replace(".", "_")
         generated.parent.mkdir(parents=True, exist_ok=True)
         generated.write_text(setup_stage + "\n", encoding="utf-8")
-        sky._provenance(setup_stage).record(
-            setup_stage, inputs=sky._provenance_inputs(setup_stage), generated=(generated,),
-            config=sky._provenance_config(setup_stage), parents=sky._provenance_parents(setup_stage),
+        sky.lifecycle.record(
+            setup_stage, inputs_for=sky._provenance_inputs, generated=(generated,),
         )
 
     log_dir, sv_cov, cocotb_cov = sky._evidence_paths("regression")
@@ -6845,7 +7280,7 @@ def test_pdk_switch_keeps_rtl_provenance_and_isolates_technology(tmp_path: Path)
     sky._record_provenance("regression", 0)
     assert sky._contract_state("regression") == "CLEAN"
 
-    ihp = api_module.FlexSoCTarget(client, {**base, "PDK": "ihp-sg13g2"})
+    ihp = _target_session(client, {**base, "PDK": "ihp-sg13g2"})
     ihp.paths.ensure()
     assert ihp._contract_state("regression") == "CLEAN"
     assert ihp._contract_state("syn") == "MISSING"
@@ -6856,7 +7291,7 @@ def test_regression_provenance_ignores_derived_coverage_reports(tmp_path: Path) 
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
 
     source = router.paths.rtl / "demo.sv"
@@ -6871,12 +7306,8 @@ def test_regression_provenance_ignores_derived_coverage_reports(tmp_path: Path) 
         generated = router.paths.run / "generated" / setup_stage.replace(".", "_")
         generated.parent.mkdir(parents=True, exist_ok=True)
         generated.write_text(setup_stage + "\n", encoding="utf-8")
-        router._provenance().record(
-            setup_stage,
-            inputs=router._provenance_inputs(setup_stage),
-            generated=(generated,),
-            config=router._provenance_config(setup_stage),
-            parents=router._provenance_parents(setup_stage),
+        router.lifecycle.record(
+            setup_stage, inputs_for=router._provenance_inputs, generated=(generated,),
         )
 
     log_dir, sv_cov, cocotb_cov = router._evidence_paths("regression")
@@ -6904,7 +7335,7 @@ def test_contract_state_missing_does_not_resolve_unavailable_stage_inputs(
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
 
     def fail_inputs(stage: str):
@@ -6921,7 +7352,7 @@ def test_contract_status_derives_release_level_without_running_eda(
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
     source = router.paths.rtl / "demo.sv"
     source.write_text("module demo(input clk_i); endmodule\n", encoding="utf-8")
@@ -6941,6 +7372,11 @@ def test_contract_status_derives_release_level_without_running_eda(
     monkeypatch.setattr(router, "_contract_state", lambda stage: "CLEAN" if stage in rtl_required else "MISSING")
     status = router._contract_status()
     assert status["contract"] == "VALID"
+    assert status["maximum_level"] == 1
+    assert all(status["evidence"][stage] == "REVIEW" for stage in rtl_required)
+
+    monkeypatch.setattr(router, "_contract_outcome", lambda stage: "PASS" if stage in rtl_required else None)
+    status = router._contract_status()
     assert status["maximum_level"] == 2
     assert status["maximum_qualification"] == "RTL Qualified"
     assert status["requirements"]["status"] == "PASS"
@@ -6956,12 +7392,18 @@ def test_contract_status_derives_release_level_without_running_eda(
 
     netlist_required = set(required_stages(spec, 3)) - {"requirements_traceability"}
     monkeypatch.setattr(router, "_contract_state", lambda stage: "CLEAN" if stage in netlist_required else "MISSING")
+    monkeypatch.setattr(router, "_contract_outcome", lambda stage: "PASS" if stage in rtl_required else None)
+    status = router._contract_status()
+    assert status["maximum_level"] == 2
+    assert status["evidence"]["eqy"] == "REVIEW"
+
+    monkeypatch.setattr(router, "_contract_outcome", lambda stage: "PASS" if stage in netlist_required else None)
     status = router._contract_status()
     assert status["maximum_level"] == 3
     assert status["maximum_qualification"] == "Netlist Qualified"
     output = capsys.readouterr().out
     assert "[evidence] eqy" in output
-    assert "MISSING" in output
+    assert "REVIEW" in output
 
 
 def test_requirements_traceability_is_always_first_l2_evidence() -> None:
@@ -7136,7 +7578,7 @@ def test_spec_target_is_first_class_ip_scaffold_target(tmp_path: Path) -> None:
         "N_CLOCKS": "1",
         "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router._execute_target("spec")
     root = router.paths.spec
     assert root == client.workdir / "runs" / "scaffold_single_clock" / "dev" / "spec"
@@ -7148,8 +7590,6 @@ def test_spec_target_is_first_class_ip_scaffold_target(tmp_path: Path) -> None:
 
 
 def test_provenance_derives_override_and_parent_lineage_states(tmp_path: Path) -> None:
-    from flexsoc.backend.core.reporting import Provenance
-
     run = tmp_path / "run"
     source = run / "rtl" / "demo.sv"
     generated = run / "syn" / "synth.ys"
@@ -7200,8 +7640,6 @@ def test_provenance_derives_override_and_parent_lineage_states(tmp_path: Path) -
 
 
 def test_provenance_tracks_generated_symlink_binding_not_its_target(tmp_path: Path) -> None:
-    from flexsoc.backend.core.reporting import Provenance
-
     run = tmp_path / "run"
     target = run / "rtl" / "source.f"
     binding = run / "signoff" / "eqy" / "rtl_common.f"
@@ -7221,8 +7659,6 @@ def test_provenance_tracks_generated_symlink_binding_not_its_target(tmp_path: Pa
 
 
 def test_provenance_missing_is_distinct_from_invalid(tmp_path: Path) -> None:
-    from flexsoc.backend.core.reporting import Provenance
-
     root = tmp_path / "run"
     root.mkdir()
     store = Provenance(root / "meta/provenance.json", root)
@@ -7236,7 +7672,7 @@ def test_runtime_failure_records_clean_lineage_and_failed_outcome(
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
 
     def fail_lint(target: str) -> int:
@@ -7262,7 +7698,7 @@ def test_runtime_failure_without_canonical_output_is_failed_but_invalid(
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
     monkeypatch.setattr(router, "_execute_target", lambda target: 4)
 
@@ -7286,7 +7722,7 @@ def test_physical_review_is_not_promoted_to_pass(tmp_path: Path) -> None:
         "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
         "PDK": "sky130", "ORS_TECH": "sky130hd", "ORS": str(ors),
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
     (router.paths.impl / "config.mk").write_text("export DESIGN_NAME = demo\n", encoding="utf-8")
     for path in router._evidence_paths("pnr"):
@@ -7302,17 +7738,15 @@ def test_physical_review_is_not_promoted_to_pass(tmp_path: Path) -> None:
 
     from flexsoc.backend.core.qualification import evidence_state
     assert evidence_state("CLEAN", outcome="REVIEW") == "REVIEW"
-    assert evidence_state("CLEAN") == "PASS"  # legacy record compatibility
+    assert evidence_state("CLEAN") == "REVIEW"  # setup/freshness without an EDA outcome is not PASS
 
 
 def test_runtime_outcome_does_not_change_artifact_lineage_fingerprint(tmp_path: Path) -> None:
-    from flexsoc.backend.core.reporting import Provenance
-
     root = tmp_path / "run"
     root.mkdir()
     source = root / "source.v"
     parent_out = root / "netlist.v"
-    child_out = root / "sta.json"
+    child_out = root / "summary.json"
     source.write_text("module demo; endmodule\n", encoding="utf-8")
     parent_out.write_text("module demo; endmodule\n", encoding="utf-8")
     child_out.write_text('{"status":"pass"}\n', encoding="utf-8")
@@ -7345,7 +7779,7 @@ def test_runtime_stage_requires_current_runtime_parent_lineage(tmp_path: Path) -
         **api_module.DEFAULT_SETTINGS,
         "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev", "PDK": "sky130",
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
 
     # StageContract is the dependency source: STA needs signoff.setup, syn.setup and syn.
@@ -7366,7 +7800,7 @@ def test_router_run_requires_existing_setup_and_setup_force_regenerates(tmp_path
         "RUN_TOP": "demo",
         "RUN_ID": "dev",
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
     source = router.paths.rtl / "demo.sv"
     source.write_text("module demo(input clk); endmodule\n", encoding="utf-8")
@@ -7438,7 +7872,7 @@ def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tm
         "PDK": "sky130",
         "PDK_ROOT": "/pdk/sky130",
     }
-    sky = api_module.FlexSoCTarget(client, sky_values)
+    sky = _target_session(client, sky_values)
     sky.paths.ensure()
     (sky.paths.csr / "demo.hjson").write_text("{ name: demo }\n", encoding="utf-8")
     sky.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
@@ -7453,7 +7887,7 @@ def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tm
         "PDK": "ihp-sg13g2",
         "PDK_ROOT": "/pdk/ihp-sg13g2",
     }
-    ihp = api_module.FlexSoCTarget(client, ihp_values)
+    ihp = _target_session(client, ihp_values)
     ihp._write_settings_evidence("syn.setup")
 
     run = work / "runs" / "demo" / "dev"
@@ -8017,7 +8451,7 @@ def test_metrics_snapshots_provenance_and_check_does_not_refresh(tmp_path: Path)
         "RUN_TOP": "demo",
         "RUN_ID": "dev",
     }
-    router = api_module.FlexSoCTarget(client, values)
+    router = _target_session(client, values)
     router.paths.ensure()
     source = router.paths.rtl / "demo.sv"
     source.write_text("module demo(input clk); endmodule\n", encoding="utf-8")
@@ -8025,7 +8459,7 @@ def test_metrics_snapshots_provenance_and_check_does_not_refresh(tmp_path: Path)
     router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
 
     router.execute("cdc_rdc.setup")
-    router._report("metrics")
+    router.execute("metrics")
     snapshot = router.paths.metrics.read_bytes()
     metrics = json.loads(snapshot)
     assert metrics["technical_status"] == "REVIEW"
@@ -8033,10 +8467,10 @@ def test_metrics_snapshots_provenance_and_check_does_not_refresh(tmp_path: Path)
 
     script = router.paths.run / "dv" / "cdc_rdc" / "extract.ys"
     script.write_text(script.read_text(encoding="utf-8") + "# override\n", encoding="utf-8")
-    router._report("check")
+    router.execute("check")
     assert router.paths.metrics.read_bytes() == snapshot
 
-    router._report("metrics")
+    router.execute("metrics")
     metrics = json.loads(router.paths.metrics.read_text(encoding="utf-8"))
     assert metrics["provenance"]["status"] == "MODIFIED"
     assert metrics["provenance"]["stages"]["cdc_rdc.setup"] == "MODIFIED"
@@ -8051,31 +8485,33 @@ def test_formal_run_uses_existing_config_without_regeneration(
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
-    router = api_module.FlexSoCTarget(client, values)
-    config = router._formal_config(csr=False, mode="prove")
+    router = _target_session(client, values)
+    flow = router.backend.dv.formal
+    config = flow._config_from_context(router.context, csr=False, mode="prove")
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text("[options]\nmode prove\n", encoding="utf-8")
     monkeypatch.setattr(
-        router,
-        "_formal_setup",
-        lambda **kwargs: (_ for _ in ()).throw(AssertionError("formal setup must not run")),
+        type(flow),
+        "setup_from_context",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("formal setup must not run")),
     )
     seen: list[Path] = []
     monkeypatch.setattr(
-        type(router.backend.dv.formal),
+        type(flow),
         "run_prove",
         lambda self, path, **kwargs: seen.append(path) or 0,
     )
 
-    assert router._run_formal("formal_prove") == 0
+    assert router._execute_target("formal_prove") == 0
     assert seen == [config]
 
 
 def test_functional_tb_clock_waveform_comes_from_clock_config() -> None:
     from flexsoc.backend.core import ClockConfig, ClockDomain
-    from flexsoc.backend.dv.testbench import (
-        cocotb_py_text, render_python_test, render_simple_testbench, sv_tb_text,
-    )
+    from flexsoc.backend.dv.cocotb_testbench import render_python_test
+    from flexsoc.backend.dv.multiclock_testbench import cocotb_py_text
+    from flexsoc.backend.dv.sv_testbench import render_simple_testbench
+    from flexsoc.backend.dv.multiclock_testbench import sv_tb_text
 
     clock = ClockDomain(
         "core", "clk_i", "rst_ni", 10.0, "low",
@@ -8481,3 +8917,74 @@ if __name__ == "__main__":
     output = capsys.readouterr()
     assert "MODIFIED" in output.out
     assert "generated tests do not match" in output.err
+
+
+def test_templates_preserve_authored_scaffold_unless_forced(tmp_path: Path) -> None:
+    from flexsoc.backend.core import templates
+
+    output = tmp_path / "driver.sv"
+    output.write_text("// authored\n", encoding="utf-8")
+
+    assert templates.write(
+        "dv/sv/drivers/reg_sequence_none.svh.j2", output, top="demo"
+    ) == output.resolve()
+    assert output.read_text(encoding="utf-8") == "// authored\n"
+
+    templates.write(
+        "dv/sv/drivers/reg_sequence_none.svh.j2", output, force=True, top="demo"
+    )
+    text = output.read_text(encoding="utf-8")
+    assert "Auto-generated register helper for demo" in text
+    assert "run_reg_config" in text
+
+
+def test_testbench_scaffolds_render_from_packaged_templates() -> None:
+    from flexsoc.backend.dv.sv_testbench import (
+        render_axi_lite_utils,
+        render_reg_interface,
+        render_tlul_interface,
+    )
+
+    tlul = render_tlul_interface(period_ns=10.0, io_delay_pct=0.2)
+    reg_iface = render_reg_interface("demo")
+    axi_lite = render_axi_lite_utils("demo", period_ns=10.0, io_delay_pct=0.2)
+
+    assert "FLEXSOC_TB_DRIVE_NS  = 2" in tlul
+    assert "FLEXSOC_TB_SAMPLE_NS = 8" in tlul
+    assert "import demo_reg_pkg::*;" in reg_iface
+    assert "logic [demo_reg_pkg::AW-1:0]" in reg_iface
+    assert "#2;" in axi_lite
+    assert "#8;" in axi_lite
+
+
+def test_check_and_manifest_show_use_common_show_renderer(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
+    router = _target_session(client, values)
+    router.paths.ensure()
+    router.paths.meta.mkdir(parents=True, exist_ok=True)
+    router.paths.metrics.write_text(
+        json.dumps({"flow": {"status": "review"}, "closure": {"status": "review"}}) + "\n",
+        encoding="utf-8",
+    )
+    router.paths.manifest.write_text(
+        json.dumps({
+            "run": {"top": "demo", "run_id": "dev", "pdk": router.paths.pdk},
+            "git": {"commit": "abc", "dirty": False},
+            "environment": {"flexsoc": "0.0", "python": "3", "platform": "test", "machine": "test"},
+            "tools": {},
+        }) + "\n",
+        encoding="utf-8",
+    )
+
+    metrics = router.execute("check")
+    manifest = router.execute("manifest_show")
+    output = capsys.readouterr().out
+    assert metrics.key == "metrics"
+    assert manifest.key == "manifest"
+    assert "Collected flow metrics" in output
+    assert "Run manifest" in output

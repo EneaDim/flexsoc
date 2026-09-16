@@ -1,0 +1,75 @@
+
+task automatic tb_tokenize9(
+  input string line,
+  output int count,
+  output string w0,
+  output string w1,
+  output string w2,
+  output string w3,
+  output string w4,
+  output string w5,
+  output string w6,
+  output string w7,
+  output string w8
+);
+  int i;
+  int j;
+  int n;
+  byte ch;
+  string tok;
+
+  count = 0;
+  w0 = ""; w1 = ""; w2 = ""; w3 = ""; w4 = "";
+  w5 = ""; w6 = ""; w7 = ""; w8 = "";
+
+  n = line.len();
+  i = 0;
+
+  begin : tb_tokenize_done
+    while (i < n) begin
+      begin : tb_skip_ws
+        while (i < n) begin
+          ch = line[i];
+          if (!(ch == 8'h20 || ch == 8'h09 || ch == 8'h0a || ch == 8'h0d))
+            disable tb_skip_ws;
+          i++;
+        end
+      end
+
+      if (i >= n) disable tb_tokenize_done;
+
+      j = i;
+
+      begin : tb_scan_token
+        while (i < n) begin
+          ch = line[i];
+          if (ch == 8'h20 || ch == 8'h09 || ch == 8'h0a || ch == 8'h0d)
+            disable tb_scan_token;
+          i++;
+        end
+      end
+
+      tok = line.substr(j, i - 1);
+
+    if (count == 0) w0 = tok;
+    else if (count == 1) w1 = tok;
+    else if (count == 2) w2 = tok;
+    else if (count == 3) w3 = tok;
+    else if (count == 4) w4 = tok;
+    else if (count == 5) w5 = tok;
+    else if (count == 6) w6 = tok;
+    else if (count == 7) w7 = tok;
+    else if (count == 8) w8 = tok;
+
+    count++;
+
+    if (tok.len() > 0 && tok.substr(0, 0) == "#") begin
+      disable tb_tokenize_done;
+    end
+
+    if (count >= 9) begin
+      disable tb_tokenize_done;
+    end
+    end
+  end
+endtask

@@ -1,0 +1,104 @@
+"""Editable behavioral reference model for <<: top :>>.
+
+This module models the DSP transaction performed by the generated
+N-clock RTL scaffold. Test selection, vector serialization and CSR
+layout live in ``<<: top :>>_tests.py`` and ``<<: top :>>_regmap.py``.
+
+N-clock completion is event-driven: the generated verification
+infrastructure consumes expected outputs when ``dsp_valid_o`` asserts,
+rather than assuming one absolute latency across unrelated clocks.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+INPUTS = ("rx_sample_i", "rx_coeff_i", "rx_valid_i")
+OUTPUTS = (
+    "dsp_result_o",
+    "dsp_valid_o",
+    "dsp_above_threshold_o",
+    "dsp_overflow_o",
+)
+
+
+@dataclass(frozen=True)
+class DspConfig:
+    """Behavioral controls that affect one DSP transaction."""
+
+    gain: int = 0
+    op: int = 0
+    saturate: bool = False
+    threshold: int = 0
+    clk_en: bool = True
+
+
+@dataclass(frozen=True)
+class DspInput:
+    """One accepted RX-domain payload."""
+
+    sample: int
+    coeff: int
+
+
+@dataclass(frozen=True)
+class DspOutput:
+    """Expected DSP-domain result for one accepted payload."""
+
+    result: int
+    above_threshold: bool
+    overflow: bool
+
+
+def i16(value: int) -> int:
+    """Convert a value to signed 16-bit."""
+
+    value &= 0xFFFF
+    return value - 0x10000 if value & 0x8000 else value
+
+
+def u32(value: int) -> int:
+    """Convert a value to unsigned 32-bit."""
+
+    return value & 0xFFFF_FFFF
+
+
+class ReferenceModel:
+    """Behavioral model of the generated DSP datapath."""
+
+    def reset(self) -> None:
+        """Reset model-owned state.
+
+        The starter DSP is transaction-level and stateless, so there is
+        nothing to clear. Stateful specializations can extend this method.
+        """
+
+        pass
+
+    def compute(self, inputs: DspInput, config: DspConfig) -> DspOutput:
+        """Return the DSP result associated with one accepted RX payload."""
+
+        sample = i16(inputs.sample)
+        coeff = i16(inputs.coeff)
+        gain = i16(config.gain)
+
+        if config.op == 1:
+            raw = abs(sample - coeff)
+        elif config.op == 2:
+            raw = sample * sample + coeff * coeff
+        else:
+            raw = sample * coeff + gain
+
+        overflow = raw > 0x7FFF_FFFF or raw < -0x8000_0000
+        if config.saturate and raw > 0x7FFF_FFFF:
+            raw = 0x7FFF_FFFF
+        elif config.saturate and raw < -0x8000_0000:
+            raw = -0x8000_0000
+
+        result = u32(raw)
+        return DspOutput(
+            result=result,
+            above_threshold=result > (config.threshold & 0xFFFF_FFFF),
+            overflow=overflow,
+        )

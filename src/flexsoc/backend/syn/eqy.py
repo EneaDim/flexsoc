@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
 from flexsoc.backend.core import clock_config, pdk_run_layout, run_root
+from flexsoc.backend.core.templates import templates
 
 @dataclass(frozen=True, slots=True)
 class NetlistPort:
@@ -173,39 +174,38 @@ def render_formal_protocol_view(top: str, ports: Sequence[NetlistPort]) -> str:
     impl = f"{top}__eqy_impl"
     contract_ports = _tlul_contract_ports(ports)
     witnesses = tuple(port for port in contract_ports if "__flexsoc_eqy_" in port.name)
-    # Keep the raw packed response internal: EQY partitions every public output.
-    # Gold and gate expose only the same bounded protocol witnesses.
     view_ports = tuple(port for port in ports if port.name not in responses) + witnesses
     original_names = {port.name for port in ports}
     if any(port.name in original_names for port in witnesses):
         raise ValueError("formal TL-UL witness name collides with a design port")
-    lines = [
-        "// Auto-generated formal protocol view; not functional RTL.",
-        f"module {top} (",
-        *[f"  {port.declaration()}{',' if index + 1 < len(view_ports) else ''}" for index, port in enumerate(view_ports)],
-        ");",
-        "",
-    ]
-    for port in ports:
-        if port.name in responses:
-            lines.append(f"  wire [65:0] {port.name}__raw;")
-    lines.extend(("", f"  {impl} u_impl ("))
-    for index, port in enumerate(ports):
-        signal = f"{port.name}__raw" if port.name in responses else port.name
-        lines.append(f"    .{port.name} ({signal}){',' if index + 1 < len(ports) else ''}")
-    lines.extend(("  );", ""))
+    port_declarations = "\n".join(
+        f"  {port.declaration()}{',' if index + 1 < len(view_ports) else ''}"
+        for index, port in enumerate(view_ports)
+    )
+    raw_wires = "\n".join(
+        f"  wire [65:0] {port.name}__raw;" for port in ports if port.name in responses
+    )
+    implementation_ports = "\n".join(
+        f"    .{port.name} ({port.name + '__raw' if port.name in responses else port.name})"
+        f"{',' if index + 1 < len(ports) else ''}"
+        for index, port in enumerate(ports)
+    )
+    assignments: list[str] = []
     for name in sorted(responses):
         raw = f"{name}__raw"
         prefix = f"{name}__flexsoc_eqy"
-        lines.extend((
+        assignments.extend((
             f"  assign {prefix}_handshake = {{{raw}[65], {raw}[0]}};",
             f"  assign {prefix}_d_ctrl = {raw}[65] ? {raw}[64:48] : '0;",
             f"  assign {prefix}_d_data = ({raw}[65] && ({raw}[64:62] == 3'h1) && !{raw}[1]) ? {raw}[47:16] : '0;",
             f"  assign {prefix}_d_meta = {raw}[65] ? {raw}[15:1] : '0;",
             "",
         ))
-    lines.append("endmodule")
-    return "\n".join(lines) + "\n"
+    return templates.render(
+        "syn/eqy/formal_protocol_view.sv.j2",
+        top=top, impl=impl, port_declarations=port_declarations, raw_wires=raw_wires,
+        implementation_ports=implementation_ports, witness_assignments="\n".join(assignments),
+    )
 
 
 def _prepare_formal_protocol_view(cfg: EquivalenceConfig) -> EquivalenceConfig:
@@ -251,31 +251,12 @@ def _read_slang_synthesis(top: str, filelists: Sequence[Path]) -> str:
 def render_sky130_clock_gate_model() -> str:
     """Render formal-compatible SKY130 integrated clock-gate models."""
 
-    def dlclkp(name: str) -> str:
-        return f"""module {name} (output wire GCLK, input wire GATE, input wire CLK);
-  reg gate_latched;
-  always @ (CLK or GATE) begin
-    if (!CLK)
-      gate_latched <= GATE;
-  end
-  assign GCLK = CLK & gate_latched;
-endmodule"""
-
-    def sdlclkp(name: str) -> str:
-        return f"""module {name} (output wire GCLK, input wire SCE, input wire GATE, input wire CLK);
-  reg gate_latched;
-  always @ (CLK or GATE or SCE) begin
-    if (!CLK)
-      gate_latched <= (GATE | SCE);
-  end
-  assign GCLK = CLK & gate_latched;
-endmodule"""
-
-    modules = [
-        *(dlclkp(f"sky130_fd_sc_hd__dlclkp_{drive}") for drive in (1, 2, 4)),
-        *(sdlclkp(f"sky130_fd_sc_hd__sdlclkp_{drive}") for drive in (1, 2, 4)),
-    ]
-    return "\n\n".join(modules) + "\n"
+    drives = (1, 2, 4)
+    return templates.render(
+        "syn/eqy/sky130_clock_gates.sv.j2",
+        dlclkp=tuple(f"sky130_fd_sc_hd__dlclkp_{drive}" for drive in drives),
+        sdlclkp=tuple(f"sky130_fd_sc_hd__sdlclkp_{drive}" for drive in drives),
+    )
 
 
 def _active_pdk(cfg: EquivalenceConfig) -> str:
@@ -432,35 +413,23 @@ def render_eqy(cfg: EquivalenceConfig) -> str:
     port_decls = _netlist_port_decls(netlist, cfg.top)
     contract_ports = _tlul_contract_ports(port_decls) if cfg.formal_view else port_decls
 
-    return "\n".join(
-        [
-            "[options]",
-            f"splitnets {cfg.splitnets}",
-            "",
-            "[gold]",
-            _read_slang_synthesis(cfg.top, filelists),
-            *_formal_view_lines(cfg),
-            "",
-            "[gate]",
-            *_gate_model_reads(cfg, liberty=liberty, netlist=netlist, cell_models=cell_models),
-            *_formal_view_lines(cfg),
-            "",
-            "[script]",
-            f"hierarchy -check -top {cfg.top}",
-            "proc",
-            f"prep -top {cfg.top} -flatten",
-            "# Normalize inferred clock gating to clock enables for formal engines.",
-            "formalff -declockgate",
-            "memory -nomap",
-            "memory_map -formal",
-            *([] if cfg.multiclock else ["async2sync"]),
-            *_reset_normalization_lines(cfg),
-            "",
-            *_eqy_match_sections(cfg.top, contract_ports),
-            *_eqy_collect_sections(cfg.top, contract_ports, enabled=cfg.join_outputs),
-            *_strategy_lines(cfg),
-        ]
-    )
+    def block(lines: Sequence[str]) -> str:
+        return "\n".join(lines)
+
+    return templates.render(
+        "syn/eqy/equivalence.eqy.j2",
+        splitnets=cfg.splitnets,
+        gold_read=_read_slang_synthesis(cfg.top, filelists),
+        gold_view=block((*_formal_view_lines(cfg), "")),
+        gate_reads=block(_gate_model_reads(cfg, liberty=liberty, netlist=netlist, cell_models=cell_models)),
+        gate_view=block((*_formal_view_lines(cfg), "")),
+        top=cfg.top,
+        multiclock=cfg.multiclock,
+        reset_normalization=block((*_reset_normalization_lines(cfg), "")),
+        match_sections=block(_eqy_match_sections(cfg.top, contract_ports)),
+        collect_sections=block(_eqy_collect_sections(cfg.top, contract_ports, enabled=cfg.join_outputs)),
+        strategies=block(_strategy_lines(cfg)),
+    ).rstrip("\n")
 
 
 def _formal_pdk_processor(cfg: EquivalenceConfig) -> str | None:

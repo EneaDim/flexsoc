@@ -1,0 +1,67 @@
+"""cocotb test for the <<: top :>> N-clock scaffold."""
+
+from __future__ import annotations
+
+import os
+
+import cocotb
+from cocotb.triggers import Timer
+
+from drivers.reg_driver import apply_config, reset, set_defaults
+from drivers.vec_driver import drive_inputs
+from drivers.vec_monitor import check_outputs, expected_outputs
+
+def _xorshift32(state):
+    state &= 0xFFFFFFFF
+    state ^= (state << 13) & 0xFFFFFFFF
+    state ^= state >> 17
+    state ^= (state << 5) & 0xFFFFFFFF
+    return state & 0xFFFFFFFF
+
+
+async def _flexsoc_clock(signal, period_ns, rise_ns, fall_ns, source_latency_ns, jitter_bound_ps, clock_salt):
+    """Drive SDC waveform/phase plus bounded deterministic uncertainty jitter."""
+
+    base_seed = int(os.environ.get("FLEXSOC_SEED", "1"), 0) & 0xFFFFFFFF
+    jitter_state = (base_seed ^ int(clock_salt)) & 0xFFFFFFFF
+    if jitter_state == 0:
+        jitter_state = 0x6D2B79F5
+    jitter_prev_ps = 0
+    signal.value = 0
+    initial_low = rise_ns + source_latency_ns
+    if initial_low > 0:
+        await Timer(initial_low, units="ns")
+    high_ns = fall_ns - rise_ns
+    low_ps = int(round((period_ns - high_ns) * 1000.0))
+    while True:
+        signal.value = 1
+        await Timer(high_ns, units="ns")
+        signal.value = 0
+        if jitter_bound_ps:
+            jitter_state = _xorshift32(jitter_state)
+            jitter_next_ps = int(jitter_state % (2 * jitter_bound_ps + 1)) - jitter_bound_ps
+        else:
+            jitter_next_ps = 0
+        low_delay_ps = low_ps + jitter_next_ps - jitter_prev_ps
+        if low_delay_ps <= 0:
+            raise AssertionError("invalid FlexSoC jittered clock delay")
+        await Timer(low_delay_ps, units="ps")
+        jitter_prev_ps = jitter_next_ps
+
+
+@cocotb.test()
+async def vector_test(dut):
+    """Run one generated vector test selected by TEST_NAME."""
+<<: clock_starts :>>
+    set_defaults(dut)
+    await reset(dut, "all")
+
+    test_name = os.environ.get("TEST_NAME", "smoke")
+    cfg = os.environ.get("CFG", f"../tests/{test_name}/config.regs")
+    data_in = os.environ.get("DATA_IN", f"../tests/{test_name}/data_in.vec")
+    data_out = os.environ.get("DATA_OUT", f"../tests/{test_name}/data_out.vec")
+    await apply_config(dut, cfg)
+    expected = expected_outputs(data_out)
+    checker = cocotb.start_soon(check_outputs(dut, expected))
+    await drive_inputs(dut, data_in)
+    await checker

@@ -1,0 +1,22 @@
+// Generated starter covers for <<: top :>>_core.
+// This file becomes designer-owned after creation and is never overwritten.
+module <<: top :>>_scaffold_cover (
+  input logic cfg_clk_i, cfg_rst_ni, cfg_enable,
+  input logic rx_clk_i, rx_rst_ni, rx_valid_i, rx_ready_o,
+  input logic dsp_clk_i, dsp_rst_ni, fifo_rvalid, dsp_valid_o, dsp_ready_i
+);
+  always_ff @(posedge cfg_clk_i) if (cfg_rst_ni) cover (cfg_enable);
+  always_ff @(posedge rx_clk_i) if (rx_rst_ni) cover (rx_valid_i && rx_ready_o);
+  always_ff @(posedge dsp_clk_i) if (dsp_rst_ni) begin
+    cover (fifo_rvalid);
+    cover (dsp_valid_o);
+    cover (dsp_valid_o && dsp_ready_i);
+  end
+endmodule
+
+bind <<: top :>>_core <<: top :>>_scaffold_cover <<: top :>>_scaffold_cover_i (
+  .cfg_clk_i(cfg_clk_i), .cfg_rst_ni(cfg_rst_ni), .cfg_enable(cfg_enable),
+  .rx_clk_i(rx_clk_i), .rx_rst_ni(rx_rst_ni), .rx_valid_i(rx_valid_i),
+  .rx_ready_o(rx_ready_o), .dsp_clk_i(dsp_clk_i), .dsp_rst_ni(dsp_rst_ni),
+  .fifo_rvalid(fifo_rvalid), .dsp_valid_o(dsp_valid_o), .dsp_ready_i(dsp_ready_i)
+);

@@ -1,0 +1,115 @@
+task automatic send_sample(input logic signed [15:0] sample, input logic signed [15:0] coeff);
+  integer timeout;
+  begin : send_sample_body
+  timeout = 0;
+  while (!rx_ready_o && timeout < 64) begin
+    rx_sample_cycle();
+    timeout++;
+  end
+  if (!rx_ready_o) begin
+    $display("[TB][ERROR] rx_ready_o timeout");
+    errors++;
+    disable send_sample_body;
+  end
+  rx_drive_cycle();
+  rx_sample_i = sample;
+  rx_coeff_i = coeff;
+  rx_valid_i = 1'b1;
+  rx_drive_cycle();
+  rx_valid_i = 1'b0;
+  end
+endtask
+
+task automatic wait_output_completion;
+  integer timeout;
+  begin : wait_output_completion_body
+  timeout = 0;
+  while (!dsp_valid_o && timeout < 64) begin
+    dsp_sample_cycle();
+    timeout++;
+  end
+  if (!dsp_valid_o) begin
+    $display("[TB][ERROR] @wait_output timeout waiting for dsp_valid_o");
+    errors++;
+  end
+  end
+endtask
+
+task automatic run_inputs(input string path);
+  integer fd;
+  integer code;
+  integer step;
+  integer cycles;
+  string token;
+  string reg_name;
+  string reset_selector;
+  logic [31:0] value;
+  logic [31:0] mask;
+  string line;
+  reg [8*4096-1:0] line_buf;
+  logic signed [15:0] sample;
+  logic signed [15:0] coeff;
+  begin : run_inputs_body
+  sample = '0;
+  coeff = '0;
+  fd = $fopen(path, "r");
+  if (fd == 0) begin
+    $display("[TB][ERROR] input file not found: %s", path);
+    errors++;
+    disable run_inputs_body;
+  end
+  while (!$feof(fd)) begin : tb_nclk_input_line
+    line = "";
+    line_buf = '0;
+    void'($fgets(line_buf, fd));
+    line = $sformatf("%0s", line_buf);
+    if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_nclk_input_line;
+    code = $sscanf(line, "%d %s", step, token);
+    if (code != 2) disable tb_nclk_input_line;
+    if (token == "@wait_output" || token == "wait_output") begin
+      wait_output_completion();
+    end else if (token == "@write" || token == "write") begin
+      code = $sscanf(line, "%d %s %s %h", step, token, reg_name, value);
+      if (code == 4) begin
+        mask = 32'hffff_ffff;
+        if ($sscanf(line, "%d %s %s %h %h", step, token, reg_name, value, mask) != 5)
+          mask = 32'hffff_ffff;
+        apply_reg_masked(reg_name, value, mask);
+        repeat (8) @(posedge dsp_clk_i);
+      end
+    end else if (token == "@read" || token == "read") begin
+      code = $sscanf(line, "%d %s %s %h", step, token, reg_name, value);
+      if (code == 4) begin
+        mask = 32'hffff_ffff;
+        if ($sscanf(line, "%d %s %s %h %h", step, token, reg_name, value, mask) != 5)
+          mask = 32'hffff_ffff;
+        expect_reg(reg_name, value, mask);
+      end
+    end else if (token == "@reset" || token == "reset") begin
+      reset_selector = "all";
+      code = $sscanf(line, "%d %s %s %d", step, token, reset_selector, cycles);
+      if (code == 3) begin
+        code = $sscanf(line, "%d %s %d", step, token, cycles);
+        reset_selector = "all";
+      end
+      if (code == 3 || code == 4) begin
+        $display(
+          "[TB][RESET] cycle=%0d selector=%s cycles=%0d",
+          step, reset_selector, cycles
+        );
+        reset_dut(reset_selector, cycles);
+      end else begin
+        $display("[TB][ERROR] @reset format: cycle @reset [domain|reset] cycles");
+        errors++;
+      end
+    end else begin
+      code = $sscanf(line, "%d %s %h", step, token, value);
+      if (code != 3) disable tb_nclk_input_line;
+      if (token == "rx_sample_i") sample = value[15:0];
+      else if (token == "rx_coeff_i") coeff = value[15:0];
+      else if (token == "rx_valid_i" && value[0]) send_sample(sample, coeff);
+    end
+  end
+  $fclose(fd);
+  end
+endtask

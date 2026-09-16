@@ -440,10 +440,10 @@ Canonical STA evidence:
 
 ```text
 signoff/<pdk>/sta/sta.rpt
-signoff/<pdk>/sta/sta.json
+signoff/<pdk>/sta/summary.json
 ```
 
-Scenario-local reports are detailed raw/diagnostic evidence. `sta.json` is the machine-readable analysis summary.
+Scenario-local reports are detailed raw/diagnostic evidence. `summary.json` is the machine-readable analysis summary.
 
 STA records:
 
@@ -628,7 +628,7 @@ raw evidence
   tool logs, timing.rpt, power.rpt, SDF, SPEF, waves
 
 analysis JSON
-  sta.json, CDC/RDC summary.json, power/fusion/GLS summaries
+  summary.json, CDC/RDC summary.json, power/fusion/GLS summaries
 
 metrics.json
   normalized cross-analysis snapshot

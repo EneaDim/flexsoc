@@ -8,15 +8,17 @@ import json
 from pathlib import Path
 import re
 import shlex
+import sys
 from typing import Mapping
 
 from rich.console import Console
 from rich.table import Table
 
-from flexsoc.backend.core import layout_from_values
+from flexsoc.backend.core import BackendContext, layout_from_values
 from flexsoc.backend.core.execution import CommandRequest, ToolRunner, print_label, print_log, print_path_label
+from flexsoc.backend.core.target import Target
 from flexsoc.backend.core.toolchain import orfs_environment, validate_orfs_klayout
-from flexsoc.backend.impl.impl import orfs_make_argv, resolve_orfs_branch
+from flexsoc.backend.impl.impl import orfs_make_argv, orfs_paths, resolve_orfs_branch
 
 from .fusion import FusionAnalysis
 from .gls import GateLevelSimulation
@@ -29,9 +31,9 @@ from .sta import (
 
 
 class SignoffStage(str, Enum):
-    """Select the pre- or post-implementation timing model."""
+    """Select post-synthesis or post-implementation sign-off."""
 
-    PRE_IMPL = "post_syn"
+    POST_SYN = "post_syn"
     POST_IMPL = "post_route"
 
 
@@ -389,7 +391,7 @@ def _debug_sta(root: Path) -> list[tuple[str, str]]:
     sta_root = root / "sta"
     rows: list[tuple[str, str]] = [("debug", f"STA artifacts={sta_root}")]
     summary = {}
-    summary_path = sta_root / "sta.json"
+    summary_path = sta_root / "summary.json"
     if summary_path.is_file():
         try:
             payload = json.loads(summary_path.read_text(encoding="utf-8"))
@@ -565,16 +567,18 @@ class SignoffFlow:
         self.fusion = FusionAnalysis(self.project_root, self.values, self.runner)
 
     def setup_sdc(self) -> Path:
-        """Initialize the single authored design SDC (compatibility method name)."""
+        """Initialize the single authored design SDC."""
 
-        from flexsoc.backend.core import clock_config, layout_from_values
+        from flexsoc.backend.core import clock_config, flow_paths
 
-        layout = layout_from_values(self.project_root, self.values)
+        workspace = Path(self.values.get("WORKSPACE", self.project_root / "workspace"))
+        paths = flow_paths(self.project_root, workspace, self.values)
+        top = self.values.get("TOP", "test")
         return init_sdc(
-            layout.signoff_sdc,
-            top=self.values.get("TOP", "test"),
+            paths.sdc,
+            top=top,
             clocks=clock_config(self.values),
-            register_interface=self.values.get("REG_ITF", "tlul"),
+            top_file=paths.rtl / f"{top}.sv",
             io_delay_pct=float(self.values.get("SDC_IO_DELAY_PCT", "0.2")),
             force=str(self.values.get("FORCE", "0")).lower() in {"1", "true", "yes", "on"},
         )
@@ -630,6 +634,69 @@ class SignoffFlow:
     def debug_gls(self, *, output: str | None = None) -> int:
         layout = layout_from_values(self.project_root, self.values)
         return _debug_emit(self.project_root, "gls", _debug_gls(layout, self.stage.value), output)
+
+    def run_target(self, target: Target, *, on: str = "local") -> object:
+        """Execute one registered sign-off target through this stage view."""
+
+        action = target.action
+        if action == "sdc_setup":
+            return self.setup_sdc()
+        if action == "setup":
+            return self.setup_sta(), self.setup_sdf(), self.setup_power(), self.setup_fusion()
+        if action == "path_view":
+            layout = layout_from_values(self.project_root, self.values)
+            path = Path(self.values.get("PATH_VIEW_FILE", layout.path_view_dir / "paths.json")).expanduser().resolve()
+            script = self.project_root / "src" / "util" / "plot_path.py"
+            request = CommandRequest(
+                (sys.executable, str(script), str(path)), self.project_root, {},
+                layout.command_log_dir / "path_view.log", inputs=(path,),
+            )
+            return self.runner.run(request, on=on)
+        if action == "sta":
+            return self.run_sta(on=on)
+        if action == "sdf":
+            return self.run_sdf(on=on)
+        if action == "power_estimate":
+            return self.run_power_estimate(on=on)
+        if action in {"power_activity", "power_activity_all"}:
+            return self.run_power_activity(all_workloads=action.endswith("_all"), on=on)
+        if action in {"fusion", "fusion_all"}:
+            return self.run_fusion(all_workloads=action.endswith("_all"), on=on)
+
+        test = self.values.get("TEST_NAME", "smoke")
+        timing = self.values.get("TIMING_MODE", "zero")
+        backend = self.values.get("GLS_BACKEND", "sv")
+        if action == "gls_compile":
+            return self.gls.compile(test=test, timing=timing, backend=backend, on=on)
+        if action == "gls":
+            return self.run_gls(test=test, timing=timing, backend=backend, on=on)
+        if action == "gls_all":
+            return self.gls.flow(on=on)
+        if action == "physical":
+            layout = layout_from_values(self.project_root, self.values)
+            makefile, config = orfs_paths(self.values, layout.pnr_dir)
+            return self.run_physical(
+                makefile=makefile, config=config, workdir=layout.pnr_dir, top=layout.top,
+                output=layout.signoff_stage_root("post_pnr") / "physical" / "summary.json",
+                log=layout.signoff_stage_log_root("post_pnr") / "physical" / "physical_signoff.log",
+                on=on,
+            )
+        raise ValueError(f"unsupported sign-off action: {action!r}")
+
+    def debug_target(self, target: Target, *, output: str | None = None) -> int:
+        """Show diagnostic artifacts for one registered sign-off target."""
+
+        if target.debug == "sta":
+            return self.debug_sta(output=output)
+        if target.debug == "power_estimate":
+            return self.debug_power(activity=False, output=output)
+        if target.debug == "power_activity":
+            return self.debug_power(activity=True, output=output)
+        if target.debug == "fusion":
+            return self.debug_fusion(output=output)
+        if target.debug == "gls":
+            return self.debug_gls(output=output)
+        raise ValueError(f"--debug is not supported for target {target.name!r}")
 
     def _physical(
         self,
@@ -709,7 +776,7 @@ class SignoffFlow:
             rc = self.run_physical(**physical, on=on)
             if rc:
                 return rc
-        if self.stage is SignoffStage.PRE_IMPL:
+        if self.stage is SignoffStage.POST_SYN:
             self.setup_sdc()
         self.setup_sdf()
         self.setup_sta()
@@ -731,19 +798,26 @@ class SignoffFlow:
 
 @dataclass(slots=True)
 class Signoff:
-    """Expose reusable pre/post lifecycle views over the same engines."""
+    """Expose reusable pre/post lifecycle views over one backend context."""
 
-    project_root: Path
-    values: Mapping[str, str]
+    context: BackendContext
     runner: object | None = None
 
-    @property
-    def pre(self) -> SignoffFlow:
-        return SignoffFlow(self.project_root, self.values, SignoffStage.PRE_IMPL, self.runner)
+    def _flow(self, stage: SignoffStage) -> SignoffFlow:
+        values = {**self.context.values, "WORKSPACE": str(self.context.workspace)}
+        return SignoffFlow(self.context.project_root, values, stage, self.runner)
 
     @property
-    def post(self) -> SignoffFlow:
-        return SignoffFlow(self.project_root, self.values, SignoffStage.POST_IMPL, self.runner)
+    def post_syn(self) -> SignoffFlow:
+        """Return post-synthesis sign-off."""
+
+        return self._flow(SignoffStage.POST_SYN)
+
+    @property
+    def post_impl(self) -> SignoffFlow:
+        """Return post-implementation sign-off."""
+
+        return self._flow(SignoffStage.POST_IMPL)
 
 
 __all__ = [

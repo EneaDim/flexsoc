@@ -5,8 +5,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from textwrap import dedent
 
+from flexsoc.backend.core.core import BackendContext
+from flexsoc.backend.core.target import Target
+from flexsoc.backend.core.templates import templates
 from flexsoc.backend.core.execution import print_label, print_log, print_path_label, strip_ansi
 from flexsoc.backend.core.toolchain import orfs_environment
 
@@ -16,39 +18,19 @@ def render_config(
     platform: str,
     netlist: Path,
     sdc_file: Path,
+    hold_slack_margin: float = 0.10,
 ) -> str:
     """Render a physical-only ORFS config from FlexSoC synthesis artifacts."""
-    return dedent(
-        f"""\
-        # OpenROAD-flow-scripts physical implementation (generated)
-        export DESIGN_NICKNAME = {top}
-        export DESIGN_NAME     = {top}
-        export PLATFORM        = {platform}
 
-        # FlexSoC owns synthesis and timing intent.
-        export SYNTH_NETLIST_FILES := {netlist}
-        export SDC_FILE             := {sdc_file}
-
-        # Platform-owned physical views (LEF/GDS/CDL/LVS decks) stay with ORFS.
-        # Physical defaults; synthesis strategy does not alter these.
-        export CORE_UTILIZATION ?= 50
-        export PLACE_DENSITY ?= 0.58
-        export PLACE_DENSITY_LB_ADDON = 0.20
-        export TNS_END_PERCENT = 100
-
-        export DETAILED_METRICS := 1
-        export REPORT_CLOCK_SKEW := 1
-        export GUI_TIMING := 1
-        export SETUP_SLACK_MARGIN := 0
-        export HOLD_SLACK_MARGIN  := 0.10
-        export CELL_PAD_IN_SITES_GLOBAL_PLACEMENT := 0
-        export CELL_PAD_IN_SITES_DETAIL_PLACEMENT := 0
-        export DETAILED_ROUTE_END_ITERATION := 64
-        export USE_FILL := 0
-        export GPL_TIMING_DRIVEN := 1
-        export GPL_ROUTABILITY_DRIVEN := 1
-        export CTS_CLUSTER_SIZE := 8
-        """
+    if hold_slack_margin < 0:
+        raise ValueError("PNR hold slack margin must be non-negative")
+    return templates.render(
+        "impl/orfs/config.mk.j2",
+        top=top,
+        platform=platform,
+        netlist=netlist,
+        sdc_file=sdc_file,
+        hold_slack_margin=f"{hold_slack_margin:g}",
     )
 
 
@@ -58,6 +40,7 @@ def write_config(
     platform: str,
     netlist: Path,
     sdc_file: Path,
+    hold_slack_margin: float = 0.10,
 ) -> Path:
     """Write `config.mk` for one physical implementation run."""
 
@@ -70,7 +53,9 @@ def write_config(
         raise ValueError(f"SDC not found: {sdc_file}")
     outdir.mkdir(parents=True, exist_ok=True)
     path = outdir / "config.mk"
-    path.write_text(render_config(top, platform, netlist, sdc_file), encoding="utf-8")
+    path.write_text(
+        render_config(top, platform, netlist, sdc_file, hold_slack_margin), encoding="utf-8"
+    )
     return path
 
 
@@ -181,6 +166,14 @@ def _config_make_overrides(config: Path) -> tuple[str, ...]:
     return tuple(overrides)
 
 
+def orfs_paths(values, workdir: Path) -> tuple[Path, Path]:
+    """Return the configured ORFS Makefile and generated design config."""
+
+    raw = str(values.get("ORS", "")).strip()
+    root = Path(raw).expanduser() if raw else Path.home() / "OpenROAD-flow-scripts" / "flow"
+    return (root / "Makefile").resolve(), workdir.expanduser().resolve() / "config.mk"
+
+
 def orfs_make_argv(
     *,
     makefile: Path,
@@ -209,12 +202,13 @@ def orfs_make_argv(
 class ImplementationFlow:
     """Prepare, run and inspect the ORFS/OpenROAD implementation stage."""
 
+    context: BackendContext
     runner: object | None = None
 
     def __post_init__(self) -> None:
         if self.runner is None:
             from flexsoc.backend.core.execution import ToolRunner
-            self.runner = ToolRunner()
+            self.runner = ToolRunner(project_root=self.context.project_root)
 
     def setup(
         self,
@@ -224,10 +218,13 @@ class ImplementationFlow:
         platform: str,
         netlist: Path,
         sdc_file: Path,
+        hold_slack_margin: float = 0.10,
     ) -> Path:
         """Generate the physical-only ORFS configuration."""
 
-        return write_config(top, output_dir, platform, netlist, sdc_file)
+        return write_config(
+            top, output_dir, platform, netlist, sdc_file, hold_slack_margin
+        )
 
     def run(
         self,
@@ -306,6 +303,32 @@ class ImplementationFlow:
             log.resolve(),
         )
         return self.runner.run(request, on=on).returncode
+
+    def run_target(self, target: Target, *, on: str = "local") -> object:
+        """Execute one registered physical-implementation target."""
+
+        paths, values = self.context.paths, self.context.values
+        if target.action == "pnr_setup":
+            platform = values.get("ORS_TECH", values.get("PDK", "sky130"))
+            return self.setup(
+                top=paths.top, output_dir=paths.impl, platform=platform,
+                netlist=paths.syn / f"{paths.top}_synth.v", sdc_file=paths.sdc,
+                hold_slack_margin=float(values.get("PNR_HOLD_SLACK_MARGIN", "0.10")),
+            )
+
+        makefile, config = orfs_paths(values, paths.impl)
+        layout = self.context.layout
+        gui = target.action == "pnr_gui"
+        log = layout.pnr_log_dir / f"{paths.top}_{'pnr_gui' if gui else 'pnr'}.log"
+        if gui:
+            return self.view(
+                makefile=makefile, config=config, workdir=paths.impl, log=log, on=on,
+            )
+        if target.action == "pnr":
+            return self.run(
+                makefile=makefile, config=config, workdir=paths.impl, log=log, on=on,
+            )
+        raise ValueError(f"unsupported implementation action: {target.action!r}")
 
     def flow(self, *, setup: dict, run: dict) -> int:
         """Prepare ORFS and run the canonical implementation target."""

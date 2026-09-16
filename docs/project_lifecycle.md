@@ -268,7 +268,7 @@ raw evidence
   tool logs / timing.rpt / power.rpt / waveforms / SPEF / SDF
         ↓
 analysis JSON
-  sta.json / power summary / fusion summary / CDC-RDC summary / GLS summaries
+  summary.json / power summary / fusion summary / CDC-RDC summary / GLS summaries
         ↓
 metrics.json
   normalized cross-analysis snapshot

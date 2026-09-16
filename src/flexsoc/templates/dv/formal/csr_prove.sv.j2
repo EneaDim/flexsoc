@@ -1,0 +1,133 @@
+
+module flexsoc_csr_arb_checker #(
+  parameter int DW = 32,
+  parameter prim_subreg_pkg::sw_access_e SwAccess = prim_subreg_pkg::SwAccessRW,
+  parameter bit Mubi = 1'b0
+) (
+  input logic we, de,
+  input logic [DW-1:0] wd, d, q,
+  input logic wr_en,
+  input logic [DW-1:0] wr_data
+);
+  logic exp_en;
+  logic [DW-1:0] exp_data;
+
+  always_comb begin
+    exp_en = we | de;
+    exp_data = d;
+    case (SwAccess)
+      prim_subreg_pkg::SwAccessRW,
+      prim_subreg_pkg::SwAccessWO: exp_data = we ? wd : d;
+      prim_subreg_pkg::SwAccessRO: begin exp_en = de; exp_data = d; end
+      prim_subreg_pkg::SwAccessW1S: begin
+        if (!Mubi) exp_data = (de ? d : q) | (we ? wd : '0);
+        else if (DW == 4)  exp_data = prim_mubi_pkg::mubi4_or_hi(prim_mubi_pkg::mubi4_t'(de ? d : q), we ? prim_mubi_pkg::mubi4_t'(wd) : prim_mubi_pkg::MuBi4False);
+        else if (DW == 8)  exp_data = prim_mubi_pkg::mubi8_or_hi(prim_mubi_pkg::mubi8_t'(de ? d : q), we ? prim_mubi_pkg::mubi8_t'(wd) : prim_mubi_pkg::MuBi8False);
+        else if (DW == 12) exp_data = prim_mubi_pkg::mubi12_or_hi(prim_mubi_pkg::mubi12_t'(de ? d : q), we ? prim_mubi_pkg::mubi12_t'(wd) : prim_mubi_pkg::MuBi12False);
+        else if (DW == 16) exp_data = prim_mubi_pkg::mubi16_or_hi(prim_mubi_pkg::mubi16_t'(de ? d : q), we ? prim_mubi_pkg::mubi16_t'(wd) : prim_mubi_pkg::MuBi16False);
+      end
+      prim_subreg_pkg::SwAccessW1C: begin
+        if (!Mubi) exp_data = (de ? d : q) & (we ? ~wd : '1);
+        else if (DW == 4)  exp_data = prim_mubi_pkg::mubi4_and_hi(prim_mubi_pkg::mubi4_t'(de ? d : q), we ? prim_mubi_pkg::mubi4_t'(~wd) : prim_mubi_pkg::MuBi4True);
+        else if (DW == 8)  exp_data = prim_mubi_pkg::mubi8_and_hi(prim_mubi_pkg::mubi8_t'(de ? d : q), we ? prim_mubi_pkg::mubi8_t'(~wd) : prim_mubi_pkg::MuBi8True);
+        else if (DW == 12) exp_data = prim_mubi_pkg::mubi12_and_hi(prim_mubi_pkg::mubi12_t'(de ? d : q), we ? prim_mubi_pkg::mubi12_t'(~wd) : prim_mubi_pkg::MuBi12True);
+        else if (DW == 16) exp_data = prim_mubi_pkg::mubi16_and_hi(prim_mubi_pkg::mubi16_t'(de ? d : q), we ? prim_mubi_pkg::mubi16_t'(~wd) : prim_mubi_pkg::MuBi16True);
+      end
+      prim_subreg_pkg::SwAccessW0C: begin
+        if (!Mubi) exp_data = (de ? d : q) & (we ? wd : '1);
+        else if (DW == 4)  exp_data = prim_mubi_pkg::mubi4_and_hi(prim_mubi_pkg::mubi4_t'(de ? d : q), we ? prim_mubi_pkg::mubi4_t'(wd) : prim_mubi_pkg::MuBi4True);
+        else if (DW == 8)  exp_data = prim_mubi_pkg::mubi8_and_hi(prim_mubi_pkg::mubi8_t'(de ? d : q), we ? prim_mubi_pkg::mubi8_t'(wd) : prim_mubi_pkg::MuBi8True);
+        else if (DW == 12) exp_data = prim_mubi_pkg::mubi12_and_hi(prim_mubi_pkg::mubi12_t'(de ? d : q), we ? prim_mubi_pkg::mubi12_t'(wd) : prim_mubi_pkg::MuBi12True);
+        else if (DW == 16) exp_data = prim_mubi_pkg::mubi16_and_hi(prim_mubi_pkg::mubi16_t'(de ? d : q), we ? prim_mubi_pkg::mubi16_t'(wd) : prim_mubi_pkg::MuBi16True);
+      end
+      prim_subreg_pkg::SwAccessRC: begin
+        if (!Mubi) exp_data = (de ? d : q) & (we ? '0 : '1);
+        else if (DW == 4)  exp_data = prim_mubi_pkg::mubi4_and_hi(prim_mubi_pkg::mubi4_t'(de ? d : q), we ? prim_mubi_pkg::MuBi4False : prim_mubi_pkg::MuBi4True);
+        else if (DW == 8)  exp_data = prim_mubi_pkg::mubi8_and_hi(prim_mubi_pkg::mubi8_t'(de ? d : q), we ? prim_mubi_pkg::MuBi8False : prim_mubi_pkg::MuBi8True);
+        else if (DW == 12) exp_data = prim_mubi_pkg::mubi12_and_hi(prim_mubi_pkg::mubi12_t'(de ? d : q), we ? prim_mubi_pkg::MuBi12False : prim_mubi_pkg::MuBi12True);
+        else if (DW == 16) exp_data = prim_mubi_pkg::mubi16_and_hi(prim_mubi_pkg::mubi16_t'(de ? d : q), we ? prim_mubi_pkg::MuBi16False : prim_mubi_pkg::MuBi16True);
+      end
+      default: begin exp_en = de; exp_data = d; end
+    endcase
+
+    assert (!Mubi || DW == 4 || DW == 8 || DW == 12 || DW == 16);
+    assert (wr_en == exp_en);
+    if (!Mubi || DW == 4 || DW == 8 || DW == 12 || DW == 16)
+      assert (wr_data == exp_data);
+  end
+endmodule
+
+module flexsoc_csr_subreg_checker #(
+  parameter int DW = 32,
+  parameter prim_subreg_pkg::sw_access_e SwAccess = prim_subreg_pkg::SwAccessRW,
+  parameter logic [DW-1:0] RESVAL = '0
+) (
+  input logic clk_i, rst_ni, we, de, wr_en,
+  input logic [DW-1:0] wd, d, q, wr_data, ds, qs,
+  input logic qe
+);
+  logic past_valid = 1'b0;
+  logic prev_wr_en;
+  logic [DW-1:0] prev_wr_data, prev_q;
+
+  always_comb begin
+    assert (qe == wr_en);
+    assert (ds == (wr_en ? wr_data : qs));
+    if (SwAccess == prim_subreg_pkg::SwAccessRC)
+      assert (qs == (de && we ? d : q));
+    else
+      assert (qs == q);
+    if (!rst_ni) assert (q == RESVAL);
+  end
+
+  // Keep one-cycle history explicitly for frontend portability.
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      past_valid <= 1'b0;
+      prev_wr_en <= 1'b0;
+      prev_wr_data <= '0;
+      prev_q <= RESVAL;
+    end else begin
+      if (past_valid && prev_wr_en) assert (q == prev_wr_data);
+      else if (past_valid) assert (q == prev_q);
+      prev_wr_en <= wr_en;
+      prev_wr_data <= wr_data;
+      prev_q <= q;
+      past_valid <= 1'b1;
+    end
+  end
+
+endmodule
+
+module flexsoc_csr_subreg_ext_checker #(parameter int DW = 32) (
+  input logic re, we,
+  input logic [DW-1:0] wd, d,
+  input logic qe, qre,
+  input logic [DW-1:0] q, ds, qs
+);
+  always_comb begin
+    assert (ds == d);
+    assert (qs == d);
+    assert (q == wd);
+    assert (qe == we);
+    assert (qre == re);
+  end
+endmodule
+
+bind prim_subreg_arb flexsoc_csr_arb_checker #(
+  .DW(DW), .SwAccess(SwAccess), .Mubi(Mubi)
+) flexsoc_csr_arb_checker_i (
+  .we(we), .de(de), .wd(wd), .d(d), .q(q), .wr_en(wr_en), .wr_data(wr_data)
+);
+
+bind prim_subreg flexsoc_csr_subreg_checker #(
+  .DW(DW), .SwAccess(SwAccess), .RESVAL(RESVAL)
+) flexsoc_csr_subreg_checker_i (
+  .clk_i(clk_i), .rst_ni(rst_ni), .we(we), .de(de), .wd(wd), .d(d),
+  .q(q), .wr_en(wr_en), .wr_data(wr_data), .ds(ds), .qs(qs), .qe(qe)
+);
+
+bind prim_subreg_ext flexsoc_csr_subreg_ext_checker #(.DW(DW))
+  flexsoc_csr_subreg_ext_checker_i (
+    .re(re), .we(we), .wd(wd), .d(d), .qe(qe), .qre(qre), .q(q), .ds(ds), .qs(qs)
+  );

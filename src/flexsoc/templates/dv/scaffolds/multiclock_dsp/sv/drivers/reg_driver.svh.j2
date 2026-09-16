@@ -1,0 +1,81 @@
+<<: phase_helpers :>><<: bus_section :>>      task automatic apply_reg(input string reg_name, input logic [31:0] value);
+        if (reg_name == "cfg.CTRL") cfg_write(32'h0, value);
+        else if (reg_name == "dsp.GAIN") dsp_write(32'h10, value);
+        else if (reg_name == "dsp.DSP_CTRL") dsp_write(32'h0, value);
+        else if (reg_name == "dsp.THRESHOLD") dsp_write(32'h4, value);
+        else $display("[TB][WARN] unknown config register: %s", reg_name);
+      endtask
+
+      task automatic read_reg(input string reg_name, output logic [31:0] value);
+        value = '0;
+        if (reg_name == "cfg.CTRL") cfg_read(32'h0, value);
+        else if (reg_name == "dsp.GAIN") dsp_read(32'h10, value);
+        else if (reg_name == "dsp.DSP_CTRL") dsp_read(32'h0, value);
+        else if (reg_name == "dsp.THRESHOLD") dsp_read(32'h4, value);
+        else begin
+          $display("[TB][WARN] unknown read register: %s", reg_name);
+          errors++;
+        end
+      endtask
+
+      task automatic apply_reg_masked(
+        input string reg_name,
+        input logic [31:0] value,
+        input logic [31:0] mask
+      );
+        logic [31:0] current;
+        logic [31:0] merged;
+        merged = value;
+        if (mask != 32'hffff_ffff) begin
+          read_reg(reg_name, current);
+          merged = (current & ~mask) | (value & mask);
+        end
+        apply_reg(reg_name, merged);
+      endtask
+
+      task automatic expect_reg(
+        input string reg_name,
+        input logic [31:0] expected,
+        input logic [31:0] mask
+      );
+        logic [31:0] got;
+        read_reg(reg_name, got);
+        if ((got & mask) !== (expected & mask)) begin
+          $display("[TB][ERROR] %s got=0x%08x exp=0x%08x mask=0x%08x", reg_name, got, expected, mask);
+          errors++;
+        end
+      endtask
+
+      task automatic load_config(input string path);
+        integer fd;
+        integer code;
+        string reg_name;
+        logic [31:0] value;
+        logic [31:0] mask;
+        string line;
+        reg [8*4096-1:0] line_buf;
+        begin : load_config_body
+        fd = $fopen(path, "r");
+        if (fd == 0) begin
+          $display("[TB][ERROR] config file not found: %s", path);
+          errors++;
+          disable load_config_body;
+        end
+        while (!$feof(fd)) begin : tb_nclk_cfg_line
+          line = "";
+          line_buf = '0;
+          void'($fgets(line_buf, fd));
+          line = $sformatf("%0s", line_buf);
+          if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_nclk_cfg_line;
+          code = $sscanf(line, "%s %h", reg_name, value);
+          if (code == 2) begin
+            mask = 32'hffff_ffff;
+            if ($sscanf(line, "%s %h %h", reg_name, value, mask) != 3)
+              mask = 32'hffff_ffff;
+            if (reg_name.len() > 6 && reg_name.substr(0, 5) == "clk_i.") reg_name = reg_name.substr(6, reg_name.len() - 1);
+            apply_reg_masked(reg_name, value, mask);
+          end
+        end
+        $fclose(fd);
+        end
+      endtask

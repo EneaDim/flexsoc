@@ -1733,7 +1733,7 @@ clock_network=propagated
 interconnect=spef
 ```
 
-Routed analysis adds SPEF annotation coverage, clock latency/skew, and detailed physical paths. The consolidated public evidence is `signoff/<pdk>/sta/sta.rpt` with machine-readable `sta.json`; scenario-local reports are diagnostic runtime artifacts rather than separate package contracts.
+Routed analysis adds SPEF annotation coverage, clock latency/skew, and detailed physical paths. The consolidated public evidence is `signoff/<pdk>/sta/sta.rpt` with machine-readable `summary.json`; scenario-local reports are diagnostic runtime artifacts rather than separate package contracts.
 
 This is the key quantitative distinction from post-synthesis STA: cell delay, routed wire delay and physical clock-tree behavior are analyzed together without changing the authored timing assumptions.
 

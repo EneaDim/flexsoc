@@ -13,8 +13,14 @@ from .execution import (
     ToolRunner,
 )
 from .package import PackageFlow
+from .qualification import QualificationFlow
+from .lifecycle import Lifecycle, StageContract
+from .provenance import Provenance
+from .target import Target
+from .templates import Templates, templates
 from .reporting import Reporting
 from .toolchain import Toolchain, orfs_environment
+from .workspace import WorkspaceFlow
 
 __all__ = [
     "BackendContext", "ClockConfig", "ClockDomain", "ClockRelationship",
@@ -26,6 +32,7 @@ __all__ = [
     "parse_sv_signature", "pdk_paths", "pdk_run_layout",
     "replace_generated_tree", "run_root", "safe_write_file",
     "CommandRequest", "CommandResult", "ExecutionTarget", "LocalExecutor",
-    "SshExecutor", "ToolRunner", "PackageFlow", "Reporting", "Toolchain",
-    "orfs_environment",
+    "SshExecutor", "ToolRunner", "PackageFlow", "QualificationFlow", "Lifecycle", "StageContract",
+    "Provenance", "Target", "Templates", "templates", "Reporting", "Toolchain",
+    "orfs_environment", "WorkspaceFlow",
 ]

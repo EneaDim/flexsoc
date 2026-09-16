@@ -1,0 +1,164 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from cocotb.triggers import Combine, FallingEdge, RisingEdge, Timer
+from cocotb.simtime import get_sim_time
+
+
+CLOCKS = <<: clock_map :>>
+CLOCK_PERIOD_PS = <<: period_ps :>>
+CLOCK_DRIVE_PS = <<: drive_ps :>>
+CLOCK_SAMPLE_PS = <<: sample_ps :>>
+_PHASE_ORIGINS = {}
+RESET_DOMAINS = <<: reset_map :>>
+PRIMARY_CLOCK = <<: primary :>>
+SETTLE_CLOCK = <<: settle :>>
+
+ADDR = {
+    "cfg": {"CTRL": 0x0, "STATUS": 0x4, "CFG_STATUS": 0x4},
+    "dsp": {"DSP_CTRL": 0x0, "THRESHOLD": 0x4, "RESULT": 0x8, "DSP_STATUS": 0xC, "STATUS": 0xC, "GAIN": 0x10},
+}
+
+
+def _clock_key(clk):
+    return getattr(clk, "_name", str(clk))
+
+
+async def _wait_phase(clk, offsets):
+    key = _clock_key(clk)
+    if key not in CLOCK_PERIOD_PS:
+        raise KeyError(f"unknown generated clock: {key}")
+    period = CLOCK_PERIOD_PS[key]
+    if key not in _PHASE_ORIGINS:
+        await RisingEdge(clk)
+        _PHASE_ORIGINS[key] = int(get_sim_time(unit="ps"))
+    now = int(get_sim_time(unit="ps"))
+    phase = (now - _PHASE_ORIGINS[key]) % period
+    delta = (offsets[key] - phase) % period
+    if delta == 0:
+        delta = period
+    await Timer(delta, unit="ps")
+
+
+async def _sample_cycle(clk):
+    await _wait_phase(clk, CLOCK_SAMPLE_PS)
+
+
+async def _drive_cycle(clk):
+    await _wait_phase(clk, CLOCK_DRIVE_PS)
+
+
+async def _wait_cycles(clk, count=1):
+    for _ in range(max(0, int(count))):
+        await _sample_cycle(clk)
+
+
+def rows(path: str):
+    for raw in Path(path).read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if line and not line.startswith("#"):
+            yield line.split()
+
+
+def _set_domain_defaults(dut, domain: str):
+<<: bus_defaults :>>
+
+
+def set_defaults(dut):
+    _set_domain_defaults(dut, "cfg")
+    _set_domain_defaults(dut, "dsp")
+    dut.rx_valid_i.value = 0
+    dut.rx_sample_i.value = 0
+    dut.rx_coeff_i.value = 0
+    dut.dsp_ready_i.value = 1
+
+
+def _selected_resets(selector: str):
+    clean = str(selector or "all")
+    if clean in {"all", "*"}:
+        return tuple(RESET_DOMAINS.values())
+    for domain, item in RESET_DOMAINS.items():
+        if clean in {domain, item[1]}:
+            return (item,)
+    raise AssertionError(f"unknown reset selector: {clean}")
+
+
+async def _wait_reset_cycles(dut, selected, cycles: int):
+    for _ in range(max(1, int(cycles))):
+        await Combine(*(RisingEdge(getattr(dut, clock)) for clock, _, _ in selected))
+
+
+async def reset(dut, selector: str = "all", cycles: int = 5):
+    selected = _selected_resets(selector)
+    set_defaults(dut)
+    for _, signal, polarity in selected:
+        getattr(dut, signal).value = int(polarity == "high")
+    await _wait_reset_cycles(dut, selected, cycles)
+    await Combine(*(FallingEdge(getattr(dut, clock)) for clock, _, _ in selected))
+    for _, signal, polarity in selected:
+        getattr(dut, signal).value = int(polarity == "low")
+    set_defaults(dut)
+    await _wait_cycles(getattr(dut, PRIMARY_CLOCK), 8)
+
+
+async def _wait_high(dut, signal: str, clk, limit: int = 256):
+    for _ in range(limit):
+        await _sample_cycle(clk)
+        if bool(getattr(dut, signal).value):
+            return
+    raise TimeoutError(f"timeout waiting for {signal}")
+
+
+async def _bus_write(dut, domain: str, clk, addr: int, data: int):
+<<: bus_write :>>
+
+
+async def _bus_read(dut, domain: str, clk, addr: int) -> int:
+<<: bus_read :>>
+
+
+def _decode_reg(name: str) -> tuple[str, int]:
+    clean = name[6:] if name.startswith("clk_i.") else name
+    if "." in clean:
+        domain, reg = clean.split(".", 1)
+    else:
+        domain, reg = "cfg", clean
+    try:
+        return domain, ADDR[domain][reg.upper()]
+    except KeyError as exc:
+        raise KeyError(f"unknown register {name!r}; update drivers/reg_driver.py") from exc
+
+
+async def apply_reg(dut, name: str, value: int, mask: int = 0xFFFFFFFF):
+    domain, addr = _decode_reg(name)
+    clk = getattr(dut, CLOCKS[domain])
+    if mask != 0xFFFFFFFF:
+        current = await _bus_read(dut, domain, clk, addr)
+        value = (current & ~mask) | (value & mask)
+    await _bus_write(dut, domain, clk, addr, value)
+
+
+async def read_reg(dut, name: str) -> int:
+    domain, addr = _decode_reg(name)
+    return await _bus_read(dut, domain, getattr(dut, CLOCKS[domain]), addr)
+
+
+async def expect_reg(dut, name: str, expected: int, mask: int = 0xFFFFFFFF):
+    got = await read_reg(dut, name)
+    if (got & mask) != (expected & mask):
+        raise AssertionError(
+            f"{name} got=0x{got & mask:08x} exp=0x{expected & mask:08x} mask=0x{mask:08x}"
+        )
+
+
+async def settle(dut, cycles: int = 8):
+    await _wait_cycles(getattr(dut, SETTLE_CLOCK), cycles)
+
+
+async def apply_config(dut, path: str):
+    for parts in rows(path):
+        if len(parts) >= 2:
+            mask = int(parts[2], 0) if len(parts) >= 3 else 0xFFFFFFFF
+            await apply_reg(dut, parts[0], int(parts[1], 0), mask)
+    await settle(dut)

@@ -1,0 +1,43 @@
+
+set delay_type <<: delay_type :>>
+set endpoint_group_limit <<: endpoint_group_limit :>>
+set endpoint_path_limit <<: endpoint_path_limit :>>
+set near_critical_limit <<: near_critical_limit :>>
+# Create one compact timing report for this corner/mode and write its analysis context first.
+set report [file join $report_dir timing.rpt]
+set fp [open $report w]
+puts $fp "analysis=sta corner=<<: corner :>> mode=<<: mode :>> stage=<<: stage :>>"
+puts $fp "liberty=$liberty"
+puts $fp "netlist=$netlist"
+puts $fp "sdc=$sdc"
+puts $fp "spef=$spef"
+close $fp
+flexsoc_section $report Units
+# Record the unit system used by all timing, slew, and capacitance values below.
+flexsoc_append_opensta $report report_units
+flexsoc_section $report {Delay model}
+set fp [open $report a]
+puts $fp "clock_network=<<: clock_network :>>"
+puts $fp "interconnect=<<: interconnect :>>"
+close $fp
+flexsoc_section $report {Timing summary}
+# OpenSTA report_wns/report_tns already emit canonical 'wns <min|max>' and 'tns <min|max>' labels.
+# Report worst negative slack for the selected max/setup or min/hold analysis.
+flexsoc_append_opensta $report report_wns -$delay_type
+# Report total negative slack across all violating endpoints for this analysis type.
+flexsoc_append_opensta $report report_tns -$delay_type
+flexsoc_section $report {Clock QoR}
+# OpenSTA reports minimum legal period and Fmax for every constrained clock.
+flexsoc_append_opensta $report report_clock_min_period
+flexsoc_section $report {Constraint validation}
+# Append setup diagnostics so missing clocks, unconstrained endpoints, or invalid constraints stay visible.
+flexsoc_append_opensta $report check_setup -verbose
+# Append electrical and sequential timing checks such as slew, capacitance, fanout, recovery, and removal.
+flexsoc_append_opensta $report report_check_types -max_slew -max_capacitance -max_fanout -recovery -removal -min_pulse_width -min_period -min_delay -max_delay
+<<: routed_block :>>flexsoc_section $report {Violating paths}
+# Report the worst violating paths first, including gate slew, capacitance, net, and fanout fields.
+flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count $endpoint_group_limit -endpoint_path_count $endpoint_path_limit -unique_paths_to_endpoint -sort_by_slack -slack_max 0.0 -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6
+flexsoc_section $report {Near-critical paths}
+# Report met paths close to zero slack so timing margin is visible before it becomes a violation.
+flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count 3000 -endpoint_path_count 3 -unique_paths_to_endpoint -sort_by_slack -slack_min 0.0 -slack_max $near_critical_limit -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6
+puts "report=$report"

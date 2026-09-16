@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from flexsoc.backend.core import layout_from_values
+from flexsoc.backend.core.templates import templates
 from flexsoc.backend.core.execution import print_script
 from flexsoc.backend.impl.impl import resolve_orfs_artifact
 
@@ -274,241 +275,66 @@ def _timing_values(text: str) -> dict[str, float]:
     return values
 
 def _header(ctx: SignoffContext, limitations: Sequence[str]) -> str:
-    macros = ", ".join(str(path) for path in ctx.macro_liberties) or "not used"
-    lines = [
-        "# =============================================================================",
-        "# AUTO-GENERATED FLEXSOC OPENSTA ANALYSIS",
-        "#",
-        f"# Analysis : {ctx.analysis}",
-        f"# Design   : {ctx.design}",
-        f"# Variant  : {ctx.variant}",
-        f"# PDK      : {ctx.pdk}",
-        f"# Stage    : {ctx.stage}",
-        f"# Corner   : {ctx.corner}",
-        f"# Mode     : {ctx.mode or 'not applicable'}",
-        f"# Workload : {ctx.workload or 'not applicable'}",
-        f"# Top      : {ctx.top}",
-        "#",
-        "# Inputs:",
-        f"#   Liberty       : {ctx.liberty}",
-        f"#   Macro Liberty : {macros}",
-        f"#   Netlist       : {ctx.netlist}",
-        f"#   SDC           : {ctx.sdc}",
-        f"#   SPEF          : {ctx.spef or 'not used'}",
-        f"#   VCD or SAIF   : {ctx.activity_file or 'not used'}",
-        f"#   Activity scope: {ctx.activity_scope or 'not used'}",
-        f"#   GLS report    : {ctx.gls_report or 'not used'}",
-        f"#   Report dir    : {ctx.report_dir}",
-        "#",
-        "# Limitations:",
-        *[f"#   - {item}" for item in limitations],
-        "#",
-        "# Generated baseline: review or edit as needed; regeneration replaces this file.",
-        "# =============================================================================",
-    ]
-    return "\n".join(lines)
+    return templates.render(
+        "signoff/opensta/header.tcl.j2",
+        analysis=ctx.analysis,
+        design=ctx.design,
+        variant=ctx.variant,
+        pdk=ctx.pdk,
+        stage=ctx.stage,
+        corner=ctx.corner,
+        mode=ctx.mode or "not applicable",
+        workload=ctx.workload or "not applicable",
+        top=ctx.top,
+        liberty=ctx.liberty,
+        macro_liberties=", ".join(str(path) for path in ctx.macro_liberties) or "not used",
+        netlist=ctx.netlist,
+        sdc=ctx.sdc,
+        spef=ctx.spef or "not used",
+        activity_file=ctx.activity_file or "not used",
+        activity_scope=ctx.activity_scope or "not used",
+        gls_report=ctx.gls_report or "not used",
+        report_dir=ctx.report_dir,
+        limitations="\n".join(f"#   - {item}" for item in limitations),
+    )
 
 def _common_init(ctx: SignoffContext, *, activity: bool) -> str:
     macro_list = " ".join(_quote(path) for path in ctx.macro_liberties)
-    lines = [
-        "",
-        "# -----------------------------------------------------------------------------",
-        "# Runtime validation and common OpenSTA initialization",
-        "#",
-        "# Each required input is checked before OpenSTA reads it.  The resulting linked",
-        "# network associates netlist instances and pins with Liberty timing arcs,",
-        "# sequential checks and power models.  A link failure normally identifies a",
-        "# missing standard-cell or macro Liberty view.",
-        "# -----------------------------------------------------------------------------",
-        "proc flexsoc_require_readable {label path} {",
-        "  if {![file exists $path] || ![file readable $path]} {",
-        "    puts stderr \"ERROR: missing or unreadable $label: $path\"",
-        "    exit 2",
-        "  }",
-        "}",
-        f"set report_dir {_quote(ctx.report_dir)}",
-        "file mkdir $report_dir",
-        f"set liberty {_quote(ctx.liberty)}",
-        f"set macro_liberties {{{macro_list}}}",
-        f"set netlist {_quote(ctx.netlist)}",
-        f"set sdc {_quote(ctx.sdc)}",
-        f"set spef {_quote(ctx.spef) if ctx.spef else '{}'}",
-        f"set top {_quote(ctx.top)}",
-        f"set stage {_quote(ctx.stage)}",
-        "# Validate every file referenced by this script before building the timing graph.",
-        "flexsoc_require_readable \"standard-cell Liberty\" $liberty",
-        "flexsoc_require_readable \"gate-level netlist\" $netlist",
-        "flexsoc_require_readable \"SDC constraints\" $sdc",
-        "foreach macro_lib $macro_liberties {flexsoc_require_readable \"macro Liberty\" $macro_lib}",
-        "if {$spef ne \"\"} {flexsoc_require_readable \"SPEF parasitics\" $spef}",
-        "",
-        'puts "=== Step 1/7: Read Liberty ==="',
-        'puts "liberty=$liberty"',
-        "# Load the standard-cell Liberty view for this PVT corner; it supplies timing arcs, checks, and cell power data.",
-        "read_liberty $liberty",
-        "foreach macro_lib $macro_liberties {",
-        '  puts "macro_liberty=$macro_lib"',
-        "  # Load each macro Liberty view so hard macros participate in timing and power analysis.",
-        "  read_liberty $macro_lib",
-        "}",
-        "",
-        'puts "=== Step 2/7: Read netlist ==="',
-        'puts "netlist=$netlist"',
-        "# Read the mapped gate-level Verilog netlist that will be analyzed.",
-        "read_verilog $netlist",
-        "",
-        'puts "=== Step 3/7: Link design ==="',
-        'puts "top=$top"',
-        "# Link the selected top and resolve every netlist cell against the loaded Liberty views.",
-        "link_design $top",
-        "",
-        'puts "=== Step 4/7: Read SDC ==="',
-        'puts "sdc=$sdc"',
-        "# Apply clocks, I/O delays, uncertainties, exceptions, and electrical constraints from the SDC.",
-        "read_sdc $sdc",
-        "",
-        'puts "=== Step 5/7: Read parasitics / establish clock model ==="',
-        "if {$spef ne \"\"} {",
-        '  puts "spef=$spef"',
-        "  # Annotate extracted RC parasitics so interconnect delay and capacitance are included.",
-        "  read_spef $spef",
-        "} else {",
-        '  puts "spef=not_used"',
-        "}",
-        "if {$stage eq \"post_route\"} {",
-        "  # Collect all SDC clocks before switching post-route analysis to propagated clock latency.",
-        "  set clocks [get_clocks *]",
-        "  if {[llength $clocks] > 0} {",
-        "    # Propagate clock-tree delay through the linked network instead of assuming ideal clocks.",
-        "    set_propagated_clock $clocks",
-        "  }",
-        '  puts "clock_model=propagated"',
-        "} else {",
-        '  puts "clock_model=ideal post_synthesis"',
-        "}",
-        "proc flexsoc_section {path title} {",
-        "  set fp [open $path a]",
-        '  puts $fp ""',
-        '  puts $fp "=== $title ==="',
-        "  close $fp",
-        "}",
-        "proc flexsoc_label {path label} {",
-        "  set fp [open $path a]",
-        '  puts -nonewline $fp "$label "',
-        "  close $fp",
-        "}",
-        "proc flexsoc_append_opensta {path args} {",
-        "  # Capture one public OpenSTA report command without relying on command-specific > / >> support.",
-        "  set capture [file join [file dirname $path] .flexsoc_opensta_capture.rpt]",
-        "  file delete -force $capture",
-        "  log_begin $capture",
-        "  set code [catch {uplevel 1 $args} result options]",
-        "  log_end",
-        "  if {[file exists $capture]} {",
-        "    set src [open $capture r]",
-        "    set dst [open $path a]",
-        "    fcopy $src $dst",
-        "    close $src",
-        "    close $dst",
-        "    file delete -force $capture",
-        "  }",
-        "  if {$code != 0} {return -options $options $result}",
-        "  return $result",
-        "}",
-        "",
-        'puts "=== Step 6/7: Validate timing setup ==="',
-        "# Validate clocks, endpoints, constraints, and timing relationships before generating reports.",
-        "check_setup -verbose",
-    ]
-    if activity:
-        lines += [
-            "proc flexsoc_append_activity_coverage {path} {",
-            "  # Keep activity evidence compact: percentage plus only the pins that were not annotated.",
-            "  set capture [file join [file dirname $path] .flexsoc_activity_annotation.rpt]",
-            "  file delete -force $capture",
-            "  log_begin $capture",
-            "  set code [catch {report_activity_annotation -report_unannotated} result options]",
-            "  log_end",
-            "  if {$code != 0} {",
-            "    file delete -force $capture",
-            "    return -options $options $result",
-            "  }",
-            "  if {![file exists $capture]} {error {activity annotation report was not captured}}",
-            "  set src [open $capture r]",
-            "  set text [read $src]",
-            "  close $src",
-            "  file delete -force $capture",
-            "  set annotated 0",
-            "  set unannotated 0",
-            "  set have_annotated 0",
-            "  set have_unannotated 0",
-            "  set in_unannotated 0",
-            "  set unannotated_pins {}",
-            "  foreach line [split $text \"\\n\"] {",
-            "    if {[regexp {^[[:space:]]*(vcd|saif|input)[[:space:]]+([0-9]+)[[:space:]]*$} $line -> origin count]} {",
-            "      incr annotated $count",
-            "      set have_annotated 1",
-            "      continue",
-            "    }",
-            "    if {[regexp {^[[:space:]]*unannotated[[:space:]]+([0-9]+)[[:space:]]*$} $line -> count]} {",
-            "      set unannotated $count",
-            "      set have_unannotated 1",
-            "      continue",
-            "    }",
-            "    if {[regexp -nocase {^[[:space:]]*Annotated[[:space:]]+([0-9]+).*activities} $line -> count]} {",
-            "      set annotated $count",
-            "      set have_annotated 1",
-            "      continue",
-            "    }",
-            "    if {[regexp -nocase {^[[:space:]]*Unannotated[[:space:]]+([0-9]+).*activities} $line -> count]} {",
-            "      set unannotated $count",
-            "      set have_unannotated 1",
-            "      continue",
-            "    }",
-            "    if {[regexp {^Unannotated pins:[[:space:]]*$} $line]} {",
-            "      set in_unannotated 1",
-            "      continue",
-            "    }",
-            "    if {$in_unannotated && [string trim $line] ne \"\"} {lappend unannotated_pins [string trim $line]}",
-            "  }",
-            "  # Some OpenSTA versions omit zero-count origin rows and report only unannotated N.",
-            "  if {!$have_annotated && $have_unannotated} {set annotated 0; set have_annotated 1}",
-            "  if {!$have_annotated || !$have_unannotated} {error {could not parse OpenSTA activity annotation summary}}",
-            "  set total [expr {$annotated + $unannotated}]",
-            "  set percent [expr {$total > 0 ? 100.0 * $annotated / $total : 0.0}]",
-            "  set dst [open $path a]",
-            "  puts $dst [format {annotated_percent=%.2f%%} $percent]",
-            "  if {[llength $unannotated_pins] == 0} {",
-            "    puts $dst {Unannotated pins: none}",
-            "  } else {",
-            "    puts $dst {Unannotated pins:}",
-            "    foreach pin $unannotated_pins {puts $dst \" $pin\"}",
-            "  }",
-            "  close $dst",
-            "}",
-            "",
-            'puts "=== Step 7/7: Read activity ==="',
-            f"set activity_file {_quote(ctx.activity_file) if ctx.activity_file else '{}'}",
-            f"set activity_scope {_quote(ctx.activity_scope)}",
-            "flexsoc_require_readable \"activity VCD/SAIF\" $activity_file",
-            'puts "activity_file=$activity_file"',
-            'puts "activity_scope=$activity_scope"',
-            "# Select the public activity reader from the trace extension.",
-            "set activity_ext [string tolower [file extension $activity_file]]",
-            "if {$activity_ext eq \".saif\"} {",
-            "  # Annotate averaged switching activity from SAIF at the GLS hierarchy scope.",
-            "  read_saif -scope $activity_scope $activity_file",
-            "} elseif {$activity_ext eq \".vcd\"} {",
-            "  # Annotate signal transitions from the GLS VCD at the matching hierarchy scope.",
-            "  read_vcd -scope $activity_scope $activity_file",
-            "} else {",
-            '  puts stderr "ERROR: activity file must be VCD or SAIF: $activity_file"',
-            "  exit 2",
-            "}",
-        ]
-    else:
-        lines += ["", 'puts "=== Step 7/7: Analysis-specific reporting ==="']
-    return "\n".join(lines)
+    final_block = (
+        templates.render(
+            "signoff/opensta/activity.tcl.j2",
+            activity_file=_quote(ctx.activity_file),
+            activity_scope=_quote(ctx.activity_scope),
+        )
+        if activity
+        else '\nputs "=== Step 7/7: Analysis-specific reporting ==="'
+    )
+    return templates.render(
+        "signoff/opensta/common.tcl.j2",
+        report_dir=_quote(ctx.report_dir),
+        liberty=_quote(ctx.liberty),
+        macro_liberties=f"{{{macro_list}}}",
+        netlist=_quote(ctx.netlist),
+        sdc=_quote(ctx.sdc),
+        spef=_quote(ctx.spef) if ctx.spef else "{}",
+        top=_quote(ctx.top),
+        stage=_quote(ctx.stage),
+        final_block=final_block,
+    )
+
+def render_opensta_script(
+    ctx: SignoffContext,
+    limitations: Sequence[str],
+    template: str,
+    *,
+    read_activity: bool = False,
+    **values: object,
+) -> str:
+    """Assemble one OpenSTA script from shared setup plus one analysis body."""
+
+    body = templates.render(template, **values)
+    return "\n".join((_header(ctx, limitations), _common_init(ctx, activity=read_activity), body))
+
 
 def render_sta_tcl(ctx: SignoffContext) -> str:
     """Render one concise timing report for a concrete corner and mode."""
@@ -519,134 +345,38 @@ def render_sta_tcl(ctx: SignoffContext) -> str:
         "Violating, near-critical and unconstrained paths are separate sections of one report.",
         "Post-synthesis capacitance excludes routed parasitics unless an explicit SPEF is supplied.",
     )
-    return "\n".join(
-        [
-            _header(ctx, limitations),
-            _common_init(ctx, activity=False),
-            "",
-            f"set delay_type {delay_type}",
-            f"set endpoint_group_limit {ctx.endpoint_group_limit}",
-            f"set endpoint_path_limit {ctx.endpoint_path_limit}",
-            f"set near_critical_limit {threshold:.6f}",
-            "# Create one compact timing report for this corner/mode and write its analysis context first.",
-            "set report [file join $report_dir timing.rpt]",
-            "set fp [open $report w]",
-            f'puts $fp "analysis=sta corner={ctx.corner} mode={ctx.mode} stage={ctx.stage}"',
-            'puts $fp "liberty=$liberty"',
-            'puts $fp "netlist=$netlist"',
-            'puts $fp "sdc=$sdc"',
-            'puts $fp "spef=$spef"',
-            "close $fp",
-            "flexsoc_section $report Units",
-            "# Record the unit system used by all timing, slew, and capacitance values below.",
-            "flexsoc_append_opensta $report report_units",
-            "flexsoc_section $report {Delay model}",
-            "set fp [open $report a]",
-            f'puts $fp "clock_network={"propagated" if ctx.stage == "post_route" else "ideal"}"',
-            f'puts $fp "interconnect={"spef" if ctx.stage == "post_route" else "none"}"',
-            "close $fp",
-            "flexsoc_section $report {Timing summary}",
-            "# OpenSTA report_wns/report_tns already emit canonical 'wns <min|max>' and 'tns <min|max>' labels.",
-            "# Report worst negative slack for the selected max/setup or min/hold analysis.",
-            "flexsoc_append_opensta $report report_wns -$delay_type",
-            "# Report total negative slack across all violating endpoints for this analysis type.",
-            "flexsoc_append_opensta $report report_tns -$delay_type",
-            "flexsoc_section $report {Clock QoR}",
-            "# OpenSTA reports minimum legal period and Fmax for every constrained clock.",
-            "flexsoc_append_opensta $report report_clock_min_period",
-            "flexsoc_section $report {Constraint validation}",
-            "# Append setup diagnostics so missing clocks, unconstrained endpoints, or invalid constraints stay visible.",
-            "flexsoc_append_opensta $report check_setup -verbose",
-            "# Append electrical and sequential timing checks such as slew, capacitance, fanout, recovery, and removal.",
-            "flexsoc_append_opensta $report report_check_types -max_slew -max_capacitance -max_fanout -recovery -removal -min_pulse_width -min_period -min_delay -max_delay",
-            *(
-                [
-                    "flexsoc_section $report {Routed parasitic annotation}",
-                    "# Show SPEF coverage; unannotated routed nets remain explicit instead of silently using zero parasitics.",
-                    "flexsoc_append_opensta $report report_parasitic_annotation -report_unannotated",
-                    "flexsoc_section $report {Clock latency and skew}",
-                    "# Report propagated clock-tree latency including Liberty internal clock latency where available.",
-                    "flexsoc_append_opensta $report report_clock_latency -include_internal_latency -digits 6",
-                    "# Report both setup and hold clock skew from the propagated post-route clock network.",
-                    "flexsoc_append_opensta $report report_clock_skew -setup -include_internal_latency -digits 6",
-                    "flexsoc_append_opensta $report report_clock_skew -hold -include_internal_latency -digits 6",
-                    "flexsoc_section $report {Worst routed paths}",
-                    "# Always show routed paths, even when timing is met, so cell and interconnect delay remain inspectable.",
-                    "flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count 50 -endpoint_path_count 1 -unique_paths_to_endpoint -sort_by_slack -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6",
-                ]
-                if ctx.stage == "post_route"
-                else []
-            ),
-            "flexsoc_section $report {Violating paths}",
-            "# Report the worst violating paths first, including gate slew, capacitance, net, and fanout fields.",
-            "flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count $endpoint_group_limit -endpoint_path_count $endpoint_path_limit -unique_paths_to_endpoint -sort_by_slack -slack_max 0.0 -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6",
-            "flexsoc_section $report {Near-critical paths}",
-            "# Report met paths close to zero slack so timing margin is visible before it becomes a violation.",
-            "flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count 3000 -endpoint_path_count 3 -unique_paths_to_endpoint -sort_by_slack -slack_min 0.0 -slack_max $near_critical_limit -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6",
-            'puts "report=$report"',
-        ]
+    routed = (
+        templates.render("signoff/opensta/sta_routed.tcl.j2")
+        if ctx.stage == "post_route"
+        else ""
+    )
+    return render_opensta_script(
+        ctx,
+        limitations,
+        "signoff/opensta/sta.tcl.j2",
+        delay_type=delay_type,
+        endpoint_group_limit=ctx.endpoint_group_limit,
+        endpoint_path_limit=ctx.endpoint_path_limit,
+        near_critical_limit=f"{threshold:.6f}",
+        corner=ctx.corner,
+        mode=ctx.mode,
+        stage=ctx.stage,
+        clock_network="propagated" if ctx.stage == "post_route" else "ideal",
+        interconnect="spef" if ctx.stage == "post_route" else "none",
+        routed_block=routed,
     )
 
 def render_sdf_tcl(ctx: SignoffContext) -> str:
+    """Render SDF generation for one sign-off corner."""
+
     limitations = ("SDF reflects the linked netlist and timing model for the selected corner.",)
     sdf = ctx.report_dir / f"{ctx.top}_{ctx.corner}.sdf"
-    divider = "/" if ctx.stage == "post_syn" else "."
-    return "\n".join(
-        [
-            _header(ctx, limitations),
-            _common_init(ctx, activity=False),
-            "",
-            "# write_sdf serializes the linked timing model for gate-level simulation.",
-            f"set sdf_file {_quote(sdf)}",
-            'puts "sdf=$sdf_file"',
-            f"write_sdf -divider {divider} -include_typ -no_timestamp -no_version $sdf_file",
-            "proc flexsoc_complete_sdf_typ_header {path} {",
-            "  set fp [open $path r]",
-            "  set text [read $fp]",
-            "  close $fp",
-            "  # OpenSTA 3.1 leaves PVT header typ empty even with -include_typ.",
-            r"  regsub -all {(\(VOLTAGE[ \t]+)([-+0-9.eE]+)::([-+0-9.eE]+)(\))} $text {\1\2:\2:\3\4} text",
-            r'  regsub -all {(\(PROCESS[ \t]+")([-+0-9.eE]+)::([-+0-9.eE]+)("\))} $text {\1\2:\2:\3\4} text',
-            r"  regsub -all {(\(TEMPERATURE[ \t]+)([-+0-9.eE]+)::([-+0-9.eE]+)(\))} $text {\1\2:\2:\3\4} text",
-            "  set fp [open $path w]",
-            "  puts -nonewline $fp $text",
-            "  close $fp",
-            "}",
-            "flexsoc_complete_sdf_typ_header $sdf_file",
-            "proc flexsoc_strip_sdf_interconnect_cell {path} {",
-            "  set fp [open $path r]",
-            '  set lines [split [read $fp] "\n"]',
-            "  close $fp",
-            "  set out {}",
-            "  set skipping 0",
-            "  set skipped 0",
-            "  set depth 0",
-            "  set removed 0",
-            "  foreach line $lines {",
-            r'  if {!$skipped && !$skipping && [string trim $line] eq "(CELL"} {set skipping 1}',
-            r'  if {$skipping} {',
-            r'    incr removed [regexp -all {\(INTERCONNECT[ 	]} $line]',
-            r'    set opens [regexp -all {\(} $line]',
-            r'    set closes [regexp -all {\)} $line]',
-            r'    incr depth [expr {$opens - $closes}]',
-            r'    if {$depth == 0} {set skipping 0; set skipped 1}',
-            "    continue",
-            "  }",
-            "  lappend out $line",
-            "  }",
-            r'  if {!$skipped} {puts stderr "ERROR: OpenSTA SDF interconnect cell not found: $path"; exit 2}',
-            "  set fp [open $path w]",
-            '  puts -nonewline $fp [join $out "\n"]',
-            "  close $fp",
-            r'  puts "sdf_interconnect=omitted count=$removed stage=post_syn"',
-            "}",
-            r'if {$stage eq "post_syn"} {',
-            "  # Pre-implementation timing intentionally has no extracted interconnect model.",
-            "  flexsoc_strip_sdf_interconnect_cell $sdf_file",
-            "} else {",
-            r'  puts "sdf_interconnect=retained stage=post_route"',
-            "}",
-        ]
+    return render_opensta_script(
+        ctx,
+        limitations,
+        "signoff/opensta/sdf.tcl.j2",
+        sdf_file=_quote(sdf),
+        divider="/" if ctx.stage == "post_syn" else ".",
     )
 
 def _macro_liberties(values: Mapping[str, str]) -> tuple[Path, ...]:
@@ -996,17 +726,21 @@ def _write_sta_qor(
 
     sta_root = root / "sta"
     sta_root.mkdir(parents=True, exist_ok=True)
-    json_path = sta_root / "sta.json"
+    json_path = sta_root / "summary.json"
     report_path = sta_root / "sta.rpt"
     finite_wns = [float(item["wns"]) for item in scenarios if item.get("wns") is not None]
     finite_tns = [float(item["tns"]) for item in scenarios if item.get("tns") is not None]
     status = "fail" if failures or any(item.get("status") == "fail" for item in scenarios) else "pass"
+    json_scenarios = [
+        {key: value for key, value in item.items() if key not in {"detail_report", "liberty", "spef"}}
+        for item in scenarios
+    ]
     data = {
         "schema": 1,
         "top": top,
         "pdk": pdk,
         "stage": stage,
-        "sdc": str(sdc),
+        "sdc": sdc.name,
         "status": status,
         "qor": {
             "scenario_count": len(scenarios),
@@ -1017,7 +751,7 @@ def _write_sta_qor(
             "unconstrained_paths": sum(int(item.get("unconstrained_paths", 0)) for item in scenarios),
         },
         "failures": list(failures),
-        "scenarios": list(scenarios),
+        "scenarios": json_scenarios,
     }
     json_path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -1083,6 +817,9 @@ def execute_static(analysis: str, project_root: Path, values: Mapping[str, str],
     failures: list[str] = []
     violations: list[str] = []
     sta_summaries: list[dict[str, Any]] = []
+    power_summaries: dict[str, dict[str, Any]] = {}
+    power_activity: float | None = None
+    power_duty: float | None = None
     for corner, mode, liberty in work:
         if analysis == "sta":
             report_dir = root / "sta" / corner / mode
@@ -1133,6 +870,20 @@ def execute_static(analysis: str, project_root: Path, values: Mapping[str, str],
                         f"wns={summary.get('wns')} violating_paths={summary['violating_paths']} "
                         f"unconstrained_paths={summary['unconstrained_paths']}; report={report}"
                     )
+            elif analysis == "power_estimate":
+                from .power import _power_values
+
+                text = report.read_text(encoding="utf-8", errors="replace")
+                activity = re.search(r"^activity=(" + FLOAT_RE.pattern + r")$", text, flags=re.MULTILINE)
+                duty = re.search(r"^duty=(" + FLOAT_RE.pattern + r")$", text, flags=re.MULTILINE)
+                if activity:
+                    power_activity = float(activity.group(1))
+                if duty:
+                    power_duty = float(duty.group(1))
+                values_qor = _power_values(text)
+                if values_qor:
+                    values_qor["dynamic_w"] = values_qor["internal_w"] + values_qor["switching_w"]
+                power_summaries[corner] = values_qor
 
     if analysis == "sta":
         report, data = _write_sta_qor(
@@ -1146,6 +897,25 @@ def execute_static(analysis: str, project_root: Path, values: Mapping[str, str],
         )
         print(f"[report] STA QoR {report}", flush=True)
         print(f"[report] STA JSON {data}", flush=True)
+    elif analysis == "power_estimate":
+        summary = {
+            "schema": 1,
+            "analysis": "power_estimate",
+            "top": values.get("TOP", "test"),
+            "pdk": values.get("PDK", "unknown"),
+            "stage": stage,
+            "status": "fail" if failures else "pass",
+            "activity_source": "input_assumption",
+            "corners": power_summaries,
+        }
+        if power_activity is not None:
+            summary["activity"] = power_activity
+        if power_duty is not None:
+            summary["duty"] = power_duty
+        path = root / "power" / "estimate" / "summary.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(f"[report] Power estimate JSON {path}", flush=True)
     for failure in failures:
         print(f"ERROR: {failure}", file=sys.stderr)
     for violation in violations:

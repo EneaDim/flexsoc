@@ -1710,7 +1710,7 @@ clock_network=propagated
 interconnect=spef
 ```
 
-L'analisi aggiunge coverage di annotazione SPEF, latency/skew dei clock e path fisici dettagliati. L'evidence pubblica consolidata è `signoff/<pdk>/sta/sta.rpt` con `sta.json`; i report scenario-local sono artifact diagnostici runtime, non contratti separati di package.
+L'analisi aggiunge coverage di annotazione SPEF, latency/skew dei clock e path fisici dettagliati. L'evidence pubblica consolidata è `signoff/<pdk>/sta/sta.rpt` con `summary.json`; i report scenario-local sono artifact diagnostici runtime, non contratti separati di package.
 
 La differenza quantitativa rispetto alla STA post-synthesis è nei parassiti routed e nel clock tree fisico, non in un cambio della sorgente di verità dell'intento timing.
 

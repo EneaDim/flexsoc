@@ -1,4 +1,4 @@
-"""Run metrics, manifest, closure qualification and terminal reporting."""
+"""Collect normalized run metrics and immutable manifest evidence."""
 
 from __future__ import annotations
 
@@ -12,14 +12,16 @@ import tomllib
 from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Mapping, Sequence
-
-from rich.console import Console
-from rich.table import Table
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 from flexsoc.backend.signoff.sta import SDF_MODE_TO_CORNER
 from flexsoc.backend.core import pdk_run_layout
 from flexsoc.backend.core.toolchain import collect as collect_environment
+
+
+if TYPE_CHECKING:
+    from flexsoc.backend.core.core import BackendContext
+    from flexsoc.backend.core.target import Target
 
 
 LINT_KINDS = ("latch", "undriven", "width", "unconnected", "unused")
@@ -117,13 +119,15 @@ def collect_lint(top: str, run_dir: Path) -> dict[str, Any] | None:
         data = collect_lint_tool(top, run_dir, tool)
         if data is not None:
             tools[tool] = data
-    if not tools:
-        return None
-    return {
-        "order": ["slang", "verilator"],
-        "status": "pass" if len(tools) == 2 and all(item["status"] == "pass" for item in tools.values()) else "partial",
-        "tools": tools,
-    }
+    if tools:
+        return {
+            "order": ["slang", "verilator"],
+            "status": "pass" if len(tools) == 2 and all(item["status"] == "pass" for item in tools.values()) else "partial",
+            "tools": tools,
+        }
+
+    summary = _json_object(run_dir / "dv" / "lint" / "summary.json")
+    return summary if isinstance(summary.get("tools"), dict) else None
 
 
 def collect_cdc_rdc(top: str, run_dir: Path) -> dict[str, Any] | None:
@@ -385,7 +389,7 @@ def collect_sta(
     layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
     root = layout.signoff_stage_root(stage)
     log_root = layout.signoff_stage_log_root(stage)
-    canonical = root / "sta" / "sta.json"
+    canonical = root / "sta" / "summary.json"
     if canonical.is_file():
         payload = json.loads(canonical.read_text(encoding="utf-8"))
         scenarios: dict[str, dict[str, Any]] = {}
@@ -456,6 +460,14 @@ def collect_power_estimate(
     layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
     root = layout.signoff_stage_root(stage)
     log_root = layout.signoff_stage_log_root(stage)
+    summary = _json_object(root / "power" / "estimate" / "summary.json")
+    if isinstance(summary.get("corners"), dict):
+        return {
+            key: summary[key]
+            for key in ("activity", "duty", "activity_source", "corners", "status")
+            if key in summary
+        }
+
     corners: dict[str, Any] = {}
     activity: float | None = None
     duty: float | None = None
@@ -1419,238 +1431,6 @@ def collect_metrics(
     return metrics
 
 
-def count_color(value: int, *, error: bool = False) -> str:
-    """Use green/yellow/red consistently for diagnostic counts."""
-
-    return "green" if value == 0 else ("red" if error else "yellow")
-
-
-def timing_color(value: float) -> str:
-    """Color timing slack by sign without applying a quality policy."""
-
-    return "green" if value >= 0 else "red"
-
-
-def coverage_markup(record: dict[str, Any]) -> str:
-    """Render one coverage record without turning coverage into a gate."""
-
-    total = int(record.get("total", 0) or 0)
-    hit = int(record.get("hit", 0) or 0)
-    if total == 0:
-        return "[grey70]-[/grey70]"
-    percent = float(record.get("percent", 0.0) or 0.0)
-    color = "green" if percent >= 100.0 else "yellow"
-    return f"[{color}]{hit}/{total}  {percent:.2f}%[/{color}]"
-
-
-def _coverage_column_record(values: dict[str, Any], column: str) -> dict[str, Any]:
-    """Return one normalized display column, with compatibility for schema v1."""
-
-    columns = values.get("columns")
-    if isinstance(columns, dict):
-        record = columns.get(column)
-        if isinstance(record, dict):
-            return record
-    if column == "total":
-        record = values.get("total")
-        return record if isinstance(record, dict) else {}
-
-    by_type = values.get("types")
-    if not isinstance(by_type, dict):
-        return {}
-    hit = 0
-    total = 0
-    for kind in COVERAGE_TYPE_GROUPS[column]:
-        record = by_type.get(kind)
-        if not isinstance(record, dict):
-            continue
-        hit += int(record.get("hit", 0) or 0)
-        total += int(record.get("total", 0) or 0)
-    return {"hit": hit, "total": total, "percent": 100.0 * hit / total if total else 0.0}
-
-
-def coverage_matrix_table(matrix: dict[str, Any]) -> Table | None:
-    """Return the fixed scope × {line,toggle,expr,branch,fsm,user,total} matrix."""
-
-    scopes = matrix.get("scopes") if isinstance(matrix, dict) else None
-    if not isinstance(scopes, dict) or not scopes:
-        return None
-
-    table = Table(box=None, pad_edge=False, header_style="bold grey70")
-    table.add_column("Scope", style="white", no_wrap=True)
-    for column in COVERAGE_DISPLAY_COLUMNS:
-        table.add_column(column, justify="right", no_wrap=True)
-
-    for scope in ("design", "registers", "common", "other", "all"):
-        values = scopes.get(scope)
-        if not isinstance(values, dict):
-            continue
-        table.add_row(
-            scope,
-            *(coverage_markup(_coverage_column_record(values, column)) for column in COVERAGE_DISPLAY_COLUMNS),
-        )
-    return table
-
-
-def metric_table() -> Table:
-    """Return one compact two-column metrics table."""
-
-    table = Table(show_header=False, box=None, pad_edge=False)
-    table.add_column("Metric", style="bright_cyan", no_wrap=True)
-    table.add_column("Value", style="white")
-    return table
-
-
-def status_markup(status: str) -> str:
-    """Return a compact colored technical status label."""
-
-    colors = {
-        "pass": "bold green",
-        "fail": "bold red",
-        "error": "bold red",
-        "review": "bold orange1",
-        "partial": "bold orange1",
-        "warn": "bold orange1",
-        "safe": "bold bright_cyan",
-        "unsupported": "bold bright_cyan",
-        "missing": "bold bright_cyan",
-        "unknown": "bold bright_cyan",
-        "incomplete": "bold orange1",
-    }
-    normalized = status.strip().lower()
-    color = colors.get(normalized, "bright_cyan")
-    return f"[{color}]{normalized.upper()}[/{color}]"
-
-
-def _number_markup(value: object, *, digits: int = 6, scale: float = 1.0, suffix: str = "") -> str:
-    """Render one optional numeric QoR value with sign-aware color."""
-
-    if value is None:
-        return "[grey70]—[/grey70]"
-    number = float(value) * scale
-    color = "green" if number >= 0 else "red"
-    return f"[{color}]{number:+.{digits}f}{suffix}[/{color}]"
-
-
-def sta_qor_table(scenarios: Mapping[str, Any]) -> Table | None:
-    """Render one compact corner/mode STA matrix from normalized metrics."""
-
-    rows: list[tuple[str, str, Mapping[str, Any]]] = []
-    for corner in ("ss", "tt", "ff"):
-        modes = scenarios.get(corner)
-        if not isinstance(modes, Mapping):
-            continue
-        for mode in ("setup", "hold"):
-            values = modes.get(mode)
-            if isinstance(values, Mapping):
-                rows.append((corner, mode, values))
-    if not rows:
-        return None
-
-    table = Table(box=None, pad_edge=False, header_style="bold grey70")
-    table.add_column("Corner", style="white", no_wrap=True)
-    table.add_column("Mode", style="white", no_wrap=True)
-    table.add_column("Status", no_wrap=True)
-    table.add_column("WNS (ns)", justify="right", no_wrap=True)
-    table.add_column("TNS (ns)", justify="right", no_wrap=True)
-    table.add_column("Viol", justify="right", no_wrap=True)
-    table.add_column("Unconstr", justify="right", no_wrap=True)
-    for corner, mode, values in rows:
-        violations = int(values.get("reported_violating_paths", 0) or 0)
-        unconstrained = int(values.get("reported_unconstrained_paths", 0) or 0)
-        table.add_row(
-            corner, mode, status_markup(str(values.get("status", "unknown"))),
-            _number_markup(values.get("wns")), _number_markup(values.get("tns")),
-            f"[{count_color(violations, error=True)}]{violations}[/]",
-            f"[{count_color(unconstrained, error=True)}]{unconstrained}[/]",
-        )
-    return table
-
-
-def gls_matrix_table(gls: Mapping[str, Any]) -> Table | None:
-    """Render test × timing-mode GLS qualification without parsing raw reports."""
-
-    tests = [str(item) for item in gls.get("tests", [])]
-    modes = [str(item) for item in gls.get("timing_modes", [])]
-    records = gls.get("scenario_records")
-    if not tests or not modes or not isinstance(records, list):
-        return None
-    indexed = {
-        (str(item.get("test", "")), str(item.get("timing_mode", ""))): item
-        for item in records if isinstance(item, Mapping)
-    }
-    table = Table(box=None, pad_edge=False, header_style="bold grey70")
-    table.add_column("Test", style="white", no_wrap=True)
-    for mode in modes:
-        table.add_column(mode, justify="center", no_wrap=True)
-    for test in tests:
-        cells = []
-        for mode in modes:
-            record = indexed.get((test, mode))
-            if record is None:
-                cells.append("[grey70]—[/grey70]")
-                continue
-            status = str(record.get("status", "unknown"))
-            backend = str(record.get("backend") or "")
-            cell = status_markup(status)
-            if backend:
-                cell += f" [grey70]{backend}[/grey70]"
-            cells.append(cell)
-        table.add_row(test, *cells)
-    return table
-
-
-def power_estimate_table(power: Mapping[str, Any]) -> Table | None:
-    """Render vectorless power by corner in human units while keeping JSON in watts."""
-
-    corners = power.get("corners")
-    if not isinstance(corners, Mapping) or not corners:
-        return None
-    table = Table(box=None, pad_edge=False, header_style="bold grey70")
-    table.add_column("Corner", style="white", no_wrap=True)
-    table.add_column("Internal (mW)", justify="right")
-    table.add_column("Switching (mW)", justify="right")
-    table.add_column("Leakage (µW)", justify="right")
-    table.add_column("Total (mW)", justify="right")
-    for corner in ("ss", "tt", "ff"):
-        values = corners.get(corner)
-        if not isinstance(values, Mapping):
-            continue
-        table.add_row(
-            corner,
-            _number_markup(values.get("internal_w"), digits=3, scale=1e3),
-            _number_markup(values.get("switching_w"), digits=3, scale=1e3),
-            _number_markup(values.get("leakage_w"), digits=3, scale=1e6),
-            _number_markup(values.get("total_w"), digits=3, scale=1e3),
-        )
-    return table
-
-
-def workload_table(summary: Mapping[str, Any]) -> Table | None:
-    """Render one activity/fusion workload catalogue from its normalized reports."""
-
-    reports = summary.get("reports")
-    if not isinstance(reports, list) or not reports:
-        return None
-    table = Table(box=None, pad_edge=False, header_style="bold grey70")
-    table.add_column("Workload", style="white", no_wrap=True)
-    table.add_column("Test", style="grey70", no_wrap=True)
-    table.add_column("Backend", justify="center", no_wrap=True)
-    table.add_column("Timing", justify="center", no_wrap=True)
-    table.add_column("Status", no_wrap=True)
-    for report in reports:
-        if not isinstance(report, Mapping):
-            continue
-        table.add_row(
-            str(report.get("workload", report.get("spec", "-"))),
-            str(report.get("test", "-")),
-            str(report.get("backend", "-")),
-            str(report.get("timing_mode", "-")),
-            status_markup(str(report.get("status", "unknown"))),
-        )
-    return table
-
-
 def technical_status(metrics: Mapping[str, Any]) -> str:
     """Normalize flow closure to the public technical status contract."""
 
@@ -1663,382 +1443,6 @@ def technical_status(metrics: Mapping[str, Any]) -> str:
     if status == "unsupported":
         return "UNSUPPORTED"
     return "PASS" if status == "pass" else "REVIEW"
-
-
-def provenance_summary(states: Mapping[str, str]) -> dict[str, Any]:
-    """Return deterministic setup states and the strongest provenance condition."""
-
-    normalized = {stage: str(state).upper() for stage, state in sorted(states.items())}
-    order = ("INVALID", "STALE", "MODIFIED", "MISSING", "VALIDATED_OVERRIDE", "CLEAN")
-    overall = next((state for state in order if state in normalized.values()), "INVALID")
-    return {"status": overall, "stages": normalized}
-
-
-def provenance_markup(status: str) -> str:
-    """Render provenance independently from technical PASS/FAIL semantics."""
-
-    normalized = status.strip().upper()
-    color = {
-        "CLEAN": "bold bright_cyan",
-        "VALIDATED_OVERRIDE": "bold #87afff",
-        "MODIFIED": "bold orange1",
-        "STALE": "bold orange1",
-        "MISSING": "bold orange1",
-        "INVALID": "bold red",
-    }.get(normalized, "bold bright_cyan")
-    return f"[{color}]{normalized}[/{color}]"
-
-
-def _show_signoff_stage(console: Console, title: str, stage: dict[str, Any]) -> None:
-    """Render one compact sign-off stage in execution order."""
-
-    console.print(f"\n[bold orange1]{title}[/bold orange1]")
-    table = metric_table()
-
-    physical = stage.get("physical", {})
-    if isinstance(physical, dict) and physical:
-        table.add_row("Physical closure", status_markup(str(physical.get("status", "unknown"))))
-        checks = physical.get("checks", {})
-        if isinstance(checks, dict):
-            for label, key in (
-                ("Route DRC", "route_drc"),
-                ("Antenna", "antenna"),
-                ("GDS DRC", "gds_drc"),
-                ("LVS", "lvs"),
-                ("IR / PDN", "ir_drop"),
-            ):
-                check = checks.get(key)
-                if isinstance(check, dict):
-                    table.add_row(label, status_markup(str(check.get("status", "unknown"))))
-
-    sdf = stage.get("sdf", {})
-    if isinstance(sdf, dict) and sdf:
-        count = int(sdf.get("count", 0) or 0)
-        suffix = f" · corners={count}" if count else ""
-        table.add_row("SDF", status_markup(str(sdf.get("status", "unknown"))) + suffix)
-
-    sta = stage.get("sta", {})
-    if isinstance(sta, dict) and sta:
-        table.add_row(
-            "STA",
-            status_markup(str(sta.get("status", "unknown")))
-            + f" · {sta.get('clock_model', 'unknown')} clock · {sta.get('interconnect', 'unknown')}",
-        )
-
-    gls = stage.get("gls", stage.get("post_syn_gls", {}))
-    if isinstance(gls, dict) and gls:
-        table.add_row(
-            "Gate-level simulation",
-            f"{gls.get('passed', 0)}/{gls.get('total', 0)}  "
-            + status_markup(str(gls.get("status", "unknown")))
-            + f" · interconnect {gls.get('interconnect_delays', 'unknown')}",
-        )
-
-    power = stage.get("power", {})
-    if isinstance(power, dict) and power:
-        table.add_row("Power estimate", status_markup(str(power.get("status", "unknown"))))
-
-    activity = stage.get("power_activity", {})
-    if isinstance(activity, dict) and activity:
-        table.add_row(
-            "Activity power",
-            f"{activity.get('passed', 0)}/{activity.get('total', 0)}  "
-            + status_markup(str(activity.get("status", "unknown"))),
-        )
-
-    fusion = stage.get("fusion", {})
-    if isinstance(fusion, dict) and fusion:
-        table.add_row(
-            "Timing / power fusion",
-            f"{fusion.get('passed', 0)}/{fusion.get('total', 0)}  "
-            + status_markup(str(fusion.get("status", "unknown"))),
-        )
-
-    console.print(table)
-
-
-def show_check(path: Path) -> None:
-    """Render one lifecycle-ordered closure dashboard from saved metrics."""
-
-    if not path.is_file():
-        raise FileNotFoundError(f"metrics file not found: {path}; run: fx metrics")
-
-    data = json.loads(path.read_text(encoding="utf-8"))
-    console = Console()
-    console.print(
-        f"[bold orange1]FlexSoC run check[/bold orange1] · "
-        f"[bold bright_cyan]{data.get('top', 'unknown')}[/bold bright_cyan]"
-    )
-    provenance = data.get("provenance", {})
-    provenance_status = (
-        str(provenance.get("status", "INVALID")) if isinstance(provenance, dict) else "INVALID"
-    )
-    console.print(
-        f"[bright_cyan]Technical[/bright_cyan] "
-        f"{status_markup(str(data.get('technical_status', technical_status(data))))} · "
-        f"[bright_cyan]Provenance[/bright_cyan] {provenance_markup(provenance_status)}"
-    )
-
-    flow = data.get("flow", {})
-    if isinstance(flow, dict) and flow:
-        console.print("\n[bold orange1]Flow[/bold orange1]")
-        table = Table(box=None, pad_edge=False, header_style="bold bright_cyan")
-        table.add_column("Main step")
-        table.add_column("Status")
-        labels = {
-            "lint": "RTL lint",
-            "cdc_rdc": "CDC / RDC",
-            "functional": "Functional verification",
-            "formal": "Formal verification",
-            "synthesis": "Synthesis",
-            "equivalence": "RTL ↔ synthesis equivalence",
-            "pre_implementation_signoff": "Pre-implementation sign-off",
-            "implementation": "Implementation / PnR",
-            "post_implementation_signoff": "Post Sign-Off",
-        }
-        for name in flow.get("order", []):
-            status = str(flow.get("stages", {}).get(name, "missing"))
-            table.add_row(labels.get(name, name), status_markup(status))
-        console.print(table)
-        overall = str(flow.get("status", "incomplete"))
-        style = {"pass": "green", "review": "orange1", "fail": "red"}.get(overall, "bright_cyan")
-        console.print(
-            f"[bright_cyan]Run status:[/bright_cyan] "
-            f"[bold {style}]{overall.upper()}[/bold {style}]"
-        )
-
-    if isinstance(provenance, dict) and isinstance(provenance.get("stages"), dict):
-        console.print("\n[bold orange1]Provenance[/bold orange1]")
-        table = Table(box=None, pad_edge=False, header_style="bold bright_cyan")
-        table.add_column("Setup", style="bright_cyan", no_wrap=True)
-        table.add_column("State")
-        table.add_column("Action", style="#87d7ff")
-        for stage, state in provenance["stages"].items():
-            normalized = str(state).upper()
-            action = (
-                f"fx validate_override --set STAGE={stage}" if normalized == "MODIFIED"
-                else f"fx {stage}" if normalized == "STALE"
-                else f"repair inputs; fx {stage}" if normalized == "INVALID"
-                else "accepted for current lineage" if normalized == "VALIDATED_OVERRIDE"
-                else "-"
-            )
-            table.add_row(str(stage), provenance_markup(normalized), action)
-        console.print(table)
-
-    lint = data.get("lint")
-    if isinstance(lint, dict):
-        console.print(
-            "\n[bold orange1]RTL lint[/bold orange1]  "
-            "[bright_cyan]Slang → Verilator[/bright_cyan]"
-        )
-        table = Table(box=None, pad_edge=False, header_style="bold bright_cyan")
-        table.add_column("Tool")
-        table.add_column("Status")
-        table.add_column("Errors", justify="right")
-        table.add_column("Warnings", justify="right")
-        table.add_column("Latch", justify="right")
-        table.add_column("Width", justify="right")
-        table.add_column("Unused", justify="right")
-        for tool in lint.get("order", []):
-            values = lint.get("tools", {}).get(tool)
-            if not values:
-                table.add_row(tool, status_markup("missing"), "-", "-", "-", "-", "-")
-                continue
-            diag = values.get("diagnostics", {})
-            table.add_row(
-                tool,
-                status_markup(str(values.get("status", "unknown"))),
-                str(values.get("errors", 0)),
-                str(values.get("warnings", 0)),
-                str(diag.get("latch", 0)),
-                str(diag.get("width", 0)),
-                str(diag.get("unused", 0)),
-            )
-        console.print(table)
-
-    cdc_rdc = data.get("cdc_rdc")
-    if isinstance(cdc_rdc, dict):
-        console.print(
-            "\n[bold orange1]CDC / RDC[/bold orange1]  "
-            "[bright_cyan]post-lint structural analysis[/bright_cyan]"
-        )
-        table = metric_table()
-        table.add_row("Status", status_markup(str(cdc_rdc.get("status", "unknown"))))
-        table.add_row(
-            "Domains",
-            f"clocks={cdc_rdc.get('clock_domains', 0)} · resets={cdc_rdc.get('reset_domains', 0)} · "
-            f"sequential={cdc_rdc.get('sequential_elements', 0)}",
-        )
-        for label, key in (("CDC", "cdc"), ("RDC", "rdc")):
-            values = cdc_rdc.get(key, {})
-            if isinstance(values, dict):
-                table.add_row(
-                    label,
-                    f"raw={values.get('raw_crossings', 0)} · safe={values.get('safe', 0)} · "
-                    f"review={values.get('review', 0)} · warn={values.get('warnings', 0)} · "
-                    f"error={values.get('errors', 0)}",
-                )
-        table.add_row("Obligations", str(cdc_rdc.get("verification_obligations", 0)))
-        table.add_row("Report", str(cdc_rdc.get("report", "-")))
-        console.print(table)
-
-    regression = data.get("regression")
-    if isinstance(regression, dict):
-        console.print("\n[bold orange1]Functional verification[/bold orange1]")
-        table = metric_table()
-        table.add_row("Status", status_markup(str(regression.get("status", "unknown"))))
-        table.add_row("Generated tests", str(regression.get("test_count", 0)))
-        for backend, values in regression.get("backends", {}).items():
-            table.add_row(f"{backend} logs", str(values.get("tests_logged", 0)))
-        coverage = regression.get("coverage", {})
-        for label, key in (("Coverage all", "all"), ("Coverage design", "design")):
-            values = coverage.get(key, {}) if isinstance(coverage, dict) else {}
-            if isinstance(values, dict) and values:
-                table.add_row(
-                    label,
-                    f"{values.get('hit', 0)}/{values.get('total', 0)}  "
-                    f"{float(values.get('percent', 0.0) or 0.0):.2f}%",
-                )
-        console.print(table)
-        matrix = regression.get("matrix", {})
-        if isinstance(matrix, dict) and matrix:
-            matrix_table = Table(box=None, pad_edge=False, header_style="bold bright_cyan")
-            matrix_table.add_column("Test")
-            matrix_table.add_column("SV")
-            matrix_table.add_column("cocotb")
-            for test in sorted(matrix):
-                values = matrix.get(test, {}) if isinstance(matrix.get(test), dict) else {}
-                matrix_table.add_row(
-                    test,
-                    status_markup(str(values.get("sv", "missing"))),
-                    status_markup(str(values.get("cocotb", "missing"))),
-                )
-            console.print(matrix_table)
-
-    formal = data.get("formal")
-    if isinstance(formal, dict):
-        console.print("\n[bold orange1]Formal verification[/bold orange1]")
-        table = Table(box=None, pad_edge=False, header_style="bold bright_cyan")
-        table.add_column("Suite")
-        table.add_column("Stage")
-        table.add_column("Status")
-        table.add_column("Time", justify="right")
-        table.add_column("Traces", justify="right")
-        for suite in ("csr", "properties"):
-            for stage in ("bmc", "prove", "cover"):
-                values = formal.get(suite, {}).get(stage)
-                if not values:
-                    table.add_row(suite, stage, status_markup("missing"), "-", "-")
-                    continue
-                elapsed = values.get("elapsed_s")
-                table.add_row(
-                    suite,
-                    stage,
-                    status_markup(str(values.get("status", "unknown"))),
-                    "-" if elapsed is None else f"{elapsed}s",
-                    str(values.get("trace_count", 0)),
-                )
-        console.print(table)
-
-    synthesis = data.get("synthesis")
-    if isinstance(synthesis, dict):
-        console.print("\n[bold orange1]Synthesis[/bold orange1]")
-        table = metric_table()
-        table.add_row("Strategy", str(synthesis.get("strategy", "unknown")))
-        table.add_row("Netlist", str(synthesis.get("netlist", "missing")))
-        for label, key in (("Cells", "cells"), ("Area", "area"), ("Sequential area", "sequential_area")):
-            if key in synthesis:
-                table.add_row(label, str(synthesis[key]))
-        errors = int(synthesis.get("errors", 0))
-        warnings = int(synthesis.get("warnings", 0))
-        table.add_row("Errors", f"[{count_color(errors, error=True)}]{errors}[/]")
-        table.add_row("Warnings", f"[{count_color(warnings)}]{warnings}[/]")
-        console.print(table)
-
-    equiv = data.get("equivalence")
-    if isinstance(equiv, dict):
-        console.print("\n[bold orange1]RTL ↔ synthesis equivalence[/bold orange1]")
-        table = metric_table()
-        table.add_row("Status", status_markup(str(equiv.get("status", "unknown"))))
-        partitions = equiv.get("partitions", {})
-        if isinstance(partitions, dict) and int(partitions.get("total", 0) or 0):
-            table.add_row(
-                "Partitions proven",
-                f"{partitions.get('proven', 0)}/{partitions.get('total', 0)}  "
-                f"{float(partitions.get('percent', 0.0) or 0.0):.2f}%",
-            )
-            table.add_row("Partitions failed", str(partitions.get("failed", 0)))
-            table.add_row("Engine errors", str(partitions.get("errors", 0)))
-            table.add_row("Timeouts", str(partitions.get("timeouts", 0)))
-            table.add_row("Unknown", str(partitions.get("unknown", 0)))
-        for name, values in equiv.get("strategies", {}).items():
-            table.add_row(f"Strategy {name}", f"{values.get('proved', 0)}/{values.get('attempts', 0)} proven")
-        table.add_row("Log", str(equiv.get("log", "-")))
-        console.print(table)
-
-    signoff = data.get("signoff", {})
-    if isinstance(signoff, dict) and signoff:
-        _show_signoff_stage(console, "Pre-implementation sign-off", signoff)
-        sta_table = sta_qor_table(data.get("sta", {}))
-        if sta_table is not None:
-            console.print("[bold bright_cyan]STA QoR[/bold bright_cyan]")
-            console.print(sta_table)
-        gls_table = gls_matrix_table(data.get("post_syn_gls", {}))
-        if gls_table is not None:
-            console.print("[bold bright_cyan]GLS matrix[/bold bright_cyan]")
-            console.print(gls_table)
-        power_table = power_estimate_table(data.get("power_estimate", {}))
-        if power_table is not None:
-            console.print("[bold bright_cyan]Power estimate[/bold bright_cyan]")
-            console.print(power_table)
-        for label, key in (("Activity power workloads", "power_analysis"), ("Timing / power fusion workloads", "fusion_analysis")):
-            table = workload_table(data.get(key, {}))
-            if table is not None:
-                console.print(f"[bold bright_cyan]{label}[/bold bright_cyan]")
-                console.print(table)
-
-    implementation = data.get("implementation")
-    if isinstance(implementation, dict):
-        console.print("\n[bold orange1]Implementation / PnR[/bold orange1]")
-        table = metric_table()
-        table.add_row("Status", status_markup(str(implementation.get("status", "unknown"))))
-        table.add_row("Results", str(implementation.get("platform_root", "-")))
-        artifacts = implementation.get("artifacts", {})
-        if isinstance(artifacts, dict):
-            table.add_row("Final artifacts", f"{len(artifacts)}/5")
-        if implementation.get("log"):
-            table.add_row("Log", str(implementation.get("log")))
-        console.print(table)
-
-    routed = signoff.get("post_pnr", {}) if isinstance(signoff, dict) else {}
-    if isinstance(routed, dict):
-        routed = dict(routed)
-        physical = data.get("physical_signoff")
-        if isinstance(physical, dict):
-            routed["physical"] = physical
-        if routed:
-            _show_signoff_stage(console, "Post Sign-Off", routed)
-            post_pnr = data.get("post_pnr", {})
-            if isinstance(post_pnr, dict):
-                sta_table = sta_qor_table(post_pnr.get("sta", {}))
-                if sta_table is not None:
-                    console.print("[bold bright_cyan]STA QoR[/bold bright_cyan]")
-                    console.print(sta_table)
-                gls_table = gls_matrix_table(post_pnr.get("gls", {}))
-                if gls_table is not None:
-                    console.print("[bold bright_cyan]GLS matrix[/bold bright_cyan]")
-                    console.print(gls_table)
-                power_table = power_estimate_table(post_pnr.get("power_estimate", {}))
-                if power_table is not None:
-                    console.print("[bold bright_cyan]Power estimate[/bold bright_cyan]")
-                    console.print(power_table)
-                for label, key in (("Activity power workloads", "power_analysis"), ("Timing / power fusion workloads", "fusion_analysis")):
-                    table = workload_table(post_pnr.get(key, {}))
-                    if table is not None:
-                        console.print(f"[bold bright_cyan]{label}[/bold bright_cyan]")
-                        console.print(table)
-
-    console.print(f"\n[bright_cyan]Detailed metrics:[/bright_cyan] [#87d7ff]{path}[/#87d7ff]")
 
 
 def _git(root: Path, *args: str) -> str | None:
@@ -2062,250 +1466,6 @@ def _file_sha256(path: Path) -> str | None:
         return None
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
-
-def _path_sha256(path: Path) -> str | None:
-    """Hash one file or directory tree without embedding its absolute path."""
-
-    path = path.expanduser().absolute()
-    if path.is_file():
-        return _file_sha256(path)
-    if not path.is_dir():
-        return None
-    digest = hashlib.sha256()
-    for item in sorted(candidate for candidate in path.rglob("*") if candidate.is_file()):
-        digest.update(item.relative_to(path).as_posix().encode())
-        digest.update(bytes.fromhex(_file_sha256(item) or ""))
-    return digest.hexdigest()
-
-
-def _json_sha256(data: object) -> str:
-    """Hash canonical JSON for deterministic configuration fingerprints."""
-
-    payload = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    return hashlib.sha256(payload.encode()).hexdigest()
-
-
-@dataclass(slots=True)
-class Provenance:
-    """Track generated collateral against effective inputs and validated overrides."""
-
-    path: Path
-    run_root: Path
-
-    def _load(self) -> dict[str, Any]:
-        if not self.path.is_file():
-            return {"schema_version": 1, "stages": {}}
-        try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise ValueError(f"invalid provenance manifest {self.path}: {exc}") from exc
-        if data.get("schema_version") != 1 or not isinstance(data.get("stages"), dict):
-            raise ValueError(f"invalid provenance manifest: {self.path}")
-        return data
-
-    def _write(self, data: Mapping[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temp = self.path.with_name(f".{self.path.name}.{os.getpid()}.tmp")
-        temp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        temp.replace(self.path)
-
-    def _key(self, path: Path) -> str:
-        resolved = path.expanduser().absolute()
-        try:
-            return resolved.relative_to(self.run_root.resolve()).as_posix()
-        except ValueError:
-            return str(resolved)
-
-    def _resolve(self, key: str) -> Path:
-        path = Path(key)
-        return path if path.is_absolute() else self.run_root / path
-
-    def _snapshot(self, paths: Sequence[Path]) -> list[dict[str, str | None]]:
-        return [{"path": self._key(path), "sha256": _path_sha256(path)} for path in paths]
-
-    @staticmethod
-    def _fingerprint(record: Mapping[str, Any]) -> str:
-        payload: dict[str, Any] = {
-            "config": record.get("config", {}),
-            "parents": record.get("parents", {}),
-            "inputs": [item.get("sha256") for item in record.get("inputs", ())],
-            "input_paths_match": record.get("input_paths_match", True),
-            "generated": [
-                (item.get("path"), item.get("effective_sha256"))
-                for item in record.get("generated", ())
-            ],
-        }
-        # Legacy records deliberately omit tools: retaining their old fingerprint avoids
-        # invalidating already-qualified evidence solely because provenance gained this field.
-        if "tools" in record:
-            payload["tools"] = record.get("tools", {})
-        return _json_sha256(payload)
-
-    def current_fingerprint(
-        self, stage: str, *, inputs: Sequence[Path], config: Mapping[str, object],
-        parents: Mapping[str, str | None] | None = None,
-        tools: Mapping[str, object] | None = None,
-    ) -> str | None:
-        """Fingerprint the effective stage state, including unsaved upstream changes."""
-
-        record = self._load()["stages"].get(stage)
-        if not isinstance(record, dict):
-            return None
-        current_inputs = self._snapshot(inputs)
-        current = {
-            "config": dict(sorted(config.items())),
-            "parents": dict(parents or {}),
-            "inputs": current_inputs,
-            "input_paths_match": [item.get("path") for item in record.get("inputs", ())]
-            == [item["path"] for item in current_inputs],
-            "generated": [
-                {
-                    "path": item.get("path"),
-                    "effective_sha256": _path_sha256(
-                        self._resolve(str(item.get("path", "")))
-                    ),
-                }
-                for item in record.get("generated", ())
-            ],
-        }
-        if "tools" in record:
-            current["tools"] = dict(sorted((tools or {}).items()))
-        return self._fingerprint(current)
-
-    def record(
-        self, stage: str, *, inputs: Sequence[Path], generated: Sequence[Path],
-        config: Mapping[str, object], parents: Mapping[str, str | None] | None = None,
-        tools: Mapping[str, object] | None = None, outcome: str | None = None,
-        returncode: int | None = None, allow_missing: bool = False,
-    ) -> str:
-        """Record canonical stage lineage; runtime outcome is stored independently."""
-
-        generated_state = self._snapshot(generated)
-        missing = [item["path"] for item in generated_state if item["sha256"] is None]
-        if missing and not allow_missing:
-            raise FileNotFoundError(f"{stage}: generated artifact missing: {', '.join(missing)}")
-        data = self._load()
-        record: dict[str, Any] = {
-            "config": dict(sorted(config.items())),
-            "parents": dict(parents or {}),
-            "tools": dict(sorted((tools or {}).items())),
-            "inputs": self._snapshot(inputs),
-            "input_paths_match": True,
-            "generated": [
-                {
-                    "path": item["path"],
-                    "generated_sha256": item["sha256"],
-                    "effective_sha256": item["sha256"],
-                }
-                for item in generated_state
-            ],
-        }
-        if outcome is not None:
-            record["outcome"] = str(outcome).upper()
-        if returncode is not None:
-            record["returncode"] = int(returncode)
-        record["fingerprint"] = self._fingerprint(record)
-        data["stages"][stage] = record
-        self._write(data)
-        return str(record["fingerprint"])
-
-    def generated(self, stage: str) -> tuple[Path, ...]:
-        """Return generated artifacts recorded for one stage."""
-
-        record = self._load()["stages"].get(stage)
-        if not isinstance(record, dict):
-            return ()
-        return tuple(
-            self._resolve(str(item["path"]))
-            for item in record.get("generated", ())
-            if isinstance(item, dict) and item.get("path")
-        )
-
-    def stages(self) -> tuple[str, ...]:
-        """Return recorded stages in deterministic order."""
-
-        return tuple(sorted(self._load()["stages"]))
-
-    def outcome(self, stage: str) -> str | None:
-        """Return the recorded runtime outcome, or None for setup/legacy records."""
-
-        record = self._load()["stages"].get(stage)
-        if not isinstance(record, dict) or record.get("outcome") is None:
-            return None
-        return str(record["outcome"]).upper()
-
-    def state(
-        self, stage: str, *, inputs: Sequence[Path], config: Mapping[str, object],
-        parents: Mapping[str, str | None] | None = None,
-        tools: Mapping[str, object] | None = None,
-    ) -> str:
-        """Derive the current stage state from disk; stored status is never trusted."""
-
-        record = self._load()["stages"].get(stage)
-        if not isinstance(record, dict):
-            return "MISSING"
-        generated = record.get("generated")
-        if not isinstance(generated, list) or not generated:
-            return "INVALID"
-        current_inputs = self._snapshot(inputs)
-        if (
-            record.get("config") != dict(sorted(config.items()))
-            or record.get("parents") != dict(parents or {})
-            or ("tools" in record and record.get("tools") != dict(sorted((tools or {}).items())))
-        ):
-            return "STALE"
-        if record.get("inputs") != current_inputs:
-            return "INVALID" if any(item["sha256"] is None for item in current_inputs) else "STALE"
-
-        overridden = False
-        for item in generated:
-            current = _path_sha256(self._resolve(str(item.get("path", ""))))
-            if current is None:
-                return "INVALID"
-            canonical = item.get("generated_sha256")
-            if current == canonical:
-                continue
-            if current != item.get("effective_sha256"):
-                return "MODIFIED"
-            overridden = True
-        return "VALIDATED_OVERRIDE" if overridden else "CLEAN"
-
-    def validate(
-        self, stage: str, *, inputs: Sequence[Path], config: Mapping[str, object],
-        parents: Mapping[str, str | None] | None = None,
-        tools: Mapping[str, object] | None = None,
-    ) -> str:
-        """Accept only current generated-file edits; stale lineage remains rejected."""
-
-        state = self.state(stage, inputs=inputs, config=config, parents=parents, tools=tools)
-        if state != "MODIFIED":
-            if state == "STALE":
-                raise ValueError(
-                    f"{stage}: provenance is STALE; source, configuration, or parent lineage changed. "
-                    f"Rerun the corresponding `fx <keyword> --setup` phase with the intended effective settings; for a multi-command "
-                    "flow persist them with `fx settings ...`. validate_override is only for manually "
-                    "MODIFIED generated collateral."
-                )
-            if state == "MISSING":
-                raise ValueError(
-                    f"{stage}: provenance is MISSING; generate the corresponding setup before validating an override."
-                )
-            if state == "INVALID":
-                raise ValueError(
-                    f"{stage}: provenance is INVALID; required inputs, generated files, or provenance "
-                    f"metadata are missing/inconsistent. Rerun the corresponding `fx <keyword> --setup` phase after repairing the inputs."
-                )
-            raise ValueError(
-                f"{stage}: override cannot be validated from state {state}; "
-                "validate_override only accepts MODIFIED generated collateral."
-            )
-        data = self._load()
-        record = data["stages"][stage]
-        for item in record["generated"]:
-            item["effective_sha256"] = _path_sha256(self._resolve(item["path"]))
-        record["fingerprint"] = self._fingerprint(record)
-        self._write(data)
-        return "VALIDATED_OVERRIDE"
 
 
 def _flexsoc_version(repo_root: Path) -> str:
@@ -2438,227 +1598,35 @@ def collect_manifest(
     }
 
 
-def show_manifest(path: Path) -> None:
-    """Render run identity, artifacts, environment, and tools in flow order."""
-
-    if not path.is_file():
-        raise FileNotFoundError(f"manifest file not found: {path}; run: fx manifest")
-    data = json.loads(path.read_text(encoding="utf-8"))
-    console = Console()
-    run = data.get("run", {})
-    env = data.get("environment", {})
-    console.print(
-        "[bold orange1]FlexSoC manifest[/bold orange1] · "
-        f"[bold bright_cyan]{run.get('top', 'unknown')} / "
-        f"{run.get('run_id', 'unknown')}[/bold bright_cyan]"
-    )
-
-    def section(title: str, rows: list[tuple[str, object]]) -> None:
-        console.print(f"\n[bold bright_cyan]{title}[/bold bright_cyan]")
-        table = Table(show_header=False, box=None, pad_edge=False)
-        table.add_column("Field", style="grey70", no_wrap=True)
-        table.add_column("Value", style="white")
-        for key, value in rows:
-            table.add_row(key, str(value))
-        console.print(table)
-
-    dirty = data.get("git", {}).get("dirty")
-    section(
-        "Run",
-        [
-            ("TOP", run.get("top", "-")),
-            ("RUN_TOP", run.get("run_top", "-")),
-            ("RUN_ID", run.get("run_id", "-")),
-            ("PDK", run.get("pdk") or "-"),
-            ("RUN_ROOT", run.get("run_root") or "-"),
-        ],
-    )
-
-    flow = data.get("flow")
-    if isinstance(flow, dict):
-        labels = {
-            "lint": "RTL lint",
-            "cdc_rdc": "CDC / RDC",
-            "functional": "Functional verification",
-            "formal": "Formal verification",
-            "synthesis": "Synthesis",
-            "equivalence": "RTL ↔ synthesis equivalence",
-            "pre_implementation_signoff": "Pre-implementation sign-off",
-            "implementation": "Implementation / PnR",
-            "post_implementation_signoff": "Post Sign-Off",
-        }
-        stages = flow.get("stages", {})
-        section(
-            "Flow",
-            [
-                (labels.get(name, name), str(stages.get(name, "missing")).upper())
-                for name in flow.get("order", [])
-            ] + [("Overall", str(flow.get("status", "incomplete")).upper())],
-        )
-
-    section(
-        "Source / environment",
-        [
-            ("Git commit", data.get("git", {}).get("commit") or "unavailable"),
-            ("Git tree", "unknown" if dirty is None else ("dirty" if dirty else "clean")),
-            ("FlexSoC", env.get("flexsoc", "unknown")),
-            ("Python", env.get("python", "unknown")),
-            ("Platform", env.get("platform", "unknown")),
-            ("Machine", env.get("machine", "unknown")),
-            ("uv.lock SHA256", env.get("uv_lock_sha256") or "missing"),
-            ("toolchain.lock SHA256", env.get("toolchain_lock_sha256") or "missing"),
-        ],
-    )
-
-    analysis = data.get("analysis")
-    if isinstance(analysis, dict):
-        rows: list[tuple[str, object]] = []
-        lint = analysis.get("lint")
-        if isinstance(lint, dict):
-            rows.append(("RTL lint", lint.get("path", "-")))
-        cdc_rdc = analysis.get("cdc_rdc")
-        if isinstance(cdc_rdc, dict):
-            rows.append((
-                "CDC / RDC",
-                f"{str(cdc_rdc.get('status', 'unknown')).upper()} · "
-                f"CDC raw={cdc_rdc.get('cdc_raw', 0)} · RDC raw={cdc_rdc.get('rdc_raw', 0)} · "
-                f"obligations={cdc_rdc.get('obligations', 0)} · {cdc_rdc.get('path', '-')}",
-            ))
-        if rows:
-            section("Verification evidence", rows)
-
-    signoff = data.get("signoff")
-    if isinstance(signoff, dict):
-        rows: list[tuple[str, object]] = []
-        for label, key in (
-            ("SDF", "sdf"),
-            ("STA", "sta"),
-            ("GLS", "post_syn_gls"),
-            ("Power estimate", "power"),
-            ("Activity power", "power_activity"),
-            ("Timing / power fusion", "fusion"),
-        ):
-            stage = signoff.get(key)
-            if not isinstance(stage, dict):
-                continue
-            detail = str(stage.get("status", "unknown")).upper()
-            if key == "sta":
-                detail += f" · {stage.get('clock_model', 'ideal')} clock · {stage.get('interconnect', 'none')}"
-            if key == "post_syn_gls":
-                detail += f" · interconnect {stage.get('interconnect_delays', 'unknown')}"
-            rows.append((label, detail))
-        if rows:
-            section("Pre-implementation sign-off", rows)
-
-    implementation = data.get("implementation")
-    if isinstance(implementation, dict):
-        artifacts = implementation.get("artifacts", {})
-        section(
-            "Implementation / PnR",
-            [
-                ("Status", str(implementation.get("status", "unknown")).upper()),
-                ("Results", implementation.get("platform_root", "-")),
-                ("Final artifacts", f"{len(artifacts)}/5" if isinstance(artifacts, dict) else "-"),
-                ("Log", implementation.get("log") or "-"),
-            ],
-        )
-
-    if isinstance(signoff, dict):
-        routed = signoff.get("post_pnr")
-        if isinstance(routed, dict):
-            rows = []
-            physical = routed.get("physical")
-            if isinstance(physical, dict):
-                rows.append(("Physical closure", str(physical.get("status", "unknown")).upper()))
-                checks = physical.get("checks", {})
-                if isinstance(checks, dict):
-                    for label, key in (
-                        ("Route DRC", "route_drc"),
-                        ("Antenna", "antenna"),
-                        ("GDS DRC", "gds_drc"),
-                        ("LVS", "lvs"),
-                        ("IR / PDN", "ir_drop"),
-                    ):
-                        check = checks.get(key)
-                        if isinstance(check, dict):
-                            rows.append((label, str(check.get("status", "unknown")).upper()))
-            for label, key in (
-                ("SDF", "sdf"),
-                ("STA", "sta"),
-                ("GLS", "gls"),
-                ("Power estimate", "power"),
-                ("Activity power", "power_activity"),
-                ("Timing / power fusion", "fusion"),
-            ):
-                stage = routed.get(key)
-                if not isinstance(stage, dict):
-                    continue
-                detail = str(stage.get("status", "unknown")).upper()
-                if key == "sta":
-                    detail += f" · {stage.get('clock_model', 'propagated')} clock · {stage.get('interconnect', 'spef')}"
-                if key == "gls":
-                    detail += f" · interconnect {stage.get('interconnect_delays', 'unknown')}"
-                rows.append((label, detail))
-            if rows:
-                section("Post Sign-Off", rows)
-
-    artifacts = run.get("artifacts")
-    if isinstance(artifacts, dict):
-        section(
-            "Artifacts",
-            [(name.replace("_", " ").title(), value) for name, value in artifacts.items()],
-        )
-
-    tools = data.get("tools", {})
-    if tools:
-        groups = (
-            ("RTL / lint", {"slang", "verilator", "slang-hier"}),
-            (
-                "Formal / equivalence",
-                {"yosys", "sby", "eqy", "bitwuzla", "boolector", "btormc", "btorsim"},
-            ),
-            (
-                "Simulation / debug",
-                {"iverilog", "gtkwave", "fst2vcd", "surfer", "sv2v", "netlistsvg"},
-            ),
-            ("Implementation / sign-off", {"sta", "openroad", "klayout"}),
-            ("Environment", {"uv"}),
-        )
-        for title, names in groups:
-            rows = [(name, tools[name]) for name in sorted(names) if name in tools]
-            if not rows:
-                continue
-            console.print(f"\n[bold bright_cyan]{title} tools[/bold bright_cyan]")
-            table = Table(box=None, pad_edge=False, header_style="bold grey70")
-            table.add_column("Executable", style="white")
-            table.add_column("Version", style="grey70")
-            table.add_column("Lock", style="grey70")
-            for executable, value in rows:
-                if isinstance(value, dict):
-                    lock_match = value.get("lock_match")
-                    locked = value.get("locked_version")
-                    lock = (
-                        "match"
-                        if lock_match is True
-                        else (
-                            f"tested {locked}"
-                            if lock_match is False and locked
-                            else "-"
-                        )
-                    )
-                    table.add_row(
-                        executable,
-                        str(value.get("version", "unknown")),
-                        lock,
-                    )
-                else:
-                    table.add_row(executable, str(value), "-")
-            console.print(table)
-
-
 @dataclass(slots=True)
 class Reporting:
-    """Collect and render lifecycle evidence without executing EDA."""
+    """Collect lifecycle evidence without executing EDA."""
+
+    def run_target(
+        self,
+        target: "Target",
+        context: "BackendContext",
+        *,
+        provenance: Mapping[str, object] | None = None,
+    ) -> object:
+        """Execute one reporting target from the declarative registry."""
+
+        paths = context.paths
+        if target.action == "metrics":
+            return self.write_metrics(
+                paths.top, paths.run, paths.metrics, pdk=paths.pdk, provenance=provenance,
+            )
+        if target.action == "manifest":
+            return self.write_manifest(
+                top=paths.top, run_top=paths.run_top, run_id=paths.run_id,
+                repo_root=context.project_root, output=paths.manifest,
+                pdk=paths.pdk, run_root=paths.run,
+            )
+        if target.action == "show" and target.show:
+            from .show import render
+
+            return render(paths.run, top=paths.top, pdk=paths.pdk, key=target.show)
+        raise ValueError(f"unsupported reporting target: {target.name}")
 
     def metrics(
         self, top: str, run_dir: Path, *, pdk: str | None = None,
@@ -2721,14 +1689,6 @@ class Reporting:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         return output
-
-    def show_manifest(self, path: Path) -> None:
-        show_manifest(path)
-
-    def check(self, path: Path) -> None:
-        """Render the saved metrics snapshot without recollecting evidence."""
-
-        show_check(path)
 
     def flow(
         self,

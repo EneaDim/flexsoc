@@ -6,7 +6,6 @@ import ast
 import random
 import re
 import shlex
-import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -293,21 +292,37 @@ class FunctionalFlow:
 
     runner: object | None = None
 
-    @staticmethod
     def _run_generator(
-        base_dir: Path, top: str, suffix: str, *args: str, model_dir: Path | None = None,
+        self,
+        base_dir: Path,
+        top: str,
+        suffix: str,
+        *args: str,
+        model_dir: Path | None = None,
+        on: str = "local",
     ) -> None:
-        """Run one model-owned vector generator without modifying its source."""
+        """Run one model-owned vector generator through the shared executor."""
+
+        from flexsoc.backend.core import CommandRequest, ToolRunner
 
         model_dir = Path(model_dir) if model_dir is not None else Path(base_dir).parent / "model"
         script = model_dir / f"{top}_{suffix}.py"
         if not script.is_file():
             raise FileNotFoundError(f"missing vector generator: {script}")
-        result = subprocess.run(
+        runner = self.runner or ToolRunner()
+        base_dir = Path(base_dir)
+        run_root = base_dir.parents[2] if base_dir.parent.name == "functional" else base_dir.parent
+        log = run_root / "logs" / "dv" / "functional" / "generation" / f"{top}_{suffix}.log"
+        inputs = tuple(sorted(path for path in model_dir.glob("*.py") if path.is_file()))
+        request = CommandRequest(
             (sys.executable, str(script), "--tests-dir", str(base_dir), *args),
-            cwd=model_dir,
-            check=False,
+            model_dir,
+            {},
+            log,
+            inputs=inputs,
+            outputs=(base_dir,),
         )
+        result = runner.run(request, on=on)
         if result.returncode:
             raise RuntimeError(f"vector generator failed ({result.returncode}): {script}")
 
@@ -319,11 +334,12 @@ class FunctionalFlow:
         signature: dict[str, Any] | None = None,
         *,
         force: bool = False,
+        on: str = "local",
     ) -> list[Path]:
         """Materialize authored scenarios plus generated ``auto_toggle`` vectors."""
 
-        self._run_generator(base_dir, top, "tests")
-        self._run_generator(base_dir, top, "regmap_tests")
+        self._run_generator(base_dir, top, "tests", on=on)
+        self._run_generator(base_dir, top, "regmap_tests", on=on)
         return sorted(path for path in Path(base_dir).rglob("*") if path.is_file())
 
     def setup_test(
@@ -335,23 +351,24 @@ class FunctionalFlow:
         signature: dict[str, Any] | None = None,
         *,
         force: bool = False,
+        on: str = "local",
     ) -> list[Path]:
         """Materialize one scenario without touching unrelated vectors."""
 
         suffix = "regmap_tests" if name == "auto_toggle" else "tests"
-        self._run_generator(base_dir, top, suffix, "--test", name)
+        self._run_generator(base_dir, top, suffix, "--test", name, on=on)
         root = Path(base_dir) / name
         return sorted(path for path in root.iterdir() if path.is_file())
 
-    def check_tests(self, base_dir: Path, top: str) -> dict[str, object]:
+    def check_tests(self, base_dir: Path, top: str, *, on: str = "local") -> dict[str, object]:
         """Regenerate vectors in staging and compare them with the checked run catalogue."""
 
         root = Path(base_dir)
         model_dir = root.parent / "model"
         with tempfile.TemporaryDirectory(prefix=f"flexsoc-{top}-tests-check-") as temporary:
             staged = Path(temporary) / "tests"
-            self._run_generator(staged, top, "tests", model_dir=model_dir)
-            self._run_generator(staged, top, "regmap_tests", model_dir=model_dir)
+            self._run_generator(staged, top, "tests", model_dir=model_dir, on=on)
+            self._run_generator(staged, top, "regmap_tests", model_dir=model_dir, on=on)
 
             expected = {
                 path.relative_to(staged).as_posix(): path.read_bytes()
@@ -394,10 +411,11 @@ class FunctionalFlow:
         signature: dict[str, Any] | None = None,
         *,
         force: bool = False,
+        on: str = "local",
     ) -> list[Path]:
         """Generate the standard functional test catalogue."""
 
-        return self.setup_tests(base_dir, top, hjson_path, signature, force=force)
+        return self.setup_tests(base_dir, top, hjson_path, signature, force=force, on=on)
     def run_compile_systemverilog(
         self,
         *,

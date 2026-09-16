@@ -9,16 +9,17 @@ import sys
 from pathlib import Path
 from typing import Annotated, Any, Iterable, Mapping
 
-from .api import DEBUG_TARGETS, DEFAULT_SETTINGS, SETUP_ONLY_TARGETS, SETUP_TARGETS, TARGETS, FlexSoC, FlexSoCConfig
+from .api import TARGETS, FlexSoC, FlexSoCConfig
+from .backend.core.session import DEBUG_TARGETS, DEFAULT_SETTINGS, SETUP_ONLY_TARGETS, SETUP_TARGETS
 
 try:  # Keep the entry point understandable if the new CLI deps are not installed yet.
     import click
     import typer
     from rich import box
     from rich.console import Console
-    from rich.json import JSON
     from rich.panel import Panel
     from rich.table import Table
+    from .backend.core.show import ShowRenderer
 except ModuleNotFoundError as exc:  # pragma: no cover - exercised only in incomplete envs.
     _MISSING = exc.name
 else:
@@ -191,7 +192,7 @@ Use `fx commands` to list every backend target.
                 ("fx regmap_py tests_gen regression --setup", "Refresh generator-owned DV collateral."),
                 ("fx tests_gen --check", "Verify config.regs and vector files still match the Python generators."),
                 ("fx lint_suite regression formal syn eqy", "Run the same qualification gates as a scaffolded IP."),
-                ("fx soc_start | fx soc_flow", "Use loaded IPs as building blocks for a later SoC flow."),
+                ("fx soc_start", "Initialize the SoC workspace from loaded IPs; run later SoC steps explicitly."),
             ),
         ),
     )
@@ -241,10 +242,6 @@ Use `fx commands` to list every backend target.
         "SDF_CORNER": "Corner selected for SDF generation or annotation.",
         "NETLIST": "Explicit synthesized or post-route netlist.",
         "SIGNOFF_STAGE": "Sign-off source stage: post_syn or post_route; view also accepts post_pnr.",
-        "SDC_CLOCK_PERIOD_NS": (
-            "Optional single-clock sign-off period override; "
-            "multi-clock periods come from CLOCK_DOMAINS."
-        ),
         "SPEF_FILE": "Extracted parasitics for post-route timing/power.",
         "PNR_SDC_FILE": "Post-route SDC override.",
         "LIBS": "Corner Liberty list or mapping.",
@@ -849,121 +846,10 @@ Use `fx commands` to list every backend target.
         display["IMPL_DIR"] = str(layout.pnr_dir)
         _print_settings(display, as_json)
 
-    def _show_status(value: object) -> str:
-        """Render one report/evidence state with consistent CLI colors."""
-
-        token = str(value).strip().upper()
-        color = {
-            "PASS": "green",
-            "WAIVED": "yellow",
-            "REVIEW": "orange1",
-            "MISSING": "grey70",
-            "FAILED": "red",
-            "FAIL": "red",
-            "STALE": "red",
-            "INVALID": "red",
-            "MODIFIED": "red",
-        }.get(token, "white")
-        return f"[{color}]{token}[/{color}]"
-
-    def _show_evidence_table(data: Mapping[str, Any]) -> None:
-        """Render qualification evidence including intentionally missing stages."""
-
-        evidence = data.get("evidence", {}) if isinstance(data, Mapping) else {}
-        freshness = data.get("freshness", {}) if isinstance(data, Mapping) else {}
-        outcomes = data.get("outcomes", {}) if isinstance(data, Mapping) else {}
-        levels = data.get("levels", {}) if isinstance(data, Mapping) else {}
-        order: list[str] = []
-        if isinstance(levels, Mapping):
-            for item in levels.values():
-                if not isinstance(item, Mapping):
-                    continue
-                for stage in item.get("required_evidence", ()):
-                    name = str(stage)
-                    if name not in order:
-                        order.append(name)
-        if isinstance(evidence, Mapping):
-            for stage in evidence:
-                name = str(stage)
-                if name not in order:
-                    order.append(name)
-        table = Table(title="Evidence", header_style="bold white", expand=True)
-        table.add_column("Stage", style="bright_cyan", no_wrap=True)
-        table.add_column("State", no_wrap=True)
-        table.add_column("Freshness", no_wrap=True)
-        table.add_column("Outcome", no_wrap=True)
-        for stage in order:
-            state = evidence.get(stage, "MISSING") if isinstance(evidence, Mapping) else "MISSING"
-            fresh = freshness.get(stage, "-") if isinstance(freshness, Mapping) else "-"
-            outcome = outcomes.get(stage) if isinstance(outcomes, Mapping) else None
-            table.add_row(stage, _show_status(state), str(fresh), str(outcome or "-"))
-        console.print(table)
-
-    def _show_qualification(document: Any) -> None:
-        """Render the compact human view of qualification.json."""
-
-        data = document.root
-        req = data.get("requirements", {}) if isinstance(data, Mapping) else {}
-        console.print(Panel.fit(
-            f"IP: [white]{data.get('ip', '-')}[/white]\n"
-            f"Interface: [white]{data.get('reg_interface', '-')}[/white]\n"
-            f"PDK: [white]{data.get('pdk', '-')}[/white]\n"
-            f"Contract: [white]{data.get('contract', 'VALID' if data.get('contract_fingerprint') else '-')}[/white]\n"
-            f"Requirements: [white]{req.get('covered', 0)}/{req.get('total', 0)}[/white]\n"
-            f"Maximum: [white]L{data.get('maximum_level', 0)} {data.get('maximum_qualification', '-')}[/white] · "
-            f"{_show_status(data.get('qualification_status', 'MISSING'))}",
-            title="Qualification",
-            border_style="orange1",
-        ))
-        levels = data.get("levels", {}) if isinstance(data, Mapping) else {}
-        if isinstance(levels, Mapping):
-            table = Table(title="Levels", header_style="bold white", expand=True)
-            table.add_column("Level", style="bright_cyan", no_wrap=True)
-            table.add_column("Name")
-            table.add_column("Status", no_wrap=True)
-            table.add_column("Blocking")
-            for level, item in levels.items():
-                if not isinstance(item, Mapping):
-                    continue
-                blocking = ", ".join(str(x) for x in item.get("blocking_evidence", ())) or "-"
-                table.add_row(f"L{level}", str(item.get("name", "-")), _show_status(item.get("status", "MISSING")), blocking)
-            console.print(table)
-        _show_evidence_table(data)
-
-    def _show_gls(document: Any) -> None:
-        """Render a GLS summary JSON as the test-by-scenario matrix it represents."""
-
-        data = document.data
-        tests = [str(item) for item in data.get("tests", ())]
-        reports = data.get("reports", ())
-        scenarios = [str(item) for item in data.get("scenarios", ())]
-        if not scenarios and isinstance(reports, list):
-            scenarios = list(dict.fromkeys(str(item.get("scenario", "-")) for item in reports if isinstance(item, Mapping)))
-        matrix: dict[tuple[str, str], str] = {}
-        if isinstance(reports, list):
-            for item in reports:
-                if not isinstance(item, Mapping):
-                    continue
-                test = str(item.get("test_name", item.get("test", "-")))
-                scenario = str(item.get("scenario", item.get("timing_mode", "-")))
-                matrix[(test, scenario)] = str(item.get("status", "missing")).upper()
-        table = Table(title=document.title, header_style="bold white")
-        table.add_column("Test", style="bright_cyan")
-        for scenario in scenarios:
-            table.add_column(scenario, justify="center")
-        for test in tests:
-            table.add_row(test, *(_show_status(matrix.get((test, scenario), "MISSING")) for scenario in scenarios))
-        console.print(table)
-        console.print(
-            f"[grey70]total[/grey70]=[white]{data.get('total', 0)}[/white] · "
-            f"[grey70]pass[/grey70]=[green]{data.get('passed', 0)}[/green] · "
-            f"[grey70]fail[/grey70]=[red]{data.get('failed', 0)}[/red]"
-        )
-
     def _show(client: FlexSoC, args: tuple[str, ...], sets: tuple[str, ...], *, as_json: bool) -> int:
-        """Read canonical JSON reports without rerunning any flow stage."""
+        """Read and structure canonical machine-readable reports without rerunning stages."""
 
-        from .backend.core.show import issues, keys, load
+        from .backend.core.show import files, issues, keys, load, load_file
 
         overrides = _assignments(sets)
         values = {**DEFAULT_SETTINGS, **client.settings, **overrides}
@@ -972,9 +858,10 @@ Use `fx commands` to list every backend target.
         run_id = values.get("RUN_ID", "default")
         pdk = values.get("PDK", DEFAULT_SETTINGS["PDK"])
         run = client.workdir / "runs" / run_top / run_id
-        action = (args[0] if args else "keys").strip().lower().replace("-", "_")
+        raw_action = (args[0] if args else "keys").strip()
+        action = raw_action.lower().replace("-", "_")
         if len(args) > 1:
-            error_console.print("[red]fx show accepts one key; use `fx show keys` to list them[/red]")
+            error_console.print("[red]fx show accepts one key/path; use `fx show files` to list documents[/red]")
             return 2
         if action in {"keys", "list"}:
             rows = keys(run, top=top, pdk=pdk)
@@ -992,6 +879,22 @@ Use `fx commands` to list every backend target.
                     source += f" : {item['selector']}"
                 table.add_row(str(item["key"]), state, source)
             console.print(table)
+            console.print("[grey70]Use `fx show files` for every important JSON and `fx show all` to render them all.[/grey70]")
+            return 0
+        if action in {"files", "documents"}:
+            rows = files(run, top=top, pdk=pdk)
+            if as_json:
+                print(json.dumps(rows, indent=2))
+                return 0
+            table = Table(title=f"Important JSON · {run_top}/{run_id}", header_style="bold white", expand=True)
+            table.add_column("Kind", style="bright_cyan", no_wrap=True)
+            table.add_column("Path")
+            table.add_column("Bytes", justify="right")
+            table.add_column("Readable", no_wrap=True)
+            for item in rows:
+                table.add_row(str(item["kind"]), str(item["key"]), str(item["size"]),
+                              "[green]yes[/green]" if not item["error"] else "[red]no[/red]")
+            console.print(table)
             return 0
         if action in {"issues", "failures"}:
             rows = issues(run, top=top, pdk=pdk)
@@ -1007,11 +910,40 @@ Use `fx commands` to list every backend target.
                 console.print("[green]No non-PASS canonical reports found.[/green]")
                 return 0
             for item in rows:
-                table.add_row(str(item["key"]), _show_status(item["status"]), str(item["detail"]), str(item["source"]))
+                table.add_row(str(item["key"]), ShowRenderer(console).status(item["status"]), str(item["detail"]), str(item["source"]))
             console.print(table)
             return 0
+        if action == "all":
+            rows = files(run, top=top, pdk=pdk)
+            if not rows:
+                error_console.print(f"[red]no important JSON documents found under {run}[/red]")
+                return 2
+            payload = []
+            for item in rows:
+                if item["error"]:
+                    payload.append({"path": item["key"], "kind": "invalid", "error": item["error"]})
+                    continue
+                document = load_file(run, str(item["key"]))
+                payload.append({"path": document.key, "kind": document.kind, "data": document.data})
+            if as_json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+                return 0
+            for index, item in enumerate(payload):
+                if index:
+                    console.print()
+                console.rule(f"[bright_cyan]{item['path']}[/bright_cyan]")
+                console.print(f"[grey70]kind:[/grey70] [white]{item['kind']}[/white]")
+                if item.get("error"):
+                    console.print(f"[red]invalid JSON: {item['error']}[/red]")
+                    continue
+                document = load_file(run, str(item["path"]))
+                ShowRenderer(console).render(document)
+            return 0
         try:
-            document = load(run, top=top, pdk=pdk, key=action)
+            if "/" in raw_action or raw_action.lower().endswith(".json"):
+                document = load_file(run, raw_action)
+            else:
+                document = load(run, top=top, pdk=pdk, key=action)
         except (FileNotFoundError, KeyError, ValueError) as exc:
             error_console.print(f"[red]{exc}[/red]")
             return 2
@@ -1019,14 +951,7 @@ Use `fx commands` to list every backend target.
             print(json.dumps(document.data, indent=2, sort_keys=True))
             return 0
         console.print(f"[grey70]source:[/grey70] [white]{document.path}[/white]")
-        if action == "qualification":
-            _show_qualification(document)
-        elif action == "evidence":
-            _show_evidence_table(document.root)
-        elif action in {"gls_post_syn", "gls_post_pnr"}:
-            _show_gls(document)
-        else:
-            console.print(JSON.from_data(document.data))
+        ShowRenderer(console).render(document)
         return 0
 
     def _configured_run(client: FlexSoC, sets: tuple[str, ...]) -> tuple[Path, dict[str, str]]:

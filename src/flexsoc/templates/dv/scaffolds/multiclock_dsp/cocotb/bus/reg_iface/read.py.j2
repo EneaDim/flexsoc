@@ -1,0 +1,12 @@
+
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    for name, value in (("valid", 1), ("write", 0), ("addr", addr), ("wdata", 0), ("wstrb", 0)):
+        getattr(dut, f"{domain}_reg_req_{name}").value = value
+    await _wait_high(dut, f"{domain}_reg_rsp_ready", clk)
+    data = int(getattr(dut, f"{domain}_reg_rsp_rdata").value) & 0xFFFFFFFF
+    if int(getattr(dut, f"{domain}_reg_rsp_error").value):
+        raise AssertionError(f"reg_iface read error on {domain} addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    return data

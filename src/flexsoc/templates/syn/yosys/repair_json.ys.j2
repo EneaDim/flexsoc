@@ -1,0 +1,5 @@
+# Canonical machine-readable view of the OpenROAD-repaired netlist
+read_liberty -overwrite -setattr liberty_cell -lib <<: liberty :>>
+read_verilog <<: netlist :>>
+hierarchy -check -top <<: top :>>
+write_json <<: json :>>

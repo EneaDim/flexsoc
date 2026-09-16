@@ -15,7 +15,7 @@ from flexsoc.backend.core import layout_from_values
 from .sta import (
     ACTIVITY_PERCENT_RE, ACTIVITY_RE, FLOAT_RE, POWER_RE, SDF_MODES, SignoffContext,
     _base_context, _common_init, _execute_script, _header, _liberties, _load_json,
-    _returncode_text, _selection, _selector, _timing_values, _write, scenario_corner,
+    _returncode_text, _selection, _selector, _timing_values, _write, render_opensta_script, scenario_corner,
 )
 
 @dataclass(frozen=True, slots=True)
@@ -764,60 +764,22 @@ def _power_instance_rows(path: Path) -> list[dict[str, Any]]:
         )
     return rows
 
-def _power_reports(ctx: SignoffContext, *, activity_coverage: bool) -> list[str]:
-    """Append concise public power sections to ``$report``."""
-
-    lines = [
-        "flexsoc_section $report Units",
-        "# Record the unit system used by the power and activity values below.",
-        "flexsoc_append_opensta $report report_units",
-        "flexsoc_section $report {Constraint validation}",
-        "# Append timing-setup diagnostics because power must use the same correctly linked and constrained design.",
-        "flexsoc_append_opensta $report check_setup -verbose",
-    ]
-    if activity_coverage:
-        lines += [
-            "flexsoc_section $report {Activity annotation}",
-            "# Report annotation coverage as one percentage and list only pins missing direct VCD/SAIF activity.",
-            "flexsoc_append_activity_coverage $report",
-        ]
-    lines += [
-        "flexsoc_section $report {Power summary}",
-        "# Report average internal, switching, leakage, and total cell power for the complete design.",
-        "flexsoc_append_opensta $report report_power",
-        'puts "report=$report"',
-    ]
-    return lines
 
 def render_power_estimate_tcl(ctx: SignoffContext) -> str:
-    model = "global" if ctx.global_activity else "input"
     limitations = (
         "This is a vectorless estimate; it does not represent a simulated workload.",
         "Activity is assigned to primary inputs and propagated unless global activity is requested.",
     )
-    activity_cmd = "-global" if ctx.global_activity else "-input"
-    return "\n".join(
-        [
-            _header(ctx, limitations),
-            _common_init(ctx, activity=False),
-            "",
-            "# Seed vectorless switching activity on primary inputs (or globally) and let OpenSTA propagate it through the design.",
-            f"set_power_activity {activity_cmd} -activity {ctx.estimated_activity} -duty {ctx.estimated_duty}",
-            "# Create one compact vectorless power report and record the assumptions used to produce it.",
-            "set report [file join $report_dir power.rpt]",
-            "set fp [open $report w]",
-            'puts $fp "analysis=power_estimate activity_source=input_assumption"',
-            f'puts $fp "activity_model={model}"',
-            f'puts $fp "activity={ctx.estimated_activity}"',
-            f'puts $fp "duty={ctx.estimated_duty}"',
-            f'puts $fp "corner={ctx.corner} stage={ctx.stage}"',
-            'puts $fp "liberty=$liberty"',
-            'puts $fp "netlist=$netlist"',
-            'puts $fp "sdc=$sdc"',
-            'puts $fp "spef=$spef"',
-            "close $fp",
-            *_power_reports(ctx, activity_coverage=False),
-        ]
+    return render_opensta_script(
+        ctx,
+        limitations,
+        "signoff/opensta/power_estimate.tcl.j2",
+        activity_cmd="-global" if ctx.global_activity else "-input",
+        activity_model="global" if ctx.global_activity else "input",
+        activity=ctx.estimated_activity,
+        duty=ctx.estimated_duty,
+        corner=ctx.corner,
+        stage=ctx.stage,
     )
 
 def render_power_analysis_tcl(ctx: SignoffContext) -> str:
@@ -825,26 +787,17 @@ def render_power_analysis_tcl(ctx: SignoffContext) -> str:
         "Power is average cell power derived from the selected Liberty models and annotated activity.",
         "Unannotated objects and scope mismatches remain visible in the activity section.",
     )
-    return "\n".join(
-        [
-            _header(ctx, limitations),
-            _common_init(ctx, activity=True),
-            "",
-            "# Create one compact workload-driven power report after GLS activity has been annotated.",
-            "set report [file join $report_dir power.rpt]",
-            "set fp [open $report w]",
-            f'puts $fp "analysis=power_analysis corner={ctx.corner} stage={ctx.stage}"',
-            f'puts $fp "workload={ctx.workload}"',
-            f'puts $fp "gls_report={ctx.gls_report or ""}"',
-            f'puts $fp "activity_file={ctx.activity_file or ""}"',
-            f'puts $fp "activity_scope={ctx.activity_scope}"',
-            'puts $fp "liberty=$liberty"',
-            'puts $fp "netlist=$netlist"',
-            'puts $fp "sdc=$sdc"',
-            'puts $fp "spef=$spef"',
-            "close $fp",
-            *_power_reports(ctx, activity_coverage=True),
-        ]
+    return render_opensta_script(
+        ctx,
+        limitations,
+        "signoff/opensta/power_analysis.tcl.j2",
+        read_activity=True,
+        corner=ctx.corner,
+        stage=ctx.stage,
+        workload=ctx.workload,
+        gls_report=ctx.gls_report or "",
+        activity_file=ctx.activity_file or "",
+        activity_scope=ctx.activity_scope,
     )
 
 def _annotate_power_summary(report_dir: Path, name: str = "power.rpt") -> None:
@@ -1150,6 +1103,30 @@ def analyze_activity_spec(
         "failures": failures,
     }
 
+def _activity_qor(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Return portable workload QoR without runtime paths or verbose discovery data."""
+
+    keys = (
+        "status", "workload", "spec", "reason", "test", "backend", "timing_mode",
+        "scenario", "activity_source", "scope", "conversion_method", "failures",
+    )
+    result = {key: report[key] for key in keys if key in report}
+    corner_keys = (
+        "status", "returncode", "activity_annotation_count", "activity_annotation_percent",
+        "internal_w", "switching_w", "leakage_w", "total_w", "wns", "tns",
+        "timing_path_count", "path_instance_count", "power_hotspot_count",
+        "hotspot_path_count",
+    )
+    corners = report.get("corners")
+    if isinstance(corners, Mapping):
+        result["corners"] = {
+            str(name): {key: values[key] for key in corner_keys if key in values}
+            for name, values in corners.items()
+            if isinstance(values, Mapping)
+        }
+    return result
+
+
 def execute_activity(
     analysis: str,
     action: str,
@@ -1204,7 +1181,7 @@ def execute_activity(
         "passed": passed,
         "failed": len(reports) - passed,
         "total": len(reports),
-        "reports": reports,
+        "reports": [_activity_qor(report) for report in reports],
     }
     summary_path = summary_root / "summary.json"
     summary_path.parent.mkdir(parents=True, exist_ok=True)

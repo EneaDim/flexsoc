@@ -1,0 +1,23 @@
+# pre-synthesis structural snapshot; no optimization
+read_liberty -overwrite -setattr liberty_cell -lib <<: liberty :>>
+read_slang -I <<: pkgs :>> \
+           -I ../hw/ips/prim \
+           -I ../hw/ips/prim_opentitan \
+           -D SYNTHESIS \
+           --ignore-assertions \
+<<% if clock_gate_map %>>           --blackboxed-module prim_clk_gate \
+<<% endif %>><<% for filelist in filelists %>>           -f <<: filelist :>> \
+<<% endfor %>>           --top <<: top :>>
+
+hierarchy -check -top <<: top :>>
+<<% if clock_gate_map %>># legalize explicit RTL clock-gating intent before structural snapshot
+techmap -map <<: clock_gate_map :>>
+select -assert-count 0 t:prim_clk_gate
+select -clear
+<<% endif %>>proc
+select -module <<: top :>>
+# flatten only the structural analysis view so hierarchical reset FFs are visible
+flatten
+check -assert
+write_json -selected <<: output :>>
+select -clear

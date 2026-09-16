@@ -859,6 +859,25 @@ class FsmFlow:
             installed.append(target)
         return tuple(installed)
 
+
+    def run_target(self, target, context, *, on: str = "local"):
+        """Execute one registered FSM target from the current run context."""
+
+        name = context.values.get("FSM", "fsm_example")
+        action = target.action or ""
+        if action == "setup":
+            return self.setup(name)
+        if action == "load_example":
+            return self.load_example(name)
+        if action == "generate":
+            return self.generate(name, clock_mhz=int(context.values.get("F_CLK", "32")))
+        if action == "plot":
+            return self.plot(name, on=on)
+        if action == "install":
+            paths = context.paths
+            return self.install(name, rtl_dir=paths.rtl, tb_dir=paths.tb / "sv", sim_dir=paths.sim / "rtl")
+        raise ValueError(f"unsupported FSM action: {action!r}")
+
     def clean(self, name: str, *, inputs: bool = False) -> None:
         """Remove generated FSM output and optionally its input directory."""
         input_dir, output_dir = self.paths(name)

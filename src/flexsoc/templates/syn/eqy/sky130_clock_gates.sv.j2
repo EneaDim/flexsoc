@@ -1,0 +1,19 @@
+<<% for name in dlclkp %>>module <<: name :>> (output wire GCLK, input wire GATE, input wire CLK);
+  reg gate_latched;
+  always @ (CLK or GATE) begin
+    if (!CLK)
+      gate_latched <= GATE;
+  end
+  assign GCLK = CLK & gate_latched;
+endmodule
+
+<<% endfor %>><<% for name in sdlclkp %>>module <<: name :>> (output wire GCLK, input wire SCE, input wire GATE, input wire CLK);
+  reg gate_latched;
+  always @ (CLK or GATE or SCE) begin
+    if (!CLK)
+      gate_latched <= (GATE | SCE);
+  end
+  assign GCLK = CLK & gate_latched;
+endmodule
+<<% if not loop.last %>>
+<<% endif %>><<% endfor %>>

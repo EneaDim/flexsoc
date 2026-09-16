@@ -1,0 +1,103 @@
+// Auto-generated AXI4-Lite testbench helper.
+
+task automatic axi_lite_drive_cycle();
+  @(posedge clk_i);
+  #<<: drive_ns :>>;
+endtask
+
+task automatic axi_lite_sample_cycle();
+  @(posedge clk_i);
+  #<<: sample_ns :>>;
+endtask
+
+task automatic axi_lite_init();
+  axi_lite_i = '0;
+endtask
+
+task automatic axi_lite_write(
+    input logic [<<: top :>>_reg_pkg::AW-1:0] addr,
+    input logic [<<: top :>>_reg_pkg::DW-1:0] data,
+    input logic [<<: top :>>_reg_pkg::DBW-1:0] strb);
+  int guard;
+  bit aw_done;
+  bit w_done;
+
+  axi_lite_drive_cycle();
+  axi_lite_i.aw.addr = addr;
+  axi_lite_i.aw.prot = '0;
+  axi_lite_i.aw_valid = 1'b1;
+  axi_lite_i.w.data = data;
+  axi_lite_i.w.strb = strb;
+  axi_lite_i.w_valid = 1'b1;
+
+  // AW and W are independent AXI4-Lite channels.  Each VALID must be
+  // removed immediately after its own handshake so a ready-high slave
+  // cannot accept the same logical transaction twice.
+  aw_done = 1'b0;
+  w_done = 1'b0;
+  guard = 0;
+  while (!(aw_done && w_done)) begin
+    axi_lite_sample_cycle();
+    if (!aw_done && axi_lite_o.aw_ready) begin
+      aw_done = 1'b1;
+      axi_lite_i.aw_valid = 1'b0;
+    end
+    if (!w_done && axi_lite_o.w_ready) begin
+      w_done = 1'b1;
+      axi_lite_i.w_valid = 1'b0;
+    end
+    guard++;
+    if (guard > 1000) $fatal(1, "AXI4-Lite write request timeout addr=0x%0h", addr);
+  end
+
+  // Keep BREADY low until the response is observed.  Then acknowledge it
+  // for exactly one edge and return with the channel quiescent.
+  guard = 0;
+  do begin
+    axi_lite_sample_cycle();
+    guard++;
+    if (guard > 1000) $fatal(1, "AXI4-Lite write response timeout addr=0x%0h", addr);
+  end while (!axi_lite_o.b_valid);
+  if (axi_lite_o.b.resp != 2'b00) $fatal(1, "AXI4-Lite write error addr=0x%0h resp=%0h", addr, axi_lite_o.b.resp);
+  axi_lite_i.b_ready = 1'b1;
+  axi_lite_sample_cycle();
+  axi_lite_i.b_ready = 1'b0;
+  #1;
+endtask
+
+task automatic axi_lite_read(
+    input logic [<<: top :>>_reg_pkg::AW-1:0] addr,
+    output logic [<<: top :>>_reg_pkg::DW-1:0] data);
+  int guard;
+
+  axi_lite_drive_cycle();
+  axi_lite_i.ar.addr = addr;
+  axi_lite_i.ar.prot = '0;
+  axi_lite_i.ar_valid = 1'b1;
+
+  guard = 0;
+  do begin
+    axi_lite_sample_cycle();
+    guard++;
+    if (guard > 1000) $fatal(1, "AXI4-Lite read request timeout addr=0x%0h", addr);
+  end while (!axi_lite_o.ar_ready);
+
+  // ARVALID is deasserted in the same sampled cycle as its handshake,
+  // before the next rising edge, preventing duplicate read requests.
+  axi_lite_i.ar_valid = 1'b0;
+
+  guard = 0;
+  do begin
+    axi_lite_sample_cycle();
+    guard++;
+    if (guard > 1000) $fatal(1, "AXI4-Lite read response timeout addr=0x%0h", addr);
+  end while (!axi_lite_o.r_valid);
+  if (axi_lite_o.r.resp != 2'b00) $fatal(1, "AXI4-Lite read error addr=0x%0h resp=%0h", addr, axi_lite_o.r.resp);
+  data = axi_lite_o.r.data;
+
+  // Hold RREADY for one acceptance edge only, then return idle.
+  axi_lite_i.r_ready = 1'b1;
+  axi_lite_sample_cycle();
+  axi_lite_i.r_ready = 1'b0;
+  #1;
+endtask

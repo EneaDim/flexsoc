@@ -1,0 +1,258 @@
+"""Editable N-clock test catalogue and vector generator for <<: top :>>.
+
+``SHARED_TESTS`` mirrors the generated single-clock catalogue. The
+N-clock scaffold keeps those names and semantics, then appends scenarios
+that exercise the starter DSP architecture specifically.
+"""
+
+from __future__ import annotations
+
+import argparse
+import random
+from dataclasses import dataclass
+from pathlib import Path
+
+import <<: top :>>_model as model
+import <<: top :>>_regmap as regmap
+
+
+TOP = '<<: top :>>'
+SHARED_TESTS = ('smoke', 'corners', 'random_seed_1', 'random_seed_2', 'reconfig')
+DESIGN_TESTS = ('mac_smoke', 'absdiff', 'energy', 'clock_gate')
+TESTS = (*SHARED_TESTS, *DESIGN_TESTS)
+CFG = regmap.domain("cfg")
+DSP = regmap.domain("dsp")
+
+
+@dataclass(frozen=True)
+class Step:
+    """One optional runtime reconfiguration and/or RX transaction."""
+
+    inputs: model.DspInput | None = None
+    config: model.DspConfig | None = None
+    wait_for_output: bool = False
+
+
+@dataclass(frozen=True)
+class TestCase:
+    """Initial configuration and ordered actions for one scenario."""
+
+    config: model.DspConfig
+    steps: tuple[Step, ...]
+
+
+def config_rows(config: model.DspConfig) -> list[str]:
+    """Serialize initial domain-qualified CSR writes."""
+
+    return [
+        DSP.GAIN.write(VALUE=int(config.gain) & 0xFFFF),
+        DSP.DSP_CTRL.write(
+            OP=int(config.op),
+            SATURATE=int(config.saturate),
+            CLK_EN=int(config.clk_en),
+            SOFT_RESET=0,
+        ),
+        DSP.THRESHOLD.write(VALUE=int(config.threshold) & 0xFFFF_FFFF),
+        CFG.CTRL.write(ENABLE=1),
+    ]
+
+
+def runtime_config_rows(step: int, config: model.DspConfig) -> list[str]:
+    """Write and read back one runtime configuration."""
+
+    gain = int(config.gain) & 0xFFFF
+    ctrl = int(config.op) | (int(config.saturate) << 2) | (int(config.clk_en) << 3)
+    threshold = int(config.threshold) & 0xFFFF_FFFF
+    return [
+        DSP.GAIN.vector_write(step, gain),
+        DSP.DSP_CTRL.vector_write(step, ctrl),
+        DSP.THRESHOLD.vector_write(step, threshold),
+        DSP.GAIN.vector_read(step, gain),
+        DSP.DSP_CTRL.vector_read(step, ctrl),
+        DSP.THRESHOLD.vector_read(step, threshold),
+    ]
+
+
+def input_rows(step: int, inputs: model.DspInput) -> list[str]:
+    """Serialize one ordered RX-domain input transaction."""
+
+    return [
+        f"{step} rx_sample_i 0x{inputs.sample & 0xFFFF:04x}",
+        f"{step} rx_coeff_i 0x{inputs.coeff & 0xFFFF:04x}",
+        f"{step} rx_valid_i 0x1",
+    ]
+
+
+def output_rows(step: int, expected: model.DspOutput) -> list[str]:
+    """Serialize one DSP-domain expectation consumed on ``dsp_valid_o``."""
+
+    return [
+        f"{step} dsp_result_o 0x{expected.result:08x}",
+        f"{step} dsp_valid_o 0x1",
+        f"{step} dsp_above_threshold_o 0x{int(expected.above_threshold)}",
+        f"{step} dsp_overflow_o 0x{int(expected.overflow)}",
+    ]
+
+
+def random_case(seed: int) -> TestCase:
+    """Build deterministic random traffic for one explicit seed."""
+
+    rng = random.Random(f"{TOP}:random:{seed}")
+    config = model.DspConfig(
+        gain=rng.randint(-8, 8),
+        op=rng.randrange(3),
+        saturate=bool(rng.randrange(2)),
+        threshold=rng.getrandbits(12),
+    )
+    steps = tuple(
+        Step(inputs=model.DspInput(rng.randint(-0x8000, 0x7FFF), rng.randint(-0x8000, 0x7FFF)))
+        for _ in range(4)
+    )
+    return TestCase(config=config, steps=(*steps, Step(config=config)))
+
+
+def scenario(name: str) -> TestCase:
+    """Return one shared or design-specific N-clock scenario."""
+
+    if name.startswith("random_seed_"):
+        try:
+            return random_case(int(name.removeprefix("random_seed_")))
+        except ValueError as exc:
+            raise ValueError(f"invalid random test name {name!r}") from exc
+
+    smoke = model.DspConfig(gain=1, op=0, saturate=False, threshold=0x10)
+    scenarios = {
+        "smoke": TestCase(
+            config=smoke,
+            steps=(Step(config=smoke), Step(inputs=model.DspInput(3, 4))),
+        ),
+        "corners": TestCase(
+            config=model.DspConfig(gain=1, op=0, saturate=True, threshold=0x7FFF_FFFF),
+            steps=tuple(
+                Step(inputs=item)
+                for item in (
+                    model.DspInput(0, 0),
+                    model.DspInput(0x7FFF, 1),
+                    model.DspInput(-0x8000, -1),
+                    model.DspInput(-1, 0x7FFF),
+                )
+            ),
+        ),
+        "reconfig": TestCase(
+            config=smoke,
+            steps=(
+                Step(inputs=model.DspInput(3, 4)),
+                Step(config=model.DspConfig(gain=0, op=1, threshold=4), wait_for_output=True),
+                Step(inputs=model.DspInput(9, 4)),
+                Step(config=model.DspConfig(gain=0, op=2, threshold=0x20), wait_for_output=True),
+                Step(inputs=model.DspInput(3, 4)),
+            ),
+        ),
+        "mac_smoke": TestCase(
+            config=smoke,
+            steps=tuple(
+                Step(inputs=item)
+                for item in (
+                    model.DspInput(3, 4),
+                    model.DspInput(7, 2),
+                    model.DspInput(-3, 5),
+                )
+            ),
+        ),
+        "absdiff": TestCase(
+            config=model.DspConfig(gain=0, op=1, threshold=4),
+            steps=(
+                Step(inputs=model.DspInput(9, 4)),
+                Step(inputs=model.DspInput(-2, 8)),
+            ),
+        ),
+        "energy": TestCase(
+            config=model.DspConfig(gain=0, op=2, threshold=0x20),
+            steps=(
+                Step(inputs=model.DspInput(3, 4)),
+                Step(inputs=model.DspInput(5, 12)),
+            ),
+        ),
+        "clock_gate": TestCase(
+            config=smoke,
+            steps=(
+                Step(config=model.DspConfig(gain=1, op=0, threshold=0x10, clk_en=False)),
+                # Queue one RX payload while the DSP datapath clock is stopped.
+                Step(inputs=model.DspInput(3, 4)),
+                # The DSP register window remains on dsp_clk_i, so this write
+                # must always be able to reopen the gate and drain the FIFO.
+                Step(config=smoke),
+                Step(inputs=model.DspInput(7, 2)),
+            ),
+        ),
+    }
+    try:
+        return scenarios[name]
+    except KeyError as exc:
+        raise ValueError(f"unknown test {name!r}; choose one of {TESTS}") from exc
+
+
+def write_test(root: str | Path, name: str) -> None:
+    """Generate ``config.regs``, ``data_in.vec`` and ``data_out.vec``."""
+
+    case = scenario(name)
+    reference = model.ReferenceModel()
+    out = Path(root) / name
+    out.mkdir(parents=True, exist_ok=True)
+    regmap.write_config(out / "config.regs", config_rows(case.config))
+
+    data_in = [
+        "# format: <STEP> <SIGNAL> <VALUE>",
+        "# runtime CSR: <STEP> @write/@read <DOMAIN.REG> <VALUE> [MASK]",
+        "# completion barrier: <STEP> @wait_output",
+        "# STEP records transaction order, not an absolute clock cycle.",
+    ]
+    data_out = [
+        "# format: <STEP> <SIGNAL> <VALUE>",
+        "# Expected rows are consumed in order when dsp_valid_o asserts.",
+    ]
+    active = case.config
+    for step, action in enumerate(case.steps):
+        if action.wait_for_output:
+            data_in.append(f"{step} @wait_output")
+        if action.config is not None:
+            active = action.config
+            data_in.extend(runtime_config_rows(step, active))
+        if action.inputs is not None:
+            data_in.extend(input_rows(step, action.inputs))
+            data_out.extend(output_rows(step, reference.compute(action.inputs, active)))
+
+    (out / "data_in.vec").write_text("\n".join(data_in) + "\n", encoding="utf-8")
+    (out / "data_out.vec").write_text("\n".join(data_out) + "\n", encoding="utf-8")
+
+
+def write_all_tests(
+    root: str | Path,
+    tests: list[str] | tuple[str, ...] | None = None,
+) -> None:
+    """Generate requested tests, or the complete catalogue when omitted."""
+
+    for name in tests or TESTS:
+        write_test(root, name)
+
+
+def main() -> int:
+    """CLI entry point used by the unified vector-test targets."""
+
+    parser = argparse.ArgumentParser(
+        description="Generate shared and N-clock-specific vector tests."
+    )
+    parser.add_argument("--tests-dir", default="../tests")
+    parser.add_argument("--test", action="append", default=[])
+    parser.add_argument("--list", action="store_true")
+    args = parser.parse_args()
+    if args.list:
+        for test in TESTS:
+            print(test)
+        return 0
+    write_all_tests(args.tests_dir, args.test or None)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

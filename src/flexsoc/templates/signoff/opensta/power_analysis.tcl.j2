@@ -1,0 +1,27 @@
+
+# Create one compact workload-driven power report after GLS activity has been annotated.
+set report [file join $report_dir power.rpt]
+set fp [open $report w]
+puts $fp "analysis=power_analysis corner=<<: corner :>> stage=<<: stage :>>"
+puts $fp "workload=<<: workload :>>"
+puts $fp "gls_report=<<: gls_report :>>"
+puts $fp "activity_file=<<: activity_file :>>"
+puts $fp "activity_scope=<<: activity_scope :>>"
+puts $fp "liberty=$liberty"
+puts $fp "netlist=$netlist"
+puts $fp "sdc=$sdc"
+puts $fp "spef=$spef"
+close $fp
+flexsoc_section $report Units
+# Record the unit system used by the power and activity values below.
+flexsoc_append_opensta $report report_units
+flexsoc_section $report {Constraint validation}
+# Append timing-setup diagnostics because power must use the same correctly linked and constrained design.
+flexsoc_append_opensta $report check_setup -verbose
+flexsoc_section $report {Activity annotation}
+# Report annotation coverage as one percentage and list only pins missing direct VCD/SAIF activity.
+flexsoc_append_activity_coverage $report
+flexsoc_section $report {Power summary}
+# Report average internal, switching, leakage, and total cell power for the complete design.
+flexsoc_append_opensta $report report_power
+puts "report=$report"

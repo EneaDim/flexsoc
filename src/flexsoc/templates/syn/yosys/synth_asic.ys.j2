@@ -1,0 +1,41 @@
+# read target standard cells as library modules for mapped-cell pin directions
+read_liberty -overwrite -setattr liberty_cell -lib <<: liberty :>>
+# read process-lowered design with backend-only reset preservation attributes
+read_json <<: preserved_json :>>
+# basic synth
+synth -top <<: top :>> -noabc
+<<% if plot %>>show -width -format dot -prefix <<: plot :>>
+<<% endif %>>
+# technology-boundary checkpoints used by equivalence diagnostics
+write_rtlil <<: generic_il :>>
+
+# prepare FF types while keeping Yosys FF boundaries visible to ABC
+dfflibmap -prepare -liberty <<: liberty :>>
+write_rtlil <<: dffmap_il :>>
+
+# map combinational logic and preserve FF output wires used by EQY
+<<: abc_command :>>
+write_rtlil <<: abc_il :>>
+
+# bind the prepared FF types to final technology cells after ABC
+dfflibmap -map-only -liberty <<: liberty :>>
+
+# Validate mapped connectivity before physical-only netlist finalization
+check -assert
+
+# Finalize the implementation-ready technology netlist
+splitnets
+opt_clean -purge
+<<% if hilomap %>><<: hilomap :>>
+<<% endif %>><<% if insbuf %>><<: insbuf :>>
+<<% endif %>># keep final public identifiers portable across Verilog, SDF and P&R consumers
+rename -unescape
+check -assert -mapped
+write_rtlil <<: clean_il :>>
+
+# Basic stats of std cells and area
+stat -liberty <<: liberty :>>
+
+# Raw mapped netlist; OpenROAD pre-placement repair publishes the canonical netlist
+write_verilog -nohex -nodec <<: raw_v :>>
+write_json <<: raw_json :>>

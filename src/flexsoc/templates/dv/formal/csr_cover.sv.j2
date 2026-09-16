@@ -1,0 +1,13 @@
+
+module flexsoc_csr_subreg_cover #(
+  parameter prim_subreg_pkg::sw_access_e SwAccess = prim_subreg_pkg::SwAccessRW
+) (
+  input logic clk_i, rst_ni, we
+);
+  if (SwAccess != prim_subreg_pkg::SwAccessRO) begin : gen_sw_cover
+    always_ff @(posedge clk_i) if (rst_ni) cover (we);
+  end
+endmodule
+
+bind prim_subreg flexsoc_csr_subreg_cover #(.SwAccess(SwAccess))
+  flexsoc_csr_subreg_cover_i (.clk_i(clk_i), .rst_ni(rst_ni), .we(we));

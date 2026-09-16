@@ -392,6 +392,20 @@ class Toolchain:
             raise FileNotFoundError(tool)
         return path
 
+
+    def run_target(self, target, values, *, on: str = "local") -> int:
+        """Execute one registered dependency-management target."""
+
+        action = target.action or ""
+        return self.deps(
+            action,
+            profile=values.get("DEPS_PROFILE", "base"),
+            jobs=int(values.get("DEPS_JOBS", "2")),
+            apply=str(values.get("DEPS_PRUNE_APPLY", "0")).strip().lower() in {"1", "true", "yes", "on"},
+            prune_cache=str(values.get("DEPS_PRUNE_CACHE", "0")).strip().lower() in {"1", "true", "yes", "on"},
+            on=on,
+        )
+
     def deps(
         self,
         action: str,
