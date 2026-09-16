@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/syn/ihp-sg13g2/gpio_synth.v
-#   SDC           : /tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/constraints/gpio.sdc
+#   Netlist       : /tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/syn/ihp-sg13g2/gpio_synth.v
+#   SDC           : /tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/constraints/gpio.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/ihp-sg13g2/sdf/template_reports
+#   Report dir    : /tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/signoff/ihp-sg13g2/sdf/template_reports
 #
 # Limitations:
 #   - SDF reflects the linked netlist and timing model for the selected corner.
@@ -42,12 +42,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/ihp-sg13g2/sdf/template_reports}
+set report_dir {/tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/signoff/ihp-sg13g2/sdf/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/syn/ihp-sg13g2/gpio_synth.v}
-set sdc {/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/constraints/gpio.sdc}
+set netlist {/tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/syn/ihp-sg13g2/gpio_synth.v}
+set sdc {/tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/constraints/gpio.sdc}
 set spef {}
 set top {gpio}
 set stage {post_syn}
@@ -139,7 +139,7 @@ check_setup -verbose
 puts "=== Step 7/7: Analysis-specific reporting ==="
 
 # write_sdf serializes the linked timing model for gate-level simulation.
-set sdf_file {/tmp/flexsoc-ip-v1-release-20260914/gpio-tlul/runs/gpio/release/signoff/ihp-sg13g2/sdf/template_reports/gpio_tt.sdf}
+set sdf_file {/tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/signoff/ihp-sg13g2/sdf/template_reports/gpio_tt.sdf}
 puts "sdf=$sdf_file"
 write_sdf -divider / -include_typ -no_timestamp -no_version $sdf_file
 proc flexsoc_complete_sdf_typ_header {path} {

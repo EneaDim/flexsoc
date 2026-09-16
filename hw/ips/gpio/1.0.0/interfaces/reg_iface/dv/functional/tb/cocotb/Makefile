@@ -67,11 +67,11 @@ else
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv \
-    /tmp/flexsoc-ip-v1-release-20260914/gpio-reg_iface/runs/gpio/release/rtl/gpio_reg_pkg.sv \
-    /tmp/flexsoc-ip-v1-release-20260914/gpio-reg_iface/runs/gpio/release/rtl/gpio_reg_core.sv \
-    /tmp/flexsoc-ip-v1-release-20260914/gpio-reg_iface/runs/gpio/release/rtl/gpio_reg_top.sv \
-    /tmp/flexsoc-ip-v1-release-20260914/gpio-reg_iface/runs/gpio/release/rtl/gpio_core.sv \
-    /tmp/flexsoc-ip-v1-release-20260914/gpio-reg_iface/runs/gpio/release/rtl/gpio.sv
+    /tmp/flexsoc-ip-release/gpio-reg_iface/runs/gpio/release/rtl/gpio_reg_pkg.sv \
+    /tmp/flexsoc-ip-release/gpio-reg_iface/runs/gpio/release/rtl/gpio_reg_core.sv \
+    /tmp/flexsoc-ip-release/gpio-reg_iface/runs/gpio/release/rtl/gpio_reg_top.sv \
+    /tmp/flexsoc-ip-release/gpio-reg_iface/runs/gpio/release/rtl/gpio_core.sv \
+    /tmp/flexsoc-ip-release/gpio-reg_iface/runs/gpio/release/rtl/gpio.sv
 
   COMPILE_ARGS += --sv --timing
   WAVE_FORMAT ?= fst
@@ -87,7 +87,7 @@ else
   COMPILE_ARGS += -Wno-UNOPTFLAT
 endif
 
-COMPILE_ARGS += -I/tmp/flexsoc-ip-v1-release-20260914/gpio-reg_iface/runs/gpio/release/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan
+COMPILE_ARGS += -I/tmp/flexsoc-ip-release/gpio-reg_iface/runs/gpio/release/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan
 export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
 TEST_NAME ?= smoke
 SEED ?= 1
@@ -122,7 +122,7 @@ export CFG ?= $(REG_CONFIG)
 export DATA_IN  ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
 export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
 export PYTHONPATH := $(PWD):$(PYTHONPATH)
-VERILOG_SOURCES += /tmp/flexsoc-ip-v1-release-20260914/gpio-reg_iface/runs/gpio/release/dv/functional/tb/cocotb/gpio_tb.sv
+VERILOG_SOURCES += /tmp/flexsoc-ip-release/gpio-reg_iface/runs/gpio/release/dv/functional/tb/cocotb/gpio_tb.sv
 
 COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
 ifeq ($(strip $(COCOTB_MAKEFILES)),)

@@ -247,16 +247,16 @@
     "fusion_analysis_all": {
       "config": {
         "PDK": "ihp-sg13g2",
-        "POWER_GLS_BACKENDS": "",
-        "POWER_TEST_NAMES": "",
-        "POWER_TIMING_MODES": "",
+        "POWER_GLS_BACKENDS": "sv",
+        "POWER_TEST_NAMES": "smoke,corners,parity_error",
+        "POWER_TIMING_MODES": "min,typ,max",
         "TOP": "uart"
       },
-      "fingerprint": "cd9683ba189276f6d3a039940d8025008273506a650795cb06db388c46238597",
+      "fingerprint": "bda5a0fc39e75aa93f904082e7d11a3b2499f5f5938a546ab977bc5db5008bb6",
       "generated": [
         {
-          "effective_sha256": "ba28d72ad35e64d7527f89ebfd26f2f4aeea6497f3837c4ac6cc4d52d232b7c6",
-          "generated_sha256": "ba28d72ad35e64d7527f89ebfd26f2f4aeea6497f3837c4ac6cc4d52d232b7c6",
+          "effective_sha256": "b0bcd501521adaf94485dd8f52ba6625090f1becd1c7cdbcac4b7e27284b5b23",
+          "generated_sha256": "b0bcd501521adaf94485dd8f52ba6625090f1becd1c7cdbcac4b7e27284b5b23",
           "path": "signoff/ihp-sg13g2/fusion/summary.json"
         }
       ],
@@ -264,12 +264,12 @@
       "inputs": [
         {
           "path": "signoff/ihp-sg13g2/power/analysis",
-          "sha256": "dd567ad215060ffaddc326e7ea24a61a43dc4fd94c4dd9c351740d4be172861d"
+          "sha256": "a10f65374b345969ef8a92fb8e07c245a10a6b8a9567c359003e95191bafd338"
         }
       ],
       "outcome": "PASS",
       "parents": {
-        "power_analysis_all": "bcedd96ad3090c563a563645258d2f405f69ae86d2f8afffb9e7427ce3336c61"
+        "power_analysis_all": "42ebce866b24945e3e930935abf503cee34bc67e6194192fa01751cd9a4937c4"
       },
       "returncode": 0,
       "tools": {
@@ -281,19 +281,231 @@
         }
       }
     },
+    "fusion_analysis_post_pnr_all": {
+      "config": {
+        "PDK": "ihp-sg13g2",
+        "POWER_GLS_BACKENDS": "sv",
+        "POWER_TEST_NAMES": "smoke,corners,parity_error",
+        "POWER_TIMING_MODES": "min,typ,max",
+        "TOP": "uart"
+      },
+      "fingerprint": "a375a84372ac85da77fd22152db25b85068d5e62036943f73be06e5dac19e3fc",
+      "generated": [
+        {
+          "effective_sha256": "7e9d9d20b5afdddfb60dbbbfcf0d29f85c386132f3364587730737450220af2e",
+          "generated_sha256": "7e9d9d20b5afdddfb60dbbbfcf0d29f85c386132f3364587730737450220af2e",
+          "path": "signoff/ihp-sg13g2/post_pnr/fusion/summary.json"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/power/analysis",
+          "sha256": "94802990e8e7a6efbaed10a6edf3c10a3a52fceddc5cd738dd1225d5caaed30a"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "power_analysis_post_pnr_all": "8f514f366f3aedf0e67a4587a13b13044d0f121769613d83a704af7a1217bbc4"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
+      }
+    },
+    "physical_signoff": {
+      "config": {
+        "ORS": "/home/eneadim/OpenROAD-flow-scripts/flow",
+        "ORS_TECH": "ihp-sg13g2",
+        "PDK": "ihp-sg13g2",
+        "TOP": "uart"
+      },
+      "fingerprint": "44f93657d0e42046c995a02529d46d1184936eea85cd51d283d7122c909807db",
+      "generated": [
+        {
+          "effective_sha256": "05f8d7bf6e180e481a81bb7692bf8c247de9ea7766838fea96503ed387b932e4",
+          "generated_sha256": "05f8d7bf6e180e481a81bb7692bf8c247de9ea7766838fea96503ed387b932e4",
+          "path": "signoff/ihp-sg13g2/post_pnr/physical/summary.json"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.v",
+          "sha256": "b4d626126557d33366fb8f5393335f87093e0e547d32285e93bc304423629f0f"
+        },
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.sdc",
+          "sha256": "4cf09b3926f1162455936d619ee0cd476049f13f9833a618af488edf2e9f09ec"
+        },
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.spef",
+          "sha256": "7f2e101bc65c70e6e291de15cbc09dddf30c0332785a7c4e16112a904105f311"
+        },
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.odb",
+          "sha256": "a26ff627a13cb73dc584bc280b6c92d5e4bab89e8c3886164a4c22dfab38146c"
+        },
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.gds",
+          "sha256": "b7314b2a7ada32cb47d8eafc85ed32ff25a52ba1e536120b03d674c4a47f133e"
+        },
+        {
+          "path": "/home/eneadim/OpenROAD-flow-scripts/flow/Makefile",
+          "sha256": "7b042cf86806f98894045de44c1216776590dcd05ab90dc6bc0a36fc3021a128"
+        },
+        {
+          "path": "impl/ihp-sg13g2/config.mk",
+          "sha256": "092044a00067ed430827cae2bdf67e10f0d269fcb269e864ec14e31be4e86072"
+        }
+      ],
+      "outcome": "FAILED",
+      "parents": {
+        "pnr": "a0315c006f5231a44eac71e3fc8fd086bbca17be48171884003785ef612805b5"
+      },
+      "returncode": 2,
+      "tools": {
+        "KLAYOUT": {
+          "md5": "145adaa044101bb41179aa63ec6d7f86",
+          "url": "https://www.klayout.org/downloads/Ubuntu-24/klayout_0.30.7-1_amd64.deb",
+          "version": "0.30.7"
+        },
+        "OPENROAD": {
+          "install_mode": "source-ubuntu24",
+          "ref_prefix": "f552262465b0bfef8f097e258f94bc501d01e19d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenROAD.git"
+        },
+        "ORFS": {
+          "ref_prefix": "6101364b2d7909dd797e1e3e7f80695401cfa4e4",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts.git"
+        }
+      }
+    },
+    "pnr": {
+      "config": {
+        "ORS": "/home/eneadim/OpenROAD-flow-scripts/flow",
+        "ORS_TECH": "ihp-sg13g2",
+        "PDK": "ihp-sg13g2",
+        "TOP": "uart"
+      },
+      "fingerprint": "a0315c006f5231a44eac71e3fc8fd086bbca17be48171884003785ef612805b5",
+      "generated": [
+        {
+          "effective_sha256": "b4d626126557d33366fb8f5393335f87093e0e547d32285e93bc304423629f0f",
+          "generated_sha256": "b4d626126557d33366fb8f5393335f87093e0e547d32285e93bc304423629f0f",
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.v"
+        },
+        {
+          "effective_sha256": "4cf09b3926f1162455936d619ee0cd476049f13f9833a618af488edf2e9f09ec",
+          "generated_sha256": "4cf09b3926f1162455936d619ee0cd476049f13f9833a618af488edf2e9f09ec",
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.sdc"
+        },
+        {
+          "effective_sha256": "7f2e101bc65c70e6e291de15cbc09dddf30c0332785a7c4e16112a904105f311",
+          "generated_sha256": "7f2e101bc65c70e6e291de15cbc09dddf30c0332785a7c4e16112a904105f311",
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.spef"
+        },
+        {
+          "effective_sha256": "a26ff627a13cb73dc584bc280b6c92d5e4bab89e8c3886164a4c22dfab38146c",
+          "generated_sha256": "a26ff627a13cb73dc584bc280b6c92d5e4bab89e8c3886164a4c22dfab38146c",
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.odb"
+        },
+        {
+          "effective_sha256": "b7314b2a7ada32cb47d8eafc85ed32ff25a52ba1e536120b03d674c4a47f133e",
+          "generated_sha256": "b7314b2a7ada32cb47d8eafc85ed32ff25a52ba1e536120b03d674c4a47f133e",
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.gds"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "syn/ihp-sg13g2/uart_synth.v",
+          "sha256": "a222125e02da79106f5dc71c108d07fcd075e85e44ce519170dcfcddfb64d565"
+        },
+        {
+          "path": "constraints/uart.sdc",
+          "sha256": "5dd64412f90c0ae9fd16cae702fdcaa408553413113102a2bfac6c5cdbd85e35"
+        },
+        {
+          "path": "impl/ihp-sg13g2/config.mk",
+          "sha256": "092044a00067ed430827cae2bdf67e10f0d269fcb269e864ec14e31be4e86072"
+        },
+        {
+          "path": "/home/eneadim/OpenROAD-flow-scripts/flow/Makefile",
+          "sha256": "7b042cf86806f98894045de44c1216776590dcd05ab90dc6bc0a36fc3021a128"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "pnr.setup": "99a8115357e2da35085e35061a9f0bf6f467c6537efc5334b62f9683e2db0ddb",
+        "syn": "31a6853bb596afd52560e417bd6ff5a3b99222350d5bd6cf17a66cee8e9c0a68"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENROAD": {
+          "install_mode": "source-ubuntu24",
+          "ref_prefix": "f552262465b0bfef8f097e258f94bc501d01e19d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenROAD.git"
+        },
+        "ORFS": {
+          "ref_prefix": "6101364b2d7909dd797e1e3e7f80695401cfa4e4",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts.git"
+        }
+      }
+    },
+    "pnr.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "N_CLOCKS": "1",
+        "ORS_TECH": "ihp-sg13g2",
+        "PDK": "ihp-sg13g2",
+        "PNR_HOLD_SLACK_MARGIN": "0.15",
+        "TOP": "uart"
+      },
+      "fingerprint": "99a8115357e2da35085e35061a9f0bf6f467c6537efc5334b62f9683e2db0ddb",
+      "generated": [
+        {
+          "effective_sha256": "092044a00067ed430827cae2bdf67e10f0d269fcb269e864ec14e31be4e86072",
+          "generated_sha256": "092044a00067ed430827cae2bdf67e10f0d269fcb269e864ec14e31be4e86072",
+          "path": "impl/ihp-sg13g2/config.mk"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "syn/ihp-sg13g2/uart_synth.v",
+          "sha256": "a222125e02da79106f5dc71c108d07fcd075e85e44ce519170dcfcddfb64d565"
+        },
+        {
+          "path": "constraints/uart.sdc",
+          "sha256": "5dd64412f90c0ae9fd16cae702fdcaa408553413113102a2bfac6c5cdbd85e35"
+        }
+      ],
+      "parents": {
+        "signoff.setup": "2e085c191239e7b3f85011d4807ed860c29f4e98236f0b255aa9edb30d2b4ceb",
+        "syn.setup": "b60401953125b2aba826786eadf4b896cc7742106f4470d0c36d814e9d75b13a"
+      },
+      "tools": {}
+    },
     "power_analysis_all": {
       "config": {
         "PDK": "ihp-sg13g2",
-        "POWER_GLS_BACKENDS": "",
-        "POWER_TEST_NAMES": "",
-        "POWER_TIMING_MODES": "",
+        "POWER_GLS_BACKENDS": "sv",
+        "POWER_TEST_NAMES": "smoke,corners,parity_error",
+        "POWER_TIMING_MODES": "min,typ,max",
         "TOP": "uart"
       },
-      "fingerprint": "bcedd96ad3090c563a563645258d2f405f69ae86d2f8afffb9e7427ce3336c61",
+      "fingerprint": "42ebce866b24945e3e930935abf503cee34bc67e6194192fa01751cd9a4937c4",
       "generated": [
         {
-          "effective_sha256": "2a082132baf2d11550c9c09cb9317686374f821d99a743e5353a6ed5255304c5",
-          "generated_sha256": "2a082132baf2d11550c9c09cb9317686374f821d99a743e5353a6ed5255304c5",
+          "effective_sha256": "3de23006f24e1b39812f3ba1cd3ba9d5af69ece091ba6cd17fe8bf8db4a6e4e3",
+          "generated_sha256": "3de23006f24e1b39812f3ba1cd3ba9d5af69ece091ba6cd17fe8bf8db4a6e4e3",
           "path": "signoff/ihp-sg13g2/power/analysis/summary.json"
         }
       ],
@@ -329,33 +541,123 @@
         },
         {
           "path": "signoff/ihp-sg13g2/sta/sta.tcl",
-          "sha256": "0d24ca9174d9e5db4816a95b39a7baebdb1d2bdfef200b96700484cab128e90e"
+          "sha256": "8e718a70e50c976357fe0854f2a83fa7b8177d7936b8e140ad45ed7fa8470cf8"
         },
         {
           "path": "signoff/ihp-sg13g2/sdf/write_sdf.tcl",
-          "sha256": "39944a27c5449be3db7f23315948b27b18b65327daccdf2a4eb0cba198695429"
+          "sha256": "45a1e788a65dda6fef81dc8314a385638850ae507b5e7e0840014e7a8d34d042"
         },
         {
           "path": "signoff/ihp-sg13g2/power/estimate/power_estimate.tcl",
-          "sha256": "3aa7838948d04142451f1e9b6b58384f90bf11f01de61d03da3a051208fc8912"
+          "sha256": "780f1baf34b03bbd7b9ddef7778bc7f241305d16d536aba41641f8996e903ad6"
         },
         {
           "path": "signoff/ihp-sg13g2/power/analysis/power_analysis.tcl",
-          "sha256": "1c1cfcb619a7c5b1c4e0a9246ebf03c9596049981f45a5fadd2132bd89f6631e"
+          "sha256": "9f37064bddf901f2710092ac714fe0fc128a3287e9088ed37ae1ba9f4ef30bb1"
         },
         {
           "path": "signoff/ihp-sg13g2/fusion/fusion_analysis.tcl",
-          "sha256": "5ebcebb4ef6c4fa40f29d06965cd6e36b0098518580f39b8f4eb0c847f4783e1"
+          "sha256": "f5048465bd811550bd87003b760c608ed4511312cc74bfe4ae5b1a52b1cfd550"
         },
         {
           "path": "dv/functional/sim/post_syn/ihp-sg13g2",
-          "sha256": "58fcff489048d5eb8af587219b4a1daef8568a18304dc6fd26fc7bfc7dda4567"
+          "sha256": "c95eff2506ca5cd879dd2697434807d844674ce2ae186851eeecddc4d90c324f"
         }
       ],
       "outcome": "PASS",
       "parents": {
-        "signoff.setup": "20dc6d6a68b4b9dfc34fe1a05de1a48910fad146fd744f2786043dd3026b2edb",
-        "sim_post_syn_all": "5474a13b904403a33fa23fb438966298e5633f071747ac12ee553e4f86217043"
+        "signoff.setup": "2e085c191239e7b3f85011d4807ed860c29f4e98236f0b255aa9edb30d2b4ceb",
+        "sim_post_syn_all": "8b0adf224125459e1fd82cd8cfc63fe777b4b0832a486644ced78e746b73d4df"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
+      }
+    },
+    "power_analysis_post_pnr_all": {
+      "config": {
+        "PDK": "ihp-sg13g2",
+        "POWER_GLS_BACKENDS": "sv",
+        "POWER_TEST_NAMES": "smoke,corners,parity_error",
+        "POWER_TIMING_MODES": "min,typ,max",
+        "TOP": "uart"
+      },
+      "fingerprint": "8f514f366f3aedf0e67a4587a13b13044d0f121769613d83a704af7a1217bbc4",
+      "generated": [
+        {
+          "effective_sha256": "b5b7170b0a227b6ef03a433fb70544afb79c116247e3bf80086eb99a8120b9dd",
+          "generated_sha256": "b5b7170b0a227b6ef03a433fb70544afb79c116247e3bf80086eb99a8120b9dd",
+          "path": "signoff/ihp-sg13g2/post_pnr/power/analysis/summary.json"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.v",
+          "sha256": "b4d626126557d33366fb8f5393335f87093e0e547d32285e93bc304423629f0f"
+        },
+        {
+          "path": "constraints/uart.sdc",
+          "sha256": "5dd64412f90c0ae9fd16cae702fdcaa408553413113102a2bfac6c5cdbd85e35"
+        },
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.spef",
+          "sha256": "7f2e101bc65c70e6e291de15cbc09dddf30c0332785a7c4e16112a904105f311"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
+          "sha256": "e2fe78316f0045003b41b739cf3d7b183b03c97703332b1c046de0e33ea909af"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib",
+          "sha256": "093a80e3677c428c92c9c56d41b61e72ce168164cae73196cc7030c96f2382b5"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib",
+          "sha256": "9baf754c5008eb80fdc6f52b6c414f487831291dbe0166a6771a5f2de675359f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_udp.v",
+          "sha256": "5491a3edf7468792b5222e7abe057e0583a407c01b2086d4fd44a55b6cf88055"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_stdcell.v",
+          "sha256": "9c91c5311e0b10525b2e02bfd30910927d821c0928aff45cb7f34f3a6a3280f8"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/sta/sta.tcl",
+          "sha256": "c0967d59c1b230938e8a1da03e0ff7c84aba79882f2510c2009a03304e1c6f47"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/sdf/write_sdf.tcl",
+          "sha256": "0d67f1efac288023a0a8dc64db9287803b556a8f2d56a78f3dac46335a9eb819"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/power/estimate/power_estimate.tcl",
+          "sha256": "c131766267c95fde4b45a9ba7a82a0e2169503265cf06cc471a6e8df3b65167e"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/power/analysis/power_analysis.tcl",
+          "sha256": "e974af47c00a11660f918b61d624b483f5ba06cd8e296157e2cc5a5894ac95c5"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/fusion/fusion_analysis.tcl",
+          "sha256": "4471ac32f48950cbd60d97acebc2746b4c1c4c04cbba809effae2cff500c102d"
+        },
+        {
+          "path": "dv/functional/sim/post_pnr/ihp-sg13g2",
+          "sha256": "b69237d9070e25f8f1a5ecb0a6c908392157083c743b62841779d03e2ef85ae8"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "signoff_post_pnr.setup": "bca9e10bd94cbab120356f20c6de21e7063c76ed46b3ae14c3d19ab8fb6c3554",
+        "sim_post_pnr_all": "5aa0084ce2f5d071556a460bdcfd7254627f4de936f719623ba1d5fdcb2ad625"
       },
       "returncode": 0,
       "tools": {
@@ -372,12 +674,12 @@
         "PDK": "ihp-sg13g2",
         "TOP": "uart"
       },
-      "fingerprint": "6a13ba948e5320cc62c1fcd8210317a41e44ba64c1787272baa0b525cba0b775",
+      "fingerprint": "32d12a9a1cc15d3b6bed925efc4e2ece6b2ec7bdcff7e2df3a510ec9eb520987",
       "generated": [
         {
-          "effective_sha256": "26bf6a14e6eb6cb6eebedba786fd93b69705c899de3ed796fb36f3b5b689a3fa",
-          "generated_sha256": "26bf6a14e6eb6cb6eebedba786fd93b69705c899de3ed796fb36f3b5b689a3fa",
-          "path": "signoff/ihp-sg13g2/power/estimate"
+          "effective_sha256": "ad02b683b67f629ac1e8dcc2752cf4737a2076cc2240e22e843217ec05f8f50f",
+          "generated_sha256": "ad02b683b67f629ac1e8dcc2752cf4737a2076cc2240e22e843217ec05f8f50f",
+          "path": "signoff/ihp-sg13g2/power/estimate/summary.json"
         }
       ],
       "input_paths_match": true,
@@ -412,29 +714,112 @@
         },
         {
           "path": "signoff/ihp-sg13g2/sta/sta.tcl",
-          "sha256": "0d24ca9174d9e5db4816a95b39a7baebdb1d2bdfef200b96700484cab128e90e"
+          "sha256": "8e718a70e50c976357fe0854f2a83fa7b8177d7936b8e140ad45ed7fa8470cf8"
         },
         {
           "path": "signoff/ihp-sg13g2/sdf/write_sdf.tcl",
-          "sha256": "39944a27c5449be3db7f23315948b27b18b65327daccdf2a4eb0cba198695429"
+          "sha256": "45a1e788a65dda6fef81dc8314a385638850ae507b5e7e0840014e7a8d34d042"
         },
         {
           "path": "signoff/ihp-sg13g2/power/estimate/power_estimate.tcl",
-          "sha256": "3aa7838948d04142451f1e9b6b58384f90bf11f01de61d03da3a051208fc8912"
+          "sha256": "780f1baf34b03bbd7b9ddef7778bc7f241305d16d536aba41641f8996e903ad6"
         },
         {
           "path": "signoff/ihp-sg13g2/power/analysis/power_analysis.tcl",
-          "sha256": "1c1cfcb619a7c5b1c4e0a9246ebf03c9596049981f45a5fadd2132bd89f6631e"
+          "sha256": "9f37064bddf901f2710092ac714fe0fc128a3287e9088ed37ae1ba9f4ef30bb1"
         },
         {
           "path": "signoff/ihp-sg13g2/fusion/fusion_analysis.tcl",
-          "sha256": "5ebcebb4ef6c4fa40f29d06965cd6e36b0098518580f39b8f4eb0c847f4783e1"
+          "sha256": "f5048465bd811550bd87003b760c608ed4511312cc74bfe4ae5b1a52b1cfd550"
         }
       ],
       "outcome": "PASS",
       "parents": {
-        "signoff.setup": "20dc6d6a68b4b9dfc34fe1a05de1a48910fad146fd744f2786043dd3026b2edb",
-        "syn": "ddb356424d90ca2748d6104a5ef5b4c6695e0a552226847361d05f39bb2e9f44"
+        "signoff.setup": "2e085c191239e7b3f85011d4807ed860c29f4e98236f0b255aa9edb30d2b4ceb",
+        "syn": "31a6853bb596afd52560e417bd6ff5a3b99222350d5bd6cf17a66cee8e9c0a68"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
+      }
+    },
+    "power_estimate_post_pnr": {
+      "config": {
+        "PDK": "ihp-sg13g2",
+        "TOP": "uart"
+      },
+      "fingerprint": "960fae761c9e2419b0916c2847c152cbe982dc0fe091a9bc11b11cedaa0e04fc",
+      "generated": [
+        {
+          "effective_sha256": "c86a0b126b77e138f967974b941e1e2efec3f9f4e703dc9bf8443d55cef8859a",
+          "generated_sha256": "c86a0b126b77e138f967974b941e1e2efec3f9f4e703dc9bf8443d55cef8859a",
+          "path": "signoff/ihp-sg13g2/post_pnr/power/estimate/summary.json"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.v",
+          "sha256": "b4d626126557d33366fb8f5393335f87093e0e547d32285e93bc304423629f0f"
+        },
+        {
+          "path": "constraints/uart.sdc",
+          "sha256": "5dd64412f90c0ae9fd16cae702fdcaa408553413113102a2bfac6c5cdbd85e35"
+        },
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.spef",
+          "sha256": "7f2e101bc65c70e6e291de15cbc09dddf30c0332785a7c4e16112a904105f311"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
+          "sha256": "e2fe78316f0045003b41b739cf3d7b183b03c97703332b1c046de0e33ea909af"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib",
+          "sha256": "093a80e3677c428c92c9c56d41b61e72ce168164cae73196cc7030c96f2382b5"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib",
+          "sha256": "9baf754c5008eb80fdc6f52b6c414f487831291dbe0166a6771a5f2de675359f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_udp.v",
+          "sha256": "5491a3edf7468792b5222e7abe057e0583a407c01b2086d4fd44a55b6cf88055"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_stdcell.v",
+          "sha256": "9c91c5311e0b10525b2e02bfd30910927d821c0928aff45cb7f34f3a6a3280f8"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/sta/sta.tcl",
+          "sha256": "c0967d59c1b230938e8a1da03e0ff7c84aba79882f2510c2009a03304e1c6f47"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/sdf/write_sdf.tcl",
+          "sha256": "0d67f1efac288023a0a8dc64db9287803b556a8f2d56a78f3dac46335a9eb819"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/power/estimate/power_estimate.tcl",
+          "sha256": "c131766267c95fde4b45a9ba7a82a0e2169503265cf06cc471a6e8df3b65167e"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/power/analysis/power_analysis.tcl",
+          "sha256": "e974af47c00a11660f918b61d624b483f5ba06cd8e296157e2cc5a5894ac95c5"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/fusion/fusion_analysis.tcl",
+          "sha256": "4471ac32f48950cbd60d97acebc2746b4c1c4c04cbba809effae2cff500c102d"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "pnr": "a0315c006f5231a44eac71e3fc8fd086bbca17be48171884003785ef612805b5",
+        "signoff_post_pnr.setup": "bca9e10bd94cbab120356f20c6de21e7063c76ed46b3ae14c3d19ab8fb6c3554"
       },
       "returncode": 0,
       "tools": {
@@ -451,11 +836,11 @@
         "PDK": "ihp-sg13g2",
         "TOP": "uart"
       },
-      "fingerprint": "3e751311f42cb5a19c15b4d4fe3bd281969e53d442ad5711b53c61a07a62e422",
+      "fingerprint": "d15122a0b4ad2dc58c3b8ac5b3c63fd4b295f146815639222b763033cbf04100",
       "generated": [
         {
-          "effective_sha256": "05974d7bd4f8f5124616bb2d3352bb5891d793d8d5ed5b44e482bfb478c69953",
-          "generated_sha256": "05974d7bd4f8f5124616bb2d3352bb5891d793d8d5ed5b44e482bfb478c69953",
+          "effective_sha256": "be9719cbf28d87818b52cb6678be2dd2dee7bd73ff4da031ebac496c9627cd70",
+          "generated_sha256": "be9719cbf28d87818b52cb6678be2dd2dee7bd73ff4da031ebac496c9627cd70",
           "path": "signoff/ihp-sg13g2/sdf"
         }
       ],
@@ -491,29 +876,112 @@
         },
         {
           "path": "signoff/ihp-sg13g2/sta/sta.tcl",
-          "sha256": "0d24ca9174d9e5db4816a95b39a7baebdb1d2bdfef200b96700484cab128e90e"
+          "sha256": "8e718a70e50c976357fe0854f2a83fa7b8177d7936b8e140ad45ed7fa8470cf8"
         },
         {
           "path": "signoff/ihp-sg13g2/sdf/write_sdf.tcl",
-          "sha256": "39944a27c5449be3db7f23315948b27b18b65327daccdf2a4eb0cba198695429"
+          "sha256": "45a1e788a65dda6fef81dc8314a385638850ae507b5e7e0840014e7a8d34d042"
         },
         {
           "path": "signoff/ihp-sg13g2/power/estimate/power_estimate.tcl",
-          "sha256": "3aa7838948d04142451f1e9b6b58384f90bf11f01de61d03da3a051208fc8912"
+          "sha256": "780f1baf34b03bbd7b9ddef7778bc7f241305d16d536aba41641f8996e903ad6"
         },
         {
           "path": "signoff/ihp-sg13g2/power/analysis/power_analysis.tcl",
-          "sha256": "1c1cfcb619a7c5b1c4e0a9246ebf03c9596049981f45a5fadd2132bd89f6631e"
+          "sha256": "9f37064bddf901f2710092ac714fe0fc128a3287e9088ed37ae1ba9f4ef30bb1"
         },
         {
           "path": "signoff/ihp-sg13g2/fusion/fusion_analysis.tcl",
-          "sha256": "5ebcebb4ef6c4fa40f29d06965cd6e36b0098518580f39b8f4eb0c847f4783e1"
+          "sha256": "f5048465bd811550bd87003b760c608ed4511312cc74bfe4ae5b1a52b1cfd550"
         }
       ],
       "outcome": "PASS",
       "parents": {
-        "signoff.setup": "20dc6d6a68b4b9dfc34fe1a05de1a48910fad146fd744f2786043dd3026b2edb",
-        "syn": "ddb356424d90ca2748d6104a5ef5b4c6695e0a552226847361d05f39bb2e9f44"
+        "signoff.setup": "2e085c191239e7b3f85011d4807ed860c29f4e98236f0b255aa9edb30d2b4ceb",
+        "syn": "31a6853bb596afd52560e417bd6ff5a3b99222350d5bd6cf17a66cee8e9c0a68"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
+      }
+    },
+    "sdf_post_pnr": {
+      "config": {
+        "PDK": "ihp-sg13g2",
+        "TOP": "uart"
+      },
+      "fingerprint": "6cfd5703f216d1ce2bbdf9cf1f7b626347391115288b266e760659a70c7d29b6",
+      "generated": [
+        {
+          "effective_sha256": "e0c624c7a4fcd5765639b5cb65f24ca18178194ebf1df34cc7d05ca2effff570",
+          "generated_sha256": "e0c624c7a4fcd5765639b5cb65f24ca18178194ebf1df34cc7d05ca2effff570",
+          "path": "signoff/ihp-sg13g2/post_pnr/sdf"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.v",
+          "sha256": "b4d626126557d33366fb8f5393335f87093e0e547d32285e93bc304423629f0f"
+        },
+        {
+          "path": "constraints/uart.sdc",
+          "sha256": "5dd64412f90c0ae9fd16cae702fdcaa408553413113102a2bfac6c5cdbd85e35"
+        },
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.spef",
+          "sha256": "7f2e101bc65c70e6e291de15cbc09dddf30c0332785a7c4e16112a904105f311"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
+          "sha256": "e2fe78316f0045003b41b739cf3d7b183b03c97703332b1c046de0e33ea909af"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib",
+          "sha256": "093a80e3677c428c92c9c56d41b61e72ce168164cae73196cc7030c96f2382b5"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib",
+          "sha256": "9baf754c5008eb80fdc6f52b6c414f487831291dbe0166a6771a5f2de675359f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_udp.v",
+          "sha256": "5491a3edf7468792b5222e7abe057e0583a407c01b2086d4fd44a55b6cf88055"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_stdcell.v",
+          "sha256": "9c91c5311e0b10525b2e02bfd30910927d821c0928aff45cb7f34f3a6a3280f8"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/sta/sta.tcl",
+          "sha256": "c0967d59c1b230938e8a1da03e0ff7c84aba79882f2510c2009a03304e1c6f47"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/sdf/write_sdf.tcl",
+          "sha256": "0d67f1efac288023a0a8dc64db9287803b556a8f2d56a78f3dac46335a9eb819"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/power/estimate/power_estimate.tcl",
+          "sha256": "c131766267c95fde4b45a9ba7a82a0e2169503265cf06cc471a6e8df3b65167e"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/power/analysis/power_analysis.tcl",
+          "sha256": "e974af47c00a11660f918b61d624b483f5ba06cd8e296157e2cc5a5894ac95c5"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/fusion/fusion_analysis.tcl",
+          "sha256": "4471ac32f48950cbd60d97acebc2746b4c1c4c04cbba809effae2cff500c102d"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "pnr": "a0315c006f5231a44eac71e3fc8fd086bbca17be48171884003785ef612805b5",
+        "signoff_post_pnr.setup": "bca9e10bd94cbab120356f20c6de21e7063c76ed46b3ae14c3d19ab8fb6c3554"
       },
       "returncode": 0,
       "tools": {
@@ -537,31 +1005,31 @@
         "SDC_IO_DELAY_PCT": "",
         "TOP": "uart"
       },
-      "fingerprint": "20dc6d6a68b4b9dfc34fe1a05de1a48910fad146fd744f2786043dd3026b2edb",
+      "fingerprint": "2e085c191239e7b3f85011d4807ed860c29f4e98236f0b255aa9edb30d2b4ceb",
       "generated": [
         {
-          "effective_sha256": "0d24ca9174d9e5db4816a95b39a7baebdb1d2bdfef200b96700484cab128e90e",
-          "generated_sha256": "0d24ca9174d9e5db4816a95b39a7baebdb1d2bdfef200b96700484cab128e90e",
+          "effective_sha256": "8e718a70e50c976357fe0854f2a83fa7b8177d7936b8e140ad45ed7fa8470cf8",
+          "generated_sha256": "8e718a70e50c976357fe0854f2a83fa7b8177d7936b8e140ad45ed7fa8470cf8",
           "path": "signoff/ihp-sg13g2/sta/sta.tcl"
         },
         {
-          "effective_sha256": "39944a27c5449be3db7f23315948b27b18b65327daccdf2a4eb0cba198695429",
-          "generated_sha256": "39944a27c5449be3db7f23315948b27b18b65327daccdf2a4eb0cba198695429",
+          "effective_sha256": "45a1e788a65dda6fef81dc8314a385638850ae507b5e7e0840014e7a8d34d042",
+          "generated_sha256": "45a1e788a65dda6fef81dc8314a385638850ae507b5e7e0840014e7a8d34d042",
           "path": "signoff/ihp-sg13g2/sdf/write_sdf.tcl"
         },
         {
-          "effective_sha256": "3aa7838948d04142451f1e9b6b58384f90bf11f01de61d03da3a051208fc8912",
-          "generated_sha256": "3aa7838948d04142451f1e9b6b58384f90bf11f01de61d03da3a051208fc8912",
+          "effective_sha256": "780f1baf34b03bbd7b9ddef7778bc7f241305d16d536aba41641f8996e903ad6",
+          "generated_sha256": "780f1baf34b03bbd7b9ddef7778bc7f241305d16d536aba41641f8996e903ad6",
           "path": "signoff/ihp-sg13g2/power/estimate/power_estimate.tcl"
         },
         {
-          "effective_sha256": "1c1cfcb619a7c5b1c4e0a9246ebf03c9596049981f45a5fadd2132bd89f6631e",
-          "generated_sha256": "1c1cfcb619a7c5b1c4e0a9246ebf03c9596049981f45a5fadd2132bd89f6631e",
+          "effective_sha256": "9f37064bddf901f2710092ac714fe0fc128a3287e9088ed37ae1ba9f4ef30bb1",
+          "generated_sha256": "9f37064bddf901f2710092ac714fe0fc128a3287e9088ed37ae1ba9f4ef30bb1",
           "path": "signoff/ihp-sg13g2/power/analysis/power_analysis.tcl"
         },
         {
-          "effective_sha256": "5ebcebb4ef6c4fa40f29d06965cd6e36b0098518580f39b8f4eb0c847f4783e1",
-          "generated_sha256": "5ebcebb4ef6c4fa40f29d06965cd6e36b0098518580f39b8f4eb0c847f4783e1",
+          "effective_sha256": "f5048465bd811550bd87003b760c608ed4511312cc74bfe4ae5b1a52b1cfd550",
+          "generated_sha256": "f5048465bd811550bd87003b760c608ed4511312cc74bfe4ae5b1a52b1cfd550",
           "path": "signoff/ihp-sg13g2/fusion/fusion_analysis.tcl"
         }
       ],
@@ -599,20 +1067,383 @@
       "parents": {},
       "tools": {}
     },
+    "signoff_post_pnr.setup": {
+      "config": {
+        "CLK_PERIOD": "10",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "N_CLOCKS": "1",
+        "ORS_TECH": "ihp-sg13g2",
+        "PDK": "ihp-sg13g2",
+        "REG_ITF": "tlul",
+        "SDC_IO_DELAY_PCT": "",
+        "TOP": "uart"
+      },
+      "fingerprint": "bca9e10bd94cbab120356f20c6de21e7063c76ed46b3ae14c3d19ab8fb6c3554",
+      "generated": [
+        {
+          "effective_sha256": "c0967d59c1b230938e8a1da03e0ff7c84aba79882f2510c2009a03304e1c6f47",
+          "generated_sha256": "c0967d59c1b230938e8a1da03e0ff7c84aba79882f2510c2009a03304e1c6f47",
+          "path": "signoff/ihp-sg13g2/post_pnr/sta/sta.tcl"
+        },
+        {
+          "effective_sha256": "0d67f1efac288023a0a8dc64db9287803b556a8f2d56a78f3dac46335a9eb819",
+          "generated_sha256": "0d67f1efac288023a0a8dc64db9287803b556a8f2d56a78f3dac46335a9eb819",
+          "path": "signoff/ihp-sg13g2/post_pnr/sdf/write_sdf.tcl"
+        },
+        {
+          "effective_sha256": "c131766267c95fde4b45a9ba7a82a0e2169503265cf06cc471a6e8df3b65167e",
+          "generated_sha256": "c131766267c95fde4b45a9ba7a82a0e2169503265cf06cc471a6e8df3b65167e",
+          "path": "signoff/ihp-sg13g2/post_pnr/power/estimate/power_estimate.tcl"
+        },
+        {
+          "effective_sha256": "e974af47c00a11660f918b61d624b483f5ba06cd8e296157e2cc5a5894ac95c5",
+          "generated_sha256": "e974af47c00a11660f918b61d624b483f5ba06cd8e296157e2cc5a5894ac95c5",
+          "path": "signoff/ihp-sg13g2/post_pnr/power/analysis/power_analysis.tcl"
+        },
+        {
+          "effective_sha256": "4471ac32f48950cbd60d97acebc2746b4c1c4c04cbba809effae2cff500c102d",
+          "generated_sha256": "4471ac32f48950cbd60d97acebc2746b4c1c4c04cbba809effae2cff500c102d",
+          "path": "signoff/ihp-sg13g2/post_pnr/fusion/fusion_analysis.tcl"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.v",
+          "sha256": "b4d626126557d33366fb8f5393335f87093e0e547d32285e93bc304423629f0f"
+        },
+        {
+          "path": "constraints/uart.sdc",
+          "sha256": "5dd64412f90c0ae9fd16cae702fdcaa408553413113102a2bfac6c5cdbd85e35"
+        },
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.spef",
+          "sha256": "7f2e101bc65c70e6e291de15cbc09dddf30c0332785a7c4e16112a904105f311"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
+          "sha256": "e2fe78316f0045003b41b739cf3d7b183b03c97703332b1c046de0e33ea909af"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib",
+          "sha256": "093a80e3677c428c92c9c56d41b61e72ce168164cae73196cc7030c96f2382b5"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib",
+          "sha256": "9baf754c5008eb80fdc6f52b6c414f487831291dbe0166a6771a5f2de675359f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_udp.v",
+          "sha256": "5491a3edf7468792b5222e7abe057e0583a407c01b2086d4fd44a55b6cf88055"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_stdcell.v",
+          "sha256": "9c91c5311e0b10525b2e02bfd30910927d821c0928aff45cb7f34f3a6a3280f8"
+        }
+      ],
+      "parents": {
+        "pnr.setup": "99a8115357e2da35085e35061a9f0bf6f467c6537efc5334b62f9683e2db0ddb"
+      },
+      "tools": {}
+    },
+    "sim_post_pnr_all": {
+      "config": {
+        "GLS_BACKEND": "sv",
+        "PDK": "ihp-sg13g2",
+        "SDF_STRICT": "1",
+        "TEST_NAMES": "smoke,corners,parity_error",
+        "TIMING_MODES": "min,typ,max",
+        "TOP": "uart"
+      },
+      "fingerprint": "5aa0084ce2f5d071556a460bdcfd7254627f4de936f719623ba1d5fdcb2ad625",
+      "generated": [
+        {
+          "effective_sha256": "0a773bf83a2c2dd39912a593a818ad72f98fd4b715b125ca5e52734a91b9eb47",
+          "generated_sha256": "0a773bf83a2c2dd39912a593a818ad72f98fd4b715b125ca5e52734a91b9eb47",
+          "path": "dv/functional/sim/post_pnr/ihp-sg13g2/summary_sv.json"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "97cfca1ec28c1980ada33d97826798a7fafbd1568dcb981991589c4de2cff603"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "07c102470e9ef35abcd2697efb91b660531d17ee71f41cab47039c516813ebee"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": "6645d657b107b024f9211d3a0134890d1e20146f68ba1772bf62575f7b4e5549"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": "e081b72aff2d3d33011604a9cca7d1b7e3a419a1a3903a56ba53009c0d1a9a69"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_enc.sv",
+          "sha256": "74b3b327047b90682468614708bb4b1104b1f069c0dc3189e2b078622ac566b8"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_enc.sv",
+          "sha256": "4588fda3fd5ebdd711c98f6900caaaaddddf1257337c5b931ca86de7fb0ef8ff"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/top_pkg.sv",
+          "sha256": "72e6154bb7a6673a5dceb9e329c80524666a4a4c785cda457b1415524eb5b672"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": "df5dad9f7800155fc13ada6ea76c68edc89238222a42e66521021c67eaf8a4cf"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_secded_pkg.sv",
+          "sha256": "7ad86eb447a32f5c3f650dd6958e7d24497bce4d9848a3795b6b37786f4db4e1"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_pkg.sv",
+          "sha256": "fd93bbcf4a35e9e90aefd0d1006a6aea3c54e010c33f144555c7b45f6f641635"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_data_integ_enc.sv",
+          "sha256": "28567bc5483eddcf20b51890bc82497f32728b6a46b134a43c01f7180a14c7a9"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_rsp_intg_gen.sv",
+          "sha256": "1ee08aeec4561b4c6b553abfc22b6d500b8ae6898b3dfbfe11ec682b71dfcb16"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_dec.sv",
+          "sha256": "e598eef60254ac4a0e6899f6d1e4af5ae5bbd2ac22395ac53ee925296bc8a826"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_dec.sv",
+          "sha256": "f07f26fd2375952e4ec7cfc1641cebcea373a8030d82dd5977a76f81c430cb12"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_data_integ_dec.sv",
+          "sha256": "0df25d94c03bef617e6ef309375c2d40cbc27719a0696fb1119ca53c3a68d2cb"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_cmd_intg_chk.sv",
+          "sha256": "1b56b9fca7e0b8643110622f6e9d5e6d8bb263bec923a5836748ba3b6f7f76ad"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_err.sv",
+          "sha256": "26653ceb490112eb04acceefc5d0de4ef3f3f6ba26da15614bc71304dba25919"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_adapter_reg.sv",
+          "sha256": "d72b28016650c7c2c52f87b9d4bb99bd424aa90387605347275edea5a4d5d501"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": "9b00bd8ac203169268262ac9337076781fa962b19beed36f28dde54e360aaaf5"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": "ce650b27f20da0c282a021f18631e054587d1427ff0c77f1dd5b0a14376cc38b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": "597766461dbb9d1b122cdb116b091cbec2d8250a497e549157c3e9b2c177314f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": "0f38519d831f24bb9a1afc1041f6840eb42187a958788a5256aa0c698819af4a"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": "a38c3243535348fb4b0e5d233c0baa89eea3588b976d8bb050c7de4a2fd09bf0"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": "cbd0c82f8c2009a1e1a5de606fda402882af1fdcc76b313b827ce2da90430b39"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": "8e370e0ca72081804b67ef53b88aad3174fd193a8acbc37ed9ee4dfecbb7cee7"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": "eae06b86178defd9aa7353e285f42194d654eb12088e6fa964ac132e25407111"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_count_pkg.sv",
+          "sha256": "8e465ed25b7d59f29faf0f315243a774cf0e50d178ec2068d8c71983cb2f18df"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_count.sv",
+          "sha256": "ca250480197b9558b8159072138eece290f1a678bcfe6be32e601c44931c898d"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv",
+          "sha256": "fb312e711f1b3122474d5cd693376497828455b3feca978b65194968f71b5398"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv",
+          "sha256": "997e3424f3e319be268b5903fd4258ef3499cf7ffaf17ae8d241388f42134e6b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": "a41ca8c73618754f954b8d04b0eac68f3411f8c47a7e53e482f8aacb8c6f8e06"
+        },
+        {
+          "path": "rtl/uart_reg_pkg.sv",
+          "sha256": "6d6d9b1844cde1c609309cb361efc39c6a97aecc3ebdd50e384a371a336a1144"
+        },
+        {
+          "path": "rtl/uart_reg_core.sv",
+          "sha256": "100b0f206d4d760d615e52669ec8f706e5d58af727396f58f9ae57705d0665ff"
+        },
+        {
+          "path": "rtl/uart_reg_top.sv",
+          "sha256": "e9d9851e48242b1516777de146ddb8d7d9d84e64f29d2072e22c68dd53a4ec70"
+        },
+        {
+          "path": "rtl/uart_tx.sv",
+          "sha256": "0e12fa61d6fb5bb208a0e6544ffa9bb86c0eec02ed89691d44b807a82971bc66"
+        },
+        {
+          "path": "rtl/uart_rx.sv",
+          "sha256": "2b314b1ea62ff6471e4a62a479c548c667a0ac8680322179e06cf726dafcfbae"
+        },
+        {
+          "path": "rtl/uart_core.sv",
+          "sha256": "3ac2fa0e3bb9578edc407360ad2352e8d5bc91d9606e98dbe04da4eedc03b55e"
+        },
+        {
+          "path": "rtl/uart.sv",
+          "sha256": "a27c1be33b390ab8c9f7f5259c8fe9caa8ce117738da6bb134ff8dd5500b4136"
+        },
+        {
+          "path": "dv/functional/tests",
+          "sha256": "17e5bd410c25d2fa8659783214dfc2b72b6a81aed5d1991eb0563c03d538ef42"
+        },
+        {
+          "path": "csr/uart.hjson",
+          "sha256": "23fe43696a1a376f1f2cf4ed3aaddb6068a970a3eeef9258f55c9d8ae08633de"
+        },
+        {
+          "path": "constraints/uart.sdc",
+          "sha256": "5dd64412f90c0ae9fd16cae702fdcaa408553413113102a2bfac6c5cdbd85e35"
+        },
+        {
+          "path": "dv/functional/tb/sv/drivers/uart_reg_driver.svh",
+          "sha256": "f5aaca5e9202e9481a289aad7be6c10de0e2a13c593e5ea25a9539c7021503de"
+        },
+        {
+          "path": "dv/functional/tb/sv/drivers/uart_vec_driver.svh",
+          "sha256": "a49b3992b4b0d00d86fb011dde14af327fc73c967e5f233ef19ffd728d5513c6"
+        },
+        {
+          "path": "dv/functional/tb/sv/drivers/uart_vec_monitor.svh",
+          "sha256": "f5f4f21090c4956cab190deb2ac63a5d14a79b114c577b24c76b4434f3886edc"
+        },
+        {
+          "path": "dv/functional/tb/sv/include_uart_tb.sv",
+          "sha256": "48e648eebfd22f4e78fef404f030e14d2ccecd30d31bc559ab5693e1bdfa6648"
+        },
+        {
+          "path": "dv/functional/tb/sv/tlul_if.sv",
+          "sha256": "0de6e8e8e539781364fd37b5fb75e2e579ba751ff4ede99a99fd18fa29514c67"
+        },
+        {
+          "path": "dv/functional/tb/sv/uart_tb.sv",
+          "sha256": "312bbf8a02cb874448e2fb756c57092d4ce9895fecf0cca427e03232a56c8265"
+        },
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.v",
+          "sha256": "b4d626126557d33366fb8f5393335f87093e0e547d32285e93bc304423629f0f"
+        },
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.spef",
+          "sha256": "7f2e101bc65c70e6e291de15cbc09dddf30c0332785a7c4e16112a904105f311"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
+          "sha256": "e2fe78316f0045003b41b739cf3d7b183b03c97703332b1c046de0e33ea909af"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib",
+          "sha256": "093a80e3677c428c92c9c56d41b61e72ce168164cae73196cc7030c96f2382b5"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib",
+          "sha256": "9baf754c5008eb80fdc6f52b6c414f487831291dbe0166a6771a5f2de675359f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_udp.v",
+          "sha256": "5491a3edf7468792b5222e7abe057e0583a407c01b2086d4fd44a55b6cf88055"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_stdcell.v",
+          "sha256": "9c91c5311e0b10525b2e02bfd30910927d821c0928aff45cb7f34f3a6a3280f8"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/sta/sta.tcl",
+          "sha256": "c0967d59c1b230938e8a1da03e0ff7c84aba79882f2510c2009a03304e1c6f47"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/sdf/write_sdf.tcl",
+          "sha256": "0d67f1efac288023a0a8dc64db9287803b556a8f2d56a78f3dac46335a9eb819"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/power/estimate/power_estimate.tcl",
+          "sha256": "c131766267c95fde4b45a9ba7a82a0e2169503265cf06cc471a6e8df3b65167e"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/power/analysis/power_analysis.tcl",
+          "sha256": "e974af47c00a11660f918b61d624b483f5ba06cd8e296157e2cc5a5894ac95c5"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/fusion/fusion_analysis.tcl",
+          "sha256": "4471ac32f48950cbd60d97acebc2746b4c1c4c04cbba809effae2cff500c102d"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/sdf",
+          "sha256": "e0c624c7a4fcd5765639b5cb65f24ca18178194ebf1df34cc7d05ca2effff570"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "pnr": "a0315c006f5231a44eac71e3fc8fd086bbca17be48171884003785ef612805b5",
+        "sdf_post_pnr": "6cfd5703f216d1ce2bbdf9cf1f7b626347391115288b266e760659a70c7d29b6",
+        "tb.setup": "57a2a42b622ad26e2116fe37cb0870471cb8cad5e95fe386beeb00e0e091787d"
+      },
+      "returncode": 0,
+      "tools": {
+        "IVERILOG": {
+          "archive": "tar.gz",
+          "min_version": "13.0",
+          "sha256": "c897bbfa9848688982c6d5c30529fc29d68df0b9ff22ffa73bad89db73a7ce49",
+          "url": "https://codeload.github.com/steveicarus/iverilog/tar.gz/v13_0",
+          "version": "13.0"
+        },
+        "VERILATOR": {
+          "min_version": "5.050",
+          "ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c",
+          "repo": "https://github.com/verilator/verilator.git",
+          "version": "5.050"
+        }
+      }
+    },
     "sim_post_syn_all": {
       "config": {
         "GLS_BACKEND": "sv",
         "PDK": "ihp-sg13g2",
         "SDF_STRICT": "1",
-        "TEST_NAMES": "smoke corners reconfig",
-        "TIMING_MODES": "max typ min",
+        "TEST_NAMES": "smoke,corners,parity_error",
+        "TIMING_MODES": "min,typ,max",
         "TOP": "uart"
       },
-      "fingerprint": "5474a13b904403a33fa23fb438966298e5633f071747ac12ee553e4f86217043",
+      "fingerprint": "8b0adf224125459e1fd82cd8cfc63fe777b4b0832a486644ced78e746b73d4df",
       "generated": [
         {
-          "effective_sha256": "7ddae65075027a1cddb736a22fe4a47ef2438c554fcdee7aaf41f3dfc0457957",
-          "generated_sha256": "7ddae65075027a1cddb736a22fe4a47ef2438c554fcdee7aaf41f3dfc0457957",
+          "effective_sha256": "528febf6ecceab0b36ecf10b32f8a4d4c9b9bd77d1bd3a40b7409d097b4d2f04",
+          "generated_sha256": "528febf6ecceab0b36ecf10b32f8a4d4c9b9bd77d1bd3a40b7409d097b4d2f04",
           "path": "dv/functional/sim/post_syn/ihp-sg13g2/summary_sv.json"
         }
       ],
@@ -624,7 +1455,7 @@
         },
         {
           "path": "rtl/rtl_ip.f",
-          "sha256": "ae9952553f9113100447f2ef763c866658e804b0fe50dd16865738b8ee7cc097"
+          "sha256": "07c102470e9ef35abcd2697efb91b660531d17ee71f41cab47039c516813ebee"
         },
         {
           "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
@@ -812,13 +1643,13 @@
         },
         {
           "path": "signoff/ihp-sg13g2/sdf",
-          "sha256": "05974d7bd4f8f5124616bb2d3352bb5891d793d8d5ed5b44e482bfb478c69953"
+          "sha256": "be9719cbf28d87818b52cb6678be2dd2dee7bd73ff4da031ebac496c9627cd70"
         }
       ],
       "outcome": "PASS",
       "parents": {
-        "sdf": "3e751311f42cb5a19c15b4d4fe3bd281969e53d442ad5711b53c61a07a62e422",
-        "syn": "ddb356424d90ca2748d6104a5ef5b4c6695e0a552226847361d05f39bb2e9f44",
+        "sdf": "d15122a0b4ad2dc58c3b8ac5b3c63fd4b295f146815639222b763033cbf04100",
+        "syn": "31a6853bb596afd52560e417bd6ff5a3b99222350d5bd6cf17a66cee8e9c0a68",
         "tb.setup": "57a2a42b622ad26e2116fe37cb0870471cb8cad5e95fe386beeb00e0e091787d"
       },
       "returncode": 0,
@@ -843,11 +1674,11 @@
         "PDK": "ihp-sg13g2",
         "TOP": "uart"
       },
-      "fingerprint": "4825a39ca5bcbe73e23dc8302bb2d8c1c10ee39a28f852f80a8f95648dfc3e32",
+      "fingerprint": "c9f592ea9e26cc6ef86e3d900f51da54a744c6ae7b6ca11c090817d24a89285e",
       "generated": [
         {
-          "effective_sha256": "3cd887b08658725d62883f57ab5bbff1becb4fac96c43ed6bb7cee484ec85e21",
-          "generated_sha256": "3cd887b08658725d62883f57ab5bbff1becb4fac96c43ed6bb7cee484ec85e21",
+          "effective_sha256": "42eccb2008a7e3eac36f867e428bfd8bd94fb013c6caa1af1c89da156df83f2c",
+          "generated_sha256": "42eccb2008a7e3eac36f867e428bfd8bd94fb013c6caa1af1c89da156df83f2c",
           "path": "signoff/ihp-sg13g2/sta/sta.json"
         }
       ],
@@ -883,29 +1714,112 @@
         },
         {
           "path": "signoff/ihp-sg13g2/sta/sta.tcl",
-          "sha256": "0d24ca9174d9e5db4816a95b39a7baebdb1d2bdfef200b96700484cab128e90e"
+          "sha256": "8e718a70e50c976357fe0854f2a83fa7b8177d7936b8e140ad45ed7fa8470cf8"
         },
         {
           "path": "signoff/ihp-sg13g2/sdf/write_sdf.tcl",
-          "sha256": "39944a27c5449be3db7f23315948b27b18b65327daccdf2a4eb0cba198695429"
+          "sha256": "45a1e788a65dda6fef81dc8314a385638850ae507b5e7e0840014e7a8d34d042"
         },
         {
           "path": "signoff/ihp-sg13g2/power/estimate/power_estimate.tcl",
-          "sha256": "3aa7838948d04142451f1e9b6b58384f90bf11f01de61d03da3a051208fc8912"
+          "sha256": "780f1baf34b03bbd7b9ddef7778bc7f241305d16d536aba41641f8996e903ad6"
         },
         {
           "path": "signoff/ihp-sg13g2/power/analysis/power_analysis.tcl",
-          "sha256": "1c1cfcb619a7c5b1c4e0a9246ebf03c9596049981f45a5fadd2132bd89f6631e"
+          "sha256": "9f37064bddf901f2710092ac714fe0fc128a3287e9088ed37ae1ba9f4ef30bb1"
         },
         {
           "path": "signoff/ihp-sg13g2/fusion/fusion_analysis.tcl",
-          "sha256": "5ebcebb4ef6c4fa40f29d06965cd6e36b0098518580f39b8f4eb0c847f4783e1"
+          "sha256": "f5048465bd811550bd87003b760c608ed4511312cc74bfe4ae5b1a52b1cfd550"
         }
       ],
       "outcome": "PASS",
       "parents": {
-        "signoff.setup": "20dc6d6a68b4b9dfc34fe1a05de1a48910fad146fd744f2786043dd3026b2edb",
-        "syn": "ddb356424d90ca2748d6104a5ef5b4c6695e0a552226847361d05f39bb2e9f44"
+        "signoff.setup": "2e085c191239e7b3f85011d4807ed860c29f4e98236f0b255aa9edb30d2b4ceb",
+        "syn": "31a6853bb596afd52560e417bd6ff5a3b99222350d5bd6cf17a66cee8e9c0a68"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
+      }
+    },
+    "sta_post_pnr": {
+      "config": {
+        "PDK": "ihp-sg13g2",
+        "TOP": "uart"
+      },
+      "fingerprint": "bc694776209b69a1fae4d9ec80e691e3754e9a4327179d001e6f8229dc6d6069",
+      "generated": [
+        {
+          "effective_sha256": "75a889bb7b3d949780e5061b4cd50745c176fa3bdec31d4f0d69d708b1502132",
+          "generated_sha256": "75a889bb7b3d949780e5061b4cd50745c176fa3bdec31d4f0d69d708b1502132",
+          "path": "signoff/ihp-sg13g2/post_pnr/sta/sta.json"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.v",
+          "sha256": "b4d626126557d33366fb8f5393335f87093e0e547d32285e93bc304423629f0f"
+        },
+        {
+          "path": "constraints/uart.sdc",
+          "sha256": "5dd64412f90c0ae9fd16cae702fdcaa408553413113102a2bfac6c5cdbd85e35"
+        },
+        {
+          "path": "impl/ihp-sg13g2/results/ihp-sg13g2/uart/base/6_final.spef",
+          "sha256": "7f2e101bc65c70e6e291de15cbc09dddf30c0332785a7c4e16112a904105f311"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
+          "sha256": "e2fe78316f0045003b41b739cf3d7b183b03c97703332b1c046de0e33ea909af"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib",
+          "sha256": "093a80e3677c428c92c9c56d41b61e72ce168164cae73196cc7030c96f2382b5"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib",
+          "sha256": "9baf754c5008eb80fdc6f52b6c414f487831291dbe0166a6771a5f2de675359f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_udp.v",
+          "sha256": "5491a3edf7468792b5222e7abe057e0583a407c01b2086d4fd44a55b6cf88055"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_stdcell.v",
+          "sha256": "9c91c5311e0b10525b2e02bfd30910927d821c0928aff45cb7f34f3a6a3280f8"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/sta/sta.tcl",
+          "sha256": "c0967d59c1b230938e8a1da03e0ff7c84aba79882f2510c2009a03304e1c6f47"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/sdf/write_sdf.tcl",
+          "sha256": "0d67f1efac288023a0a8dc64db9287803b556a8f2d56a78f3dac46335a9eb819"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/power/estimate/power_estimate.tcl",
+          "sha256": "c131766267c95fde4b45a9ba7a82a0e2169503265cf06cc471a6e8df3b65167e"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/power/analysis/power_analysis.tcl",
+          "sha256": "e974af47c00a11660f918b61d624b483f5ba06cd8e296157e2cc5a5894ac95c5"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/post_pnr/fusion/fusion_analysis.tcl",
+          "sha256": "4471ac32f48950cbd60d97acebc2746b4c1c4c04cbba809effae2cff500c102d"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "pnr": "a0315c006f5231a44eac71e3fc8fd086bbca17be48171884003785ef612805b5",
+        "signoff_post_pnr.setup": "bca9e10bd94cbab120356f20c6de21e7063c76ed46b3ae14c3d19ab8fb6c3554"
       },
       "returncode": 0,
       "tools": {
@@ -925,7 +1839,7 @@
         "TARGET_SYN": "",
         "TOP": "uart"
       },
-      "fingerprint": "ddb356424d90ca2748d6104a5ef5b4c6695e0a552226847361d05f39bb2e9f44",
+      "fingerprint": "31a6853bb596afd52560e417bd6ff5a3b99222350d5bd6cf17a66cee8e9c0a68",
       "generated": [
         {
           "effective_sha256": "a222125e02da79106f5dc71c108d07fcd075e85e44ce519170dcfcddfb64d565",
@@ -933,13 +1847,13 @@
           "path": "syn/ihp-sg13g2/uart_synth.v"
         },
         {
-          "effective_sha256": "a65f74bc94f0220d6b9c4e9c821d2ac0cec708733ab40fd473b3f3756a57756d",
-          "generated_sha256": "a65f74bc94f0220d6b9c4e9c821d2ac0cec708733ab40fd473b3f3756a57756d",
+          "effective_sha256": "b37c14921141c6fd8f3f89ee9e0c24b7232ad9d78ae280894f7a1faee04e808b",
+          "generated_sha256": "b37c14921141c6fd8f3f89ee9e0c24b7232ad9d78ae280894f7a1faee04e808b",
           "path": "syn/ihp-sg13g2/uart_synth.json"
         },
         {
-          "effective_sha256": "315a0cd0276dc4831347811cd69ffed54bc28fd3e19e6557496ba4c39b039461",
-          "generated_sha256": "315a0cd0276dc4831347811cd69ffed54bc28fd3e19e6557496ba4c39b039461",
+          "effective_sha256": "1b36f1ee957900b172b0276995bf875c48e25616e735ac360e944c4384070c63",
+          "generated_sha256": "1b36f1ee957900b172b0276995bf875c48e25616e735ac360e944c4384070c63",
           "path": "syn/ihp-sg13g2/uart_synth_repair.json"
         }
       ],
@@ -951,7 +1865,7 @@
         },
         {
           "path": "rtl/rtl_ip.f",
-          "sha256": "ae9952553f9113100447f2ef763c866658e804b0fe50dd16865738b8ee7cc097"
+          "sha256": "07c102470e9ef35abcd2697efb91b660531d17ee71f41cab47039c516813ebee"
         },
         {
           "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
@@ -1131,23 +2045,23 @@
         },
         {
           "path": "syn/ihp-sg13g2/synth_pre.ys",
-          "sha256": "fdf75c4e9c9b47266581339b33a46df996ec154bf5c42e09c4f4d404e4239c35"
+          "sha256": "b33e30c24bf0aff9c52917967151e9c5804677c843adca39755716c2f4e28571"
         },
         {
           "path": "syn/ihp-sg13g2/synth_pre_sv.ys",
-          "sha256": "d3a147c06165773f22c685d9a20479fa87733ddc91d5a7b006e85fa835ee376e"
+          "sha256": "3b76d1d4e8110a956e90b412c325e4b5e07eba181c8f8f5586c4cae6f69444c9"
         },
         {
           "path": "syn/ihp-sg13g2/synth.ys",
-          "sha256": "786fa2f5011e35d93929562bc146ea2348f5eb7c4e8bfbb0d7281b594f693fd2"
+          "sha256": "f4f408464dcb59406e3bdfd1a20c479bf983b375da2fd3b936752d5f338fbc80"
         },
         {
           "path": "syn/ihp-sg13g2/synth_sv.ys",
-          "sha256": "f660490884c909a31a39adeebba1dc1717b67c2c0233de9b1cb4d7c70b0c78ef"
+          "sha256": "b69f0a7830f0e04e0eaa8b284631e1175d9aabb7488f0f692b391157e07cfdc3"
         },
         {
           "path": "syn/ihp-sg13g2/repair_config.mk",
-          "sha256": "2be888e45ca1563b15aff55c7f9285069cba372b2ac889ae446b915655c77863"
+          "sha256": "06b1f4efe9b095572002a97c8ebf458bb60a774ff0b5cda21abc9cb011d8c9d4"
         },
         {
           "path": "syn/ihp-sg13g2/repair.tcl",
@@ -1155,12 +2069,12 @@
         },
         {
           "path": "syn/ihp-sg13g2/repair_json.ys",
-          "sha256": "c392d966de8fbd656f727b02fde68a411b50af9a583fafb208c7daee95bc48cf"
+          "sha256": "25da4b53219e16bf5b752fd88ca5524f903e7927ee1c1198c8d89f99d6b7c5a9"
         }
       ],
       "outcome": "PASS",
       "parents": {
-        "syn.setup": "7e4c4338918f40bc8b0bbbcdcccb8bb262a093a984ffdfbaf6ae75fbfc2ca722"
+        "syn.setup": "b60401953125b2aba826786eadf4b896cc7742106f4470d0c36d814e9d75b13a"
       },
       "returncode": 0,
       "tools": {
@@ -1189,7 +2103,7 @@
         "LIB_SYN": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib",
         "MIN_BUF_CELL_AND_PORTS": "sg13g2_buf_1 A X",
         "N_CLOCKS": "1",
-        "ORS": "",
+        "ORS": "/home/eneadim/OpenROAD-flow-scripts/flow",
         "ORS_TECH": "ihp-sg13g2",
         "TARGET_OPT": "delay1",
         "TARGET_SYN": "",
@@ -1197,7 +2111,7 @@
         "TIELO_CELL_AND_PORT": "sg13g2_tielo L_LO",
         "TOP": "uart"
       },
-      "fingerprint": "7e4c4338918f40bc8b0bbbcdcccb8bb262a093a984ffdfbaf6ae75fbfc2ca722",
+      "fingerprint": "b60401953125b2aba826786eadf4b896cc7742106f4470d0c36d814e9d75b13a",
       "generated": [
         {
           "effective_sha256": "e56ab2f453f5186ab66e64c182d97722a4900f8fbe6534c28a66562d8d9ac56b",
@@ -1210,28 +2124,28 @@
           "path": "syn/ihp-sg13g2/abc.constr"
         },
         {
-          "effective_sha256": "fdf75c4e9c9b47266581339b33a46df996ec154bf5c42e09c4f4d404e4239c35",
-          "generated_sha256": "fdf75c4e9c9b47266581339b33a46df996ec154bf5c42e09c4f4d404e4239c35",
+          "effective_sha256": "b33e30c24bf0aff9c52917967151e9c5804677c843adca39755716c2f4e28571",
+          "generated_sha256": "b33e30c24bf0aff9c52917967151e9c5804677c843adca39755716c2f4e28571",
           "path": "syn/ihp-sg13g2/synth_pre.ys"
         },
         {
-          "effective_sha256": "d3a147c06165773f22c685d9a20479fa87733ddc91d5a7b006e85fa835ee376e",
-          "generated_sha256": "d3a147c06165773f22c685d9a20479fa87733ddc91d5a7b006e85fa835ee376e",
+          "effective_sha256": "3b76d1d4e8110a956e90b412c325e4b5e07eba181c8f8f5586c4cae6f69444c9",
+          "generated_sha256": "3b76d1d4e8110a956e90b412c325e4b5e07eba181c8f8f5586c4cae6f69444c9",
           "path": "syn/ihp-sg13g2/synth_pre_sv.ys"
         },
         {
-          "effective_sha256": "786fa2f5011e35d93929562bc146ea2348f5eb7c4e8bfbb0d7281b594f693fd2",
-          "generated_sha256": "786fa2f5011e35d93929562bc146ea2348f5eb7c4e8bfbb0d7281b594f693fd2",
+          "effective_sha256": "f4f408464dcb59406e3bdfd1a20c479bf983b375da2fd3b936752d5f338fbc80",
+          "generated_sha256": "f4f408464dcb59406e3bdfd1a20c479bf983b375da2fd3b936752d5f338fbc80",
           "path": "syn/ihp-sg13g2/synth.ys"
         },
         {
-          "effective_sha256": "f660490884c909a31a39adeebba1dc1717b67c2c0233de9b1cb4d7c70b0c78ef",
-          "generated_sha256": "f660490884c909a31a39adeebba1dc1717b67c2c0233de9b1cb4d7c70b0c78ef",
+          "effective_sha256": "b69f0a7830f0e04e0eaa8b284631e1175d9aabb7488f0f692b391157e07cfdc3",
+          "generated_sha256": "b69f0a7830f0e04e0eaa8b284631e1175d9aabb7488f0f692b391157e07cfdc3",
           "path": "syn/ihp-sg13g2/synth_sv.ys"
         },
         {
-          "effective_sha256": "2be888e45ca1563b15aff55c7f9285069cba372b2ac889ae446b915655c77863",
-          "generated_sha256": "2be888e45ca1563b15aff55c7f9285069cba372b2ac889ae446b915655c77863",
+          "effective_sha256": "06b1f4efe9b095572002a97c8ebf458bb60a774ff0b5cda21abc9cb011d8c9d4",
+          "generated_sha256": "06b1f4efe9b095572002a97c8ebf458bb60a774ff0b5cda21abc9cb011d8c9d4",
           "path": "syn/ihp-sg13g2/repair_config.mk"
         },
         {
@@ -1240,8 +2154,8 @@
           "path": "syn/ihp-sg13g2/repair.tcl"
         },
         {
-          "effective_sha256": "c392d966de8fbd656f727b02fde68a411b50af9a583fafb208c7daee95bc48cf",
-          "generated_sha256": "c392d966de8fbd656f727b02fde68a411b50af9a583fafb208c7daee95bc48cf",
+          "effective_sha256": "25da4b53219e16bf5b752fd88ca5524f903e7927ee1c1198c8d89f99d6b7c5a9",
+          "generated_sha256": "25da4b53219e16bf5b752fd88ca5524f903e7927ee1c1198c8d89f99d6b7c5a9",
           "path": "syn/ihp-sg13g2/repair_json.ys"
         }
       ],
@@ -1253,7 +2167,7 @@
         },
         {
           "path": "rtl/rtl_ip.f",
-          "sha256": "ae9952553f9113100447f2ef763c866658e804b0fe50dd16865738b8ee7cc097"
+          "sha256": "07c102470e9ef35abcd2697efb91b660531d17ee71f41cab47039c516813ebee"
         },
         {
           "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",

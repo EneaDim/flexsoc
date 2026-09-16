@@ -5,8 +5,8 @@ export DESIGN_NAME     = gpio
 export PLATFORM        = ihp-sg13g2
 
 # FlexSoC owns synthesis and timing intent.
-export SYNTH_NETLIST_FILES := /tmp/flexsoc-ip-v1-release-20260914/gpio-axi_lite/runs/gpio/release/syn/ihp-sg13g2/gpio_synth_raw.v
-export SDC_FILE             := /tmp/flexsoc-ip-v1-release-20260914/gpio-axi_lite/runs/gpio/release/constraints/gpio.sdc
+export SYNTH_NETLIST_FILES := /tmp/flexsoc-ip-release/gpio-axi_lite/runs/gpio/release/syn/ihp-sg13g2/gpio_synth_raw.v
+export SDC_FILE             := /tmp/flexsoc-ip-release/gpio-axi_lite/runs/gpio/release/constraints/gpio.sdc
 
 # Platform-owned physical views (LEF/GDS/CDL/LVS decks) stay with ORFS.
 # Physical defaults; synthesis strategy does not alter these.
@@ -19,7 +19,7 @@ export DETAILED_METRICS := 1
 export REPORT_CLOCK_SKEW := 1
 export GUI_TIMING := 1
 export SETUP_SLACK_MARGIN := 0
-export HOLD_SLACK_MARGIN  := 0.10
+export HOLD_SLACK_MARGIN  := 0.1
 export CELL_PAD_IN_SITES_GLOBAL_PLACEMENT := 0
 export CELL_PAD_IN_SITES_DETAIL_PLACEMENT := 0
 export DETAILED_ROUTE_END_ITERATION := 64

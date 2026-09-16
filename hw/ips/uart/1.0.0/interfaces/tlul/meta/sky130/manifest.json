@@ -5,21 +5,24 @@
     "run_top": "uart",
     "run_id": "release",
     "pdk": "sky130",
-    "run_root": "/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release",
+    "run_root": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release",
     "artifacts": {
-      "synthesis": "/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/syn/sky130",
-      "equivalence": "/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/signoff/sky130/equivalence/rtl_vs_syn",
-      "post_syn_sim": "/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/dv/functional/sim/post_syn/sky130",
-      "sdc": "/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/constraints/uart.sdc",
-      "sta": "/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/signoff/sky130/sta",
-      "power": "/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/signoff/sky130/power",
-      "fusion": "/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/signoff/sky130/fusion",
-      "sdf": "/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/signoff/sky130/sdf",
-      "meta": "/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/meta/sky130"
+      "synthesis": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/syn/sky130",
+      "equivalence": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/sky130/equivalence/rtl_vs_syn",
+      "post_syn_sim": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/dv/functional/sim/post_syn/sky130",
+      "post_pnr_sim": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/dv/functional/sim/post_pnr/sky130",
+      "implementation": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/impl/sky130",
+      "post_pnr_signoff": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/sky130/post_pnr",
+      "sdc": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/constraints/uart.sdc",
+      "sta": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/sky130/sta",
+      "power": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/sky130/power",
+      "fusion": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/sky130/fusion",
+      "sdf": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/sky130/sdf",
+      "meta": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/meta/sky130"
     }
   },
   "git": {
-    "commit": "825fcab67848155e4d881d65c0f3c6f3495aceec",
+    "commit": "53992efe740f2197282bc384bd13a28ddc5fe4da",
     "dirty": true
   },
   "environment": {
@@ -129,13 +132,24 @@
       "synthesis": "pass",
       "equivalence": "missing",
       "pre_implementation_signoff": "pass",
-      "implementation": "missing",
-      "post_implementation_signoff": "incomplete"
+      "implementation": "pass",
+      "post_implementation_signoff": "review"
     },
-    "status": "incomplete",
+    "status": "review",
     "complete": false
   },
-  "implementation": null,
+  "implementation": {
+    "status": "pass",
+    "platform_root": "impl/sky130/results/sky130hd/uart/base",
+    "artifacts": {
+      "6_final.v": "impl/sky130/results/sky130hd/uart/base/6_final.v",
+      "6_final.sdc": "impl/sky130/results/sky130hd/uart/base/6_final.sdc",
+      "6_final.spef": "impl/sky130/results/sky130hd/uart/base/6_final.spef",
+      "6_final.odb": "impl/sky130/results/sky130hd/uart/base/6_final.odb",
+      "6_final.gds": "impl/sky130/results/sky130hd/uart/base/6_final.gds"
+    },
+    "log": "logs/pnr/sky130/uart_pnr.log"
+  },
   "signoff": {
     "sdf": {
       "status": "pass",
@@ -166,9 +180,104 @@
       "failed": 0,
       "missing": 0,
       "interconnect_delays": "none"
+    },
+    "post_pnr": {
+      "sdf": {
+        "status": "pass",
+        "count": 3
+      },
+      "sta": {
+        "status": "pass",
+        "clock_model": "propagated",
+        "interconnect": "spef"
+      },
+      "power": {
+        "status": "pass"
+      },
+      "gls": {
+        "status": "pass",
+        "passed": 9,
+        "total": 9,
+        "interconnect_delays": "enabled"
+      },
+      "power_activity": {
+        "status": "pass",
+        "passed": 9,
+        "total": 9
+      },
+      "fusion": {
+        "status": "pass",
+        "passed": 9,
+        "total": 9
+      },
+      "physical": {
+        "status": "review",
+        "checks": {
+          "route_drc": {
+            "status": "pass",
+            "entries": 0,
+            "report": "impl/sky130/reports/sky130hd/uart/base/5_route_drc.rpt"
+          },
+          "antenna": {
+            "status": "pass",
+            "net_violations": 0,
+            "pin_violations": 0,
+            "report": "signoff/sky130/post_pnr/physical/antenna.log"
+          },
+          "gds_drc": {
+            "status": "pass",
+            "violations": 0,
+            "report": "impl/sky130/reports/sky130hd/uart/base/6_drc.lyrdb"
+          },
+          "lvs": {
+            "status": "missing",
+            "report": null,
+            "log": "impl/sky130/logs/sky130hd/uart/base/6_lvs.log"
+          },
+          "ir_drop": {
+            "status": "unsupported",
+            "reports": [],
+            "worst_drop_v": {}
+          }
+        },
+        "summary": "signoff/sky130/post_pnr/physical/summary.json"
+      }
     }
   },
-  "physical_signoff": null,
+  "physical_signoff": {
+    "status": "review",
+    "checks": {
+      "route_drc": {
+        "status": "pass",
+        "entries": 0,
+        "report": "impl/sky130/reports/sky130hd/uart/base/5_route_drc.rpt"
+      },
+      "antenna": {
+        "status": "pass",
+        "net_violations": 0,
+        "pin_violations": 0,
+        "report": "signoff/sky130/post_pnr/physical/antenna.log"
+      },
+      "gds_drc": {
+        "status": "pass",
+        "violations": 0,
+        "report": "impl/sky130/reports/sky130hd/uart/base/6_drc.lyrdb"
+      },
+      "lvs": {
+        "status": "missing",
+        "report": null,
+        "log": "impl/sky130/logs/sky130hd/uart/base/6_lvs.log"
+      },
+      "ir_drop": {
+        "status": "unsupported",
+        "reports": [],
+        "worst_drop_v": {}
+      }
+    },
+    "orfs_returncode": 2,
+    "log": "logs/signoff/sky130/post_pnr/physical/physical_signoff.log",
+    "summary": "signoff/sky130/post_pnr/physical/summary.json"
+  },
   "closure": {
     "order": [
       "lint",
@@ -205,14 +314,14 @@
       "post_syn_gls": "pass",
       "power_activity": "pass",
       "fusion": "pass",
-      "implementation": "missing",
-      "physical_signoff": "missing",
-      "post_pnr_sdf": "missing",
-      "post_pnr_sta": "missing",
-      "post_pnr_power": "missing",
-      "post_pnr_gls": "missing",
-      "post_pnr_power_activity": "missing",
-      "post_pnr_fusion": "missing"
+      "implementation": "pass",
+      "physical_signoff": "review",
+      "post_pnr_sdf": "pass",
+      "post_pnr_sta": "pass",
+      "post_pnr_power": "pass",
+      "post_pnr_gls": "pass",
+      "post_pnr_power_activity": "pass",
+      "post_pnr_fusion": "pass"
     },
     "status": "incomplete",
     "complete": false

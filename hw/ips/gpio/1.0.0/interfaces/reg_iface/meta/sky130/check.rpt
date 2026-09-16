@@ -1,48 +1,58 @@
 FlexSoC run check · gpio
-Technical REVIEW · Provenance CLEAN
+Technical FAIL · Provenance STALE
 
 Flow
-Main step                    Status    
-RTL lint                     PASS      
-CDC / RDC                    PASS      
-Functional verification      PASS      
-Formal verification          PASS      
-Synthesis                    PASS      
-RTL ↔ synthesis equivalence  MISSING   
-Pre-implementation sign-off  PASS      
-Implementation / PnR         MISSING   
-Post Sign-Off                INCOMPLETE
-Run status: INCOMPLETE
+Main step                    Status 
+RTL lint                     PASS   
+CDC / RDC                    PASS   
+Functional verification      PASS   
+Formal verification          PASS   
+Synthesis                    PASS   
+RTL ↔ synthesis equivalence  MISSING
+Pre-implementation sign-off  PASS   
+Implementation / PnR         PASS   
+Post Sign-Off                FAIL   
+Run status: FAIL
 
 Provenance
-Setup                   State  Action
-cdc_rdc                 CLEAN  -     
-cdc_rdc.setup           CLEAN  -     
-cocotb.setup            CLEAN  -     
-eqy.setup               CLEAN  -     
-formal.cover.setup      CLEAN  -     
-formal.csr_cover.setup  CLEAN  -     
-formal.csr_prove.setup  CLEAN  -     
-formal.prove.setup      CLEAN  -     
-formal_bmc              CLEAN  -     
-formal_cover            CLEAN  -     
-formal_csr_bmc          CLEAN  -     
-formal_csr_cover        CLEAN  -     
-formal_csr_prove        CLEAN  -     
-formal_prove            CLEAN  -     
-fusion_analysis_all     CLEAN  -     
-lint_slang_suite        CLEAN  -     
-lint_verilator_suite    CLEAN  -     
-power_analysis_all      CLEAN  -     
-power_estimate          CLEAN  -     
-regression              CLEAN  -     
-sdf                     CLEAN  -     
-signoff.setup           CLEAN  -     
-sim_post_syn_all        CLEAN  -     
-sta                     CLEAN  -     
-syn                     CLEAN  -     
-syn.setup               CLEAN  -     
-tb.setup                CLEAN  -     
+Setup                         State  Action      
+cdc_rdc                       CLEAN  -           
+cdc_rdc.setup                 CLEAN  -           
+cocotb.setup                  CLEAN  -           
+eqy.setup                     STALE  fx eqy.setup
+formal.cover.setup            CLEAN  -           
+formal.csr_cover.setup        CLEAN  -           
+formal.csr_prove.setup        CLEAN  -           
+formal.prove.setup            CLEAN  -           
+formal_bmc                    CLEAN  -           
+formal_cover                  CLEAN  -           
+formal_csr_bmc                CLEAN  -           
+formal_csr_cover              CLEAN  -           
+formal_csr_prove              CLEAN  -           
+formal_prove                  CLEAN  -           
+fusion_analysis_all           CLEAN  -           
+fusion_analysis_post_pnr_all  CLEAN  -           
+lint_slang_suite              CLEAN  -           
+lint_verilator_suite          CLEAN  -           
+physical_signoff              CLEAN  -           
+pnr                           CLEAN  -           
+pnr.setup                     CLEAN  -           
+power_analysis_all            CLEAN  -           
+power_analysis_post_pnr_all   CLEAN  -           
+power_estimate                CLEAN  -           
+power_estimate_post_pnr       CLEAN  -           
+regression                    CLEAN  -           
+sdf                           CLEAN  -           
+sdf_post_pnr                  CLEAN  -           
+signoff.setup                 CLEAN  -           
+signoff_post_pnr.setup        CLEAN  -           
+sim_post_pnr_all              CLEAN  -           
+sim_post_syn_all              CLEAN  -           
+sta                           CLEAN  -           
+sta_post_pnr                  CLEAN  -           
+syn                           CLEAN  -           
+syn.setup                     CLEAN  -           
+tb.setup                      CLEAN  -           
 
 RTL lint  Slang → Verilator
 Tool       Status  Errors  Warnings  Latch  Width  Unused
@@ -109,7 +119,7 @@ ff      setup  PASS    +0.000000  +0.000000     0         0
 ff      hold   WARN    -0.190000  -0.780000     6         0
 GLS matrix
 Test                min      typ      max  
-input_filter      PASS sv  PASS sv  PASS sv
+corners           PASS sv  PASS sv  PASS sv
 interrupt_levels  PASS sv  PASS sv  PASS sv
 smoke             PASS sv  PASS sv  PASS sv
 Power estimate
@@ -119,25 +129,85 @@ tt             +0.382          +0.056        +0.500      +0.438
 ff             +0.431          +0.066        +0.003      +0.497
 Activity power workloads
 Workload                Test              Backend  Timing  Status
-input_filter_sv_ff      input_filter        sv      min    PASS  
+corners_sv_ff           corners             sv      min    PASS  
 interrupt_levels_sv_ff  interrupt_levels    sv      min    PASS  
 smoke_sv_ff             smoke               sv      min    PASS  
-input_filter_sv_tt      input_filter        sv      typ    PASS  
+corners_sv_tt           corners             sv      typ    PASS  
 interrupt_levels_sv_tt  interrupt_levels    sv      typ    PASS  
 smoke_sv_tt             smoke               sv      typ    PASS  
-input_filter_sv_ss      input_filter        sv      max    PASS  
+corners_sv_ss           corners             sv      max    PASS  
 interrupt_levels_sv_ss  interrupt_levels    sv      max    PASS  
 smoke_sv_ss             smoke               sv      max    PASS  
 Timing / power fusion workloads
 Workload                Test              Backend  Timing  Status
-input_filter_sv_ff      input_filter        sv      min    PASS  
+corners_sv_ff           corners             sv      min    PASS  
 interrupt_levels_sv_ff  interrupt_levels    sv      min    PASS  
 smoke_sv_ff             smoke               sv      min    PASS  
-input_filter_sv_tt      input_filter        sv      typ    PASS  
+corners_sv_tt           corners             sv      typ    PASS  
 interrupt_levels_sv_tt  interrupt_levels    sv      typ    PASS  
 smoke_sv_tt             smoke               sv      typ    PASS  
-input_filter_sv_ss      input_filter        sv      max    PASS  
+corners_sv_ss           corners             sv      max    PASS  
 interrupt_levels_sv_ss  interrupt_levels    sv      max    PASS  
 smoke_sv_ss             smoke               sv      max    PASS  
 
-Detailed metrics: /home/eneadim/github/flexsoc/hw/ips/gpio/1.0.0/interfaces/.ip-save.gpio.reg_iface.3xp2dvqu/reg_iface/meta/sky130/metrics.json
+Implementation / PnR
+Status           PASS                                  
+Results          impl/sky130/results/sky130hd/gpio/base
+Final artifacts  5/5                                   
+Log              logs/pnr/sky130/gpio_pnr.log          
+
+Post Sign-Off
+Physical closure       FAIL                            
+Route DRC              PASS                            
+Antenna                PASS                            
+GDS DRC                FAIL                            
+LVS                    MISSING                         
+IR / PDN               UNSUPPORTED                     
+SDF                    PASS · corners=3                
+STA                    PASS · propagated clock · spef  
+Gate-level simulation  9/9  PASS · interconnect enabled
+Power estimate         PASS                            
+Activity power         9/9  PASS                       
+Timing / power fusion  9/9  PASS                       
+STA QoR
+Corner  Mode   Status   WNS (ns)   TNS (ns)  Viol  Unconstr
+ss      setup  PASS    +0.000000  +0.000000     0         0
+ss      hold   PASS    +0.000000  +0.000000     0         0
+tt      setup  PASS    +0.000000  +0.000000     0         0
+tt      hold   PASS    +0.000000  +0.000000     0         0
+ff      setup  PASS    +0.000000  +0.000000     0         0
+ff      hold   PASS    +0.000000  +0.000000     0         0
+GLS matrix
+Test                min      typ      max  
+corners           PASS sv  PASS sv  PASS sv
+interrupt_levels  PASS sv  PASS sv  PASS sv
+smoke             PASS sv  PASS sv  PASS sv
+Power estimate
+Corner  Internal (mW)  Switching (mW)  Leakage (µW)  Total (mW)
+ss             +0.510          +0.165        +0.001      +0.676
+tt             +0.552          +0.182        +0.559      +0.735
+ff             +0.622          +0.214        +0.003      +0.836
+Activity power workloads
+Workload                Test              Backend  Timing  Status
+corners_sv_ff           corners             sv      min    PASS  
+interrupt_levels_sv_ff  interrupt_levels    sv      min    PASS  
+smoke_sv_ff             smoke               sv      min    PASS  
+corners_sv_tt           corners             sv      typ    PASS  
+interrupt_levels_sv_tt  interrupt_levels    sv      typ    PASS  
+smoke_sv_tt             smoke               sv      typ    PASS  
+corners_sv_ss           corners             sv      max    PASS  
+interrupt_levels_sv_ss  interrupt_levels    sv      max    PASS  
+smoke_sv_ss             smoke               sv      max    PASS  
+Timing / power fusion workloads
+Workload                Test              Backend  Timing  Status
+corners_sv_ff           corners             sv      min    PASS  
+interrupt_levels_sv_ff  interrupt_levels    sv      min    PASS  
+smoke_sv_ff             smoke               sv      min    PASS  
+corners_sv_tt           corners             sv      typ    PASS  
+interrupt_levels_sv_tt  interrupt_levels    sv      typ    PASS  
+smoke_sv_tt             smoke               sv      typ    PASS  
+corners_sv_ss           corners             sv      max    PASS  
+interrupt_levels_sv_ss  interrupt_levels    sv      max    PASS  
+smoke_sv_ss             smoke               sv      max    PASS  
+
+Detailed metrics: /home/eneadim/github/flexsoc/hw/ips/gpio/1.0.0/interfaces/.ip-save.gpio.reg_iface.hhobb871/reg_iface/meta/sky130/metrics.json

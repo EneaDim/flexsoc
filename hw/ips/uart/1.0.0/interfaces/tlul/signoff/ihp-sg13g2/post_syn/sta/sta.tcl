@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/syn/ihp-sg13g2/uart_synth.v
-#   SDC           : /tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/constraints/uart.sdc
+#   Netlist       : /tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/syn/ihp-sg13g2/uart_synth.v
+#   SDC           : /tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/constraints/uart.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/signoff/ihp-sg13g2/sta/template_reports
+#   Report dir    : /tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/ihp-sg13g2/sta/template_reports
 #
 # Limitations:
 #   - Violating, near-critical and unconstrained paths are separate sections of one report.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/signoff/ihp-sg13g2/sta/template_reports}
+set report_dir {/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/ihp-sg13g2/sta/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/syn/ihp-sg13g2/uart_synth.v}
-set sdc {/tmp/flexsoc-ip-v1-release-20260914/uart-tlul/runs/uart/release/constraints/uart.sdc}
+set netlist {/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/syn/ihp-sg13g2/uart_synth.v}
+set sdc {/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/constraints/uart.sdc}
 set spef {}
 set top {uart}
 set stage {post_syn}

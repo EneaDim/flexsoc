@@ -1,48 +1,58 @@
 FlexSoC run check · uart
-Technical REVIEW · Provenance CLEAN
+Technical REVIEW · Provenance STALE
 
 Flow
-Main step                    Status    
-RTL lint                     PASS      
-CDC / RDC                    PASS      
-Functional verification      PASS      
-Formal verification          PASS      
-Synthesis                    PASS      
-RTL ↔ synthesis equivalence  MISSING   
-Pre-implementation sign-off  PASS      
-Implementation / PnR         MISSING   
-Post Sign-Off                INCOMPLETE
-Run status: INCOMPLETE
+Main step                    Status 
+RTL lint                     PASS   
+CDC / RDC                    PASS   
+Functional verification      PASS   
+Formal verification          PASS   
+Synthesis                    PASS   
+RTL ↔ synthesis equivalence  MISSING
+Pre-implementation sign-off  PASS   
+Implementation / PnR         PASS   
+Post Sign-Off                REVIEW 
+Run status: REVIEW
 
 Provenance
-Setup                   State  Action
-cdc_rdc                 CLEAN  -     
-cdc_rdc.setup           CLEAN  -     
-cocotb.setup            CLEAN  -     
-eqy.setup               CLEAN  -     
-formal.cover.setup      CLEAN  -     
-formal.csr_cover.setup  CLEAN  -     
-formal.csr_prove.setup  CLEAN  -     
-formal.prove.setup      CLEAN  -     
-formal_bmc              CLEAN  -     
-formal_cover            CLEAN  -     
-formal_csr_bmc          CLEAN  -     
-formal_csr_cover        CLEAN  -     
-formal_csr_prove        CLEAN  -     
-formal_prove            CLEAN  -     
-fusion_analysis_all     CLEAN  -     
-lint_slang_suite        CLEAN  -     
-lint_verilator_suite    CLEAN  -     
-power_analysis_all      CLEAN  -     
-power_estimate          CLEAN  -     
-regression              CLEAN  -     
-sdf                     CLEAN  -     
-signoff.setup           CLEAN  -     
-sim_post_syn_all        CLEAN  -     
-sta                     CLEAN  -     
-syn                     CLEAN  -     
-syn.setup               CLEAN  -     
-tb.setup                CLEAN  -     
+Setup                         State  Action      
+cdc_rdc                       CLEAN  -           
+cdc_rdc.setup                 CLEAN  -           
+cocotb.setup                  CLEAN  -           
+eqy.setup                     STALE  fx eqy.setup
+formal.cover.setup            CLEAN  -           
+formal.csr_cover.setup        CLEAN  -           
+formal.csr_prove.setup        CLEAN  -           
+formal.prove.setup            CLEAN  -           
+formal_bmc                    CLEAN  -           
+formal_cover                  CLEAN  -           
+formal_csr_bmc                CLEAN  -           
+formal_csr_cover              CLEAN  -           
+formal_csr_prove              CLEAN  -           
+formal_prove                  CLEAN  -           
+fusion_analysis_all           CLEAN  -           
+fusion_analysis_post_pnr_all  CLEAN  -           
+lint_slang_suite              CLEAN  -           
+lint_verilator_suite          CLEAN  -           
+physical_signoff              CLEAN  -           
+pnr                           CLEAN  -           
+pnr.setup                     CLEAN  -           
+power_analysis_all            CLEAN  -           
+power_analysis_post_pnr_all   CLEAN  -           
+power_estimate                CLEAN  -           
+power_estimate_post_pnr       CLEAN  -           
+regression                    CLEAN  -           
+sdf                           CLEAN  -           
+sdf_post_pnr                  CLEAN  -           
+signoff.setup                 CLEAN  -           
+signoff_post_pnr.setup        CLEAN  -           
+sim_post_pnr_all              CLEAN  -           
+sim_post_syn_all              CLEAN  -           
+sta                           CLEAN  -           
+sta_post_pnr                  CLEAN  -           
+syn                           CLEAN  -           
+syn.setup                     CLEAN  -           
+tb.setup                      CLEAN  -           
 
 RTL lint  Slang → Verilator
 Tool       Status  Errors  Warnings  Latch  Width  Unused
@@ -80,10 +90,10 @@ smoke            PASS  PASS
 
 Formal verification
 Suite       Stage  Status  Time  Traces
-csr         bmc    PASS      4s       0
+csr         bmc    PASS      3s       0
 csr         prove  PASS      0s       0
 csr         cover  PASS      0s       6
-properties  bmc    PASS      4s       0
+properties  bmc    PASS      3s       0
 properties  prove  PASS      0s       0
 properties  cover  PASS      0s       8
 
@@ -112,36 +122,96 @@ tt      hold   WARN    -0.300000  -1.220000     5         0
 ff      setup  PASS    +0.000000  +0.000000     0         0
 ff      hold   WARN    -0.190000  -0.780000     5         0
 GLS matrix
-Test        min      typ      max  
-corners   PASS sv  PASS sv  PASS sv
-reconfig  PASS sv  PASS sv  PASS sv
-smoke     PASS sv  PASS sv  PASS sv
+Test            min      typ      max  
+corners       PASS sv  PASS sv  PASS sv
+parity_error  PASS sv  PASS sv  PASS sv
+smoke         PASS sv  PASS sv  PASS sv
 Power estimate
 Corner  Internal (mW)  Switching (mW)  Leakage (µW)  Total (mW)
 ss             +1.700          +0.146        +0.004      +1.840
 tt             +1.810          +0.161        +2.150      +1.970
 ff             +2.060          +0.188        +0.015      +2.250
 Activity power workloads
-Workload        Test      Backend  Timing  Status
-corners_sv_ff   corners     sv      min    PASS  
-reconfig_sv_ff  reconfig    sv      min    PASS  
-smoke_sv_ff     smoke       sv      min    PASS  
-corners_sv_tt   corners     sv      typ    PASS  
-reconfig_sv_tt  reconfig    sv      typ    PASS  
-smoke_sv_tt     smoke       sv      typ    PASS  
-corners_sv_ss   corners     sv      max    PASS  
-reconfig_sv_ss  reconfig    sv      max    PASS  
-smoke_sv_ss     smoke       sv      max    PASS  
+Workload            Test          Backend  Timing  Status
+corners_sv_ff       corners         sv      min    PASS  
+parity_error_sv_ff  parity_error    sv      min    PASS  
+smoke_sv_ff         smoke           sv      min    PASS  
+corners_sv_tt       corners         sv      typ    PASS  
+parity_error_sv_tt  parity_error    sv      typ    PASS  
+smoke_sv_tt         smoke           sv      typ    PASS  
+corners_sv_ss       corners         sv      max    PASS  
+parity_error_sv_ss  parity_error    sv      max    PASS  
+smoke_sv_ss         smoke           sv      max    PASS  
 Timing / power fusion workloads
-Workload        Test      Backend  Timing  Status
-corners_sv_ff   corners     sv      min    PASS  
-reconfig_sv_ff  reconfig    sv      min    PASS  
-smoke_sv_ff     smoke       sv      min    PASS  
-corners_sv_tt   corners     sv      typ    PASS  
-reconfig_sv_tt  reconfig    sv      typ    PASS  
-smoke_sv_tt     smoke       sv      typ    PASS  
-corners_sv_ss   corners     sv      max    PASS  
-reconfig_sv_ss  reconfig    sv      max    PASS  
-smoke_sv_ss     smoke       sv      max    PASS  
+Workload            Test          Backend  Timing  Status
+corners_sv_ff       corners         sv      min    PASS  
+parity_error_sv_ff  parity_error    sv      min    PASS  
+smoke_sv_ff         smoke           sv      min    PASS  
+corners_sv_tt       corners         sv      typ    PASS  
+parity_error_sv_tt  parity_error    sv      typ    PASS  
+smoke_sv_tt         smoke           sv      typ    PASS  
+corners_sv_ss       corners         sv      max    PASS  
+parity_error_sv_ss  parity_error    sv      max    PASS  
+smoke_sv_ss         smoke           sv      max    PASS  
 
-Detailed metrics: /home/eneadim/github/flexsoc/hw/ips/uart/1.0.0/interfaces/.ip-save.uart.tlul.t3e94v50/tlul/meta/sky130/metrics.json
+Implementation / PnR
+Status           PASS                                  
+Results          impl/sky130/results/sky130hd/uart/base
+Final artifacts  5/5                                   
+Log              logs/pnr/sky130/uart_pnr.log          
+
+Post Sign-Off
+Physical closure       REVIEW                          
+Route DRC              PASS                            
+Antenna                PASS                            
+GDS DRC                PASS                            
+LVS                    MISSING                         
+IR / PDN               UNSUPPORTED                     
+SDF                    PASS · corners=3                
+STA                    PASS · propagated clock · spef  
+Gate-level simulation  9/9  PASS · interconnect enabled
+Power estimate         PASS                            
+Activity power         9/9  PASS                       
+Timing / power fusion  9/9  PASS                       
+STA QoR
+Corner  Mode   Status   WNS (ns)   TNS (ns)  Viol  Unconstr
+ss      setup  PASS    +0.000000  +0.000000     0         0
+ss      hold   PASS    +0.000000  +0.000000     0         0
+tt      setup  PASS    +0.000000  +0.000000     0         0
+tt      hold   PASS    +0.000000  +0.000000     0         0
+ff      setup  PASS    +0.000000  +0.000000     0         0
+ff      hold   PASS    +0.000000  +0.000000     0         0
+GLS matrix
+Test            min      typ      max  
+corners       PASS sv  PASS sv  PASS sv
+parity_error  PASS sv  PASS sv  PASS sv
+smoke         PASS sv  PASS sv  PASS sv
+Power estimate
+Corner  Internal (mW)  Switching (mW)  Leakage (µW)  Total (mW)
+ss             +2.610          +0.811        +0.005      +3.420
+tt             +2.830          +0.892        +2.180      +3.720
+ff             +3.180          +1.050        +0.016      +4.230
+Activity power workloads
+Workload            Test          Backend  Timing  Status
+corners_sv_ff       corners         sv      min    PASS  
+parity_error_sv_ff  parity_error    sv      min    PASS  
+smoke_sv_ff         smoke           sv      min    PASS  
+corners_sv_tt       corners         sv      typ    PASS  
+parity_error_sv_tt  parity_error    sv      typ    PASS  
+smoke_sv_tt         smoke           sv      typ    PASS  
+corners_sv_ss       corners         sv      max    PASS  
+parity_error_sv_ss  parity_error    sv      max    PASS  
+smoke_sv_ss         smoke           sv      max    PASS  
+Timing / power fusion workloads
+Workload            Test          Backend  Timing  Status
+corners_sv_ff       corners         sv      min    PASS  
+parity_error_sv_ff  parity_error    sv      min    PASS  
+smoke_sv_ff         smoke           sv      min    PASS  
+corners_sv_tt       corners         sv      typ    PASS  
+parity_error_sv_tt  parity_error    sv      typ    PASS  
+smoke_sv_tt         smoke           sv      typ    PASS  
+corners_sv_ss       corners         sv      max    PASS  
+parity_error_sv_ss  parity_error    sv      max    PASS  
+smoke_sv_ss         smoke           sv      max    PASS  
+
+Detailed metrics: /home/eneadim/github/flexsoc/hw/ips/uart/1.0.0/interfaces/.ip-save.uart.tlul.122h2196/tlul/meta/sky130/metrics.json
