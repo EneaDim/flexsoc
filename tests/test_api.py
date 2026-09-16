@@ -27,7 +27,7 @@ import flexsoc.backend.core.lifecycle as lifecycle_module
 import flexsoc.backend.core.workspace as workspace_module
 from flexsoc.backend.core.target import BACKEND_TARGETS, SIGNOFF_TARGETS
 from flexsoc.backend.core.session import (
-    ACTIVITY_ANALYSIS_TARGETS, DEFAULT_SETTINGS, SETUP_TARGETS,
+    DEFAULT_SETTINGS, SETUP_TARGETS,
     STREAM_BY_DEFAULT_TARGETS, TargetSession,
 )
 from flexsoc import (
@@ -63,7 +63,6 @@ from flexsoc.backend.dv.cocotb_testbench import (
     cocotb_sv_text,
     render_gls_make_block,
     render_reg_driver_py,
-    write_cocotb_scaffold,
 )
 from flexsoc.backend.dv.sv_testbench import (
     render_tlul_interface,

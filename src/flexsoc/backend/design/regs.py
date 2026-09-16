@@ -8,7 +8,6 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any
 
-from flexsoc.backend.core import ensure_dir, safe_write_file
 
 
 REGISTER_INTERFACES = ("tlul", "reg_iface", "axi_lite")

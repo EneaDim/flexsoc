@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, replace
 from pathlib import Path
-from textwrap import dedent
 from typing import Any, Sequence
 
 from flexsoc.backend.core import ClockConfig, ClockDomain, clock_config

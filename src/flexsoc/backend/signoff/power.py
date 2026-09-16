@@ -14,7 +14,7 @@ from typing import Any, Mapping
 from flexsoc.backend.core import layout_from_values
 from .sta import (
     ACTIVITY_PERCENT_RE, ACTIVITY_RE, FLOAT_RE, POWER_RE, SDF_MODES, SignoffContext,
-    _base_context, _common_init, _execute_script, _header, _liberties, _load_json,
+    _base_context, _execute_script, _liberties, _load_json,
     _returncode_text, _selection, _selector, _timing_values, _write, render_opensta_script, scenario_corner,
 )
 
