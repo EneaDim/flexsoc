@@ -2,9 +2,67 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from textwrap import dedent
 
-from flexsoc.backend.core import ClockDomain, templates
+from flexsoc.backend.core import ClockConfig, ClockDomain, templates
+from flexsoc.backend.design.regs import normalize_register_interface
+
+
+@dataclass(frozen=True, slots=True)
+class RegisterTransport:
+    """Describe one external CSR transport over the common register contract."""
+
+    name: str
+    pins: tuple[str, ...]
+
+    @classmethod
+    def from_name(cls, name: str) -> "RegisterTransport":
+        name = normalize_register_interface(name)
+        pins = {
+            "reg_iface": (
+                "cfg_reg_req_i", "cfg_reg_rsp_o", "dsp_reg_req_i", "dsp_reg_rsp_o",
+            ),
+            "tlul": ("cfg_tl_i", "cfg_tl_o", "dsp_tl_i", "dsp_tl_o"),
+            "axi_lite": (
+                "cfg_axi_lite_i", "cfg_axi_lite_o", "dsp_axi_lite_i", "dsp_axi_lite_o",
+            ),
+        }[name]
+        return cls(name, pins)
+
+    def template_root(self, backend: str) -> str:
+        """Return the template root for the direct register bus or one adapter."""
+
+        branch = "reg_iface" if self.name == "reg_iface" else f"adapters/{self.name}"
+        return f"dv/{backend}/register/{branch}"
+
+
+def render_register_boundary(
+    top: str, interface: str, *, cocotb: bool = False
+) -> tuple[str, str, RegisterTransport]:
+    """Render one SV CSR boundary while keeping the transport choice explicit."""
+
+    transport = RegisterTransport.from_name(interface)
+    mode = "cocotb" if cocotb else "sv"
+    root = transport.template_root("sv")
+    return (
+        templates.render(f"{root}/{mode}_declarations.sv.j2", top=top),
+        templates.render(f"{root}/{mode}_helpers.sv.j2", top=top),
+        transport,
+    )
+
+
+def render_dut_pins(clocks: ClockConfig, transport: RegisterTransport) -> str:
+    """Render deterministic DUT connections for the shared multiclock wrapper."""
+
+    pins = [signal for domain in clocks.domains for signal in (domain.signal, domain.reset)]
+    pins += [
+        *transport.pins,
+        "rx_valid_i", "rx_ready_o", "rx_sample_i", "rx_coeff_i",
+        "dsp_valid_o", "dsp_ready_i", "dsp_result_o",
+        "dsp_above_threshold_o", "dsp_overflow_o",
+    ]
+    return ",\n".join(f"    .{name:<25}({name})" for name in pins)
 
 
 _SERIAL_IDLE_HIGH_INPUTS = frozenset({"rx_i", "cio_rx_i", "uart_rx_i", "serial_rx_i"})
@@ -31,7 +89,7 @@ def _tb_phases(period_ns: float, io_delay_pct: float) -> tuple[float, float]:
 def render_packed_tlul_helpers(indent: str = "") -> str:
     """Render package-free TL-UL packing and integrity helpers for GLS wrappers."""
 
-    body = templates.render("dv/sv/bus/tlul_packed_helpers.svh.j2").strip("\n")
+    body = templates.render("dv/sv/register/adapters/tlul/packed_helpers.svh.j2").strip("\n")
     return "\n".join(indent + line if line else "" for line in body.splitlines())
 
 

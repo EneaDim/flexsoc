@@ -1,0 +1,106 @@
+def _drive_idle(dut):
+    _get(dut, "tl_i_a_valid").value = 0
+    _get(dut, "tl_i_a_opcode").value = 4
+    _get(dut, "tl_i_a_param").value = 0
+    _get(dut, "tl_i_a_size").value = 2
+    _get(dut, "tl_i_a_source").value = 0
+    _get(dut, "tl_i_a_address").value = 0
+    _get(dut, "tl_i_a_mask").value = 0
+    _get(dut, "tl_i_a_data").value = 0
+    _get(dut, "tl_i_d_ready").value = 1
+
+
+def _clocked_bus(dut, clk=None):
+    return _clock(dut, clk)
+
+
+async def init_register_bus(dut, clk=None):
+    clk = _clocked_bus(dut, clk)
+    _drive_idle(dut)
+    await _sample_cycle(clk)
+
+async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None, clk=None):
+    clk = _clocked_bus(dut, clk)
+    addr = resolve_register(reg_or_addr, regmap)
+    data = parse_u32(data)
+    mask = parse_u32(mask) & 0xF
+    if not mask:
+        raise ValueError(f"register write mask is zero at addr=0x{addr:08x}")
+    dut._log.info("reg write addr=0x%08x data=0x%08x mask=0x%x", addr, data, mask)
+
+    await _drive_cycle(clk)
+    _get(dut, "tl_i_d_ready").value = 1
+    _get(dut, "tl_i_a_valid").value = 1
+    _get(dut, "tl_i_a_opcode").value = 0 if mask == 0xF else 1
+    _get(dut, "tl_i_a_param").value = 0
+    _get(dut, "tl_i_a_size").value = 2
+    _get(dut, "tl_i_a_source").value = 0
+    _get(dut, "tl_i_a_address").value = addr
+    _get(dut, "tl_i_a_mask").value = mask
+    _get(dut, "tl_i_a_data").value = data
+    guard = 0
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "tl_o_a_ready", f"waiting write a_ready addr=0x{addr:08x}"):
+            break
+        guard += 1
+        if guard > 1000:
+            raise TimeoutError(f"timeout waiting a_ready on write addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _get(dut, "tl_i_a_valid").value = 0
+    guard = 0
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "tl_o_d_valid", f"waiting write d_valid addr=0x{addr:08x}"):
+            break
+        guard += 1
+        if guard > 1000:
+            raise TimeoutError(f"timeout waiting d_valid on write addr=0x{addr:08x}")
+    if _known_int(dut, "tl_o_d_error", f"checking write response addr=0x{addr:08x}"):
+        raise AssertionError(f"TL-UL write error at addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _drive_idle(dut)
+    await _sample_cycle(clk)
+
+
+async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
+    clk = _clocked_bus(dut, clk)
+    addr = resolve_register(reg_or_addr, regmap)
+    dut._log.info("reg read addr=0x%08x", addr)
+
+    await _drive_cycle(clk)
+    _get(dut, "tl_i_d_ready").value = 1
+    _get(dut, "tl_i_a_valid").value = 1
+    _get(dut, "tl_i_a_opcode").value = 4
+    _get(dut, "tl_i_a_param").value = 0
+    _get(dut, "tl_i_a_size").value = 2
+    _get(dut, "tl_i_a_source").value = 0
+    _get(dut, "tl_i_a_address").value = addr
+    _get(dut, "tl_i_a_mask").value = 0xF
+    _get(dut, "tl_i_a_data").value = 0
+    guard = 0
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "tl_o_a_ready", f"waiting read a_ready addr=0x{addr:08x}"):
+            break
+        guard += 1
+        if guard > 1000:
+            raise TimeoutError(f"timeout waiting a_ready on read addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _get(dut, "tl_i_a_valid").value = 0
+    guard = 0
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "tl_o_d_valid", f"waiting read d_valid addr=0x{addr:08x}"):
+            break
+        guard += 1
+        if guard > 1000:
+            raise TimeoutError(f"timeout waiting d_valid on read addr=0x{addr:08x}")
+    if _known_int(dut, "tl_o_d_error", f"checking read response addr=0x{addr:08x}"):
+        raise AssertionError(f"TL-UL read error at addr=0x{addr:08x}")
+    data = _known_int(dut, "tl_o_d_data", f"reading response data addr=0x{addr:08x}") & 0xFFFFFFFF
+    dut._log.info("reg read addr=0x%08x data=0x%08x", addr, data)
+    await _drive_cycle(clk)
+    _drive_idle(dut)
+    await _sample_cycle(clk)
+    return data

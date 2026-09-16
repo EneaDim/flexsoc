@@ -17,7 +17,10 @@ from .testbench_common import (
     _clock_waveform_times,
     _serial_idle_high,
     _tb_phases,
+    RegisterTransport,
+    render_dut_pins,
     render_packed_tlul_helpers,
+    render_register_boundary,
 )
 
 @dataclass(frozen=True, slots=True)
@@ -310,30 +313,35 @@ def _normalise_register_entries(registers) -> dict[str, int]:
     return regmap
 
 
-def render_reg_driver_py(registers=None, period_ns: float = 10.0, io_delay_pct: float = 0.2) -> str:
+def render_reg_driver_py(
+    registers=None, period_ns: float = 10.0, io_delay_pct: float = 0.2, interface: str = "tlul"
+) -> str:
     """Render generic cocotb register helpers using the shared IO timing intent."""
 
     register_addrs = _normalise_register_entries(registers)
     drive_ns, sample_ns = _tb_phases(period_ns, io_delay_pct)
+    transport = RegisterTransport.from_name(interface)
+    transport_helpers = templates.render(f"{transport.template_root('cocotb')}/single.py.j2")
     return templates.render(
         "dv/cocotb/drivers/reg_driver.py.j2",
-        register_addrs=repr(register_addrs),
+        multiclock=False, register_addrs=repr(register_addrs),
         tb_period_ps=int(round(period_ns * 1000)),
         tb_drive_ps=int(round(drive_ns * 1000)),
         tb_sample_ps=int(round(sample_ns * 1000)),
+        transport_helpers=transport_helpers.rstrip(),
     )
 
 
 def render_vec_monitor_py() -> str:
     """Render a generic cocotb expected-output monitor."""
 
-    return templates.render("dv/cocotb/drivers/vec_monitor.py.j2")
+    return templates.render("dv/cocotb/drivers/vec_monitor.py.j2", multiclock=False)
 
 
 def render_vec_driver_py() -> str:
     """Render a generic cocotb input-vector driver."""
 
-    return templates.render("dv/cocotb/drivers/vec_driver.py.j2")
+    return templates.render("dv/cocotb/drivers/vec_driver.py.j2", multiclock=False)
 
 
 def render_python_test(
@@ -361,8 +369,8 @@ def render_python_test(
     initial_low, high_ns, low_ns = _clock_waveform_times(clock)
     jitter_bound_ps = _clock_jitter_bound_ps(clock)
     return templates.render(
-        "dv/cocotb/test.py.j2",
-        top=top,
+        "dv/cocotb/testbench/test.py.j2",
+        multiclock=False, top=top,
         clk=clk,
         reset_domain=reset_domain,
         reset_domains=repr({reset_domain: (clk, rst, rst_active)}),
@@ -386,7 +394,7 @@ def render_reg_iface_wrapper(cfg: CocotbConfig) -> str:
         for key, value in port_info.items()
     }
     return templates.render(
-        "dv/cocotb/wrappers/reg_iface.sv.j2",
+        "dv/cocotb/register/reg_iface/wrapper.sv.j2",
         top=cfg.top, clk=cfg.clk, rst=cfg.rst,
         extra_decls=render_extra_port_declarations(clean_info),
         extra_init=render_extra_input_initializers(clean_info),
@@ -398,7 +406,7 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
 
     port_info = parse_top_ports(find_top_file(cfg.rtl_dir, cfg.top))
     return templates.render(
-        "dv/cocotb/wrappers/tlul.sv.j2",
+        "dv/cocotb/register/adapters/tlul/wrapper.sv.j2",
         top=cfg.top, clk=cfg.clk, rst=cfg.rst,
         extra_decls=render_extra_port_declarations(port_info),
         extra_init=render_extra_input_initializers(port_info),
@@ -417,12 +425,136 @@ def render_axi_lite_wrapper(cfg: CocotbConfig) -> str:
     }
     proxy_decls, proxy_assigns, proxy_init = _axi_lite_cocotb_proxy(f"{cfg.top}_reg_pkg")
     return templates.render(
-        "dv/cocotb/wrappers/axi_lite.sv.j2",
+        "dv/cocotb/register/adapters/axi_lite/wrapper.sv.j2",
         top=cfg.top, clk=cfg.clk, rst=cfg.rst,
         extra_decls=render_extra_port_declarations(clean_info),
         extra_init=render_extra_input_initializers(clean_info),
         proxy_decls=proxy_decls, proxy_assigns=proxy_assigns, proxy_init=proxy_init,
     )
+
+
+# Multiclock rendering uses the same generated scaffold layout.
+
+def cocotb_sv_text(top: str, clocks: ClockConfig, interface: str = "tlul") -> str:
+    """Render the multiclock cocotb wrapper for one CSR transport."""
+
+    interface = normalize_register_interface(interface)
+    clock_decls = "\n".join(
+        f"  logic {domain.signal};\n  logic {domain.reset};" for domain in clocks.domains
+    )
+    bus_decls, bus_helpers, transport = render_register_boundary(top, interface, cocotb=True)
+    root = RegisterTransport.from_name(interface).template_root("cocotb")
+    return templates.render(
+        f"{root}/wrapper_multiclock.sv.j2",
+        top=top,
+        clock_decls=clock_decls,
+        bus_decls=bus_decls,
+        bus_helpers=bus_helpers,
+        dut_pins=render_dut_pins(clocks, transport),
+    )
+
+
+def _nclock_cocotb_bus_py(interface: str) -> tuple[str, str, str]:
+    """Render defaults/write/read snippets for one multiclock CSR transport."""
+
+    interface = normalize_register_interface(interface)
+    root = RegisterTransport.from_name(interface).template_root("cocotb")
+    return tuple(
+        templates.render(f"{root}/{name}.py.j2")
+        for name in ("defaults", "write", "read")
+    )
+
+
+def cocotb_reg_driver_py_text(
+    top: str, clocks: ClockConfig, io_delay_pct: float = 0.2, interface: str = "tlul"
+) -> str:
+    """Render multiclock register helpers over the selected CSR transport."""
+
+    del top
+    clock_map = {domain.name: domain.signal for domain in clocks.domains}
+    reset_map = {
+        domain.name: (domain.signal, domain.reset, domain.reset_polarity)
+        for domain in clocks.domains
+    }
+    period_ps = {domain.signal: int(round(domain.period_ns * 1000)) for domain in clocks.domains}
+    drive_ps: dict[str, int] = {}
+    sample_ps: dict[str, int] = {}
+    for domain in clocks.domains:
+        drive_ns, sample_ns = _tb_phases(domain.period_ns, io_delay_pct)
+        drive_ps[domain.signal] = int(round(drive_ns * 1000))
+        sample_ps[domain.signal] = int(round(sample_ns * 1000))
+    defaults, write, read = _nclock_cocotb_bus_py(interface)
+    return templates.render(
+        "dv/cocotb/drivers/reg_driver.py.j2",
+        multiclock=True, clock_map=repr(clock_map),
+        period_ps=repr(period_ps),
+        drive_ps=repr(drive_ps),
+        sample_ps=repr(sample_ps),
+        reset_map=repr(reset_map),
+        primary=repr(clocks.domains[0].signal),
+        settle=repr(clocks.domains[-1].signal),
+        bus_defaults=defaults.rstrip(),
+        bus_write=write.rstrip(),
+        bus_read=read.rstrip(),
+    )
+
+
+def cocotb_vec_driver_py_text(top: str) -> str:
+    """Render multiclock vector commands."""
+
+    del top
+    return templates.render("dv/cocotb/drivers/vec_driver.py.j2", multiclock=True)
+
+
+def cocotb_monitor_py_text(top: str) -> str:
+    """Render multiclock output monitor helpers."""
+
+    del top
+    return templates.render("dv/cocotb/drivers/vec_monitor.py.j2", multiclock=True)
+
+
+def cocotb_py_text(top: str, clocks: ClockConfig) -> str:
+    """Render the multiclock cocotb test entry point."""
+
+    starts = "\n".join(
+        f"    cocotb.start_soon(_flexsoc_clock(getattr(dut, {domain.signal!r}), "
+        f"{domain.period_ns:g}, {domain.rise_ns:g}, "
+        f"{(domain.fall_ns if domain.fall_ns is not None else domain.period_ns / 2.0):g}, "
+        f"{domain.source_latency_ns:g}, {_clock_jitter_bound_ps(domain)}, "
+        f"{_clock_seed_salt(domain.name)}))"
+        for domain in clocks.domains
+    )
+    return templates.render(
+        "dv/cocotb/testbench/test.py.j2",
+        multiclock=True, top=top, clock_starts=starts,
+    )
+
+
+# N-clock scaffold writer
+
+
+def _write_multiclock_cocotb_tree(cfg: CocotbConfig, clocks: ClockConfig) -> list[Path]:
+    """Write the generated N-clock cocotb scaffold into an empty tree."""
+
+    out, drivers = cfg.output, cfg.output / "drivers"
+    sources = collect_sources(cfg.top, cfg.rtl_dir.resolve(), cfg.ips_root)
+    files = {
+        out / "Makefile": render_makefile(cfg, sources),
+        out / f"{cfg.top}_tb.sv": cocotb_sv_text(cfg.top, clocks, cfg.interface),
+        drivers / "__init__.py": "",
+        drivers / "reg_driver.py": cocotb_reg_driver_py_text(
+            cfg.top, clocks, cfg.io_delay_pct, cfg.interface
+        ),
+        drivers / "vec_driver.py": cocotb_vec_driver_py_text(cfg.top),
+        drivers / "vec_monitor.py": cocotb_monitor_py_text(cfg.top),
+        out / f"{cfg.top}_tb.py": cocotb_py_text(cfg.top, clocks),
+    }
+    for path, text in files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text.rstrip() + "\n", encoding="utf-8")
+    return list(files)
+
+
 
 
 def _write_cocotb_scaffold_impl(
@@ -432,6 +564,8 @@ def _write_cocotb_scaffold_impl(
 
     clocks = clocks or clock_config()
     cfg = replace(cfg, interface=normalize_register_interface(cfg.interface))
+    if clocks.multiclock:
+        return _write_multiclock_cocotb_tree(cfg, clocks)
     out_dir = cfg.output.resolve()
     drivers = out_dir / "drivers"
     drivers.mkdir(parents=True, exist_ok=True)
@@ -444,7 +578,10 @@ def _write_cocotb_scaffold_impl(
     )
     files = {
         out_dir / "Makefile": render_makefile(cfg, sources),
-        drivers / "reg_driver.py": render_reg_driver_py(registers, clock_domain.period_ns, cfg.io_delay_pct),
+        drivers / "__init__.py": "",
+        drivers / "reg_driver.py": render_reg_driver_py(
+            registers, clock_domain.period_ns, cfg.io_delay_pct, cfg.interface
+        ),
         drivers / "vec_driver.py": render_vec_driver_py(),
         drivers / "vec_monitor.py": render_vec_monitor_py(),
         out_dir / f"{cfg.top}_tb.py": render_python_test(

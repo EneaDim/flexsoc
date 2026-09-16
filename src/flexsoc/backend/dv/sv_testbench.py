@@ -29,7 +29,10 @@ from .testbench_common import (
     _clock_waveform_times,
     _serial_idle_high,
     _tb_phases,
+    RegisterTransport,
+    render_dut_pins,
     render_packed_tlul_helpers,
+    render_register_boundary,
 )
 
 @dataclass(frozen=True)
@@ -121,8 +124,8 @@ def _render_sv_reg_sequence_string(
     addr_cases = "\n".join(cases)
 
     return templates.render(
-        "dv/sv/drivers/reg_sequence.svh.j2",
-        top=top,
+        "dv/sv/drivers/reg_driver.svh.j2",
+        multiclock=False, top=top,
         addr_cases=addr_cases,
         write_addr_call=write_addr_call,
         read_addr_call=read_addr_call,
@@ -158,8 +161,8 @@ def _render_sv_vec_monitor_string(top: str, outputs: Sequence[str]) -> str:
     checks_text = "\n".join(checks)
 
     return templates.render(
-        "dv/sv/drivers/vector_monitor.svh.j2",
-        top=top,
+        "dv/sv/drivers/vec_monitor.svh.j2",
+        multiclock=False, top=top,
         tokenizer=_tokenizer(),
         checks_text=checks_text,
     )
@@ -202,8 +205,8 @@ def _render_sv_vec_driver_string(
     reset_released = "1'b0" if reset_polarity == "high" else "1'b1"
 
     return templates.render(
-        "dv/sv/drivers/vector_driver.svh.j2",
-        top=top,
+        "dv/sv/drivers/vec_driver.svh.j2",
+        multiclock=False, top=top,
         drive_ns=f"{drive_ns:g}",
         sample_ns=f"{sample_ns:g}",
         clk=clk,
@@ -447,7 +450,6 @@ def write_sv_verification_helpers(
 ) -> list[Path]:
     """Write the canonical SystemVerilog driver/monitor tree directly."""
 
-    del force
     out = Path(outdir) / "drivers"
     ensure_dir(out)
     clk = (sig.get("clks") or ["clk_i"])[0]
@@ -590,7 +592,7 @@ def render_tlul_interface(period_ns: float = 10.0, io_delay_pct: float = 0.2) ->
     drive_ns, sample_ns = _tb_phases(period_ns, io_delay_pct)
     helpers = render_packed_tlul_helpers("  ")
     return templates.render(
-        "dv/sv/bus/tlul_if.sv.j2",
+        "dv/sv/register/adapters/tlul/single_transport.sv.j2",
         helpers=helpers,
         drive_ns=f"{drive_ns:g}",
         sample_ns=f"{sample_ns:g}",
@@ -600,7 +602,7 @@ def render_reg_interface(top: str) -> str:
     """Render a register interface with simulator-portable procedural access tasks."""
 
     return templates.render(
-        "dv/sv/bus/reg_if.sv.j2",
+        "dv/sv/register/reg_iface/single_transport.sv.j2",
         top=top,
     )
 
@@ -609,7 +611,7 @@ def render_axi_lite_utils(top: str, period_ns: float = 10.0, io_delay_pct: float
 
     drive_ns, sample_ns = _tb_phases(period_ns, io_delay_pct)
     return templates.render(
-        "dv/sv/bus/axi_lite_utils.svh.j2",
+        "dv/sv/register/adapters/axi_lite/single_transport.svh.j2",
         top=top,
         drive_ns=f"{drive_ns:g}",
         sample_ns=f"{sample_ns:g}",
@@ -972,6 +974,302 @@ def render_simple_testbench(top: str,
     lines.append("endmodule")
     return "\n".join(lines) + "\n"
 
+# Multiclock rendering uses the same generated scaffold layout.
+
+def sv_include_text(top: str) -> str:
+    """Render the multiclock SV include hook."""
+
+    guard = f"{top.upper()}_NCLOCK_TB_INCLUDE_SV".replace("-", "_")
+    return templates.render(
+        "dv/sv/testbench/_include_multiclock.sv.j2", top=top, guard=guard
+    )
+
+
+def _phase_helpers(clocks: ClockConfig, io_delay_pct: float) -> str:
+    """Render drive/sample phase helpers from the clock contract."""
+
+    rendered = []
+    for domain in clocks.domains:
+        drive_ns, sample_ns = _tb_phases(domain.period_ns, io_delay_pct)
+        rendered.append(templates.render(
+            "dv/sv/drivers/clock_phase.svh.j2",
+            domain_name=domain.name,
+            signal=domain.signal,
+            drive_ns=f"{drive_ns:g}",
+            sample_ns=f"{sample_ns:g}",
+        ).rstrip())
+    return "\n\n".join(rendered) + "\n\n"
+
+
+def _reset_tasks(clocks: ClockConfig) -> str:
+    """Render reset selection directly from the clock/reset contract."""
+
+    assert_reset = "\n".join(
+        f"        {domain.reset} = 1'b{1 if domain.reset_polarity == 'high' else 0};"
+        for domain in clocks.domains
+    )
+    release_reset = "\n".join(
+        f"        {domain.reset} = 1'b{0 if domain.reset_polarity == 'high' else 1};"
+        for domain in clocks.domains
+    )
+    wait_all = "\n".join(
+        f"          begin repeat (cycles) @(posedge {domain.signal}); "
+        f"@(negedge {domain.signal}); end"
+        for domain in clocks.domains
+    )
+    named = []
+    for domain in clocks.domains:
+        asserted = 1 if domain.reset_polarity == "high" else 0
+        released = 0 if domain.reset_polarity == "high" else 1
+        named.extend([
+            f'else if (selector == "{domain.name}" || selector == "{domain.reset}") begin',
+            f"  {domain.reset} = 1'b{asserted};",
+            f"  repeat (cycles) @(posedge {domain.signal});",
+            f"  @(negedge {domain.signal});",
+            f"  {domain.reset} = 1'b{released};",
+            "  matched = 1'b1;",
+            "end",
+        ])
+    return templates.render(
+        "dv/sv/drivers/reset.svh.j2",
+        assert_reset=assert_reset,
+        wait_all=wait_all,
+        release_reset=release_reset,
+        named_reset="\n".join(named),
+        primary_clock=clocks.domains[0].signal,
+    )
+
+
+def _sv_driver_text_string(
+    top: str, clocks: ClockConfig, io_delay_pct: float = 0.2, interface: str = "tlul"
+) -> str:
+    """Render the native-string multiclock register driver."""
+
+    interface = normalize_register_interface(interface)
+    root = RegisterTransport.from_name(interface).template_root("sv")
+    bus_section = templates.render(
+        f"{root}/multiclock_transport.svh.j2",
+        top=top,
+        reset_tasks=_reset_tasks(clocks),
+    )
+    return templates.render(
+        "dv/sv/drivers/reg_driver.svh.j2",
+        multiclock=True, top=top,
+        phase_helpers=_phase_helpers(clocks, io_delay_pct),
+        bus_section=bus_section,
+    )
+
+
+def _sv_vec_driver_text_string(
+    top: str, clocks: ClockConfig, io_delay_pct: float = 0.2
+) -> str:
+    """Render native-string multiclock vector commands."""
+
+    del top, clocks, io_delay_pct
+    return templates.render("dv/sv/drivers/vec_driver.svh.j2", multiclock=True)
+
+
+def _sv_monitor_text_string(top: str) -> str:
+    """Render the native-string multiclock output monitor."""
+
+    del top
+    return templates.render("dv/sv/drivers/vec_monitor.svh.j2", multiclock=True)
+
+
+_STRING_SV_DRIVER_TEXT = _sv_driver_text_string
+_STRING_SV_VEC_DRIVER_TEXT = _sv_vec_driver_text_string
+_STRING_SV_MONITOR_TEXT = _sv_monitor_text_string
+
+def _packed_sv_driver_variant(text: str) -> str:
+    """Convert the N-clock register driver parser to packed tokens for Icarus."""
+
+    text = text.replace("input string reg_name", "input tb_token_t reg_name")
+    text = text.replace("  string reg_name;", "  tb_token_t reg_name;")
+    text = text.replace("  string line;\n", "")
+    text = text.replace("  reg [8*4096-1:0] line_buf;", "  tb_line_t line_buf;")
+    text = text.replace("    line = \"\";\n", "")
+    text = text.replace(
+        "          void'($fgets(line_buf, fd));\n          line = $sformatf(\"%0s\", line_buf);\n"
+        "          if (line.len() == 0 || line.substr(0, 0) == \"#\") disable tb_nclk_cfg_line;\n"
+        "          code = $sscanf(line, \"%s %h\", reg_name, value);",
+        "          code = $fgets(line_buf, fd);\n"
+        "          code = $sscanf(line_buf, \"%s %h\", reg_name, value);",
+    )
+    text = text.replace("$sscanf(line,", "$sscanf(line_buf,")
+    text = text.replace(
+        '            if (reg_name.len() > 6 && reg_name.substr(0, 5) == "clk_i.") reg_name = reg_name.substr(6, reg_name.len() - 1);',
+        '            begin\n'
+        '              tb_token_t short_name;\n'
+        "              short_name = '0;\n"
+        '              if ($sscanf(reg_name, "clk_i.%s", short_name) == 1) reg_name = short_name;\n'
+        '            end',
+    )
+    # Add the packed parser after rewriting generated task bodies.
+    # Earlier insertion lets broad replacements corrupt the parser argument.
+    return _packed_token_support() + "\n" + text
+
+
+def _packed_sv_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
+    return _packed_sv_driver_variant(_STRING_SV_DRIVER_TEXT(top, clocks, io_delay_pct))
+
+
+def _packed_sv_vec_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
+    text = _STRING_SV_VEC_DRIVER_TEXT(top, clocks, io_delay_pct)
+    text = text.replace("  string token;", "  tb_token_t token;")
+    text = text.replace("  string reg_name;", "  tb_token_t reg_name;")
+    text = text.replace("  string line;\n", "")
+    text = text.replace("  reg [8*4096-1:0] line_buf;", "  tb_line_t line_buf;")
+    text = text.replace("    line = \"\";\n", "")
+    text = text.replace(
+        "    void'($fgets(line_buf, fd));\n    line = $sformatf(\"%0s\", line_buf);\n"
+        "    if (line.len() == 0 || line.substr(0, 0) == \"#\") disable tb_nclk_input_line;\n"
+        "    code = $sscanf(line, \"%d %s\", step, token);",
+        "    code = $fgets(line_buf, fd);\n"
+        "    code = $sscanf(line_buf, \"%d %s\", step, token);",
+    )
+    text = text.replace("$sscanf(line,", "$sscanf(line_buf,")
+    return text
+
+
+def _packed_sv_monitor_text(top: str) -> str:
+    text = _STRING_SV_MONITOR_TEXT(top)
+    text = text.replace("  string sig;", "  tb_token_t sig;")
+    text = text.replace("  string line;\n", "")
+    text = text.replace("  reg [8*4096-1:0] line_buf;", "  tb_line_t line_buf;")
+    text = text.replace("    line = \"\";\n", "")
+    text = text.replace(
+        "    void'($fgets(line_buf, fd));\n    line = $sformatf(\"%0s\", line_buf);\n"
+        "    if (line.len() == 0 || line.substr(0, 0) == \"#\") disable tb_nclk_expected_line;\n"
+        "    code = $sscanf(line, \"%d %s %h\", step, sig, value);",
+        "    code = $fgets(line_buf, fd);\n"
+        "    code = $sscanf(line_buf, \"%d %s %h\", step, sig, value);",
+    )
+    text = text.replace("$sscanf(line,", "$sscanf(line_buf,")
+    return text
+
+
+
+def _sv_reg_iface_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float) -> str:
+    return _sv_driver_text_string(top, clocks, io_delay_pct, "reg_iface")
+
+
+def _sv_axi_lite_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float) -> str:
+    return _sv_driver_text_string(top, clocks, io_delay_pct, "axi_lite")
+
+
+def sv_driver_text(
+    top: str, clocks: ClockConfig, io_delay_pct: float = 0.2, interface: str = "tlul"
+) -> str:
+    """Render a multiclock register driver with simulator-specific parsing."""
+
+    interface = normalize_register_interface(interface)
+    string = _sv_driver_text_string(top, clocks, io_delay_pct, interface)
+    packed = (
+        _packed_sv_driver_text(top, clocks, io_delay_pct)
+        if interface == "tlul"
+        else _packed_sv_driver_variant(string)
+    )
+    return _sv_parser_variants(string, packed)
+
+
+def sv_vec_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
+    """Render multiclock vector input parsing for Verilator and Icarus."""
+
+    return _sv_parser_variants(
+        _sv_vec_driver_text_string(top, clocks, io_delay_pct),
+        _packed_sv_vec_driver_text(top, clocks, io_delay_pct),
+    )
+
+
+def sv_monitor_text(top: str) -> str:
+    """Render multiclock expected-output parsing for Verilator and Icarus."""
+
+    return _sv_parser_variants(_sv_monitor_text_string(top), _packed_sv_monitor_text(top))
+
+
+def sv_tb_text(
+    top: str, testbench: str, clocks: ClockConfig, interface: str = "tlul"
+) -> str:
+    """Render the multiclock SystemVerilog testbench."""
+
+    interface = normalize_register_interface(interface)
+    clock_decls = "\n".join(
+        f"  logic {domain.signal};\n  logic {domain.reset};" for domain in clocks.domains
+    )
+    clock_drivers = "\n".join(
+        "\n".join(_render_sv_clock_driver(domain)) for domain in clocks.domains
+    )
+    clock_init = "\n".join(
+        [f"    {domain.signal} = 1'b0;" for domain in clocks.domains]
+        + [
+            f"    {domain.reset} = 1'b{0 if domain.reset_polarity == 'high' else 1};"
+            for domain in clocks.domains
+        ]
+    )
+    reset_assert = "\n".join(
+        f"    {domain.reset} = 1'b{1 if domain.reset_polarity == 'high' else 0};"
+        for domain in clocks.domains
+    )
+    reset_release = "\n".join(
+        f"    {domain.reset} = 1'b{0 if domain.reset_polarity == 'high' else 1};"
+        for domain in clocks.domains
+    )
+    bus_decls, bus_helpers, transport = render_register_boundary(top, interface)
+    return templates.render(
+        "dv/sv/testbench/_top_multiclock.sv.j2",
+        top=top,
+        tb_module=testbench,
+        clock_decls=clock_decls,
+        bus_decls=bus_decls,
+        bus_helpers=bus_helpers,
+        clock_drivers=clock_drivers,
+        dut_pins=render_dut_pins(clocks, transport),
+        clock_init=clock_init,
+        reset_assert=reset_assert,
+        reset_release=reset_release,
+        primary_clock=clocks.domains[0].signal,
+    )
+
+
+# ---------------------------------------------------------------------------
+# cocotb scaffold
+
+# cocotb scaffold
+
+
+def _write_multiclock_testbench(
+    top: str, output: Path, clocks: ClockConfig, *,
+    io_delay_pct: float = 0.2, interface: str = "tlul",
+) -> None:
+    """Write the generated N-clock SV testbench and split drivers."""
+
+    drivers = output / "drivers"
+    drivers.mkdir(parents=True, exist_ok=True)
+    files = {
+        output / f"include_{top}_tb.sv": sv_include_text(top),
+        drivers / f"{top}_reg_driver.svh": sv_driver_text(top, clocks, io_delay_pct, interface),
+        drivers / f"{top}_vec_driver.svh": sv_vec_driver_text(top, clocks, io_delay_pct),
+        drivers / f"{top}_vec_monitor.svh": sv_monitor_text(top),
+        output / f"{top}_tb.sv": sv_tb_text(top, f"{top}_tb", clocks, interface),
+    }
+    for path, text in files.items():
+        safe_write_file(path, text, overwrite=True)
+
+
+def _generate_multiclock_testbench_files(
+    config: TestbenchConfig, clocks: ClockConfig,
+) -> tuple[Path, ...]:
+    """Recreate the complete machine-owned N-clock SystemVerilog scaffold."""
+
+    canonical = _with_canonical_sv_output(config)
+    output = Path(canonical.output)
+    with replace_generated_tree(output):
+        _write_multiclock_testbench(
+            canonical.top, output, clocks,
+            io_delay_pct=canonical.io_delay_pct, interface=canonical.interface,
+        )
+    return tuple(sorted(path for path in output.rglob("*") if path.is_file()))
+
 # Filesystem boundary
 
 
@@ -1035,6 +1333,8 @@ def _generate_testbench_files(
 
     config = _with_canonical_sv_output(config)
     clocks = clocks or clock_config()
+    if clocks.multiclock:
+        return _generate_multiclock_testbench_files(config, clocks)
     outdir = Path(config.output)
     ensure_dir(outdir)
 

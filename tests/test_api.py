@@ -58,6 +58,9 @@ from flexsoc.backend.core.provenance import Provenance, provenance_summary
 from flexsoc.backend.signoff.gls import _cocotb_wrapper, execute_all
 from flexsoc.backend.dv.cocotb_testbench import (
     CocotbConfig,
+    CocotbTestbench,
+    cocotb_reg_driver_py_text,
+    cocotb_sv_text,
     render_gls_make_block,
     render_reg_driver_py,
     write_cocotb_scaffold,
@@ -65,10 +68,6 @@ from flexsoc.backend.dv.cocotb_testbench import (
 from flexsoc.backend.dv.sv_testbench import (
     render_tlul_interface,
     render_verilator_include,
-)
-from flexsoc.backend.dv.multiclock_testbench import (
-    cocotb_reg_driver_py_text,
-    cocotb_sv_text,
     sv_driver_text,
     sv_tb_text,
 )
@@ -2965,12 +2964,8 @@ def test_nclock_dsp_clock_gate_is_regmap_controlled_and_reenable_safe(tmp_path: 
     assert tests.count("wait_for_output=True") == 2
     assert "@wait_output" in tests
 
-    from flexsoc.backend.dv.multiclock_testbench import (
-        cocotb_reg_driver_py_text, cocotb_vec_driver_py_text,
-    )
-    from flexsoc.backend.dv.multiclock_testbench import (
-        sv_driver_text, _sv_vec_driver_text_string,
-    )
+    from flexsoc.backend.dv.cocotb_testbench import cocotb_vec_driver_py_text
+    from flexsoc.backend.dv.sv_testbench import _sv_vec_driver_text_string
 
     cocotb_driver = cocotb_reg_driver_py_text("tri_stream_dsp", clocks, interface="tlul")
     assert '"cfg": {"CTRL": 0x0, "STATUS": 0x4, "CFG_STATUS": 0x4}' in cocotb_driver
@@ -3239,8 +3234,10 @@ def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> N
     assert "axi_lite_o.b.resp" in helper
     assert "axi_lite_o.r.data" in helper
 
-    driver = render_reg_driver_py()
-    assert "def has_axi_lite_proxy" in driver
+    driver = render_reg_driver_py(interface="axi_lite")
+    assert "aw_done = False" in driver
+    assert "reg_req_valid" not in driver
+    assert "tl_i_a_valid" not in driver
     assert '"axi_aw_addr_i"' in driver
     assert "AXI4-Lite write error" in driver
     assert "AXI4-Lite read error" in driver
@@ -3275,8 +3272,10 @@ def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> N
     assert "assign reg_rsp_ready = reg_rsp_o.ready;" in reg_wrapper
     assert "tl_i_a_valid" not in reg_wrapper
 
-    driver = render_reg_driver_py()
-    assert "def has_reg_iface_proxy" in driver
+    driver = render_reg_driver_py(interface="reg_iface")
+    assert '"reg_req_valid"' in driver
+    assert "axi_aw_addr_i" not in driver
+    assert "tl_i_a_valid" not in driver
     assert '"reg_req_valid"' in driver
     assert "timeout waiting reg_iface write ready" in driver
     assert "reg_iface read error" in driver
@@ -3870,21 +3869,23 @@ def test_reg_iface_sv_driver_is_procedural_and_gls_portable(tmp_path: Path) -> N
     assert axi_read.index("axi_lite_i.ar_valid = 1'b0;") < axi_read.index("axi_lite_o.r_valid")
     assert "axi_lite_i.r_ready = 1'b1;\n  axi_lite_sample_cycle();\n  axi_lite_i.r_ready = 1'b0;" in axi_read
 
-    cocotb_driver = render_reg_driver_py()
+    cocotb_driver = render_reg_driver_py(interface="axi_lite")
     assert "aw_done = False" in cocotb_driver
+    assert "reg_req_valid" not in cocotb_driver
+    assert "tl_i_a_valid" not in cocotb_driver
     assert "w_done = False" in cocotb_driver
     assert "while not (aw_done and w_done):" in cocotb_driver
-    assert 'aw_accept = (' in cocotb_driver
-    assert 'w_accept = (' in cocotb_driver
+    assert 'aw_accept = not aw_done' in cocotb_driver
+    assert 'w_accept = not w_done' in cocotb_driver
     assert 'and bool(_known_int(dut, "axi_aw_ready_o"' in cocotb_driver
     assert 'and bool(_known_int(dut, "axi_w_ready_o"' in cocotb_driver
     # READY is sampled before the acceptance edge.  The driver must cross to
     # the following drive phase before it drops VALID, otherwise cocotb can
     # remove the request before the DUT ever samples it.
-    aw_sample = cocotb_driver.index('aw_accept = (')
+    aw_sample = cocotb_driver.index('aw_accept = not aw_done')
     aw_drop = cocotb_driver.index('_get(dut, "axi_aw_valid_i").value = 0', aw_sample)
     assert cocotb_driver.index('await _drive_cycle(clk)', aw_sample) < aw_drop
-    w_sample = cocotb_driver.index('w_accept = (')
+    w_sample = cocotb_driver.index('w_accept = not w_done')
     w_drop = cocotb_driver.index('_get(dut, "axi_w_valid_i").value = 0', w_sample)
     assert cocotb_driver.index('await _drive_cycle(clk)', w_sample) < w_drop
 
@@ -3926,7 +3927,6 @@ def test_serial_rx_idle_high_policy_is_shared_by_sv_and_cocotb() -> None:
 
 def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> None:
     from flexsoc.backend.dv.cocotb_testbench import render_makefile, render_tlul_wrapper
-    from flexsoc.backend.dv.multiclock_testbench import cocotb_sv_text, sv_tb_text
 
     rtl = tmp_path / "rtl"
     rtl.mkdir()
@@ -4027,8 +4027,7 @@ def test_multiclock_cocotb_uses_canonical_wrapper_name(tmp_path: Path) -> None:
             top="tri_stream_dsp", interface=interface, output=output, rtl_dir=tmp_path / "rtl",
             ips_root=tmp_path / "ips",
         )
-        from flexsoc.backend.dv.multiclock_testbench import MulticlockDspTestbench
-        MulticlockDspTestbench().setup_cocotb(cfg, clocks)
+        CocotbTestbench().setup(cfg, clocks=clocks)
         wrapper = output / "tri_stream_dsp_tb.sv"
         text = wrapper.read_text(encoding="utf-8")
         assert wrapper.is_file()
@@ -8509,9 +8508,8 @@ def test_formal_run_uses_existing_config_without_regeneration(
 def test_functional_tb_clock_waveform_comes_from_clock_config() -> None:
     from flexsoc.backend.core import ClockConfig, ClockDomain
     from flexsoc.backend.dv.cocotb_testbench import render_python_test
-    from flexsoc.backend.dv.multiclock_testbench import cocotb_py_text
+    from flexsoc.backend.dv.cocotb_testbench import cocotb_py_text
     from flexsoc.backend.dv.sv_testbench import render_simple_testbench
-    from flexsoc.backend.dv.multiclock_testbench import sv_tb_text
 
     clock = ClockDomain(
         "core", "clk_i", "rst_ni", 10.0, "low",
@@ -8988,3 +8986,132 @@ def test_check_and_manifest_show_use_common_show_renderer(
     assert manifest.key == "manifest"
     assert "Collected flow metrics" in output
     assert "Run manifest" in output
+
+
+def test_testbench_layout_is_clock_count_independent_and_backends_are_complementary(tmp_path: Path) -> None:
+    from flexsoc.backend.core import ClockConfig, ClockDomain
+    from flexsoc.backend.dv.cocotb_testbench import CocotbConfig, CocotbTestbench
+    from flexsoc.backend.dv.sv_testbench import SystemVerilogTestbench, TestbenchConfig
+
+    rtl = tmp_path / "rtl"
+    rtl.mkdir()
+    (rtl / "demo.sv").write_text(
+        "module demo(input logic clk_i,input logic rst_ni,input logic in_i,output logic out_o); "
+        "assign out_o=in_i; endmodule\n",
+        encoding="utf-8",
+    )
+
+    clock_sets = {
+        "single": (
+            "demo",
+            ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),)),
+        ),
+        "multi": (
+            "tri_stream_dsp",
+            ClockConfig((
+                ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 10.0),
+                ClockDomain("rx", "rx_clk_i", "rx_rst_ni", 8.0),
+                ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 5.0),
+            )),
+        ),
+    }
+
+    expected_sv = {
+        "TOP_tb.sv",
+        "include_TOP_tb.sv",
+        "drivers/TOP_reg_driver.svh",
+        "drivers/TOP_vec_driver.svh",
+        "drivers/TOP_vec_monitor.svh",
+    }
+    expected_cocotb = {
+        "Makefile",
+        "TOP_tb.sv",
+        "TOP_tb.py",
+        "drivers/__init__.py",
+        "drivers/reg_driver.py",
+        "drivers/vec_driver.py",
+        "drivers/vec_monitor.py",
+    }
+
+    for interface in ("reg_iface", "tlul", "axi_lite"):
+        for label, (top, clocks) in clock_sets.items():
+            tb_root = tmp_path / interface / label / "tb"
+            sv_paths = SystemVerilogTestbench().setup(
+                TestbenchConfig(
+                    top=top,
+                    rtldir=rtl,
+                    simdir=tmp_path / "sim",
+                    syndir=tmp_path / "syn",
+                    prims=(),
+                    clk_period_ns=10,
+                    compiler="verilator",
+                    interface=interface,
+                    output=tb_root,
+                ),
+                clocks=clocks,
+            )
+            cocotb_paths = CocotbTestbench().setup(
+                CocotbConfig(
+                    top=top,
+                    interface=interface,
+                    output=tb_root / "cocotb",
+                    rtl_dir=rtl,
+                    ips_root=tmp_path / "ips",
+                ),
+                clocks=clocks,
+            )
+
+            sv_root = tb_root / "sv"
+            got_sv = {
+                str(path.relative_to(sv_root)).replace(top, "TOP")
+                for path in sv_paths
+            }
+            got_cocotb = {
+                str(path.relative_to(tb_root / "cocotb")).replace(top, "TOP")
+                for path in cocotb_paths
+            }
+            assert got_sv == expected_sv
+            assert got_cocotb == expected_cocotb
+
+    repo = Path(__file__).parents[1]
+    assert not (repo / "src/flexsoc/backend/dv/multiclock_testbench.py").exists()
+    for backend in ("sv", "cocotb"):
+        root = repo / f"src/flexsoc/templates/dv/{backend}/register"
+        assert (root / "reg_iface").is_dir()
+        assert (root / "adapters/tlul").is_dir()
+        assert (root / "adapters/axi_lite").is_dir()
+        assert not (root / "tlul").exists()
+        assert not (root / "axi_lite").exists()
+
+
+def test_testbench_register_transport_is_reg_iface_base_with_explicit_adapters() -> None:
+    from flexsoc.backend.dv.cocotb_testbench import render_reg_driver_py
+    from flexsoc.backend.dv.testbench_common import RegisterTransport
+
+    direct = RegisterTransport.from_name("reg_iface")
+    tlul = RegisterTransport.from_name("tlul")
+    axi = RegisterTransport.from_name("axi_lite")
+
+    assert direct.template_root("sv") == "dv/sv/register/reg_iface"
+    assert direct.template_root("cocotb") == "dv/cocotb/register/reg_iface"
+    assert tlul.template_root("sv") == "dv/sv/register/adapters/tlul"
+    assert axi.template_root("cocotb") == "dv/cocotb/register/adapters/axi_lite"
+
+    drivers = {
+        interface: render_reg_driver_py(interface=interface)
+        for interface in ("reg_iface", "tlul", "axi_lite")
+    }
+    for interface, text in drivers.items():
+        compile(text, f"<{interface}-reg-driver>", "exec")
+
+    assert '"reg_req_valid"' in drivers["reg_iface"]
+    assert "tl_i_a_valid" not in drivers["reg_iface"]
+    assert "axi_aw_addr_i" not in drivers["reg_iface"]
+
+    assert "tl_i_a_valid" in drivers["tlul"]
+    assert "reg_req_valid" not in drivers["tlul"]
+    assert "axi_aw_addr_i" not in drivers["tlul"]
+
+    assert "axi_aw_addr_i" in drivers["axi_lite"]
+    assert "reg_req_valid" not in drivers["axi_lite"]
+    assert "tl_i_a_valid" not in drivers["axi_lite"]

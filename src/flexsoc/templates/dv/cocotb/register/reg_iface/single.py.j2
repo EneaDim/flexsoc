@@ -1,0 +1,69 @@
+def _drive_idle(dut):
+    for name in ("reg_req_valid", "reg_req_write", "reg_req_addr", "reg_req_wdata", "reg_req_wstrb"):
+        _get(dut, name).value = 0
+
+
+def _clocked_bus(dut, clk=None):
+    return _clock(dut, clk)
+
+
+async def init_register_bus(dut, clk=None):
+    clk = _clocked_bus(dut, clk)
+    _drive_idle(dut)
+    await _sample_cycle(clk)
+
+async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None, clk=None):
+    clk = _clocked_bus(dut, clk)
+    addr = resolve_register(reg_or_addr, regmap)
+    data = parse_u32(data)
+    mask = parse_u32(mask) & 0xF
+    if not mask:
+        raise ValueError(f"register write mask is zero at addr=0x{addr:08x}")
+
+    dut._log.info("reg write addr=0x%08x data=0x%08x mask=0x%x", addr, data, mask)
+    await _drive_cycle(clk)
+    _get(dut, "reg_req_valid").value = 1
+    _get(dut, "reg_req_write").value = 1
+    _get(dut, "reg_req_addr").value = addr
+    _get(dut, "reg_req_wdata").value = data
+    _get(dut, "reg_req_wstrb").value = mask
+    guard = 0
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "reg_rsp_ready", f"waiting reg_iface write ready addr=0x{addr:08x}"):
+            break
+        guard += 1
+        if guard > 1000:
+            raise TimeoutError(f"timeout waiting reg_iface write ready addr=0x{addr:08x}")
+    if _known_int(dut, "reg_rsp_error", f"checking reg_iface write response addr=0x{addr:08x}"):
+        raise AssertionError(f"reg_iface write error at addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _drive_idle(dut)
+    await _sample_cycle(clk)
+
+
+async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
+    clk = _clocked_bus(dut, clk)
+    addr = resolve_register(reg_or_addr, regmap)
+    dut._log.info("reg read addr=0x%08x", addr)
+    await _drive_cycle(clk)
+    _get(dut, "reg_req_valid").value = 1
+    _get(dut, "reg_req_write").value = 0
+    _get(dut, "reg_req_addr").value = addr
+    _get(dut, "reg_req_wdata").value = 0
+    _get(dut, "reg_req_wstrb").value = 0
+    guard = 0
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "reg_rsp_ready", f"waiting reg_iface read ready addr=0x{addr:08x}"):
+            break
+        guard += 1
+        if guard > 1000:
+            raise TimeoutError(f"timeout waiting reg_iface read ready addr=0x{addr:08x}")
+    if _known_int(dut, "reg_rsp_error", f"checking reg_iface read response addr=0x{addr:08x}"):
+        raise AssertionError(f"reg_iface read error at addr=0x{addr:08x}")
+    data = _known_int(dut, "reg_rsp_rdata", f"reading reg_iface response addr=0x{addr:08x}") & 0xFFFFFFFF
+    await _drive_cycle(clk)
+    _drive_idle(dut)
+    await _sample_cycle(clk)
+    return data
