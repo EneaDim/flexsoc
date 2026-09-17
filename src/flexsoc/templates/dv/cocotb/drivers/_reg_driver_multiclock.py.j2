@@ -15,10 +15,9 @@ RESET_DOMAINS = <<: reset_map :>>
 PRIMARY_CLOCK = <<: primary :>>
 SETTLE_CLOCK = <<: settle :>>
 
-ADDR = {
-    "cfg": {"CTRL": 0x0, "STATUS": 0x4, "CFG_STATUS": 0x4},
-    "dsp": {"DSP_CTRL": 0x0, "THRESHOLD": 0x4, "RESULT": 0x8, "DSP_STATUS": 0xC, "STATUS": 0xC, "GAIN": 0x10},
-}
+ADDR = <<: addr_map :>>
+WINDOWS = <<: windows :>>
+DEFAULT_DOMAIN = <<: default_domain :>>
 
 
 def _clock_key(clk):
@@ -66,12 +65,9 @@ def _set_domain_defaults(dut, domain: str):
 
 
 def set_defaults(dut):
-    _set_domain_defaults(dut, "cfg")
-    _set_domain_defaults(dut, "dsp")
-    dut.rx_valid_i.value = 0
-    dut.rx_sample_i.value = 0
-    dut.rx_coeff_i.value = 0
-    dut.dsp_ready_i.value = 1
+    for domain in WINDOWS:
+        _set_domain_defaults(dut, domain)
+<<: input_defaults :>>
 
 
 def _selected_resets(selector: str):
@@ -123,7 +119,9 @@ def _decode_reg(name: str) -> tuple[str, int]:
     if "." in clean:
         domain, reg = clean.split(".", 1)
     else:
-        domain, reg = "cfg", clean
+        if DEFAULT_DOMAIN is None:
+            raise KeyError(f"register name must include its domain: {name!r}")
+        domain, reg = DEFAULT_DOMAIN, clean
     try:
         return domain, ADDR[domain][reg.upper()]
     except KeyError as exc:

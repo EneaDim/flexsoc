@@ -1,0 +1,8 @@
+  // Our main data bus.
+  xbar_main xbar (
+    .clk_i,
+    .rst_ni,
+
+<<% for connection in connections %>>    <<: connection :>>,
+<<% endfor %>>    .scanmode_i (prim_mubi_pkg::MuBi4False)
+  );

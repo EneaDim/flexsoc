@@ -1,0 +1,33 @@
+module top_verilator (input logic clk_i, rst_ni);
+<<% for declaration in declarations %>>  <<: declaration :>>;
+<<% endfor %>>
+  // Our SoC
+  soc #(
+  ) u_soc (
+    .clk_i,
+    .rst_ni<<% for name in ports %>>,
+    .<<: name :>><<% endfor %>>
+  );
+<<% if has_uart %>>
+  // Virtual UART
+  uartdpi #(
+    .BAUD ( 921_600    ),
+    .FREQ ( 50_000_000 )
+  ) u_uartdpi (
+    .clk_i,
+    .rst_ni,
+    .active(1'b1),
+    .tx_o(cio_rx_i),
+    .rx_i(cio_tx_o)
+  );
+<<% endif %>><<% if host == "ibex" %>>
+  export "DPI-C" function mhpmcounter_num;
+  function automatic int unsigned mhpmcounter_num();
+    return u_soc.u_ibex_top_tracing.u_ibex_top.u_ibex_core.cs_registers_i.MHPMCounterNum;
+  endfunction
+
+  export "DPI-C" function mhpmcounter_get;
+  function automatic longint unsigned mhpmcounter_get(int index);
+    return u_soc.u_ibex_top_tracing.u_ibex_top.u_ibex_core.cs_registers_i.mhpmcounter[index];
+  endfunction
+<<% endif %>>endmodule

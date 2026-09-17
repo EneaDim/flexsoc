@@ -1,0 +1,59 @@
+
+  localparam int unsigned MemSize       = 128 * 1024;
+  localparam int unsigned DataWidth     = 32;
+  localparam int unsigned AddrOffset    = $clog2(DataWidth / 8);
+  localparam int unsigned SramAddrWidth = $clog2(MemSize) - AddrOffset;
+
+  logic                     uart_req;
+  logic                     uart_gnt;
+  logic                     uart_we;
+  logic [(DataWidth/8)-1:0] uart_be;
+  logic [DataWidth-1:0]     uart_addr;
+  logic [DataWidth-1:0]     uart_wdata;
+  logic                     uart_rvalid;
+  logic [DataWidth-1:0]     uart_rdata;
+  logic                     uart_err;
+
+  tlul_pkg::tl_h2d_t tl_uart_host_h2d;
+  tlul_pkg::tl_d2h_t tl_uart_host_d2h;
+  tlul_pkg::tl_h2d_t tl_uart_h2d;
+  tlul_pkg::tl_d2h_t tl_uart_d2h;
+
+  uart u_uart (
+    .clk_i, .rst_ni,
+    .tl_i(tl_uart_h2d),
+    .tl_o(tl_uart_d2h),
+    .req_o   (uart_req),
+    .gnt_i   (uart_gnt),
+    .addr_o  (uart_addr),
+    .we_o    (uart_we),
+    .wdata_o (uart_wdata),
+    .be_o    (uart_be),
+    .valid_i (uart_rvalid),
+    .rdata_i (uart_rdata),
+    .err_i   (uart_err),
+    .cio_rx_i,
+    .cio_tx_o,
+    .cio_tx_en_o
+  );
+
+  tlul_adapter_host uart_host_adapter (
+    .clk_i,
+    .rst_ni,
+    .req_i        (uart_req),
+    .gnt_o        (uart_gnt),
+    .addr_i       (uart_addr),
+    .we_i         (uart_we),
+    .wdata_i      (uart_wdata),
+    .wdata_intg_i ('0),
+    .be_i         (uart_be),
+    .instr_type_i (prim_mubi_pkg::MuBi4False),
+    .valid_o      (uart_rvalid),
+    .rdata_o      (uart_rdata),
+    .rdata_intg_o (),
+    .err_o        (uart_err),
+    .intg_err_o   (),
+
+    .tl_o         (tl_uart_host_h2d),
+    .tl_i         (tl_uart_host_d2h)
+  );

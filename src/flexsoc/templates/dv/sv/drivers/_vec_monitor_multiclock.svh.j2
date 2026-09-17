@@ -1,14 +1,18 @@
-// Load expected output transactions by order, not by absolute cycle.
+// Expected rows are grouped by logical vector step and consumed in order.
 task automatic load_expected(input string path);
   integer fd;
   integer code;
   integer step;
-  string sig;
-  logic [31:0] value;
-  string line;
+  integer current_step;
+<<% if packed %>>  tb_token_t sig;
+<<% else %>>  string sig;
+<<% endif %>>  logic [31:0] value;
+<<% if packed %>>  tb_line_t line_buf;
+<<% else %>>  string line;
   reg [8*4096-1:0] line_buf;
-  begin : load_expected_body
+<<% endif %>>  begin : load_expected_body
   exp_count = 0;
+  current_step = -1;
   fd = $fopen(path, "r");
   if (fd == 0) begin
     $display("[TB][ERROR] expected file not found: %s", path);
@@ -16,49 +20,35 @@ task automatic load_expected(input string path);
     disable load_expected_body;
   end
   while (!$feof(fd)) begin : tb_nclk_expected_line
-    line = "";
-    line_buf = '0;
-    void'($fgets(line_buf, fd));
+<<% if packed %>><<% else %>>    line = "";
+<<% endif %>>    line_buf = '0;
+<<% if packed %>>    code = $fgets(line_buf, fd);
+    code = $sscanf(line_buf, "%d %s %h", step, sig, value);
+<<% else %>>    void'($fgets(line_buf, fd));
     line = $sformatf("%0s", line_buf);
     if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_nclk_expected_line;
     code = $sscanf(line, "%d %s %h", step, sig, value);
-    if (code == 3 && sig == "dsp_result_o") begin
-      exp_result[exp_count] = value;
-      exp_above_threshold[exp_count] = 1'b0;
-      exp_overflow[exp_count] = 1'b0;
-      exp_count++;
-    end else if (code == 3 && sig == "dsp_above_threshold_o" && exp_count > 0) begin
-      exp_above_threshold[exp_count - 1] = value[0];
-    end else if (code == 3 && sig == "dsp_overflow_o" && exp_count > 0) begin
-      exp_overflow[exp_count - 1] = value[0];
+<<% endif %>>    if (code == 3) begin
+      if (step != current_step) begin
+        current_step = step;
+<<: clear_expected :>>
+        exp_count++;
+      end
+<<: load_cases :>>
     end
   end
   $fclose(fd);
   end
 endtask
 
-// Compare each output transaction when the DSP domain produces it.
 task automatic check_outputs();
   integer timeout;
   got_count = 0;
   timeout = 0;
-  dsp_ready_i = 1'b1;
   while (got_count < exp_count && timeout < 4096) begin
-    // Sample at the shared output-deadline phase.
-    dsp_sample_cycle();
-    if (dsp_valid_o) begin
-      if ($unsigned(dsp_result_o) !== exp_result[got_count]) begin
-        $display("[TB][ERROR] result[%0d] got=0x%08x exp=0x%08x", got_count, $unsigned(dsp_result_o), exp_result[got_count]);
-        errors++;
-      end
-      if (dsp_above_threshold_o !== exp_above_threshold[got_count]) begin
-        $display("[TB][ERROR] above_threshold[%0d] got=%0d exp=%0d", got_count, dsp_above_threshold_o, exp_above_threshold[got_count]);
-        errors++;
-      end
-      if (dsp_overflow_o !== exp_overflow[got_count]) begin
-        $display("[TB][ERROR] overflow[%0d] got=%0d exp=%0d", got_count, dsp_overflow_o, exp_overflow[got_count]);
-        errors++;
-      end
+    <<: sample_cycle :>>;
+    if (<<: valid_expr :>>) begin
+<<: check_cases :>>
       got_count++;
     end
     timeout++;

@@ -85,8 +85,10 @@ FlexSoCConfig
   ┌───────┼────────┬────────┬─────────┐
   ↓       ↓        ↓        ↓         ↓
 Design   DvFlow    Syn    Signoff   ImplementationFlow
-                  / \       │
-       SynthesisFlow EQY     ├─ StaAnalysis
+  │               │       │
+  ├─ IP            └─ Eqy ├─ StaAnalysis
+  ├─ FSM                    │
+  └─ SoC                    │
                              ├─ GateLevelSimulation
                              ├─ PowerAnalysis
                              └─ FusionAnalysis
@@ -112,7 +114,7 @@ A generator must never return a pre-normalization path that it has already moved
 
 ### 4.2 StageContract, fingerprints, and run-only provenance gate
 
-`STAGE_CONTRACTS` is the single small dependency DAG. A stage declares semantic configuration, real parent stages, canonical evidence ownership, storage scope (`run` or `pdk`), and the relevant tool contract. Its fingerprint is derived from effective inputs/configuration, parent lineage, stage-specific tool identity, and canonical outputs. This keeps invalidation selective: a PnR change invalidates PnR and post-PnR descendants, while a PDK or OpenROAD change does not make technology-independent RTL evidence stale.
+`STAGE_CONTRACTS` is the single small dependency DAG. A stage declares semantic configuration, real parent stages, canonical evidence ownership, storage scope (`run` or `pdk`), and the relevant tool contract. Its fingerprint is derived from effective inputs/configuration, parent lineage, stage-specific tool identity, and canonical outputs. This keeps invalidation selective: a PnR change invalidates PnR and post-implementation descendants, while a PDK or OpenROAD change does not make technology-independent RTL evidence stale.
 
 Before an execution target consumes setup collateral, FlexSoC evaluates the current workspace:
 
@@ -315,7 +317,7 @@ Workspace binding identity matters. A local symlink such as an EQY `rtl_common.f
 
 ## 8. Reporting model
 
-`backend/core/reporting.py` collects evidence; it does not run EDA.
+`backend/release/reporting.py` collects evidence; it does not run EDA.
 
 Two dimensions are kept separate:
 
@@ -406,7 +408,7 @@ The public and backend vocabularies intentionally expose only the canonical life
 
 | File | Responsibility |
 | --- | --- |
-| `backend/__init__.py` | Defines `Backend`, the small facade composing design, DV, synthesis, sign-off, implementation, reporting, packaging and toolchain domains. |
+| `backend/backend.py` | Defines `Backend`, the small facade composing Core, Design, DV, synthesis, sign-off, implementation and Release domains. |
 
 The subpackages are organized by ASIC lifecycle responsibility rather than by EDA executable.
 
@@ -414,480 +416,71 @@ The subpackages are organized by ASIC lifecycle responsibility rather than by ED
 
 ## 9.4 `backend/core/` — shared infrastructure
 
+`core.py` is the top narrative file for shared backend infrastructure. It owns the
+cross-domain data structures and composes the few Core services used by the domain
+backends. Details live in three small subpackages only:
+
+```text
+backend/core/
+├── core.py
+├── flow/
+│   ├── session.py
+│   ├── target.py
+│   ├── lifecycle.py
+│   └── provenance.py
+├── runtime/
+│   ├── execution.py
+│   └── toolchain.py
+└── render/
+    ├── show.py
+    └── templates.py
+```
+
 ### `core.py`
 
 Owns shared design/run structures and deterministic filesystem/path logic:
 
+- `Core`, the small composition point for PDK, toolchain and workspace services;
 - `ClockDomain`, `ClockRelationship`, `ClockConfig`;
 - PDK catalogue/spec/view discovery;
 - canonical `PDKRunLayout` and `FlowPaths`;
-- run-root/path helpers;
 - deterministic RTL/filelist ordering;
 - safe generated-tree/file replacement;
 - `BackendContext` and `PdkManager`.
 
-Add logic here only when it is genuinely cross-domain. Do not turn `core.py` into a generic utilities dump.
+Add logic here only when it is genuinely cross-domain. Do not turn `core.py` into a
+generic utilities dump.
 
-### `execution.py`
+### `flow/`
 
-Owns external command execution and terminal rendering:
+Owns target orchestration and lifecycle state:
 
-- FlexSoC orange/cyan/light-blue live rendering;
-- ANSI stripping for persisted logs;
+- `TargetSession` and workspace/settings operations;
+- target catalogue/contract data;
+- freshness/lifecycle evaluation;
+- provenance hashing, lineage and invalidation.
+
+### `runtime/`
+
+Owns external command execution and tool discovery:
+
 - `CommandRequest` / `CommandResult`;
-- `ExecutionTarget`;
-- `LocalExecutor` / `SshExecutor`;
-- `ToolRunner`.
+- `ExecutionTarget`, `LocalExecutor`, `SshExecutor`, `ToolRunner`;
+- terminal/log rendering owned by command execution;
+- toolchain discovery, doctor checks and locked dependency metadata.
 
-EDA-specific semantics do not belong in executors. Executors know paths, transport, environment and processes; they do not interpret timing corners, PDK intent or formal results.
+EDA-specific semantics do not belong in executors. Executors know paths, transport,
+environment and processes; they do not interpret timing corners, PDK intent or formal
+results.
 
-### `reporting.py`
+### `render/`
 
-Owns evidence collection and provenance:
+Owns the two small cross-domain renderers:
 
-- lint/DV/formal/synthesis/EQY/STA/SDF/GLS/power/PnR collectors;
-- lifecycle summaries;
-- metrics and manifest generation;
-- `Provenance` hashing/lineage/state;
-- technical/provenance status rendering;
-- `Reporting` facade.
+- `ShowRenderer` for canonical evidence/spec rendering;
+- `Templates` for package-owned Jinja scaffold rendering and writing.
 
-It reads results; it should not invoke EDA tools.
-
-### `toolchain.py`
-
-Owns tool discovery and environment qualification:
-
-- executable/version discovery;
-- `fx doctor`-style checks;
-- toolchain lock metadata;
-- ORFS/KLayout compatibility checks;
-- `Toolchain` facade.
-
-### `toolchain.lock`
-
-Pinned/controlled native EDA dependency identities. This is tool environment policy, not Python package locking.
-
-### `deps.sh`
-
-Bootstrap/install/doctor/status/prune implementation for the native toolchain profiles. It is intentionally separate from ASIC stage orchestration.
-
-### `package.py`
-
-Owns reusable IP load/save behavior:
-
-- atomic copy/save;
-- Python cache cleanup;
-- filelist rebinding to the active checkout/run;
-- package only canonical sign-off Tcl templates while retaining final report/SDF/JSON evidence;
-- `PackageFlow`.
-
-### `__init__.py`
-
-Exports the small core API used by lifecycle modules.
-
----
-
-## 9.5 `backend/design/` — design entry and generated design collateral
-
-### `design/__init__.py`
-
-Defines the `Design` facade grouping registers, RTL, model and SoC generation.
-
-### `regs.py`
-
-Register/CSR source and collateral generation:
-
-- HJSON generation/loading;
-- register/field specifications;
-- generated register RTL/software-driver content;
-- `RegsFlow`.
-
-The register specification is the source of truth; generated outputs are replaceable collateral.
-
-### `rtl.py`
-
-RTL scaffold/hierarchy/filelist responsibilities:
-
-- single-/multi-clock starter core rendering;
-- port parsing;
-- top-wrapper regeneration from authored core ports;
-- deterministic filelists;
-- hierarchy/AST helpers;
-- `RtlFlow`.
-
-### `model.py`
-
-Reference model and scenario scaffold generation:
-
-- Python model scaffold;
-- multi-clock model/test generation;
-- regmap tests;
-- `ModelFlow`.
-
-Authored behavior added by the designer must remain distinct from mechanically generated scaffolding.
-
-### `soc.py`
-
-SoC composition support:
-
-- device/host configuration;
-- workspace IP discovery/staging;
-- top-level SoC RTL generation;
-- crossbar/config generation;
-- software scaffold;
-- `SocFlow`.
-
-This is composition logic, not physical implementation.
-
-### `fsm_gen/`
-
-Lightweight FSM description-to-RTL utility:
-
-| File | Responsibility |
-| --- | --- |
-| `generator.py` | TXT/CSV FSM parsing and SystemVerilog/Graphviz generation. |
-| `__init__.py` | Package export. |
-| `Makefile` | Convenience wrapper for the FSM generator. |
-| `README.md` | FSM format and usage documentation. |
-| `examples/` | Input examples. |
-
-Keep this utility self-contained; it should not drive the general backend architecture.
-
----
-
-## 9.6 `backend/dv/` — design verification
-
-### `dv.py`
-
-`DvFlow` is the small DV facade. It exposes lint/functional/formal/CDC/coverage components without hiding their operation-specific APIs.
-
-### `functional.py`
-
-Owns the common generated functional scenario materialization:
-
-- register configuration streams;
-- input vectors;
-- expected-output vectors;
-- shared test generation;
-- `FunctionalFlow`.
-
-SV and cocotb consume the same logical scenario contract.
-
-### `testbench.py`
-
-Owns functional simulation scaffolds and driver generation:
-
-- SystemVerilog testbench and helper generation;
-- cocotb scaffold/Makefile/Python drivers;
-- TL-UL/register/vector helpers;
-- single-/multi-clock testbench generation;
-- `TestbenchFlow`.
-
-This is currently the largest DV module because SV and cocotb generation share many protocol/layout concerns. Refactor it only when a concrete repeated responsibility can be separated cleanly; do not split it into many files solely because it is large.
-
-Generated-file functions must return **post-normalization final paths** so provenance records the files that actually exist.
-
-### `formal.py`
-
-Property-formal generation and execution setup:
-
-- CSR-generated properties;
-- authored prove/cover scaffolds;
-- SBY config rendering;
-- setup/run separation;
-- `FormalFlow`.
-
-Formal run paths consume existing SBY collateral and never regenerate it. Setup regeneration is explicit and force-controlled.
-
-### `cdc.py`
-
-Custom Yosys+Python CDC/RDC analysis:
-
-- Yosys structural extraction;
-- clock/reset/domain model;
-- sequential endpoints and crossings;
-- ordered CDC checks: crossings → async-FIFO → handshake → reconvergence;
-- ordered RDC checks: reset crossings → reset synchronizers → reset release → reset sequence;
-- setup/glitch checks between CDC and RDC classification;
-- deterministic reports;
-- `CdcFlow`.
-
-`ClockConfig` is the normalized reset-aware clock view assembled from the authored SDC plus bootstrap reset metadata; this module adds structural inference/classification, not a second clock configuration model. The public CDC/RDC artifact contract is deliberately small: `extract.ys`, raw `design.json`, one complete `summary.json`, one human `cdc_rdc.rpt`, and the raw extraction log. Findings are not split into overlapping per-check JSON files.
-
-### `coverage.py`
-
-Functional coverage aggregation/reporting across generated simulations. Coverage is evidence, not automatically equivalent to a pass/fail sign-off gate.
-
-### `dv/__init__.py`
-
-Public DV package exports.
-
----
-
-## 9.7 `backend/syn/` — synthesis and equivalence
-
-### `syn.py`
-
-Yosys/ABC synthesis setup and execution:
-
-- ASIC/FPGA synthesis config;
-- Slang/SystemVerilog frontend generation;
-- deterministic `area0..area3` / `delay0..delay4` ABC profiles and constraints;
-- self-documenting generated ABC recipes with one plain-language comment per executable command;
-- explicit numeric picosecond targets in custom delay-oriented `.abc` files;
-- mapped output generation;
-- `SynthesisFlow`.
-
-Synthesis does not own timing intent. It reads the canonical SDC through the shared SDC adapter and derives only the ABC-compatible drive/load collateral plus the clock optimization target needed by Yosys/ABC.
-
-### `eqy.py`
-
-RTL-to-synthesized-netlist logical equivalence:
-
-- EQY config generation;
-- gold/gate file binding;
-- PDK formal cell compatibility;
-- protocol-aware formal views;
-- reset normalization;
-- SMTBMC/PDR/SAT strategy portfolio;
-- partition/result diagnostics and counterexample analysis;
-- `EquivalenceFlow`.
-
-Binding names such as `rtl_common.f` or `netlist.v` are part of the EQY workspace contract. Preserve their declared path identity through provenance and remote execution even when the binding is a symlink.
-
-### `syn/__init__.py`
-
-Exports synthesis/equivalence facade objects.
-
----
-
-## 9.8 `backend/signoff/` — timing, GLS, power and physical checks
-
-### `signoff/__init__.py`
-
-Defines the reusable sign-off facade and `SignoffStage` abstraction for pre-/post-implementation analysis. It also collects/runs physical sign-off checks exposed by the ORFS result branch.
-
-### `sdc.py`
-
-Owns the single authored timing-contract boundary:
-
-- readable `constraints/<TOP>.sdc` scaffold initialization;
-- small active-command parser for the subset shared by non-STA backends;
-- normalized clock period/waveform/latency/uncertainty/relationships;
-- input-drive/output-load extraction for synthesis collateral.
-
-It intentionally does **not** implement a general SDC engine. False paths, multicycle paths, case analysis, and other STA-only constraints remain authored SDC commands consumed directly by the timing engine.
-
-### `sta.py`
-
-Shared OpenSTA/SDF analysis engine:
-
-- timing-scenario construction from resolved PDK Liberty views and analysis mode;
-- STA/SDF Tcl generation that sources `constraints/<TOP>.sdc`;
-- deterministic post-synthesis/post-route input resolution;
-- WNS/TNS, violation, unconstrained-path, electrical, minimum-period/Fmax, and QoR extraction;
-- canonical `signoff/<pdk>/sta/sta.rpt` + `summary.json`;
-- OpenSTA command execution;
-- `StaAnalysis`.
-
-Canonical setup Tcl is immutable during execution. Scenario-local runtime reports may exist for diagnosis, but release packaging keeps the consolidated STA evidence rather than duplicating the same timing information across many public reports.
-
-### `gls.py`
-
-Gate-level simulation for post-synthesis and post-PnR:
-
-- netlist/SDF/testbench resolution;
-- zero/unit/min/typ/max timing modes;
-- SV and cocotb backends;
-- SDF annotation diagnostics;
-- direct qualification reports;
-- `GateLevelSimulation`.
-
-GLS consumes an explicitly prepared testbench provenance stage; it does not regenerate that testbench implicitly.
-
-### `power.py`
-
-Vectorless and workload/activity-based power analysis:
-
-- GLS activity discovery;
-- FST/VCD handling;
-- scope resolution;
-- OpenSTA power Tcl;
-- activity coverage and report enrichment;
-- `PowerAnalysis`.
-
-### `fusion.py`
-
-Timing/power correlation for a workload and timing scenario. It reuses shared sign-off context rather than creating an independent STA pipeline.
-
----
-
-## 9.9 `backend/impl/` — physical implementation
-
-### `impl.py`
-
-ORFS/OpenROAD handoff and implementation:
-
-- generated `config.mk` from FlexSoC synthesis plus the canonical authored `constraints/<TOP>.sdc`;
-- canonical ORFS branch resolution;
-- deterministic final-artifact selection;
-- ORFS make invocation;
-- implementation progress/log rendering;
-- `ImplementationFlow`.
-
-FlexSoC owns synthesis and timing intent; ORFS consumes the exact netlist/SDC selected by the run. Post-PnR sign-off must resolve artifacts only from that canonical implementation branch.
-
-### `impl/__init__.py`
-
-Exports the implementation flow facade.
-
----
-
-## 9.10 Tests
-
-### `tests/test_api.py`
-
-Fast contract/regression suite for Python behavior:
-
-- configuration and target routing;
-- generators/parsers;
-- clock intent;
-- provenance state transitions;
-- override validation;
-- executor/path mapping;
-- deterministic artifact selection;
-- reporting.
-
-Combinatorial state-machine cases belong here rather than being repeated through expensive EDA E2E runs.
-
-### `tests/test_e2e_fx.py`
-
-Literal user-facing command pipelines. Current tests are:
-
-```text
-test_fx_single_clock_flow_debug
-test_fx_multi_clock_flow_debug
-test_fx_provenance_lifecycle_debug
-test_fx_cordic_ip_load_debug
-test_fx_uart_ip_load_debug
-```
-
-The dedicated provenance test qualifies the key user workflow once per representative setup family:
-
-```text
-modify
-→ run consumer blocked as MODIFIED
-→ validate_override
-→ consumer runs
-→ state remains VALIDATED_OVERRIDE
-→ restore canonical bytes
-→ state returns CLEAN
-```
-
-The normal single-/multi-clock E2Es focus on end-to-end functional/EDA flow rather than repeating the same override state machine several times.
-
-### `tests/conftest.py`
-
-E2E pytest options/fixtures only. It is support code, not a separate test module.
-
----
-
-## 9.11 Documentation
-
-| File | Responsibility |
-| --- | --- |
-| `docs/quickstart.md` | Shortest runnable workflow. |
-| `docs/architecture.md` | This document: Python/repository architecture and flow. |
-| `docs/project_lifecycle.md` | Narrative project evolution from design intent through qualification/reuse/release. |
-| `docs/ip_development_guide.md` | Detailed step-by-step IP development, qualification, debug, and save/load procedure. |
-| `docs/command_reference.md` | CLI/target/variable reference and operational playbook. |
-| `docs/flexsoc_asic_flow_guide.md` | Extended ASIC flow concepts and implementation/sign-off guide. |
-| `docs/flexsoc_asic_flow_guide_it.md` | Italian version of the extended ASIC flow guide. |
-
----
-
-## 9.12 `docker/` and CI
-
-```text
-docker/ci/Dockerfile
-    deterministic CI/EDA image definition
-
-docker/ci/image.lock
-    immutable verified runtime-image identity
-
-docker/scripts/*.sh
-    build, publish, verify and CI-run helpers
-
-.github/workflows/toolchain-image.yml
-    frozen-toolchain gate: no-op when image.lock + GHCR digest are current
-
-.github/workflows/ci.yml
-    repository qualification inside the frozen image
-```
-
-Toolchain construction and project testing are separate. A normal source push reuses the frozen image; EDA tools are rebuilt only when declared Docker/toolchain inputs change. CI invokes the same `fx`/pytest contracts used locally. Container scripts own environment assembly; Python backend stages should not contain container-specific branches.
-
----
-
-## 9.13 `hw/ips/`
-
-`hw/ips/` contains reusable/saved IP and common RTL support. A saved IP commonly contains subsets of:
-
-```text
-csr/        canonical CSR/register specification
-rtl/        authored/generated RTL and filelists
-dv/         model, tests, formal and TB collateral
-syn/        portable synthesis collateral/results
-signoff/    sign-off collateral/results
-impl/       physical implementation collateral
-meta/       saved qualification metadata
-sw/drivers/ software collateral
-py/         design-specific Python/model code
-```
-
-CORDIC and UART are important E2E qualification IPs, but backend fixes should normally be made in the Python generator/flow that owns the artifact rather than by patching saved generated outputs.
-
----
-
-# 10. End-to-end lifecycle flow
-
-A typical IP lifecycle is:
-
-```text
-spec / HJSON / RTL core / model / properties
-                    ↓
-          design generation/setup
- reg → top_from_core → flist
-                    ↓
-               verification
- lint → authored SDC → cdc_rdc --setup → CDC/RDC
-                    ↓
-       functional SV+cocotb + formal
-                    ↓
-                 synthesis
-             syn --setup → syn
-                    ↓
-               equivalence
-             eqy --setup → eqy
-                    ↓
-          pre-PnR qualification
- signoff --setup → SDF / STA / GLS / power / fusion
-                    ↓
-          physical implementation
-             pnr --setup → pnr
-                    ↓
-          routed qualification
- signoff_post_pnr --setup
-     → STA / SDF / GLS / power / fusion
-     → physical_signoff
-                    ↓
-          manifest → metrics snapshot → check dashboard
-                    ↓
-             qualified package
-```
-
-Each arrow represents an artifact contract. A downstream stage should consume the exact canonical parent artifact or fail clearly; it should not guess from whichever file happens to exist.
+The actual scaffold templates remain under `src/flexsoc/templates/`.
 
 ---
 
@@ -895,15 +488,17 @@ Each arrow represents an artifact contract. A downstream stage should consume th
 
 Use this decision order:
 
-1. **Is it lifecycle orchestration/target dependency/policy?** → `api.py`.
-2. **Is it a shared path/clock/PDK/filesystem concept?** → `backend/core/core.py`.
-3. **Is it process/SSH/rendering behavior?** → `backend/core/execution.py`.
-4. **Is it evidence parsing/provenance/check?** → `backend/core/reporting.py`.
-5. **Is it generated design collateral?** → `backend/design/`.
-6. **Is it DV-specific?** → `backend/dv/`.
-7. **Is it synthesis/EQY?** → `backend/syn/`.
-8. **Is it timing/GLS/power/sign-off?** → `backend/signoff/`.
-9. **Is it physical ORFS/OpenROAD implementation?** → `backend/impl/`.
+1. **Is it public target dispatch/configuration?** → `api.py`.
+2. **Is it shared path/clock/PDK/filesystem context?** → `backend/core/core.py`.
+3. **Is it target lifecycle/provenance/session policy?** → `backend/core/flow/`.
+4. **Is it process/SSH/tool discovery?** → `backend/core/runtime/`.
+5. **Is it canonical show/template rendering?** → `backend/core/render/`.
+6. **Is it evidence parsing/qualification/package reporting?** → `backend/release/`.
+7. **Is it generated design collateral?** → `backend/design/`.
+8. **Is it DV-specific?** → `backend/dv/`.
+9. **Is it synthesis/EQY?** → `backend/syn/`.
+10. **Is it timing/GLS/power/sign-off?** → `backend/signoff/`.
+11. **Is it physical ORFS/OpenROAD implementation?** → `backend/impl/`.
 
 Do not add a new module merely to avoid adding ten readable lines to the owning module. Conversely, if one responsibility is repeated across several domains and has a stable contract, extracting one small shared helper may improve clarity.
 

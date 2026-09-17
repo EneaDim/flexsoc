@@ -233,13 +233,13 @@ floorplan
 
 Clock-tree synthesis and routing can materially change hold/recovery/removal behavior. The post-route flow therefore does not merely repeat pre-layout STA; it evaluates a different physical model while preserving the same design intent.
 
-Implementation evidence belongs under `impl/<pdk>/`; routed sign-off evidence belongs under `signoff/<pdk>/post_pnr/`.
+Implementation evidence belongs under `impl/<pdk>/`; routed sign-off evidence belongs under `signoff/<pdk>/post_impl/`.
 
 ---
 
 ## 11. Post-route sign-off is the closure gate
 
-Post-PnR qualification uses the final implementation artifacts selected deterministically from the canonical ORFS branch.
+Post-implementation qualification uses the final implementation artifacts selected deterministically from the canonical ORFS branch.
 
 The important distinction is:
 
@@ -475,9 +475,9 @@ A level can be `PASS`, `WAIVED`, or `BLOCKED`. `maximum_level` may include expli
 
 For ASIC flows, `syn` publishes the repaired pre-PnR netlist rather than the raw Yosys output: Yosys mapping is followed by a lightweight OpenROAD `repair_design -pre_placement` round for electrical fanout/capacitance/slew repair. This is part of the Netlist Qualified artifact contract and remains distinct from `pnr`; no global placement, CTS, routing or extraction is claimed by synthesis.
 
-The levels are hierarchical. A later technology or physical result does not hide a missing earlier gate. EQY remains part of `Netlist Qualified`. During the current scaffold-baseline phase FlexSoC runs `fx eqy --setup` only; setup-only is not equivalence PASS, so qualification correctly stops before L3 until a real equivalence result exists.
+The levels are hierarchical. A later technology or physical result does not hide a missing earlier gate. EQY remains part of `Netlist Qualified`. The automatic scaffold E2E matrix runs `fx eqy --setup` only; `fx eqy` is an explicit runtime target for a prepared IP/interface profile. Setup-only is not equivalence PASS, so qualification correctly stops before L3 until a real equivalence result exists.
 
-Runtime evidence covers the canonical lifecycle: Slang/Verilator lint suites, CDC/RDC, functional regression, individual formal BMC/prove/cover stages, synthesis, optional EQY execution, SDF/STA/vectorless power, post-synthesis SV GLS, PnR, physical sign-off, and routed SDF/STA/power/SV GLS. Composite commands such as `fx lint_suite`, `fx formal`, `fx signoff`, and `fx signoff_post_pnr` are compositions of those same canonical stages, so aggregate and manual execution use the same contract evidence.
+Runtime evidence covers the canonical lifecycle: Slang/Verilator lint suites, CDC/RDC, functional regression, individual formal BMC/prove/cover stages, synthesis, optional EQY execution, SDF/STA/vectorless power, post-synthesis SV GLS, PnR, physical sign-off, and routed SDF/STA/power/SV GLS. Composite commands such as `fx lint_suite`, `fx formal`, `fx signoff`, and `fx signoff_post_impl` are compositions of those same canonical stages, so aggregate and manual execution use the same contract evidence.
 
 
 ### Contract and generated-DV inspection

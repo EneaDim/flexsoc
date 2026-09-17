@@ -25,29 +25,33 @@ task automatic tb_wait_sample_phase();
   @flexsoc_vec_sample_phase;
 endtask
 
-task automatic tb_drive_input(input string name, input logic [31:0] value);
-<<: drives_text :>>
+<<% if packed %>>task automatic tb_drive_input(input tb_token_t name, input logic [31:0] value);
+<<% else %>>task automatic tb_drive_input(input string name, input logic [31:0] value);
+<<% endif %>><<: drives_text :>>
   else begin
     error_count++;
     $display("[TB][ERROR] unknown input vector signal: %s", name);
   end
 endtask
 
-task automatic tb_drive_raw(input string name, input string raw);
-  logic [31:0] value;
+<<% if packed %>>task automatic tb_drive_raw(input tb_token_t name, input tb_token_t raw);
+<<% else %>>task automatic tb_drive_raw(input string name, input string raw);
+<<% endif %>>  logic [31:0] value;
   logic [32:0] parsed;
 
   begin : tb_drive_raw_body
-    if (name == "") disable tb_drive_raw_body;
-    parsed = tb_parse_u32(raw);
+<<% if packed %>>    if (tb_token_empty(name)) disable tb_drive_raw_body;
+<<% else %>>    if (name == "") disable tb_drive_raw_body;
+<<% endif %>>    parsed = tb_parse_u32(raw);
     if (!parsed[32]) disable tb_drive_raw_body;
     value = parsed[31:0];
     tb_drive_input(name, value);
   end
 endtask
 
-task automatic tb_apply_reg_write(input string reg_key, input string data_raw, input string mask_raw);
-  logic [31:0] data;
+<<% if packed %>>task automatic tb_apply_reg_write(input tb_token_t reg_key, input tb_token_t data_raw, input tb_token_t mask_raw);
+<<% else %>>task automatic tb_apply_reg_write(input string reg_key, input string data_raw, input string mask_raw);
+<<% endif %>>  logic [31:0] data;
   logic [31:0] mask;
   logic [32:0] parsed;
   bit ok;
@@ -58,8 +62,9 @@ task automatic tb_apply_reg_write(input string reg_key, input string data_raw, i
     data = parsed[31:0];
 
     parsed = tb_parse_u32(mask_raw);
-    if (mask_raw.len() > 0 && parsed[32]) begin
-      mask = parsed[31:0];
+<<% if packed %>>    if (!tb_token_empty(mask_raw) && parsed[32]) begin
+<<% else %>>    if (mask_raw.len() > 0 && parsed[32]) begin
+<<% endif %>>      mask = parsed[31:0];
     end else begin
       mask = 32'hffff_ffff;
     end
@@ -76,8 +81,9 @@ task automatic tb_step(input string data_out_path, inout int now_cycle);
 endtask
 
 task automatic tb_apply_reset(
-  input string selector,
-  input int cycles,
+<<% if packed %>>  input tb_token_t selector,
+<<% else %>>  input string selector,
+<<% endif %>>  input int cycles,
   input string data_out_path,
   inout int now_cycle
 );
@@ -114,7 +120,15 @@ endtask
 
 task automatic tb_drive_signal_pairs(
   input int code,
-  input string t0,
+<<% if packed %>>  input tb_token_t t0,
+  input tb_token_t t1,
+  input tb_token_t t2,
+  input tb_token_t t3,
+  input tb_token_t t4,
+  input tb_token_t t5,
+  input tb_token_t t6,
+  input tb_token_t t7
+<<% else %>>  input string t0,
   input string t1,
   input string t2,
   input string t3,
@@ -122,7 +136,7 @@ task automatic tb_drive_signal_pairs(
   input string t5,
   input string t6,
   input string t7
-);
+<<% endif %>>);
   tb_drive_raw(t0, t1);
   if (code >= 5) tb_drive_raw(t2, t3);
   if (code >= 7) tb_drive_raw(t4, t5);
@@ -143,7 +157,18 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   logic [31:0] cycle_value;
   logic [31:0] reset_cycles;
   logic [32:0] parsed;
-  string cycle_raw;
+<<% if packed %>>  tb_token_t cycle_raw;
+  tb_token_t reset_selector;
+  tb_line_t line_buf;
+  tb_token_t t0;
+  tb_token_t t1;
+  tb_token_t t2;
+  tb_token_t t3;
+  tb_token_t t4;
+  tb_token_t t5;
+  tb_token_t t6;
+  tb_token_t t7;
+<<% else %>>  string cycle_raw;
   string reset_selector;
   string line;
   reg [8*4096-1:0] line_buf;
@@ -155,7 +180,7 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   string t5;
   string t6;
   string t7;
-
+<<% endif %>>
   now_cycle = -1;
   current_cycle = -1;
   cycle_open = 1'b0;
@@ -175,16 +200,20 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   $display("[TB] running vectors: in=%s out=%s", data_in_path, data_out_path);
 
   while (!$feof(fd)) begin : tb_input_line
-    line = "";
-    line_buf = '0;
-    void'($fgets(line_buf, fd));
+<<% if packed %>><<% else %>>    line = "";
+<<% endif %>>    line_buf = '0;
+<<% if packed %>>    code = $fgets(line_buf, fd);
+    tb_tokenize9(line_buf, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
+<<% else %>>    void'($fgets(line_buf, fd));
     line = $sformatf("%0s", line_buf);
     tb_tokenize9(line, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
-
+<<% endif %>>
     if (code < 3) disable tb_input_line;
-    if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") disable tb_input_line;
+<<% if packed %>>    if (tb_token_comment(cycle_raw)) disable tb_input_line;
+    if (tb_token_comment(t0)) disable tb_input_line;
+<<% else %>>    if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") disable tb_input_line;
     if (t0.len() > 0 && t0.substr(0, 0) == "#") disable tb_input_line;
-    parsed = tb_parse_u32(cycle_raw);
+<<% endif %>>    parsed = tb_parse_u32(cycle_raw);
     if (!parsed[32]) disable tb_input_line;
     cycle_value = parsed[31:0];
 
@@ -223,8 +252,9 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
     if (t0 == "@write" || t0 == "write" || t0 == "@reg_write" || t0 == "reg_write") begin
       if (code < 4) begin
         error_count++;
-        $display("[TB][ERROR] malformed @write row: %s", line);
-        disable tb_input_line;
+<<% if packed %>>        $display("[TB][ERROR] malformed @write row: %0s", line_buf);
+<<% else %>>        $display("[TB][ERROR] malformed @write row: %s", line);
+<<% endif %>>        disable tb_input_line;
       end
 
       tb_finish_cycle(data_out_path, now_cycle, cycle_open);
@@ -237,8 +267,9 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
 
     if ((code - 1) % 2 != 0) begin
       error_count++;
-      $display("[TB][ERROR] malformed signal vector row: %s", line);
-      disable tb_input_line;
+<<% if packed %>>      $display("[TB][ERROR] malformed signal vector row: %0s", line_buf);
+<<% else %>>      $display("[TB][ERROR] malformed signal vector row: %s", line);
+<<% endif %>>      disable tb_input_line;
     end
 
     if (!cycle_open || cycle != current_cycle) begin

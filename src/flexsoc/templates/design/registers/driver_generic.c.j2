@@ -1,0 +1,41 @@
+#include "<<: module_name :>>.h"
+
+#define DEV_WRITE(addr, val) (*((volatile uint32_t *)(uintptr_t)(addr)) = (uint32_t)(val))
+#define DEV_READ(addr) (*((volatile uint32_t *)(uintptr_t)(addr)))
+
+int <<: module_name :>>_init(<<: module_name :>>_t base) {
+#ifdef <<: upper :>>_CTRL_REG_OFFSET
+  DEV_WRITE(base + <<: upper :>>_CTRL_REG_OFFSET, 0x1u);
+#else
+  DEV_WRITE(base + 0x0u, 0x1u);
+#endif
+  return 0;
+}
+
+int <<: module_name :>>_in(<<: module_name :>>_t base) {
+#ifdef <<: upper :>>_RDATA_REG_OFFSET
+  return (int)DEV_READ(base + <<: upper :>>_RDATA_REG_OFFSET);
+#else
+  return (int)DEV_READ(base + 0x0u);
+#endif
+}
+
+void <<: module_name :>>_out(<<: module_name :>>_t base, char c) {
+#ifdef <<: upper :>>_WDATA_REG_OFFSET
+  DEV_WRITE(base + <<: upper :>>_WDATA_REG_OFFSET, (uint32_t)(uint8_t)c);
+#else
+  DEV_WRITE(base + 0x0u, (uint32_t)(uint8_t)c);
+#endif
+}
+
+int <<: module_name :>>_putchar(int c) {
+  <<: module_name :>>_out((<<: module_name :>>_t)<<: upper :>>_BASE, (char)c);
+  return c;
+}
+
+int <<: module_name :>>_puts(const char* str) {
+  while (*str) {
+    <<: module_name :>>_putchar(*str++);
+  }
+  return 0;
+}

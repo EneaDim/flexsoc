@@ -1,4 +1,3 @@
-  <<: top :>>_cfg_reg_pkg::axi_lite_req_t cfg_axi_lite_i;
-  <<: top :>>_cfg_reg_pkg::axi_lite_rsp_t cfg_axi_lite_o;
-  <<: top :>>_dsp_reg_pkg::axi_lite_req_t dsp_axi_lite_i;
-  <<: top :>>_dsp_reg_pkg::axi_lite_rsp_t dsp_axi_lite_o;
+<<% for window in windows %>>  <<: top :>>_<<: window :>>_reg_pkg::axi_lite_req_t <<: window :>>_axi_lite_i;
+  <<: top :>>_<<: window :>>_reg_pkg::axi_lite_rsp_t <<: window :>>_axi_lite_o;
+<<% endfor %>>

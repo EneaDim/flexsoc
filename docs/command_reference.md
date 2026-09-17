@@ -2,11 +2,11 @@
 
 This is the complete user-facing reference for the `fx` command line and every backend target currently exposed by FlexSoC. It follows the same lifecycle as [Project lifecycle](project_lifecycle.md): configure the run, enter the IP, verify it, synthesize it, prove equivalence, analyze timing and power, implement it, and collect release evidence.
 
-> **Current scaffold policy:** EQY remains a supported execution target and part of L3 qualification, but the scaffold baseline currently invokes `fx eqy --setup` only. Generating setup does not count as equivalence PASS; `fx eqy` is run only when equivalence closure is intentionally being worked.
+> **Current scaffold policy:** EQY is a supported execution target and part of L3 qualification. The automatic scaffold E2E matrix invokes `fx eqy --setup` only; `fx eqy` remains an explicit per-IP/per-interface run. Generating setup does not count as equivalence PASS.
 
 The reference explains what each command owns. The detailed step-by-step procedure is in [IP development guide](ip_development_guide.md), while repository/backend structure is in [Architecture](architecture.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <command> --help` (also `-h`, `help`, or `info`) for dedicated command help, and `fx commands --json` when a script needs live metadata from the installed checkout.
 
-> **Execution model:** `fx target_a target_b` launches exactly the requested backend targets in order. Execution targets are **run-only by default**: `fx syn` consumes an existing `syn --setup`, `fx eqy` consumes an existing `eqy --setup`, and sign-off/formal consumers behave the same way. Setup is generated explicitly once and then reused. Re-run the setup phase with `--force` only when regeneration is intentional. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
+> **Execution model:** `fx target_a target_b` launches exactly the requested backend targets in order. Execution targets are **run-only by default**: `fx syn` consumes an existing `syn --setup`, sign-off/formal consumers behave the same way. Setup is generated explicitly once and then reused. Re-run the setup phase with `--force` only when regeneration is intentional. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
 
 ---
 
@@ -27,7 +27,7 @@ fx cdc_rdc --setup --force
 fx cdc_rdc
 fx formal
 fx regression
-fx syn eqy --set EQY_JOBS=8 --live
+fx syn --live
 fx signoff --setup --dry-run --script
 ```
 
@@ -90,7 +90,7 @@ FlexSoC separates generated setup collateral from execution. Setup targets creat
 | `syn`, `syn_v`, `syn_sv` | `syn --setup` |
 | CSR formal execution targets | `formal_csr --setup` or the matching formal keyword with `--setup` |
 | Design formal execution targets | `formal_prove formal_cover --setup`, or `formal --setup` for the complete formal setup |
-| `eqy` | `eqy --setup` |
+| `eqy` | `eqy --setup`, `eqy`, `eqy --debug` |
 | `sdf`, `sta*`, `power_estimate*` | `signoff --setup` |
 | `pnr`, `pnr_gui` | `pnr --setup` plus its upstream synthesis/sign-off results |
 | `cdc_rdc` | `cdc_rdc --setup` |
@@ -103,7 +103,6 @@ fx syn --setup
 fx syn
 
 fx eqy --setup
-fx eqy
 
 fx signoff --setup
 fx sdf
@@ -222,7 +221,6 @@ The run root, RTL, functional DV, property formal, and `constraints/<TOP>.sdc` a
 fx syn --setup
 fx syn
 fx eqy --setup
-fx eqy
 fx signoff --setup
 fx sdf
 fx sta
@@ -250,10 +248,10 @@ Those outputs are isolated below `syn/<pdk>`, `impl/<pdk>`, `signoff/<pdk>`, `dv
 | Functional DV | `fx model --setup`, `fx tests_gen`, `fx tb --setup`, `fx cocotb --setup`, `fx regression`, `fx coverage_detail` | Passing scenarios, waves, coverage |
 | Sign-off setup | `fx signoff --setup` | OpenSTA Tcl families consuming `constraints/<TOP>.sdc` |
 | Synthesis | `fx syn --setup`, `fx syn` | `syn/<pdk>/abc.constr`, Yosys scripts, mapped netlist, synthesis reports |
-| Logical sign-off | `fx eqy --setup`, `fx eqy`, `fx eqy_debug` | RTL ↔ mapped-netlist equivalence |
+| Logical sign-off | `fx eqy --setup`, `fx eqy_debug` | RTL ↔ mapped-netlist equivalence |
 | Post-synthesis sign-off | `fx signoff --setup`, `fx sdf`, `fx sta`, `fx power_estimate`, gate simulation targets | Timing, SDF/GLS, and power evidence |
 | Physical implementation | `fx pnr --setup`, `fx pnr`, `fx pnr_gui` | Placed/routed implementation |
-| Post-layout sign-off | `fx signoff_post_pnr --setup`, `fx sdf_post_pnr`, `fx sta_post_pnr`, routed GLS, `fx power_estimate_post_pnr`, activity/fusion post-PnR targets, `fx physical_signoff` | SPEF-aware timing, routed GLS/power/fusion, and physical evidence |
+| Post-layout sign-off | `fx signoff_post_impl --setup`, `fx sdf_post_impl`, `fx sta_post_impl`, routed GLS, `fx power_estimate_post_impl`, activity/fusion post-implementation targets, `fx physical_signoff` | SPEF-aware timing, routed GLS/power/fusion, and physical evidence |
 | Release | `fx manifest`, `fx metrics`, `fx check`, `fx ip_save` | Immutable identity + normalized metrics snapshot + human closure dashboard + reusable package |
 
 The generated register drivers expose the same logical CSR semantics on `tlul`, `reg_iface`, and `axi_lite`: one read/write helper owns the complete protocol transaction and returns only after its handshake controls are quiescent. The surrounding vector scheduler never inserts a protocol-specific clock edge. Put static initial CSR programming in `config.regs`; use cycle-indexed `@write` only when the scenario is intentionally testing a runtime register change or write-triggered action.
@@ -643,7 +641,6 @@ Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, an
 | `fx power_estimate_corners` | Estimate power for each corner using primary-input activity assumptions. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
 | `fx signoff_corners` | Run SDF, multi-corner STA and estimated power. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Stops at STA when any configured corner/mode violates timing. |
 | `fx eqy --setup` | Generate RTL-vs-post-synthesis EQY configuration. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx eqy` | Prove RTL equivalent to the post-synthesis netlist with EQY. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Use `--info` for accepted overrides. |
 | `fx signoff --setup` | Generate sign-off Tcl families that consume the authored `constraints/<TOP>.sdc`. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx compile_syn` | Compile post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx sim_syn` | Run post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
@@ -668,9 +665,9 @@ Compile and run mapped or post-route gate-level simulations, optionally with SDF
 | `fx compile_post_syn` | Compile post-synthesis gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
 | `fx sim_post_syn` | Run one post-synthesis gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
 | `fx sim_post_syn_all` | Run all selected generated tests and timing modes with one GLS backend. | `TEST_NAMES`, `GLS_BACKEND`, `TIMING_MODES`, plus the `sim_post_syn` overrides | Defaults to all test directories, backend `sv`, and `zero unit min typ max`; run `sdf` explicitly first when timing modes require SDF. Run the command once with `GLS_BACKEND=sv` and once with `GLS_BACKEND=cocotb` when both drivers must be qualified. Results and `summary_<backend>.json` stay under `dv/functional/sim/post_syn/<pdk>/`. |
-| `fx compile_post_pnr` | Compile post-PnR gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
-| `fx sdf_post_pnr` | Export post-PnR SDF from final netlist, the authored SDC, and SPEF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
-| `fx sim_post_pnr` | Run post-PnR gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx compile_post_impl` | Compile post-implementation gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx sdf_post_impl` | Export post-implementation SDF from final netlist, the authored SDC, and SPEF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx sim_post_impl` | Run post-implementation gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
 
 
 #### Post-synthesis timing modes
@@ -745,8 +742,8 @@ still records the exact technical `timing_mode` used by Icarus, so for example
 Each direct GLS execution therefore retains its own evidence without an
 intermediate qualification manifest.
 
-Post-PnR targets use the same driver/timing concepts but consume a final netlist
-and corner-specific post-PnR SDF. `sdf_post_pnr` requires `TIMING_MODE=min|typ|max`
+Post-implementation targets use the same driver/timing concepts but consume a final netlist
+and corner-specific post-implementation SDF. `sdf_post_impl` requires `TIMING_MODE=min|typ|max`
 and explicit or discovered final netlist, SDC, and SPEF inputs.
 
 ### 3.12 Physical implementation
@@ -805,13 +802,13 @@ hw/ips/<IP_NAME>/<IP_VERSION>/
     ├── impl/<pdk>/
     ├── signoff/<pdk>/
     │   ├── post_syn/       # sta / power / fusion on synthesized netlist
-    │   └── post_pnr/       # sta / power / fusion + routed physical evidence
+    │   └── post_impl/       # sta / power / fusion + routed physical evidence
     └── meta/
         ├── contract.json
         └── <pdk>/
 ```
 
-`signoff/<pdk>/post_syn/` contains post-synthesis technology evidence such as equivalence setup/views, SDF, STA, GLS-correlated power/fusion and related reports. `signoff/<pdk>/post_pnr/` contains routed evidence and keeps the same canonical names for common analyses (`sta/`, `power/`, `fusion/`), plus physical-only checks where required. Presence of either directory does not by itself assert a qualification level; the unified validator applies the L1-L5 policy. The operational run workspace may keep post-synthesis evidence directly under `signoff/<pdk>/`; `ip_save`/`ip_load` translate between run and release layouts. See `docs/digital_ip_contract.md`.
+`signoff/<pdk>/post_syn/` contains post-synthesis technology evidence such as equivalence setup/views, SDF, STA, GLS-correlated power/fusion and related reports. `signoff/<pdk>/post_impl/` contains routed evidence and keeps the same canonical names for common analyses (`sta/`, `power/`, `fusion/`), plus physical-only checks where required. Presence of either directory does not by itself assert a qualification level; the unified validator applies the L1-L5 policy. The operational run workspace may keep post-synthesis evidence directly under `signoff/<pdk>/`; `ip_save`/`ip_load` translate between run and release layouts. See `docs/digital_ip_contract.md`.
 
 ### 3.15 SoC flow
 
@@ -920,7 +917,7 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `PRIM` | Technology primitive/formal model input. |
 | `WAVE_FORMAT` | Waveform format: `fst` or `vcd`. |
 | `WAVE_FILE` | Explicit waveform path for simulation or analysis. Use a unique path per test/backend/scenario when overriding the canonical test-scoped path. |
-| `GLS_SIMULATOR` | Gate-level simulator selection; current post-synthesis/post-PnR GLS requires `iverilog`. |
+| `GLS_SIMULATOR` | Gate-level simulator selection; current post-synthesis/post-implementation GLS requires `iverilog`. |
 | `GLS_BACKEND` | Gate-level driver: `sv` or `cocotb`; default `sv`. |
 | `TIMING_MODE` | Technical gate timing selection: `zero`, `unit`, `min`, `typ`, or `max`; default `zero`. SDF-backed artifacts are named by aligned PVT scenario (`min→ff`, `typ→tt`, `max→ss`). |
 | `GLS_UNIT_DELAY` | Requested physical primitive delay used only by `TIMING_MODE=unit`; default `1ps`. FlexSoC rounds it up to the coarsest precision declared by the selected cell models and passes Icarus a suffix-free numeric delay. Real technology timing uses `min/typ/max` SDF. |
@@ -1064,7 +1061,7 @@ dv/functional/sim/post_syn/<pdk>/summary_<backend>.json
 
 Use `TEST_NAMES` and `TIMING_MODES` to restrict the matrix; each selector accepts whitespace/comma-separated values or `all`. `GLS_BACKEND` selects exactly one driver (`sv` or `cocotb`) per invocation.
 
-For qualification, the scaffold `spec/testplan.yaml` intentionally narrows GLS to at most three representative tests, backend `sv`, and the `ss/tt/ff` scenarios (implemented by timing modes `max/typ/min`). Activity-based power and fusion use only that same selected GLS matrix. This bounded qualification policy applies to both post-synthesis and post-PnR evidence; direct GLS commands remain general-purpose and may still be explicitly overridden for debug.
+For qualification, the scaffold `spec/testplan.yaml` intentionally narrows GLS to at most three representative tests, backend `sv`, and the `ss/tt/ff` scenarios (implemented by timing modes `max/typ/min`). Activity-based power and fusion use only that same selected GLS matrix. This bounded qualification policy applies to both post-synthesis and post-implementation evidence; direct GLS commands remain general-purpose and may still be explicitly overridden for debug.
 
 There is no E2E qualification matrix or `matrix.json`. For `min`, `typ`, and
 `max`, the E2E test immediately runs `fx power_analysis` for that exact GLS trace.
@@ -1091,7 +1088,6 @@ fx formal
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-fx eqy
 ```
 
 ### Change RTL behavior or latency
@@ -1109,7 +1105,6 @@ fx regression
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-fx eqy
 fx signoff --setup --force
 fx sdf
 fx sta
@@ -1132,7 +1127,6 @@ fx regression
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-fx eqy
 fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
 ```
 
@@ -1148,9 +1142,9 @@ fx tb cocotb cdc_rdc formal_prove formal_cover formal_csr_prove formal_csr_cover
 fx cdc_rdc
 fx formal
 fx regression
-fx syn eqy signoff --setup --force
+fx syn signoff --setup --force
+fx eqy --setup
 fx syn
-fx eqy
 fx sdf
 fx sta
 fx power_estimate
@@ -1430,7 +1424,6 @@ fx sta --live
 ### 8.8 Equivalence failures
 
 ```bash
-fx eqy --live
 fx eqy_debug
 fx eqy_debug <partition>
 fx eqy_debug --files <partition>
@@ -1572,7 +1565,6 @@ fx pdk use sky130
 fx syn --setup
 fx syn
 fx eqy --setup
-fx eqy
 fx signoff --setup
 fx sdf
 fx sta
@@ -1641,10 +1633,10 @@ For local inspection of the Docker environment use the scripts under `docker/scr
 
 ## 13. EQY protocol partitioning and reset normalization
 
-For single-clock IPs, `fx eqy` now proves the normal post-reset hardware contract by default. The generated configuration initializes both gold and gate designs through the clock/reset declared in `CLOCK_DOMAINS` before partition proofs begin:
+For single-clock IPs, the generated EQY scaffold prepares the normal post-reset hardware contract by default. It initializes both gold and gate designs through the clock/reset declared in `CLOCK_DOMAINS` before partition proofs begin. FlexSoC does not expose a generic EQY runtime target yet; execute the generated profile only through an IP-specific/manual closure flow.
 
 ```bash
-fx eqy --set EQY_RESET_NORMALIZE=1 --set EQY_RESET_CYCLES=2
+fx eqy --setup
 ```
 
 Use `EQY_RESET_NORMALIZE=0` only when the design contract explicitly requires equivalence from arbitrary power-up state. Multi-clock runs keep normalization disabled by default because independent-domain reset sequencing must be reviewed rather than inferred.

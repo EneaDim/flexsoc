@@ -1,0 +1,477 @@
+"""Toolchain discovery, doctor checks and locked dependency metadata."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import hashlib
+import json
+import re
+import shutil
+import sys
+from pathlib import Path
+
+from rich.console import Console
+from rich.table import Table
+
+TOOLS = (
+    ("uv", "uv", ("--version",), True, None),
+    ("Slang", "slang", ("--version",), True, "SLANG"),
+    ("Verilator", "verilator", ("--version",), True, "VERILATOR"),
+    ("Yosys", "yosys", ("-V",), False, "YOSYS"),
+    ("SymbiYosys", "sby", ("--version",), False, "SBY"),
+    ("EQY", "eqy", ("--version",), False, "EQY"),
+    ("Bitwuzla", "bitwuzla", ("--version",), False, "BITWUZLA"),
+    ("Boolector", "boolector", ("--version",), False, "BOOLECTOR"),
+    ("BTOR model checker", "btormc", ("--version",), False, None),
+    ("BTOR simulator", "btorsim", ("--version",), False, None),
+    ("OpenSTA", "sta", ("-version",), False, "OPENSTA"),
+    ("Icarus", "iverilog", ("-V",), False, "IVERILOG"),
+    ("Slang hierarchy", "slang-hier", ("--version",), False, None),
+    ("GTKWave", "gtkwave", ("--version",), False, "GTKWAVE"),
+    ("FST to VCD converter", "fst2vcd", ("--help",), True, None),
+    ("Surfer", "surfer", ("--version",), False, "SURFER"),
+    ("sv2v", "sv2v", ("--version",), False, "SV2V"),
+    ("netlistsvg", "netlistsvg", ("--version",), False, "NETLISTSVG"),
+    ("OpenROAD", "openroad", ("-version",), False, "OPENROAD"),
+    ("KLayout", "klayout", ("-v",), False, "KLAYOUT"),
+)
+
+# Compatibility floors describe required features, while the lock may pin newer tools.
+# This keeps compatible system installations usable without weakening reproducibility.
+DEFAULT_MINIMUMS = {
+    "verilator": "5.050",
+    "iverilog": "13.0",
+    "sta": "3.1.0",
+}
+
+VERSIONLESS_TOOLS = {"btorsim"}
+
+
+
+
+_ORFS_KLAYOUT_VERSION = re.compile(
+    r"^\s*klayoutVersion\s*=\s*[\"']?([0-9]+(?:\.[0-9]+)+)",
+    re.MULTILINE,
+)
+_GENERIC_VERSION = re.compile(r"([0-9]+(?:\.[0-9]+)+)")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@dataclass(slots=True)
+class Toolchain:
+    """Resolve tools, run doctor and drive the pinned dependency script."""
+
+    @staticmethod
+    def orfs_environment() -> dict[str, str]:
+        """Resolve ORFS executables from the active PATH without stale overrides."""
+
+        import os
+
+        env = os.environ.copy()
+        for variable, executable in (
+            ("OPENROAD_EXE", "openroad"),
+            ("YOSYS_EXE", "yosys"),
+            ("KLAYOUT_CMD", "klayout"),
+        ):
+            env.pop(variable, None)
+            if resolved := shutil.which(executable):
+                env[variable] = resolved
+        return env
+
+    @staticmethod
+    def orfs_klayout_requirement(makefile: Path) -> str | None:
+        """Read the KLayout version required by the selected ORFS checkout."""
+
+        installer = makefile.expanduser().resolve().parent.parent / "etc" / "DependencyInstaller.sh"
+        if not installer.is_file():
+            return None
+        match = _ORFS_KLAYOUT_VERSION.search(
+            installer.read_text(encoding="utf-8", errors="replace")
+        )
+        return match.group(1) if match else None
+
+    @staticmethod
+    def validate_orfs_klayout(
+        makefile: Path,
+        env: dict[str, str] | None = None,
+        *,
+        runner=None,
+        on: str = "local",
+    ) -> tuple[str | None, str | None]:
+        """Require the KLayout floor declared by the selected ORFS checkout."""
+
+        from .execution import CommandRequest, ToolRunner
+
+        required = Toolchain.orfs_klayout_requirement(makefile)
+        if required is None:
+            return None, None
+        active_env = env or Toolchain.orfs_environment()
+        executable = active_env.get("KLAYOUT_CMD") or "klayout"
+        active_runner = runner or ToolRunner(project_root=Path.cwd())
+        if on not in active_runner.targets:
+            raise ValueError(f"unknown execution target: {on}")
+        root = active_runner.project_root
+        log = root / ".flexsoc" / "logs" / "toolchain" / "klayout-version.log"
+        try:
+            result = active_runner.run(
+                CommandRequest((str(executable), "-v"), root, {}, log, timeout_s=5), on=on
+            )
+        except OSError as exc:
+            raise ValueError(f"cannot query KLayout version: {exc}") from exc
+        text = log.read_text(encoding="utf-8", errors="replace").strip() if log.is_file() else ""
+        match = _GENERIC_VERSION.search(text)
+        if not match:
+            raise ValueError(f"cannot parse KLayout version from: {text or 'empty output'}")
+        current = match.group(1)
+        if Toolchain._numeric_text(current) < Toolchain._numeric_text(required):
+            raise ValueError(
+                f"KLayout {current} incompatible with selected ORFS checkout; need >= {required}"
+            )
+        return current, required
+
+    @staticmethod
+    def load_toolchain_lock(root: Path) -> dict[str, str]:
+        """Parse simple KEY=VALUE entries from the native toolchain lock."""
+
+        path = root / "src" / "flexsoc" / "backend" / "core" / "runtime" / "toolchain.lock"
+        if not path.is_file():
+            return {}
+        values: dict[str, str] = {}
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip()
+        return values
+
+    @staticmethod
+    def _file_sha256(path: Path) -> str | None:
+        if not path.is_file():
+            return None
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    @staticmethod
+    def toolchain_metadata(root: Path) -> dict[str, object]:
+        """Return lock identity and compact expected-tool metadata."""
+
+        path = root / "src" / "flexsoc" / "backend" / "core" / "runtime" / "toolchain.lock"
+        lock = Toolchain.load_toolchain_lock(root)
+        expected: dict[str, dict[str, str]] = {}
+        for _, executable, _, _, key in TOOLS:
+            if not key:
+                continue
+            row: dict[str, str] = {}
+            if lock.get(f"{key}_VERSION"):
+                row["locked_version"] = lock[f"{key}_VERSION"]
+            minimum = lock.get(f"{key}_MIN_VERSION") or DEFAULT_MINIMUMS.get(executable)
+            if minimum:
+                row["minimum_version"] = minimum
+            if lock.get(f"{key}_REF"):
+                row["ref"] = lock[f"{key}_REF"]
+            if lock.get(f"{key}_REF_PREFIX"):
+                row["ref_prefix"] = lock[f"{key}_REF_PREFIX"]
+            if lock.get(f"{key}_INSTALL_MODE"):
+                row["install_mode"] = lock[f"{key}_INSTALL_MODE"]
+            if row:
+                expected[executable] = row
+        return {
+            "path": str(path),
+            "sha256": Toolchain._file_sha256(path),
+            "lock_version": lock.get("LOCK_VERSION"),
+            "expected": expected,
+        }
+
+    @staticmethod
+    def _version(
+        executable: str, args: tuple[str, ...], *, root: Path, runner, on: str
+    ) -> tuple[str, str] | None:
+        """Return executable path and the first version line through ToolRunner."""
+
+        from .execution import CommandRequest
+
+        target = runner.targets.get(on)
+        if target is None:
+            raise ValueError(f"unknown execution target: {on}")
+        resolved = shutil.which(executable) if target.kind == "local" else executable
+        if not resolved:
+            return None
+        if executable in VERSIONLESS_TOOLS:
+            return str(resolved), "installed · version not exposed"
+        log = root / ".flexsoc" / "logs" / "toolchain" / f"{executable}-version.log"
+        try:
+            result = runner.run(
+                CommandRequest((str(resolved), *args), root, {}, log, timeout_s=5), on=on
+            )
+        except OSError:
+            return str(resolved), "version unavailable"
+        text = log.read_text(encoding="utf-8", errors="replace").strip() if log.is_file() else ""
+        if result.returncode != 0 and not text:
+            return str(resolved), "version unavailable"
+        version = next((line.strip() for line in text.splitlines() if line.strip()), "unknown")
+        return str(resolved), version
+
+    @staticmethod
+    def _numeric_version(version: str | None, executable: str) -> tuple[int, ...] | None:
+        """Extract a comparable numeric version for tools with semantic releases."""
+
+        if not version:
+            return None
+        patterns = {
+            "verilator": r"\bVerilator\s+(\d+(?:\.\d+)+)",
+            "iverilog": r"\bversion\s+(\d+(?:\.\d+)+)",
+            "sta": r"\bOpenSTA\s+(\d+(?:\.\d+)+)",
+        }
+        pattern = patterns.get(executable)
+        if not pattern:
+            return None
+        match = re.search(pattern, version, flags=re.IGNORECASE)
+        if not match:
+            return None
+        return tuple(int(part) for part in match.group(1).split("."))
+
+    @staticmethod
+    def _numeric_text(value: str) -> tuple[int, ...]:
+        return tuple(int(part) for part in value.split("."))
+
+    @staticmethod
+    def _assess_tool(
+        executable: str,
+        version: str | None,
+        expected: dict[str, str],
+    ) -> tuple[bool, bool | None]:
+        """Return compatibility and lock-match status for one resolved tool."""
+
+        minimum = expected.get("minimum_version")
+        current_numeric = Toolchain._numeric_version(version, executable)
+        version_ok = True
+        if minimum:
+            version_ok = current_numeric is not None and current_numeric >= Toolchain._numeric_text(minimum)
+
+        locked = expected.get("locked_version")
+        ref_prefix = expected.get("ref_prefix")
+        lock_match: bool | None = None
+        if locked or ref_prefix:
+            lock_match = True
+            if locked:
+                if current_numeric is not None and re.fullmatch(r"\d+(?:\.\d+)+", locked):
+                    lock_match = current_numeric == Toolchain._numeric_text(locked)
+                else:
+                    lock_match = locked.lower() in (version or "").lower()
+            if ref_prefix:
+                lock_match = bool(lock_match and ref_prefix.lower() in (version or "").lower())
+        return version_ok, lock_match
+
+    @staticmethod
+    def collect(root: Path, *, runner=None, on: str = "local") -> dict[str, object]:
+        """Collect deterministic environment checks for one repository."""
+
+        from .execution import ToolRunner
+
+        root = Path(root).resolve()
+        active_runner = runner or ToolRunner(project_root=root)
+        uv_lock = root / "uv.lock"
+        toolchain = Toolchain.toolchain_metadata(root)
+        expected_all = toolchain["expected"]
+        assert isinstance(expected_all, dict)
+        tools = []
+        for name, executable, args, required, _ in TOOLS:
+            found = Toolchain._version(executable, args, root=root, runner=active_runner, on=on)
+            version = found[1] if found else None
+            expected = expected_all.get(executable, {})
+            assert isinstance(expected, dict)
+            version_ok, lock_match = Toolchain._assess_tool(executable, version, expected) if found else (False, None)
+            tools.append(
+                {
+                    "name": name,
+                    "executable": executable,
+                    "required": required,
+                    "found": found is not None,
+                    "version_ok": version_ok if found else False,
+                    "lock_match": lock_match,
+                    "path": found[0] if found else None,
+                    "version": version,
+                    "minimum_version": expected.get("minimum_version"),
+                    "locked_version": expected.get("locked_version"),
+                    "locked_ref": expected.get("ref") or expected.get("ref_prefix"),
+                    "install_mode": expected.get("install_mode", "managed" if expected else None),
+                }
+            )
+
+        required_ok = all(
+            item["found"] and item.get("version_ok", True)
+            for item in tools
+            if item["required"]
+        )
+        python_ok = sys.version_info >= (3, 10)
+        uv_lock_ok = uv_lock.is_file()
+        toolchain_lock_ok = bool(toolchain.get("sha256"))
+        return {
+            "ok": python_ok and uv_lock_ok and toolchain_lock_ok and required_ok,
+            "python": {
+                "ok": python_ok,
+                "version": sys.version.split()[0],
+                "executable": sys.executable,
+            },
+            "uv_lock": {"ok": uv_lock_ok, "path": str(uv_lock)},
+            "toolchain_lock": {"ok": toolchain_lock_ok, **toolchain},
+            "tools": tools,
+        }
+
+    @staticmethod
+    def run(
+        root: Path, *, as_json: bool = False, runner=None, on: str = "local"
+    ) -> int:
+        """Print environment checks grouped by the flow phase that consumes them."""
+
+        data = Toolchain.collect(root, runner=runner, on=on)
+        if as_json:
+            print(json.dumps(data, indent=2))
+            return 0 if data["ok"] else 2
+
+        console = Console()
+        console.print("[bold orange1]FlexSoC doctor[/bold orange1]")
+        project = Table(show_header=False, box=None, pad_edge=False)
+        project.add_column("Check", style="grey70", no_wrap=True)
+        project.add_column("Value", style="white")
+        python = data["python"]
+        uv_lock = data["uv_lock"]
+        toolchain = data["toolchain_lock"]
+        project.add_row("Python", f"{python['version']} · {python['executable']}")
+        project.add_row("uv.lock", str(uv_lock["path"]) if uv_lock["ok"] else "missing")
+        project.add_row("toolchain.lock", f"v{toolchain.get('lock_version') or '?'} · {toolchain['path']}" if toolchain["ok"] else "missing")
+        console.print(project)
+
+        groups = (
+            ("RTL / lint", {"slang", "verilator", "slang-hier"}),
+            ("Formal / equivalence", {"yosys", "sby", "eqy", "bitwuzla", "boolector", "btormc", "btorsim"}),
+            ("Simulation / debug", {"iverilog", "gtkwave", "fst2vcd", "surfer", "sv2v", "netlistsvg"}),
+            ("Implementation / sign-off", {"sta", "openroad", "klayout"}),
+            ("Environment", {"uv"}),
+        )
+        by_exe = {tool["executable"]: tool for tool in data["tools"]}
+        for title, executables in groups:
+            rows = [by_exe[name] for name in executables if name in by_exe]
+            if not rows:
+                continue
+            console.print(f"\n[bold bright_cyan]{title}[/bold bright_cyan]")
+            table = Table(box=None, pad_edge=False, header_style="bold grey70")
+            table.add_column("Status")
+            table.add_column("Tool", style="white")
+            table.add_column("Version / note", style="grey70")
+            table.add_column("Role", style="grey70")
+            for tool in sorted(rows, key=lambda item: str(item["name"])):
+                found = bool(tool["found"])
+                version_ok = bool(tool.get("version_ok", True))
+                lock_match = tool.get("lock_match")
+                if found and version_ok and lock_match is not False:
+                    mark = "[bright_cyan]OK[/bright_cyan]"
+                elif found and version_ok:
+                    mark = "[orange1]COMPAT[/orange1]"
+                elif tool["required"]:
+                    mark = "[orange1]MISSING[/orange1]"
+                else:
+                    mark = "[grey70]optional[/grey70]"
+                detail = str(tool["version"]) if found else "not found"
+                if found and not version_ok and tool.get("minimum_version"):
+                    detail += f" · need >= {tool['minimum_version']}"
+                elif found and lock_match is False and tool.get("locked_version"):
+                    detail += f" · tested {tool['locked_version']}"
+                table.add_row(mark, str(tool["name"]), detail, "required" if tool["required"] else "optional")
+            console.print(table)
+
+        if data["ok"]:
+            console.print("\n[bold bright_cyan]Environment: PASS[/bold bright_cyan]")
+            return 0
+        console.print("\n[bold orange1]Environment: FAIL[/bold orange1]")
+        return 2
+
+
+    project_root: Path
+    runner: object | None = None
+
+    def __post_init__(self) -> None:
+        self.project_root = Path(self.project_root).resolve()
+        if self.runner is None:
+            from .execution import ToolRunner
+            self.runner = ToolRunner(project_root=self.project_root)
+
+    def doctor(self, *, on: str = "local") -> dict[str, object]:
+        return Toolchain.collect(self.project_root, runner=self.runner, on=on)
+
+    def run_doctor(self, *, as_json: bool = False, on: str = "local") -> int:
+        return Toolchain.run(self.project_root, as_json=as_json, runner=self.runner, on=on)
+
+    def versions(self) -> dict[str, str]:
+        return Toolchain.load_toolchain_lock(self.project_root)
+
+    def resolve(self, tool: str) -> str:
+        path = shutil.which(tool)
+        if not path:
+            raise FileNotFoundError(tool)
+        return path
+
+
+    def run_target(self, target, values, *, on: str = "local") -> int:
+        """Execute one registered dependency-management target."""
+
+        action = target.action or ""
+        return self.deps(
+            action,
+            profile=values.get("DEPS_PROFILE", "base"),
+            jobs=int(values.get("DEPS_JOBS", "2")),
+            apply=str(values.get("DEPS_PRUNE_APPLY", "0")).strip().lower() in {"1", "true", "yes", "on"},
+            prune_cache=str(values.get("DEPS_PRUNE_CACHE", "0")).strip().lower() in {"1", "true", "yes", "on"},
+            on=on,
+        )
+
+    def deps(
+        self,
+        action: str,
+        *,
+        profile: str = "base",
+        jobs: int | None = None,
+        apply: bool = False,
+        prune_cache: bool = False,
+        on: str = "local",
+    ) -> int:
+        """Run one pinned dependency-manager action."""
+
+        from .execution import CommandRequest
+
+        allowed = {"bootstrap", "install", "doctor", "versions", "env", "status", "prune"}
+        if action not in allowed:
+            raise ValueError(f"unsupported dependency action: {action}")
+        script = Path(__file__).with_name("deps.sh")
+        argv = ["bash", str(script), action, "--profile", profile]
+        if jobs is not None:
+            argv += ["--jobs", str(jobs)]
+        if action == "prune" and apply:
+            argv.append("--apply")
+        if action == "prune" and prune_cache:
+            argv.append("--prune-cache")
+        log = self.project_root / ".flexsoc" / "logs" / f"deps-{action}.log"
+        request = CommandRequest(tuple(argv), self.project_root, {}, log)
+        return self.runner.run(request, on=on).returncode
+

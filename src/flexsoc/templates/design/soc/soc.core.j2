@@ -1,0 +1,65 @@
+CAPI=2:
+name: "enea:soc:main"
+description: "An easy to build SoC"
+filesets:
+  files_rtl:
+    depend:
+<<% if host == "ibex" %>>      - lowrisc:ibex:ibex_top_tracing
+      - lowrisc:prim:onehot
+      - lowrisc:prim:alert
+      - lowrisc:tlul:adapter_host
+      - lowrisc:tlul:adapter_reg
+<<% endif %>><<% for module in modules %>>      - prj:ip:<<: module :>>
+<<% endfor %>>    files:
+      - rtl/tl_main_pkg.sv
+      - rtl/xbar_main.sv
+      - rtl/soc.sv
+    file_type: systemVerilogSource
+
+  files_verilator:
+    depend:
+      - lowrisc:ibex:sim_shared
+      - lowrisc:dv_verilator:memutil_verilator
+      - lowrisc:dv_verilator:simutil_verilator
+      - lowrisc:dv_verilator:ibex_pcounts
+      - lowrisc:dv_dpi_c:uartdpi:0.1
+      - lowrisc:dv_dpi_sv:uartdpi:0.1
+    files:
+      - tb/top_verilator.sv: { file_type: systemVerilogSource }
+      - tb/top_verilator.cc: { file_type: cppSource }
+
+parameters:
+  PRIM_DEFAULT_IMPL:
+    datatype: str
+    paramtype: vlogdefine
+    description: Primitives implementation to use, e.g. "prim_pkg::ImplGeneric".
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+
+  sim:
+    <<: merge_key :>>
+    default_tool: verilator
+    filesets_append:
+      - files_verilator
+    toplevel: top_verilator
+    tools:
+      verilator:
+        mode: cc
+        verilator_options:
+          - '--trace'
+          - '--trace-fst'
+          - '--trace-structs'
+          - '--trace-params'
+          - '--trace-max-array 1024'
+          - '-CFLAGS "-Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=top_verilator"'
+          - '-LDFLAGS "-pthread -lutil -lelf"'
+          - "-Wno-WIDTHEXPAND"
+          - "-Wno-WIDTHTRUNC"
+          - "-Wno-MODDUP"
+          - "-Wno-UNOPTFLAT"
+          - "--unroll-count 72"
+    parameters:
+      - PRIM_DEFAULT_IMPL=prim_pkg::ImplGeneric

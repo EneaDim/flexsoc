@@ -1,33 +1,18 @@
-  assign cfg_axi_lite_i = '{
-    aw: '{addr: cfg_axi_aw_addr_i, prot: cfg_axi_aw_prot_i},
-    aw_valid: cfg_axi_aw_valid_i,
-    w: '{data: cfg_axi_w_data_i, strb: cfg_axi_w_strb_i},
-    w_valid: cfg_axi_w_valid_i, b_ready: cfg_axi_b_ready_i,
-    ar: '{addr: cfg_axi_ar_addr_i, prot: cfg_axi_ar_prot_i},
-    ar_valid: cfg_axi_ar_valid_i, r_ready: cfg_axi_r_ready_i
+<<% for window in windows %>>  assign <<: window :>>_axi_lite_i = '{
+    aw: '{addr: <<: window :>>_axi_aw_addr_i, prot: <<: window :>>_axi_aw_prot_i},
+    aw_valid: <<: window :>>_axi_aw_valid_i,
+    w: '{data: <<: window :>>_axi_w_data_i, strb: <<: window :>>_axi_w_strb_i},
+    w_valid: <<: window :>>_axi_w_valid_i, b_ready: <<: window :>>_axi_b_ready_i,
+    ar: '{addr: <<: window :>>_axi_ar_addr_i, prot: <<: window :>>_axi_ar_prot_i},
+    ar_valid: <<: window :>>_axi_ar_valid_i, r_ready: <<: window :>>_axi_r_ready_i
   };
-  assign cfg_axi_aw_ready_o = cfg_axi_lite_o.aw_ready;
-  assign cfg_axi_w_ready_o = cfg_axi_lite_o.w_ready;
-  assign cfg_axi_b_resp_o = cfg_axi_lite_o.b.resp;
-  assign cfg_axi_b_valid_o = cfg_axi_lite_o.b_valid;
-  assign cfg_axi_ar_ready_o = cfg_axi_lite_o.ar_ready;
-  assign cfg_axi_r_data_o = cfg_axi_lite_o.r.data;
-  assign cfg_axi_r_resp_o = cfg_axi_lite_o.r.resp;
-  assign cfg_axi_r_valid_o = cfg_axi_lite_o.r_valid;
+  assign <<: window :>>_axi_aw_ready_o = <<: window :>>_axi_lite_o.aw_ready;
+  assign <<: window :>>_axi_w_ready_o = <<: window :>>_axi_lite_o.w_ready;
+  assign <<: window :>>_axi_b_resp_o = <<: window :>>_axi_lite_o.b.resp;
+  assign <<: window :>>_axi_b_valid_o = <<: window :>>_axi_lite_o.b_valid;
+  assign <<: window :>>_axi_ar_ready_o = <<: window :>>_axi_lite_o.ar_ready;
+  assign <<: window :>>_axi_r_data_o = <<: window :>>_axi_lite_o.r.data;
+  assign <<: window :>>_axi_r_resp_o = <<: window :>>_axi_lite_o.r.resp;
+  assign <<: window :>>_axi_r_valid_o = <<: window :>>_axi_lite_o.r_valid;
 
-  assign dsp_axi_lite_i = '{
-    aw: '{addr: dsp_axi_aw_addr_i, prot: dsp_axi_aw_prot_i},
-    aw_valid: dsp_axi_aw_valid_i,
-    w: '{data: dsp_axi_w_data_i, strb: dsp_axi_w_strb_i},
-    w_valid: dsp_axi_w_valid_i, b_ready: dsp_axi_b_ready_i,
-    ar: '{addr: dsp_axi_ar_addr_i, prot: dsp_axi_ar_prot_i},
-    ar_valid: dsp_axi_ar_valid_i, r_ready: dsp_axi_r_ready_i
-  };
-  assign dsp_axi_aw_ready_o = dsp_axi_lite_o.aw_ready;
-  assign dsp_axi_w_ready_o = dsp_axi_lite_o.w_ready;
-  assign dsp_axi_b_resp_o = dsp_axi_lite_o.b.resp;
-  assign dsp_axi_b_valid_o = dsp_axi_lite_o.b_valid;
-  assign dsp_axi_ar_ready_o = dsp_axi_lite_o.ar_ready;
-  assign dsp_axi_r_data_o = dsp_axi_lite_o.r.data;
-  assign dsp_axi_r_resp_o = dsp_axi_lite_o.r.resp;
-  assign dsp_axi_r_valid_o = dsp_axi_lite_o.r_valid;
+<<% endfor %>>

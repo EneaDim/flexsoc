@@ -1,41 +1,72 @@
 from __future__ import annotations
 
 from .reg_driver import (
-    _drive_cycle, _sample_cycle, apply_reg, expect_reg, reset, rows, settle,
+    CLOCKS, PRIMARY_CLOCK, _drive_cycle, _sample_cycle,
+    apply_reg, expect_reg, reset, rows, settle,
 )
 
+SIGNAL_CLOCKS = <<: signal_clocks :>>
+INPUT_STREAMS = <<: input_streams :>>
+OUTPUT_VALID = <<: output_valid :>>
+STREAM_BY_SIGNAL = {
+    signal: stream
+    for stream in INPUT_STREAMS.values()
+    for signal in (*stream["payload"], stream["valid"])
+}
 
-async def send_sample(dut, sample: int, coeff: int):
-    "Hold one RX transaction across a sampled ready/valid handshake."
-    await _drive_cycle(dut.rx_clk_i)
-    dut.rx_sample_i.value = sample & 0xFFFF
-    dut.rx_coeff_i.value = coeff & 0xFFFF
-    dut.rx_valid_i.value = 1
-    for _ in range(64):
-        await _sample_cycle(dut.rx_clk_i)
-        if bool(dut.rx_ready_o.value):
-            break
+
+def _clock(dut, signal: str):
+    return getattr(dut, SIGNAL_CLOCKS.get(signal, PRIMARY_CLOCK))
+
+
+async def _send_stream(dut, stream, pending):
+    clk = _clock(dut, stream["valid"])
+    await _drive_cycle(clk)
+    for signal in stream["payload"]:
+        if signal in pending:
+            getattr(dut, signal).value = pending[signal]
+    getattr(dut, stream["valid"]).value = 1
+    ready = stream.get("ready")
+    if ready:
+        for _ in range(64):
+            await _sample_cycle(clk)
+            if bool(getattr(dut, ready).value):
+                break
+        else:
+            raise TimeoutError(f"timeout waiting for {ready}")
     else:
-        raise TimeoutError("rx_ready_o timeout")
-    await _drive_cycle(dut.rx_clk_i)
-    dut.rx_valid_i.value = 0
+        await _sample_cycle(clk)
+    await _drive_cycle(clk)
+    getattr(dut, stream["valid"]).value = 0
+
+
+async def _drive_signal(dut, name: str, value: int):
+    if not hasattr(dut, name):
+        raise AssertionError(f"unknown input vector signal: {name}")
+    await _drive_cycle(_clock(dut, name))
+    getattr(dut, name).value = value
+
+
+async def _wait_output(dut):
+    if OUTPUT_VALID is None:
+        raise AssertionError("@wait_output requires exactly one *_valid_o stream")
+    signal, clock = OUTPUT_VALID
+    for _ in range(64):
+        await _sample_cycle(getattr(dut, clock))
+        if bool(getattr(dut, signal).value):
+            return
+    raise TimeoutError(f"@wait_output timeout waiting for {signal}")
 
 
 async def drive_inputs(dut, path: str):
-    "Execute signal, CSR and reset commands from data_in.vec."
-    sample = 0
-    coeff = 0
+    """Execute generic signal, CSR, reset and stream commands from data_in.vec."""
+    pending = {}
     for parts in rows(path):
         if len(parts) < 2:
             continue
         token = parts[1]
         if token in {"@wait_output", "wait_output"}:
-            for _ in range(64):
-                await _sample_cycle(dut.dsp_clk_i)
-                if bool(dut.dsp_valid_o.value):
-                    break
-            else:
-                raise TimeoutError("@wait_output timeout waiting for dsp_valid_o")
+            await _wait_output(dut)
             continue
         if token in {"@write", "write"} and len(parts) >= 4:
             mask = int(parts[4], 0) if len(parts) >= 5 else 0xFFFFFFFF
@@ -52,21 +83,18 @@ async def drive_inputs(dut, path: str):
             elif len(parts) == 4:
                 selector, cycles = parts[2], parts[3]
             else:
-                raise AssertionError(
-                    "@reset format: cycle @reset [domain|reset] cycles"
-                )
-            dut._log.info(
-                "[TB][RESET] cycle=%s selector=%s cycles=%s",
-                parts[0], selector, cycles,
-            )
+                raise AssertionError("@reset format: cycle @reset [domain|reset] cycles")
             await reset(dut, selector, int(cycles, 0))
             continue
         if len(parts) < 3:
             continue
         value = int(parts[2], 0)
-        if token == "rx_sample_i":
-            sample = value
-        elif token == "rx_coeff_i":
-            coeff = value
-        elif token == "rx_valid_i" and value:
-            await send_sample(dut, sample, coeff)
+        stream_name = STREAM_BY_SIGNAL.get(token)
+        if stream_name is None:
+            await _drive_signal(dut, token, value)
+            continue
+        stream = INPUT_STREAMS[stream_name]
+        if token in stream["payload"]:
+            pending[token] = value
+        elif token == stream["valid"] and value:
+            await _send_stream(dut, stream, pending)

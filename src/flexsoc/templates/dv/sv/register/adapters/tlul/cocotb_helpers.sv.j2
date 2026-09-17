@@ -71,22 +71,14 @@
     end
   endfunction
 
-assign cfg_tl_i = flexsoc_tlul_h2d(
-  cfg_a_valid, cfg_a_opcode, cfg_a_param, cfg_a_size,
-  cfg_a_source, cfg_a_address, cfg_a_mask, cfg_a_data,
-  cfg_d_ready
+<<% for window in windows %>>assign <<: window :>>_tl_i = flexsoc_tlul_h2d(
+  <<: window :>>_a_valid, <<: window :>>_a_opcode, <<: window :>>_a_param, <<: window :>>_a_size,
+  <<: window :>>_a_source, <<: window :>>_a_address, <<: window :>>_a_mask, <<: window :>>_a_data,
+  <<: window :>>_d_ready
 );
-assign cfg_a_ready = cfg_tl_o[0];
-assign cfg_d_valid = cfg_tl_o[65];
-assign cfg_d_data  = cfg_tl_o[47:16];
-assign cfg_d_error = cfg_tl_o[1];
+assign <<: window :>>_a_ready = <<: window :>>_tl_o[0];
+assign <<: window :>>_d_valid = <<: window :>>_tl_o[65];
+assign <<: window :>>_d_data  = <<: window :>>_tl_o[47:16];
+assign <<: window :>>_d_error = <<: window :>>_tl_o[1];
 
-assign dsp_tl_i = flexsoc_tlul_h2d(
-  dsp_a_valid, dsp_a_opcode, dsp_a_param, dsp_a_size,
-  dsp_a_source, dsp_a_address, dsp_a_mask, dsp_a_data,
-  dsp_d_ready
-);
-assign dsp_a_ready = dsp_tl_o[0];
-assign dsp_d_valid = dsp_tl_o[65];
-assign dsp_d_data  = dsp_tl_o[47:16];
-assign dsp_d_error = dsp_tl_o[1];
+<<% endfor %>>

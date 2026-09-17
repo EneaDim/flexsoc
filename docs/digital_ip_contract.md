@@ -47,11 +47,11 @@ The stage fingerprint combines effective inputs, configuration, parent lineage, 
 | L2 | RTL Qualified | L1 + RTL, lint, functional verification, requirement traceability, formal/CDC-RDC where required, limitations and release evidence |
 | L3 | Netlist Qualified | L2 + synthesis, pre-PnR electrical repair of the mapped netlist, constraints, RTL/netlist equivalence, netlist checks, STA and preliminary PPA |
 | L4 | Technology Qualified | L3 + declared PDK/library/macro assumptions/PVT and technology-specific evidence such as GLS, timing and power; implementation may be included when the policy requires it |
-| L5 | Physical / Signoff Complete Digital Macro | L4 + the final physical/signoff checks required by the technology/customer, such as post-PnR STA, DRC/LVS, antenna, density/fill, equivalence, IR/EM/reliability and final layout views |
+| L5 | Physical / Signoff Complete Digital Macro | L4 + the final physical/signoff checks required by the technology/customer, such as post-implementation STA, DRC/LVS, antenna, density/fill, equivalence, IR/EM/reliability and final layout views |
 
 For ASIC targets the L3 netlist is the canonical `<top>_synth.v` **after** OpenROAD pre-placement electrical repair. The raw Yosys netlist remains diagnostic evidence. This repair may buffer or resize technology cells to satisfy Liberty fanout/capacitance/slew constraints, but it does not imply placement, CTS, routing, extraction or physical sign-off.
 
-`signoff/` is the common release namespace for technology-dependent evidence. It is split by evidence maturity: `signoff/<pdk>/post_syn/` contains post-synthesis evidence, while `signoff/<pdk>/post_pnr/` contains routed/physical evidence using the same evidence names where applicable (`sta/`, `power/`, `fusion/`); physical-only checks may be grouped under `physical/`. The directory name alone does not imply Level 5: only a qualification policy with the complete required physical evidence may claim **Physical / Signoff Complete Digital Macro**.
+`signoff/` is the common release namespace for technology-dependent evidence. It is split by evidence maturity: `signoff/<pdk>/post_syn/` contains post-synthesis evidence, while `signoff/<pdk>/post_impl/` contains routed/physical evidence using the same evidence names where applicable (`sta/`, `power/`, `fusion/`); physical-only checks may be grouped under `physical/`. The directory name alone does not imply Level 5: only a qualification policy with the complete required physical evidence may claim **Physical / Signoff Complete Digital Macro**.
 
 ## IP source and release layout
 
@@ -88,7 +88,7 @@ interfaces/<REG_ITF>/
 │   │   ├── sta/
 │   │   ├── power/
 │   │   └── fusion/
-│   └── post_pnr/             # routed/physical evidence
+│   └── post_impl/             # routed/physical evidence
 │       ├── sta/
 │       ├── power/
 │       ├── fusion/
@@ -114,9 +114,9 @@ The generated test plan also defines the default qualification GLS sampling poli
 - one SystemVerilog GLS backend (`sv`) only;
 - exactly the declared `ss`, `tt`, and `ff` timing scenarios;
 - the same selected GLS test/scenario matrix is the only activity source used by activity-based power and timing/power fusion;
-- the policy applies independently to `post_syn` and `post_pnr` when those stages are part of the requested qualification.
+- the policy applies independently to `post_syn` and `post_impl` when those stages are part of the requested qualification.
 
-The direct `sim_post_syn_all` / `sim_post_pnr_all` commands remain general-purpose selectors; qualification scripts consume the bounded policy recorded in `testplan.yaml` rather than running every RTL test at gate level.
+The direct `sim_post_syn_all` / `sim_post_impl_all` commands remain general-purpose selectors; qualification scripts consume the bounded policy recorded in `testplan.yaml` rather than running every RTL test at gate level.
 
 ## Save, load and validate
 
@@ -138,7 +138,7 @@ Requirement traceability is emitted machine-readably as `requirement -> testplan
 
 ### Current EQY baseline
 
-EQY support remains part of the Netlist Qualified policy. During the current scaffold-baseline phase FlexSoC generates EQY collateral with `fx eqy --setup` but does not run the proof by default. **Setup-only is not equivalence evidence**: the `eqy` stage remains `MISSING`, so qualification must not claim L3 until a real EQY run produces acceptable evidence (or an explicit future waiver policy is deliberately applied).
+EQY support remains part of the Netlist Qualified policy. FlexSoC generates EQY collateral with `fx eqy --setup`; `fx eqy` is an explicit runtime target but is not part of the automatic scaffold E2E matrix while profiles remain IP/interface-specific. **Setup-only is not equivalence evidence**: the `eqy` stage remains `MISSING`, so qualification must not claim L3 until a real EQY run produces acceptable evidence (or an explicit future waiver policy is deliberately applied).
 
 ## Provenance scopes
 
@@ -147,4 +147,4 @@ FlexSoC keeps one dependency model and two storage scopes:
 - RTL-scope evidence (lint, regression, CDC/RDC, formal, testbench setup) is stored once per run and is not invalidated by a PDK switch.
 - Technology-scope evidence (synthesis, equivalence, STA, GLS, power, PnR and physical checks) is stored per PDK.
 
-A stage fingerprint is meaningful only when it covers values actually consumed by the tool. Generated ORFS `config.mk` assignments are therefore passed as effective make overrides as well as hashed provenance inputs. Changing a PnR knob invalidates PnR and post-PnR descendants, not RTL or post-synthesis evidence.
+A stage fingerprint is meaningful only when it covers values actually consumed by the tool. Generated ORFS `config.mk` assignments are therefore passed as effective make overrides as well as hashed provenance inputs. Changing a PnR knob invalidates PnR and post-implementation descendants, not RTL or post-synthesis evidence.

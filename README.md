@@ -91,7 +91,7 @@ in [`docs/digital_ip_contract.md`](docs/digital_ip_contract.md).
 - one authored SDC timing contract shared by DV, CDC/RDC, synthesis setup, implementation, and STA;
 - Yosys synthesis with drive/load collateral derived from that SDC;
 - EQY RTL-to-mapped-netlist equivalence;
-- post-synthesis and post-PnR gate-level simulation;
+- post-synthesis and post-implementation gate-level simulation;
 - SDF generation;
 - OpenSTA timing and power analysis;
 - OpenROAD physical implementation;
@@ -189,6 +189,8 @@ fx syn
 # Current scaffold baseline: generate EQY collateral only.
 # EQY setup is not equivalence PASS and therefore does not satisfy L3.
 fx eqy --setup
+# Run explicitly only when this IP/interface EQY profile is ready.
+fx eqy
 
 fx signoff --setup
 fx sdf
@@ -271,7 +273,7 @@ A run is isolated by `RUN_TOP` and `RUN_ID`:
 ├── impl/<pdk>/            physical implementation branch
 ├── signoff/<pdk>/         qualification evidence
 │   ├── post_syn/          sta / power / fusion on synthesized netlist
-│   └── post_pnr/          sta / power / fusion + physical checks after PnR
+│   └── post_impl/          sta / power / fusion + physical checks after PnR
 ├── logs/                  raw command/tool logs
 └── meta/
     ├── design_intent.json

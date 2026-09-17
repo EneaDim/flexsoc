@@ -11,29 +11,14 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .backend.signoff.sta import SDF_MODE_TO_CORNER
-from .backend.core.target import BACKEND_TARGETS
-from .backend.core.session import (
+from .backend.core.flow.target import BACKEND_TARGETS
+from .backend.core.flow.session import (
     ACTIVITY_ANALYSIS_TARGETS, DEFAULT_SETTINGS,
-    POST_PNR_SIGNOFF_TARGETS, QUIET_BY_DEFAULT_TARGETS, SETUP_ONLY_TARGETS,
+    POST_IMPL_SIGNOFF_TARGETS, QUIET_BY_DEFAULT_TARGETS, SETUP_ONLY_TARGETS,
     SETUP_STAGES, SETUP_TARGETS, STREAM_BY_DEFAULT_TARGETS, TECHNOLOGY_TARGETS,
-    TargetSession, _returncode as _backend_returncode, setup_public as _setup_public,
+    TargetSession,
 )
 
-
-def _target(name: str) -> str:
-    """Accept exact, dashed, or underscored target spelling."""
-
-    for item in (name, name.replace("-", "_"), name.replace("_", "-")):
-        if item in TARGETS:
-            return item
-    raise ValueError(f"unknown target {name!r}; run `fx commands` to list targets")
-
-
-def _target_object(name: str) -> FlexSoCTargetInfo:
-    """Build one target object from the unified table."""
-
-    group, description, params = TARGETS[name]
-    return FlexSoCTargetInfo(name, group, description, params)
 
 
 # ---------------------------------------------------------------------------
@@ -257,23 +242,23 @@ TARGETS: dict[str, TargetSpec] = {
     "formal_bmc": ("DV formal", "Bounded-check authored design assertions", FORMAL),
     "formal_prove": ("DV formal", "Prove authored properties with SymbiYosys", FORMAL),
     "formal_cover": ("DV formal", "Reach authored cover properties with SymbiYosys", FORMAL),
-    "eqy": ("Signoff", "Prove RTL equivalent to the post-synthesis netlist with EQY", EQUIV),
+    "eqy": ("Signoff", "Run RTL-to-synthesis EQY equivalence from the authored scaffold", EQUIV),
     "compile_syn": ("Signoff", "Compile post-synthesis simulation", SIGNOFF),
     "sim_syn": ("Signoff", "Run post-synthesis simulation", SIGNOFF),
     "compile_post_syn": ("Gate simulation", "Compile post-synthesis gate-level simulation with Icarus", GATE_SIM),
     "sim_post_syn": ("Gate simulation", "Run post-synthesis gate-level simulation with optional SDF", GATE_SIM),
     "sim_post_syn_all": ("Gate simulation", "Run every selected post-synthesis GLS test/timing combination with one backend", GATE_SIM_ALL),
-    "compile_post_pnr": ("Gate simulation", "Compile post-PnR gate-level simulation with Icarus", GATE_SIM),
-    "signoff_post_pnr": ("Post-PnR signoff", "Run post-PnR SDF, STA and vectorless power", SIGNOFF),
-    "sdf_post_pnr": ("Post-PnR signoff", "Write post-PnR SDF from final netlist, SDC and SPEF", SIGNOFF),
-    "sta_post_pnr": ("Post-PnR signoff", "Run SPEF-aware STA with propagated clock reporting", SIGNOFF),
-    "power_estimate_post_pnr": ("Post-PnR signoff", "Estimate post-PnR power with extracted parasitics", SIGNOFF),
-    "sim_post_pnr": ("Gate simulation", "Run post-PnR gate-level simulation with optional SDF", GATE_SIM),
-    "sim_post_pnr_all": ("Gate simulation", "Run every selected post-PnR GLS test/timing combination", GATE_SIM_ALL),
-    "power_analysis_post_pnr": ("Post-PnR signoff", "Analyze post-PnR power for one GLS workload", SIGNOFF),
-    "power_analysis_post_pnr_all": ("Post-PnR signoff", "Analyze post-PnR power for all matching GLS workloads", SIGNOFF),
-    "fusion_analysis_post_pnr": ("Post-PnR signoff", "Correlate routed timing and power for one GLS workload", SIGNOFF),
-    "fusion_analysis_post_pnr_all": ("Post-PnR signoff", "Correlate routed timing and power for all GLS workloads", SIGNOFF),
+    "compile_post_impl": ("Gate simulation", "Compile post-implementation gate-level simulation with Icarus", GATE_SIM),
+    "signoff_post_impl": ("Post-implementation signoff", "Run post-implementation SDF, STA and vectorless power", SIGNOFF),
+    "sdf_post_impl": ("Post-implementation signoff", "Write post-implementation SDF from final netlist, SDC and SPEF", SIGNOFF),
+    "sta_post_impl": ("Post-implementation signoff", "Run SPEF-aware STA with propagated clock reporting", SIGNOFF),
+    "power_estimate_post_impl": ("Post-implementation signoff", "Estimate post-implementation power with extracted parasitics", SIGNOFF),
+    "sim_post_impl": ("Gate simulation", "Run post-implementation gate-level simulation with optional SDF", GATE_SIM),
+    "sim_post_impl_all": ("Gate simulation", "Run every selected post-implementation GLS test/timing combination", GATE_SIM_ALL),
+    "power_analysis_post_impl": ("Post-implementation signoff", "Analyze post-implementation power for one GLS workload", SIGNOFF),
+    "power_analysis_post_impl_all": ("Post-implementation signoff", "Analyze post-implementation power for all matching GLS workloads", SIGNOFF),
+    "fusion_analysis_post_impl": ("Post-implementation signoff", "Correlate routed timing and power for one GLS workload", SIGNOFF),
+    "fusion_analysis_post_impl_all": ("Post-implementation signoff", "Correlate routed timing and power for all GLS workloads", SIGNOFF),
     "sta": ("Signoff", "Run static timing analysis", SIGNOFF),
     "sdf": ("Signoff", "Write SDF timing files", SIGNOFF),
     "power_estimate": ("Signoff", "Estimate power using global switching activity", SIGNOFF),
@@ -439,48 +424,6 @@ class FlexSoCResult:
         }
 
 
-# ---------------------------------------------------------------------------
-# Small helpers
-# ---------------------------------------------------------------------------
-
-def _path(value: PathLike, fallback: Path) -> Path:
-    """Resolve a path-like value or fallback."""
-
-    return (Path(value) if value is not None else fallback).resolve()
-
-
-def _upper(values: Mapping[str, Any]) -> dict[str, str]:
-    """Normalize setting names to uppercase strings."""
-
-    return {str(key).upper(): str(value) for key, value in values.items() if value is not None}
-
-
-def _safe_log_name(value: str) -> str:
-    """Return a filesystem-safe log filename fragment."""
-
-    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value).strip())
-    return safe.strip("._") or "target"
-
-
-def _scenario_log_value(value: str) -> str:
-    """Render SDF min/typ/max selectors as their aligned ff/tt/ss scenarios."""
-
-    tokens = [part for part in re.split(r"[\s,]+", str(value).strip()) if part]
-    return " ".join(SDF_MODE_TO_CORNER.get(token.lower(), token) for token in tokens)
-
-def _selector_log_suffix(selectors: tuple[tuple[str, str], ...]) -> str:
-    """Return a concise suffix containing only non-default matrix selectors."""
-
-    parts: list[str] = []
-    for label, value in selectors:
-        text = str(value).strip()
-        if not text or text.lower() == "all":
-            continue
-        parts.extend((label, _safe_log_name(text)))
-    return "_".join(parts)
-
-
-
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -488,6 +431,53 @@ def _selector_log_suffix(selectors: tuple[tuple[str, str], ...]) -> str:
 
 class FlexSoC:
     """Configure and execute FlexSoC backend targets."""
+
+    @staticmethod
+    def _target(name: str) -> str:
+        """Accept exact, dashed, or underscored target spelling."""
+        for item in (name, name.replace("-", "_"), name.replace("_", "-")):
+            if item in TARGETS:
+                return item
+        raise ValueError(f"unknown target {name!r}; run `fx commands` to list targets")
+
+    @staticmethod
+    def _target_object(name: str) -> FlexSoCTargetInfo:
+        """Build one target object from the unified table."""
+        group, description, params = TARGETS[name]
+        return FlexSoCTargetInfo(name, group, description, params)
+
+    @staticmethod
+    def _path(value: PathLike, fallback: Path) -> Path:
+        """Resolve a path-like value or fallback."""
+        return (Path(value) if value is not None else fallback).resolve()
+
+    @staticmethod
+    def _upper(values: Mapping[str, Any]) -> dict[str, str]:
+        """Normalize setting names to uppercase strings."""
+        return {str(key).upper(): str(value) for key, value in values.items() if value is not None}
+
+    @staticmethod
+    def _safe_log_name(value: str) -> str:
+        """Return a filesystem-safe log filename fragment."""
+        safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value).strip())
+        return safe.strip("._") or "target"
+
+    @staticmethod
+    def _scenario_log_value(value: str) -> str:
+        """Render SDF min/typ/max selectors as their aligned ff/tt/ss scenarios."""
+        tokens = [part for part in re.split(r"[\s,]+", str(value).strip()) if part]
+        return " ".join(SDF_MODE_TO_CORNER.get(token.lower(), token) for token in tokens)
+
+    @classmethod
+    def _selector_log_suffix(cls, selectors: tuple[tuple[str, str], ...]) -> str:
+        """Return a concise suffix containing only non-default matrix selectors."""
+        parts: list[str] = []
+        for label, value in selectors:
+            text = str(value).strip()
+            if not text or text.lower() == "all":
+                continue
+            parts.extend((label, cls._safe_log_name(text)))
+        return "_".join(parts)
 
     def __init__(
         self,
@@ -508,21 +498,21 @@ class FlexSoC:
         )
         known = set(DEFAULT_SETTINGS) | {key for _, _, params in TARGETS.values() for key in params}
         env_values = {key: os.environ[f"FLEXSOC_{key}"] for key in known if f"FLEXSOC_{key}" in os.environ}
-        self.settings = _upper({**base_values, **env_values, **values})
+        self.settings = self._upper({**base_values, **env_values, **values})
         self.execution_targets = dict(execution_targets or {}) or None
 
     @property
     def project_root(self) -> Path:
         """Return the repository root used as cwd."""
 
-        return _path(self.config.project_root, Path.cwd())
+        return self._path(self.config.project_root, Path.cwd())
 
     @property
     def workdir(self) -> Path:
         """Return the explicit or persistently configured FlexSoC workspace."""
 
         selected = self.config.workdir or self.settings.get("WORKSPACE")
-        return _path(selected, self.project_root / "workspace")
+        return self._path(selected, self.project_root / "workspace")
 
     def flows(self, **overrides: Any):
         """Return the reusable object-oriented backend for this configuration."""
@@ -548,7 +538,7 @@ class FlexSoC:
     def set(self, **values: Any) -> "FlexSoC":
         """Update default backend settings in place."""
 
-        self.settings.update(_upper(values))
+        self.settings.update(self._upper(values))
         return self
 
     def override(self, **values: Any) -> "FlexSoC":
@@ -563,7 +553,7 @@ class FlexSoC:
     def targets(self) -> tuple[FlexSoCTargetInfo, ...]:
         """List every backend target exposed by fx."""
 
-        return tuple(_target_object(name) for name in TARGETS)
+        return tuple(self._target_object(name) for name in TARGETS)
 
     def target_names(self) -> tuple[str, ...]:
         """Return only callable target names."""
@@ -573,13 +563,13 @@ class FlexSoC:
     def target_info(self, target: str) -> FlexSoCTargetInfo:
         """Return metadata for one target."""
 
-        return _target_object(_target(target))
+        return self._target_object(self._target(target))
 
     def values(self, overrides: Mapping[str, Any] | None = None) -> dict[str, str]:
         """Merge defaults, discovered PDK views, workspace, and call overrides."""
 
-        call_overrides = _upper(dict(overrides or {}))
-        explicit = _upper({**DEFAULT_SETTINGS, **self.settings, **call_overrides})
+        call_overrides = self._upper(dict(overrides or {}))
+        explicit = self._upper({**DEFAULT_SETTINGS, **self.settings, **call_overrides})
         if {"N_CLOCKS", "CLOCK_DOMAINS"} & call_overrides.keys() and "CLOCK_RELATIONSHIPS" not in call_overrides:
             explicit.pop("CLOCK_RELATIONSHIPS", None)
         if (
@@ -594,9 +584,9 @@ class FlexSoC:
         pdk_values: dict[str, str] = {}
         pdk_name = explicit.get("PDK", DEFAULT_SETTINGS["PDK"])
         try:
-            from .backend.core import pdk_settings
+            from .backend.core import PdkManager
 
-            pdk_values = pdk_settings(
+            pdk_values = PdkManager.settings(
                 self.project_root,
                 pdk_name,
                 explicit.get("PDK_ROOT"),
@@ -607,12 +597,12 @@ class FlexSoC:
             # boundary with the missing LIB/PRIM path instead of breaking lint.
             pdk_values = {"PDK": pdk_name}
 
-        values = _upper({"WORKSPACE": self.workdir, **pdk_values, **explicit})
-        from .backend.core import clock_config
-        from .backend.core import pdk_paths
+        values = self._upper({"WORKSPACE": self.workdir, **pdk_values, **explicit})
+        from .backend.core import ClockConfig
+        from .backend.core import PDKRunLayout
 
-        values.update(clock_config(values).to_settings())
-        values.update(pdk_paths(self.project_root, values))
+        values.update(ClockConfig.from_values(values).to_settings())
+        values.update(PDKRunLayout.settings_from_values(self.project_root, values))
         fmt = values.get("WAVE_FORMAT", "fst").lower()
         if fmt not in {"fst", "vcd"}:
             raise ValueError("WAVE_FORMAT must be 'fst' or 'vcd'")
@@ -634,13 +624,13 @@ class FlexSoC:
     def command(self, target: str, **overrides: Any) -> FlexSoCCommand:
         """Build one direct run or internal setup command preview."""
         setup = target in SETUP_STAGES
-        name = target if setup else _target(target)
-        public = _setup_public(name) if setup else name
-        if public in POST_PNR_SIGNOFF_TARGETS:
+        name = target if setup else self._target(target)
+        public = TargetSession.setup_public(name) if setup else name
+        if public in POST_IMPL_SIGNOFF_TARGETS:
             overrides = {**overrides, "SIGNOFF_STAGE": "post_route"}
         values = self.values(overrides)
         params = set(TARGETS.get(public, ("", "", ()))[2])
-        call_values = _upper(overrides)
+        call_values = self._upper(overrides)
         shown = {key: value for key, value in {**self.settings, **call_values}.items() if key in params}
         argv = ("fx", public, *(("--setup",) if setup else ()), *(item for key, value in sorted(shown.items()) for item in ("--set", f"{key}={value}")))
         return FlexSoCCommand(name, argv, self.project_root, self._env(values), values)
@@ -653,7 +643,7 @@ class FlexSoC:
     ) -> tuple[FlexSoCCommand, ...]:
         """Build run commands or the explicit setup phase for public targets."""
 
-        requested = tuple(_target(target) for target in targets)
+        requested = tuple(self._target(target) for target in targets)
         if not setup:
             blocked = [target for target in requested if target in SETUP_ONLY_TARGETS]
             if blocked:
@@ -689,12 +679,8 @@ class FlexSoC:
         import contextlib
         import io
 
-        from .backend.core.execution import (
-            print_label,
-            print_log,
-            print_target_result,
-            print_target_start,
-            strip_ansi,
+        from .backend.core.runtime.execution import (
+        Terminal,
         )
 
         class _Stream(io.TextIOBase):
@@ -717,12 +703,12 @@ class FlexSoC:
                 self._console_pending += text
                 while "\n" in self._console_pending:
                     line, self._console_pending = self._console_pending.split("\n", 1)
-                    if self._compact_visible(strip_ansi(line)):
+                    if self._compact_visible(Terminal.strip_ansi(line)):
                         self.console.write(line + "\n")
                 self.console.flush()
 
             def write(self, text: str) -> int:
-                plain = strip_ansi(text)
+                plain = Terminal.strip_ansi(text)
                 self.log.write(plain)
                 self.log.flush()
                 if self.console is not None:
@@ -740,13 +726,13 @@ class FlexSoC:
                     if self.compact and self._console_pending:
                         pending = self._console_pending
                         self._console_pending = ""
-                        if self._compact_visible(strip_ansi(pending)):
+                        if self._compact_visible(Terminal.strip_ansi(pending)):
                             self.console.write(pending)
                     self.console.flush()
 
         results: list[FlexSoCResult] = []
         for command in commands:
-            public = _setup_public(command.target) if command.target in SETUP_STAGES else command.target
+            public = TargetSession.setup_public(command.target) if command.target in SETUP_STAGES else command.target
             _, description, _ = TARGETS.get(public, ("Target", "Run target", ()))
             stream = command.target in STREAM_BY_DEFAULT_TARGETS and not capture and not live
             quiet = command.target in QUIET_BY_DEFAULT_TARGETS and not capture and not live
@@ -758,13 +744,13 @@ class FlexSoC:
             rc, error = 0, None
 
             if not capture:
-                print_target_start(command.target, description)
+                Terminal.print_target_start(command.target, description)
                 if command.target in TECHNOLOGY_TARGETS and not live and not stream:
-                    print_label(
+                    Terminal.print_label(
                         "technology",
                         f"pdk={command.values.get('PDK')} syn={command.values.get('SYNDIR')}",
                     )
-                print_log(log_path)
+                Terminal.print_log(log_path)
 
             try:
                 with log_path.open("w", encoding="utf-8") as log, contextlib.ExitStack() as stack:
@@ -797,23 +783,23 @@ class FlexSoC:
                                 os.environ[key] = value
 
                     if capture:
-                        log.write(strip_ansi((stdout.getvalue() if stdout else "") + (stderr.getvalue() if stderr else "")))
+                        log.write(Terminal.strip_ansi((stdout.getvalue() if stdout else "") + (stderr.getvalue() if stderr else "")))
             except Exception as exc:
                 rc, error = 2, exc
                 message = f"[error] {exc}\n"
                 if capture and stderr is not None:
                     stderr.write(message)
                     log_path.write_text(
-                        strip_ansi((stdout.getvalue() if stdout else "") + stderr.getvalue()),
+                        Terminal.strip_ansi((stdout.getvalue() if stdout else "") + stderr.getvalue()),
                         encoding="utf-8",
                     )
                 else:
                     with log_path.open("a", encoding="utf-8") as log:
-                        log.write(strip_ansi(message))
+                        log.write(Terminal.strip_ansi(message))
                     print(message, end="", flush=True)
 
             if not capture:
-                print_target_result(command.target, rc)
+                Terminal.print_target_result(command.target, rc)
             result = FlexSoCResult(
                 command,
                 rc,
@@ -831,7 +817,7 @@ class FlexSoC:
     @staticmethod
     def _returncode(value: object) -> int:
         """Normalize a backend result to one public target return code."""
-        return _backend_returncode(value)
+        return TargetSession.returncode(value)
 
     def _preflight(self, command: FlexSoCCommand) -> None:
         """Validate technology requirements before any target mutates the run."""
@@ -860,20 +846,20 @@ class FlexSoC:
         workspace = Path(values.get("WORKSPACE", str(self.workdir)))
         run_top = values.get("RUN_TOP") or values.get("TOP") or "run"
         run_id = values.get("RUN_ID", "default")
-        name = _safe_log_name(command.target)
+        name = self._safe_log_name(command.target)
         if str(values.get("DEBUG", "")).strip().lower() in {"1", "true", "yes", "on"}:
             name += "_debug"
         if command.target in {"sim", "sim_v", "sim_sv", "cocotb"} and values.get("TEST_NAME"):
-            name = f"{name}_{_safe_log_name(values['TEST_NAME'])}"
-        if command.target in {"sim_post_syn_all", "sim_post_pnr_all"}:
+            name = f"{name}_{self._safe_log_name(values['TEST_NAME'])}"
+        if command.target in {"sim_post_syn_all", "sim_post_impl_all"}:
             selectors = [
                 ("tests", values.get("TEST_NAMES", "all")),
-                ("timing", _scenario_log_value(values.get("TIMING_MODES", "all"))),
+                ("timing", self._scenario_log_value(values.get("TIMING_MODES", "all"))),
             ]
             backend = values.get("GLS_BACKEND", DEFAULT_SETTINGS["GLS_BACKEND"])
             if backend != DEFAULT_SETTINGS["GLS_BACKEND"]:
                 selectors.insert(1, ("backend", backend))
-            suffix = _selector_log_suffix(tuple(selectors))
+            suffix = self._selector_log_suffix(tuple(selectors))
             if suffix:
                 name = f"{name}_{suffix}"
         elif (
@@ -885,18 +871,18 @@ class FlexSoC:
             name = "_".join(
                 (
                     name,
-                    _safe_log_name(values["TEST_NAME"]),
-                    _safe_log_name(values.get("GLS_BACKEND", "sv")),
-                    _safe_log_name(_scenario_log_value(values.get("TIMING_MODE", "zero"))),
+                    self._safe_log_name(values["TEST_NAME"]),
+                    self._safe_log_name(values.get("GLS_BACKEND", "sv")),
+                    self._safe_log_name(self._scenario_log_value(values.get("TIMING_MODE", "zero"))),
                 )
             )
         if command.target in ACTIVITY_ANALYSIS_TARGETS:
             if command.target.endswith("_all"):
-                suffix = _selector_log_suffix(
+                suffix = self._selector_log_suffix(
                     (
                         ("tests", values.get("POWER_TEST_NAMES", "all")),
                         ("backends", values.get("POWER_GLS_BACKENDS", "all")),
-                        ("timing", _scenario_log_value(values.get("POWER_TIMING_MODES", "all"))),
+                        ("timing", self._scenario_log_value(values.get("POWER_TIMING_MODES", "all"))),
                     )
                 )
                 if suffix:
@@ -905,9 +891,9 @@ class FlexSoC:
                 selectors = (
                     values.get("POWER_TEST_NAME", values.get("TEST_NAME", "smoke")),
                     values.get("POWER_GLS_BACKEND", "sv"),
-                    _scenario_log_value(values.get("POWER_TIMING_MODE", "typ")),
+                    self._scenario_log_value(values.get("POWER_TIMING_MODE", "typ")),
                 )
-                name = "_".join((name, *(_safe_log_name(value) for value in selectors)))
+                name = "_".join((name, *(self._safe_log_name(value) for value in selectors)))
         if command.target in TECHNOLOGY_TARGETS and values.get("COMMAND_LOGDIR"):
             return Path(values["COMMAND_LOGDIR"]) / f"{name}.log"
         return workspace / "runs" / run_top / run_id / "logs" / "commands" / f"{name}.log"

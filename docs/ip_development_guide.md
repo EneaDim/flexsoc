@@ -402,7 +402,6 @@ fx eqy --setup --force
 Setup-only is not equivalence evidence and does not satisfy the L3 qualification gate. When equivalence closure is intentionally in scope, execute it explicitly:
 
 ```bash
-fx eqy
 ```
 
 For unresolved partitions after a real EQY run:
@@ -527,19 +526,19 @@ FlexSoC selects final ORFS artifacts from the canonical implementation branch in
 
 ---
 
-## 13. Run post-PnR sign-off
+## 13. Run post-implementation sign-off
 
 Prepare the routed sign-off setup:
 
 ```bash
-fx signoff_post_pnr --setup --force
+fx signoff_post_impl --setup --force
 ```
 
 Then:
 
 ```bash
-fx sdf_post_pnr
-fx sta_post_pnr
+fx sdf_post_impl
+fx sta_post_impl
 ```
 
 Normally the final netlist/SPEF are resolved from the canonical implementation branch. Use explicit `NETLIST`/`SPEF_FILE` overrides only for intentional exceptional analysis.
@@ -547,11 +546,11 @@ Normally the final netlist/SPEF are resolved from the canonical implementation b
 Run routed GLS and power/fusion qualification as required:
 
 ```bash
-fx compile_post_pnr --force
-fx sim_post_pnr_all --set GLS_BACKEND=sv --set TIMING_MODES=all --set TEST_NAMES=all --set SDF_STRICT=1
-fx power_estimate_post_pnr
-fx power_analysis_post_pnr_all
-fx fusion_analysis_post_pnr_all
+fx compile_post_impl --force
+fx sim_post_impl_all --set GLS_BACKEND=sv --set TIMING_MODES=all --set TEST_NAMES=all --set SDF_STRICT=1
+fx power_estimate_post_impl
+fx power_analysis_post_impl_all
+fx fusion_analysis_post_impl_all
 fx physical_signoff --set ORS=/path/to/OpenROAD-flow-scripts/flow
 ```
 
@@ -568,7 +567,7 @@ A real hold/recovery/removal failure here is a closure problem. Unlike pre-layou
 Use:
 
 ```bash
-fx sta_post_pnr --debug
+fx sta_post_impl --debug
 ```
 
 for filtered drill-down.
@@ -760,14 +759,14 @@ fx fusion_analysis_all
 # Physical branch
 fx pnr --setup --force --set ORS=/path/to/OpenROAD-flow-scripts/flow
 fx pnr --force --set ORS=/path/to/OpenROAD-flow-scripts/flow
-fx signoff_post_pnr --setup --force
-fx sdf_post_pnr
-fx sta_post_pnr
-fx compile_post_pnr --force
-fx sim_post_pnr_all --set GLS_BACKEND=sv --set TIMING_MODES=all --set TEST_NAMES=all --set SDF_STRICT=1
-fx power_estimate_post_pnr
-fx power_analysis_post_pnr_all
-fx fusion_analysis_post_pnr_all
+fx signoff_post_impl --setup --force
+fx sdf_post_impl
+fx sta_post_impl
+fx compile_post_impl --force
+fx sim_post_impl_all --set GLS_BACKEND=sv --set TIMING_MODES=all --set TEST_NAMES=all --set SDF_STRICT=1
+fx power_estimate_post_impl
+fx power_analysis_post_impl_all
+fx fusion_analysis_post_impl_all
 fx physical_signoff --set ORS=/path/to/OpenROAD-flow-scripts/flow
 
 # Snapshot + human review

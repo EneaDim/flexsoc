@@ -185,10 +185,9 @@ The current scaffold qualification baseline generates EQY collateral but deliber
 fx eqy --setup
 ```
 
-`eqy --setup` is **not** equivalence PASS. L3 (`Netlist Qualified`) therefore remains blocked until a real EQY run is intentionally performed and produces acceptable evidence. The execution command remains available for focused equivalence work:
+`eqy --setup` is **not** equivalence PASS. L3 (`Netlist Qualified`) therefore remains blocked until `fx eqy` is intentionally run and produces acceptable evidence. The automatic scaffold E2E matrix still stops after setup because EQY profiles remain IP/interface-specific:
 
 ```bash
-fx eqy
 ```
 
 When executed, EQY selects a solver portfolio automatically:
@@ -201,8 +200,6 @@ N clocks:     PDR → SMTBMC
 Useful controls:
 
 ```bash
-fx eqy --set EQY_JOBS=8
-fx eqy --set EQY_STRATEGY_ORDER=pdr,smt
 ```
 
 Debug unresolved or failing partitions:
@@ -244,15 +241,15 @@ fx pnr --force
 fx pnr_gui
 ```
 
-Post-PnR sign-off resolves the final netlist and SPEF from the canonical
+Post-implementation sign-off resolves the final netlist and SPEF from the canonical
 implementation branch:
 
 ```bash
-fx signoff_post_pnr --setup --force
-fx sdf_post_pnr
-fx sta_post_pnr
-fx compile_post_pnr --force
-fx sim_post_pnr --force
+fx signoff_post_impl --setup --force
+fx sdf_post_impl
+fx sta_post_impl
+fx compile_post_impl --force
+fx sim_post_impl --force
 ```
 
 Use explicit `NETLIST`/`SPEF_FILE` overrides only for intentional exceptional
@@ -293,7 +290,7 @@ fx formal
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-# current scaffold baseline stops at setup-only
+# automatic scaffold E2E stops after EQY setup
 ```
 
 ### 10.2 Change RTL behavior
@@ -312,7 +309,7 @@ fx formal
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-# current scaffold baseline stops at setup-only
+# automatic scaffold E2E stops after EQY setup
 ```
 
 ### 10.3 Change RTL ports
@@ -331,7 +328,7 @@ fx formal
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-# current scaffold baseline stops at setup-only
+# automatic scaffold E2E stops after EQY setup
 ```
 
 ### 10.4 Change clock/reset architecture
@@ -355,7 +352,7 @@ fx formal
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-# current scaffold baseline stops at setup-only
+# automatic scaffold E2E stops after EQY setup
 fx signoff --setup --force
 fx sdf
 fx sta
@@ -385,7 +382,7 @@ fx formal
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-# current scaffold baseline stops at setup-only
+# automatic scaffold E2E stops after EQY setup
 ```
 
 Preserve the IP-owned HJSON, RTL, model, tests, and properties. Regenerate only
@@ -415,16 +412,16 @@ fx power_estimate
 fx pnr --setup
 fx pnr
 fx physical_signoff
-fx signoff_post_pnr --setup
-fx sdf_post_pnr
-fx sta_post_pnr
+fx signoff_post_impl --setup
+fx sdf_post_impl
+fx sta_post_impl
 fx metrics
 fx check
 fx qualify
 fx ip_save
 ```
 
-EQY remains setup-only until an actual equivalence run is part of the qualified flow.
+EQY setup remains separate from runtime evidence. Run `fx eqy` explicitly only for an IP/interface profile that is ready for equivalence execution.
 
 ## 13. Project regression
 

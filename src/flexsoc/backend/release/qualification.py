@@ -1,0 +1,1048 @@
+"""Digital IP contract, requirement traceability, and release qualification."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+import shutil
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Mapping, Sequence
+
+import yaml
+
+
+if TYPE_CHECKING:
+    from flexsoc.backend.core.core import BackendContext
+    from flexsoc.backend.core.flow.target import Target
+
+
+PROVENANCE_STATES = (
+    "MISSING",
+    "CLEAN",
+    "STALE",
+    "INVALID",
+    "MODIFIED",
+    "VALIDATED_OVERRIDE",
+)
+
+EVIDENCE_STATES = (
+    "MISSING",
+    "PASS",
+    "FAILED",
+    "REVIEW",
+    "WAIVED",
+    "STALE",
+    "INVALID",
+)
+
+QUALIFICATION_LEVELS = (
+    ("Not Qualified", "none"),
+    ("Contract Valid", "contract"),
+    ("RTL Qualified", "rtl"),
+    ("Netlist Qualified", "netlist"),
+    ("Technology Qualified", "technology"),
+    ("Physical / Signoff Complete Digital Macro", "physical_signoff"),
+)
+
+LEVEL_ALIASES = {
+    "auto": None,
+    "0": 0,
+    "none": 0,
+    "1": 1,
+    "contract": 1,
+    "contract_valid": 1,
+    "2": 2,
+    "rtl": 2,
+    "rtl_qualified": 2,
+    "3": 3,
+    "netlist": 3,
+    "netlist_qualified": 3,
+    "4": 4,
+    "technology": 4,
+    "technology_qualified": 4,
+    "5": 5,
+    "physical": 5,
+    "physical_signoff": 5,
+    "signoff": 5,
+}
+
+# Stage groups deliberately reuse the existing FlexSoC provenance graph.
+EVIDENCE_GROUPS: Mapping[str, tuple[str, ...]] = {
+    "lint": ("lint_slang_suite", "lint_verilator_suite"),
+    "functional": ("regression",),
+    "traceability": ("requirements_traceability",),
+    "cdc_rdc": ("cdc_rdc",),
+    "formal": (
+        "formal_csr_bmc",
+        "formal_bmc",
+        "formal_csr_prove",
+        "formal_prove",
+        "formal_csr_cover",
+        "formal_cover",
+    ),
+    "netlist": ("syn", "eqy", "sta"),
+    "technology": (
+        "sdf",
+        "power_estimate",
+        "sim_post_syn_all",
+        "power_analysis_all",
+        "fusion_analysis_all",
+    ),
+    "physical_signoff": (
+        "pnr",
+        "physical_signoff",
+        "sdf_post_impl",
+        "sta_post_impl",
+        "power_estimate_post_impl",
+        "sim_post_impl_all",
+        "power_analysis_post_impl_all",
+        "fusion_analysis_post_impl_all",
+    ),
+}
+
+SPEC_FILES = ("ip.md", "requirements.yaml", "testplan.yaml")
+GLS_QUALIFICATION_SCENARIOS = ("ss", "tt", "ff")
+GLS_SCENARIO_TO_TIMING_MODE = {"ss": "max", "tt": "typ", "ff": "min"}
+GLS_QUALIFICATION_BACKEND = "sv"
+GLS_MAX_QUALIFICATION_TESTS = 3
+
+@dataclass(slots=True)
+class QualificationFlow:
+    """Evaluate the Digital IP contract from canonical lifecycle evidence."""
+
+    context: "BackendContext"
+
+    def run(
+        self,
+        target: "Target",
+        *,
+        stage_states: Mapping[str, str] | None = None,
+        stage_outcomes: Mapping[str, str | None] | None = None,
+        rtl_sources: Sequence[Path] = (),
+        force: bool = False,
+    ) -> object:
+        """Execute one registered contract/qualification target."""
+
+        if target.action == "spec":
+            paths = self.context.paths
+            clocks = self.context.clocks
+            return QualificationFlow.write_spec_scaffold(
+                paths.spec,
+                ip_name=self.context.values.get("IP_NAME", paths.top),
+                clock_domains=tuple(domain.encode() for domain in clocks.domains),
+                clock_relationships=tuple(rel.encode() for rel in clocks.relationships),
+                force=force,
+            )
+        stage_states = stage_states or {}
+        stage_outcomes = stage_outcomes or {}
+        write = target.action == "qualify"
+        report = self.status(
+            stage_states=stage_states, stage_outcomes=stage_outcomes,
+            rtl_sources=rtl_sources, write=write,
+        )
+        if target.action == "status":
+            return report
+        if target.action == "qualify":
+            return 0 if report.get("target_satisfied", False) else 1
+        raise ValueError(f"unsupported qualification target: {target.name}")
+
+    def status(
+        self,
+        *,
+        stage_states: Mapping[str, str],
+        stage_outcomes: Mapping[str, str | None],
+        rtl_sources: Sequence[Path],
+        write: bool = False,
+    ) -> dict[str, object]:
+        """Validate the live contract and derive its maximum qualification level."""
+
+        paths = self.context.paths
+        values = self.context.values
+        ip_name = values.get("IP_NAME", paths.top)
+        reg_interface = values.get("REG_ITF", "tlul")
+        spec_root = paths.spec if paths.spec.is_dir() else paths.run / "contract"
+
+        spec_error = None
+        try:
+            spec = QualificationFlow.validate_spec_bundle(spec_root, ip_name=ip_name)
+        except Exception as exc:
+            spec_error = str(exc)
+            spec = {
+                "fingerprint": None,
+                "baselined_requirements": 0,
+                "covered_requirements": 0,
+                "required_evidence": ["traceability", "lint", "functional", "cdc_rdc", "formal"],
+                "tests": [],
+                "properties": [],
+                "traceability": {},
+            }
+
+        states = dict(stage_states)
+        outcomes = dict(stage_outcomes)
+        available_tests = {
+            path.name for path in paths.tests.iterdir() if path.is_dir()
+        } if paths.tests.is_dir() else set()
+        planned_tests = {str(item) for item in spec.get("tests", ())}
+        missing_tests = sorted(planned_tests - available_tests)
+
+        prove = paths.formal / "properties" / "prove"
+        cover = paths.formal / "properties" / "cover"
+        available_properties = {
+            path.stem for root in (prove, cover) if root.is_dir() for path in root.glob("*.sv")
+        }
+        planned_properties = {str(item) for item in spec.get("properties", ())}
+        missing_properties = sorted(
+            name for name in planned_properties
+            if not any(name == item or item.startswith(name) for item in available_properties)
+        )
+        states["requirements_traceability"] = "CLEAN"
+        outcomes["requirements_traceability"] = (
+            "FAILED" if missing_tests or missing_properties or spec_error else "PASS"
+        )
+
+        contract_ready = (
+            spec_error is None
+            and paths.sdc.is_file()
+            and bool(rtl_sources)
+            and any(paths.csr.glob("*.hjson"))
+        )
+        report = QualificationFlow.build_qualification_report(
+            ip_name=ip_name, reg_interface=reg_interface, pdk=paths.pdk,
+            spec=spec, stage_states=states, contract_ready=contract_ready,
+            requested_level=values.get("QUAL_LEVEL", "auto"), stage_outcomes=outcomes,
+        )
+        report["contract"] = "VALID" if contract_ready else "INVALID"
+        report["spec_error"] = spec_error
+
+        requirement_traceability: dict[str, object] = {}
+        for req_id, entries in (spec.get("traceability", {}) or {}).items():
+            traced_tests = sorted({
+                str(name) for entry in entries for name in entry.get("tests", [])
+            })
+            traced_properties = sorted({
+                str(name) for entry in entries for name in entry.get("properties", [])
+            })
+            req_missing_tests = sorted(set(traced_tests) - available_tests)
+            req_missing_properties = sorted(
+                name for name in traced_properties
+                if not any(name == item or item.startswith(name) for item in available_properties)
+            )
+            requirement_traceability[str(req_id)] = {
+                "status": "PASS" if not req_missing_tests and not req_missing_properties else "FAILED",
+                "testplan": entries,
+                "missing_tests": req_missing_tests,
+                "missing_properties": req_missing_properties,
+            }
+        report["traceability"] = {
+            "missing_tests": missing_tests,
+            "missing_properties": missing_properties,
+            "requirements": requirement_traceability,
+        }
+
+        print(
+            f"[contract] {report['contract']} fingerprint={report.get('contract_fingerprint')} "
+            f"requirements={report['requirements']['covered']}/{report['requirements']['total']}"
+        )
+        print(
+            f"[release] level={report['maximum_level']} "
+            f"{report['maximum_qualification']} interface={reg_interface} pdk={paths.pdk}"
+        )
+        for level, item in report["levels"].items():
+            blocking = item["blocking_evidence"]
+            suffix = "" if not blocking else " blocking=" + ",".join(blocking)
+            print(f"[level] L{level} {item['name']}: {item['status']}{suffix}")
+        for stage in QualificationFlow.required_stages(spec, 5):
+            state = report["evidence"].get(stage, "MISSING")
+            print(f"[evidence] {stage:<26} {state}")
+
+        if write:
+            output = paths.meta / "qualification.json"
+            output.parent.mkdir(parents=True, exist_ok=True)
+            temporary = output.with_name(f".{output.name}.tmp")
+            temporary.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            temporary.replace(output)
+            print(f"[qualification] {output}")
+        return report
+
+    @staticmethod
+    def _req_prefix(ip_name: str) -> str:
+        value = re.sub(r"[^A-Za-z0-9]+", "-", ip_name.strip()).strip("-").upper()
+        return value or "IP"
+
+    @staticmethod
+    def _write_authored(path: Path, text: str, *, force: bool) -> Path:
+        """Write one designer-owned scaffold without silent replacement."""
+
+        if path.exists() and not force:
+            return path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f".{path.name}.tmp")
+        temporary.write_text(text, encoding="utf-8")
+        temporary.replace(path)
+        return path
+
+    @staticmethod
+    def _single_clock_spec(ip_name: str, clock_domains: Sequence[str]) -> tuple[str, dict[str, object], dict[str, object]]:
+        prefix = QualificationFlow._req_prefix(ip_name)
+        domain = clock_domains[0] if clock_domains else "core:clk_i:rst_ni:10:low"
+        spec = f"""# {ip_name} — single-clock scaffold specification
+
+    Status: starter baseline generated by FlexSoC. Edit and review this file as the IP contract matures.
+
+    ## Purpose
+
+    `{ip_name}` is the minimal single-clock Digital Soft IP scaffold. It demonstrates a register-controlled two-stage datapath while keeping CSR semantics independent from the selected external register transport.
+
+    ## Clock and reset
+
+    - One declared clock/reset domain: `{domain}`.
+    - Reset assertion is asynchronous and release is synchronized by the generated wrapper.
+
+    ## Functional behavior
+
+    - The starter datapath accepts `data_i`, `coeff_i` and `valid_i`.
+    - When enabled, the configured mode selects add, XOR, left-shift, or passthrough behavior.
+    - Accepted data advances through a fixed two-stage pipeline to `data_o`/`valid_o`.
+    - Reset or the software clear control returns pipeline state and valid state to the inactive value.
+
+    ## CSR and integration contract
+
+    The CSR map is the common software-visible contract. `REG_ITF=reg_iface|tlul|axi_lite` changes only the external register transport shell and its verification driver, not CSR semantics or functional intent.
+
+    ## Assumptions and limitations
+
+    This is a didactic scaffold, not an application-specific algorithm. Requirements below are intentionally small and must be refined when the scaffold becomes a real IP.
+    """
+        requirements = {
+            "schema": 1,
+            "ip": ip_name,
+            "requirements": [
+                {"id": f"{prefix}-CLK-001", "statement": "The IP shall operate from one declared clock/reset domain and shall use asynchronous reset assertion with synchronized release at the generated top wrapper.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+                {"id": f"{prefix}-REG-001", "statement": "The software-visible CSR semantics shall remain unchanged across reg_iface, TL-UL, and AXI-Lite register-interface releases.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+                {"id": f"{prefix}-FUNC-001", "statement": "When enabled, an accepted input transaction shall produce the configured add, XOR, left-shift, or passthrough result through the starter two-stage pipeline.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+                {"id": f"{prefix}-CTRL-001", "statement": "Runtime CSR reconfiguration shall affect subsequent transactions, and reset or software clear shall return pipeline valid/state to the inactive value.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+                {"id": f"{prefix}-STAT-001", "statement": "Starter status/result CSRs shall reflect the generated pipeline busy, completion, error, and latest-result state defined by the scaffold.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+            ],
+        }
+        testplan = {
+            "schema": 1,
+            "ip": ip_name,
+            "qualification": {
+                "required_evidence": ["traceability", "lint", "functional", "cdc_rdc", "formal"],
+                "gls": {
+                    "backend": GLS_QUALIFICATION_BACKEND,
+                    "scenarios": list(GLS_QUALIFICATION_SCENARIOS),
+                    "tests": ["smoke", "corners", "reconfig"],
+                    "max_tests": GLS_MAX_QUALIFICATION_TESTS,
+                    "stages": ["post_syn", "post_impl"],
+                },
+            },
+            "items": [
+                {"id": f"{prefix}-TP-001", "requirements": [f"{prefix}-CLK-001"], "methods": ["formal", "cdc_rdc"], "properties": [f"{ip_name}_prove"]},
+                {"id": f"{prefix}-TP-002", "requirements": [f"{prefix}-REG-001"], "methods": ["simulation", "formal"], "tests": ["smoke", "reconfig"]},
+                {"id": f"{prefix}-TP-003", "requirements": [f"{prefix}-FUNC-001"], "methods": ["simulation"], "tests": ["smoke", "corners", "random_seed_1"]},
+                {"id": f"{prefix}-TP-004", "requirements": [f"{prefix}-CTRL-001"], "methods": ["simulation", "formal"], "tests": ["reconfig", "auto_toggle"], "properties": [f"{ip_name}_prove"]},
+                {"id": f"{prefix}-TP-005", "requirements": [f"{prefix}-STAT-001"], "methods": ["simulation", "formal"], "tests": ["smoke", "corners"], "properties": [f"{ip_name}_prove"]},
+            ],
+        }
+        return spec, requirements, testplan
+
+    @staticmethod
+    def _multi_clock_spec(
+        ip_name: str,
+        clock_domains: Sequence[str],
+        clock_relationships: Sequence[str],
+    ) -> tuple[str, dict[str, object], dict[str, object]]:
+        prefix = QualificationFlow._req_prefix(ip_name)
+        domains = ", ".join(f"`{item}`" for item in clock_domains) or "declared clock domains"
+        relationships = ", ".join(f"`{item}`" for item in clock_relationships) or "explicitly declared relationships"
+        spec = f"""# {ip_name} — multi-clock scaffold specification
+
+    Status: starter baseline generated by FlexSoC. Edit and review this file as the IP contract matures.
+
+    ## Purpose
+
+    `{ip_name}` is the didactic multi-clock Digital Soft IP scaffold. It demonstrates explicit clock/reset ownership, CDC structures, a small DSP datapath, clock gating, register windows, functional DV and technology qualification without pretending to be an application-specific design.
+
+    ## Clock and reset
+
+    Declared domains: {domains}.
+
+    Declared relationships: {relationships}.
+
+    Each domain owns one synchronized reset release. Cross-domain communication uses explicit synchronizers or an asynchronous FIFO rather than implicit combinational crossings. The RX-to-DSP FIFO uses a partial-reset-safe handshake so either endpoint may reset independently.
+
+    ## Functional behavior
+
+    - Global enable/software-reset controls originate in the cfg domain; DSP algorithm, gain and threshold controls remain in the DSP register domain.
+    - RX samples cross into the DSP domain through a partial-reset-safe asynchronous FIFO handshake.
+    - The DSP scaffold supports multiply-accumulate, absolute-difference and energy operations.
+    - Output ready/valid backpressure is preserved.
+    - The DSP datapath clock may be gated by the scaffold control while the control register window remains writable for restart.
+    - Status is returned to the appropriate register domain using explicit CDC structures.
+
+    ## CSR and integration contract
+
+    The CSR semantics are shared by the `reg_iface`, `tlul`, and `axi_lite` releases. The selected `REG_ITF` changes the external register transport shell only.
+
+    ## Assumptions and limitations
+
+    The CDC mechanisms are starter patterns suitable for this scaffold topology. A real IP must replace them when its coherency, throughput, safety, or latency requirements differ.
+    """
+        requirements = {
+            "schema": 1,
+            "ip": ip_name,
+            "requirements": [
+                {"id": f"{prefix}-CLK-001", "statement": "The IP shall preserve the declared cfg, RX, and DSP clock/reset domains and their explicit clock relationships.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+                {"id": f"{prefix}-REG-001", "statement": "The software-visible CSR semantics shall remain unchanged across reg_iface, TL-UL, and AXI-Lite register-interface releases.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+                {"id": f"{prefix}-CDC-001", "statement": "Control/status crossings shall use explicit synchronizers, and RX payloads shall cross into the DSP domain through the partial-reset-safe asynchronous FIFO scaffold.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+                {"id": f"{prefix}-FUNC-001", "statement": "The DSP scaffold shall implement multiply-accumulate, absolute-difference, and energy operations selected by configuration.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+                {"id": f"{prefix}-FLOW-001", "statement": "RX and DSP output interfaces shall obey the generated ready/valid flow-control and shall preserve output state under backpressure.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+                {"id": f"{prefix}-GATE-001", "statement": "DSP clock gating shall stop inactive datapath activity while preserving a control path that can re-enable the DSP domain.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+                {"id": f"{prefix}-RST-001", "statement": "External domain resets shall reset their domain-local state and the associated asynchronous-FIFO endpoint; the DSP-domain software reset shall synchronously clear DSP datapath, pipeline-valid, output and status state without acting as a FIFO flush.", "scope": "common", "origin": "scaffold", "status": "baselined"},
+            ],
+        }
+        testplan = {
+            "schema": 1,
+            "ip": ip_name,
+            "qualification": {
+                "required_evidence": ["traceability", "lint", "functional", "cdc_rdc", "formal"],
+                "gls": {
+                    "backend": GLS_QUALIFICATION_BACKEND,
+                    "scenarios": list(GLS_QUALIFICATION_SCENARIOS),
+                    "tests": ["mac_smoke", "corners", "clock_gate"],
+                    "max_tests": GLS_MAX_QUALIFICATION_TESTS,
+                    "stages": ["post_syn", "post_impl"],
+                },
+            },
+            "items": [
+                {"id": f"{prefix}-TP-001", "requirements": [f"{prefix}-CLK-001", f"{prefix}-CDC-001"], "methods": ["cdc_rdc", "formal"], "tests": ["smoke"], "properties": [f"{ip_name}_prove"]},
+                {"id": f"{prefix}-TP-002", "requirements": [f"{prefix}-REG-001"], "methods": ["simulation", "formal"], "tests": ["smoke", "reconfig"]},
+                {"id": f"{prefix}-TP-003", "requirements": [f"{prefix}-FUNC-001"], "methods": ["simulation"], "tests": ["mac_smoke", "absdiff", "energy", "corners"]},
+                {"id": f"{prefix}-TP-004", "requirements": [f"{prefix}-FLOW-001"], "methods": ["simulation", "formal"], "tests": ["smoke", "mac_smoke"], "properties": [f"{ip_name}_prove"]},
+                {"id": f"{prefix}-TP-005", "requirements": [f"{prefix}-GATE-001"], "methods": ["simulation", "cdc_rdc"], "tests": ["clock_gate"]},
+                {"id": f"{prefix}-TP-006", "requirements": [f"{prefix}-RST-001"], "methods": ["simulation", "formal", "cdc_rdc"], "tests": ["smoke", "reconfig"], "properties": [f"{ip_name}_prove"]},
+            ],
+        }
+        return spec, requirements, testplan
+
+    @staticmethod
+    def write_spec_scaffold(
+        spec_root: Path,
+        *,
+        ip_name: str,
+        clock_domains: Sequence[str],
+        clock_relationships: Sequence[str] = (),
+        force: bool = False,
+    ) -> tuple[Path, Path, Path]:
+        """Create the minimal authoritative spec/requirements/test-plan scaffold."""
+
+        if len(tuple(clock_domains)) > 1:
+            spec, requirements, testplan = QualificationFlow._multi_clock_spec(ip_name, tuple(clock_domains), tuple(clock_relationships))
+        else:
+            spec, requirements, testplan = QualificationFlow._single_clock_spec(ip_name, tuple(clock_domains))
+        root = Path(spec_root)
+        outputs = (
+            QualificationFlow._write_authored(root / "ip.md", spec, force=force),
+            QualificationFlow._write_authored(
+                root / "requirements.yaml",
+                yaml.safe_dump(requirements, sort_keys=False, allow_unicode=True),
+                force=force,
+            ),
+            QualificationFlow._write_authored(
+                root / "testplan.yaml",
+                yaml.safe_dump(testplan, sort_keys=False, allow_unicode=True),
+                force=force,
+            ),
+        )
+        QualificationFlow.validate_spec_bundle(root, ip_name=ip_name)
+        return outputs
+
+    @staticmethod
+    def _validated_gls_policy(
+        qualification: Mapping[str, object],
+        *,
+        planned_tests: set[str],
+    ) -> dict[str, object] | None:
+        raw = qualification.get("gls")
+        if raw is None:
+            return None
+        if not isinstance(raw, dict):
+            raise ValueError("qualification.gls must be a mapping")
+        backend = str(raw.get("backend", GLS_QUALIFICATION_BACKEND)).strip()
+        if backend != GLS_QUALIFICATION_BACKEND:
+            raise ValueError("qualification.gls.backend must be 'sv'")
+        tests = [str(item).strip() for item in raw.get("tests", []) if str(item).strip()]
+        max_tests = int(raw.get("max_tests", GLS_MAX_QUALIFICATION_TESTS))
+        if not 1 <= max_tests <= GLS_MAX_QUALIFICATION_TESTS:
+            raise ValueError(f"qualification.gls.max_tests must be 1..{GLS_MAX_QUALIFICATION_TESTS}")
+        if not tests or len(tests) > max_tests or len(set(tests)) != len(tests):
+            raise ValueError(f"qualification.gls.tests must contain 1..{max_tests} unique tests")
+        unknown_tests = sorted(set(tests) - planned_tests)
+        if unknown_tests:
+            raise ValueError("qualification.gls references unknown test(s): " + ", ".join(unknown_tests))
+        scenarios = [str(item).strip().lower() for item in raw.get("scenarios", GLS_QUALIFICATION_SCENARIOS)]
+        if tuple(scenarios) != GLS_QUALIFICATION_SCENARIOS:
+            raise ValueError("qualification.gls.scenarios must be exactly [ss, tt, ff]")
+        stages = [str(item).strip() for item in raw.get("stages", ["post_syn", "post_impl"])]
+        if any(item not in {"post_syn", "post_impl"} for item in stages) or not stages:
+            raise ValueError("qualification.gls.stages must contain post_syn and/or post_impl")
+        return {
+            "backend": backend,
+            "tests": tests,
+            "max_tests": max_tests,
+            "scenarios": scenarios,
+            "timing_modes": [GLS_SCENARIO_TO_TIMING_MODE[item] for item in scenarios],
+            "stages": stages,
+        }
+
+    @staticmethod
+    def sha256_file(path: Path) -> str:
+        h = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
+    @staticmethod
+    def normalize_qualification_level(value: str | int | None) -> int | None:
+        """Return a requested qualification level; None means automatic maximum."""
+
+        if value is None:
+            return None
+        key = str(value).strip().lower().replace("-", "_").replace(" ", "_") or "auto"
+        if key not in LEVEL_ALIASES:
+            choices = "auto, contract, rtl, netlist, technology, physical_signoff"
+            raise ValueError(f"QUAL_LEVEL must be one of: {choices}")
+        return LEVEL_ALIASES[key]
+
+    @staticmethod
+    def qualification_name(level: int) -> str:
+        if not 0 <= level < len(QUALIFICATION_LEVELS):
+            raise ValueError(f"invalid qualification level: {level}")
+        return QUALIFICATION_LEVELS[level][0]
+
+    @staticmethod
+    def _load_yaml(path: Path) -> object:
+        return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def validate_spec_bundle(spec_root: Path, *, ip_name: str | None = None) -> dict[str, object]:
+        """Validate the authoritative spec/requirements/test-plan bundle."""
+
+        root = Path(spec_root)
+        missing = [root / name for name in SPEC_FILES if not (root / name).is_file()]
+        if missing:
+            raise FileNotFoundError("missing Digital IP specification file(s): " + ", ".join(map(str, missing)))
+
+        requirements_doc = QualificationFlow._load_yaml(root / "requirements.yaml")
+        testplan_doc = QualificationFlow._load_yaml(root / "testplan.yaml")
+        if not isinstance(requirements_doc, dict) or not isinstance(testplan_doc, dict):
+            raise ValueError("requirements.yaml and testplan.yaml must contain mappings")
+
+        req_ip = str(requirements_doc.get("ip", "")).strip()
+        plan_ip = str(testplan_doc.get("ip", "")).strip()
+        if ip_name and (req_ip != ip_name or plan_ip != ip_name):
+            raise ValueError(
+                f"spec identity mismatch: requirements.ip={req_ip!r} testplan.ip={plan_ip!r} expected={ip_name!r}"
+            )
+        req_version = str(requirements_doc.get("version", "")).strip() or None
+        plan_version = str(testplan_doc.get("version", "")).strip() or None
+        if req_version != plan_version:
+            raise ValueError(
+                f"spec version mismatch: requirements.version={req_version!r} "
+                f"testplan.version={plan_version!r}"
+            )
+
+        requirements = requirements_doc.get("requirements", [])
+        items = testplan_doc.get("items", [])
+        if not isinstance(requirements, list) or not isinstance(items, list):
+            raise ValueError("requirements and testplan items must be lists")
+
+        req_ids: list[str] = []
+        baselined: set[str] = set()
+        for entry in requirements:
+            if not isinstance(entry, dict):
+                raise ValueError("each requirement must be a mapping")
+            req_id = str(entry.get("id", "")).strip()
+            statement = str(entry.get("statement", "")).strip()
+            if not req_id or not statement:
+                raise ValueError("each requirement needs non-empty id and statement")
+            req_ids.append(req_id)
+            if str(entry.get("status", "baselined")).strip().lower() == "baselined":
+                baselined.add(req_id)
+        if len(set(req_ids)) != len(req_ids):
+            raise ValueError("duplicate requirement id")
+
+        plan_ids: list[str] = []
+        covered: set[str] = set()
+        test_names: set[str] = set()
+        properties: set[str] = set()
+        traceability: dict[str, list[dict[str, object]]] = {req_id: [] for req_id in req_ids}
+        for entry in items:
+            if not isinstance(entry, dict):
+                raise ValueError("each test-plan item must be a mapping")
+            plan_id = str(entry.get("id", "")).strip()
+            if not plan_id:
+                raise ValueError("each test-plan item needs an id")
+            plan_ids.append(plan_id)
+            refs = entry.get("requirements", [])
+            if not isinstance(refs, list) or not refs:
+                raise ValueError(f"{plan_id}: requirements must be a non-empty list")
+            fields: dict[str, list[str]] = {}
+            for key in ("methods", "tests", "properties"):
+                raw = entry.get(key, []) or []
+                if not isinstance(raw, list):
+                    raise ValueError(f"{plan_id}: {key} must be a list")
+                fields[key] = [str(item).strip() for item in raw if str(item).strip()]
+            record = {
+                "testplan_id": plan_id,
+                "methods": fields["methods"],
+                "tests": fields["tests"],
+                "properties": fields["properties"],
+            }
+            for ref in refs:
+                req_id = str(ref)
+                if req_id not in req_ids:
+                    raise ValueError(f"{plan_id}: unknown requirement {req_id!r}")
+                covered.add(req_id)
+                traceability[req_id].append(record)
+            test_names.update(fields["tests"])
+            properties.update(fields["properties"])
+        if len(set(plan_ids)) != len(plan_ids):
+            raise ValueError("duplicate test-plan item id")
+
+        uncovered = sorted(baselined - covered)
+        if uncovered:
+            raise ValueError("baselined requirements without test-plan coverage: " + ", ".join(uncovered))
+
+        qualification = testplan_doc.get("qualification", {}) or {}
+        if not isinstance(qualification, dict):
+            raise ValueError("testplan.qualification must be a mapping")
+        required_evidence = qualification.get(
+            "required_evidence", ["traceability", "lint", "functional", "cdc_rdc", "formal"]
+        )
+        if not isinstance(required_evidence, list):
+            raise ValueError("qualification.required_evidence must be a list")
+        unknown = [str(item) for item in required_evidence if str(item) not in EVIDENCE_GROUPS]
+        if unknown:
+            raise ValueError("unknown qualification evidence group(s): " + ", ".join(unknown))
+        required_evidence = [
+            "traceability",
+            *(str(item) for item in required_evidence if str(item) != "traceability"),
+        ]
+        gls_policy = QualificationFlow._validated_gls_policy(qualification, planned_tests=test_names)
+
+        hashes = {name: QualificationFlow.sha256_file(root / name) for name in SPEC_FILES}
+        fingerprint = hashlib.sha256(
+            json.dumps(hashes, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        return {
+            "schema": 1,
+            "ip": req_ip or plan_ip or ip_name,
+            "version": req_version,
+            "requirements": len(req_ids),
+            "baselined_requirements": len(baselined),
+            "covered_requirements": len(baselined & covered),
+            "testplan_items": len(plan_ids),
+            "tests": sorted(test_names),
+            "properties": sorted(properties),
+            "traceability": traceability,
+            "required_evidence": [str(item) for item in required_evidence],
+            "gls_policy": gls_policy,
+            "hashes": hashes,
+            "fingerprint": fingerprint,
+        }
+
+    @staticmethod
+    def required_stages(spec: Mapping[str, object], level: int) -> tuple[str, ...]:
+        """Expand the policy for one qualification level into provenance stages."""
+
+        stages: list[str] = []
+        if level >= 2:
+            groups = (
+                "traceability",
+                *(
+                    str(group)
+                    for group in spec.get(
+                        "required_evidence",
+                        ("traceability", "lint", "functional", "cdc_rdc", "formal"),
+                    )
+                    if str(group) != "traceability"
+                ),
+            )
+            for group in groups:
+                stages.extend(EVIDENCE_GROUPS[group])
+        if level >= 3:
+            stages.extend(EVIDENCE_GROUPS["netlist"])
+        if level >= 4:
+            stages.extend(EVIDENCE_GROUPS["technology"])
+        if level >= 5:
+            stages.extend(EVIDENCE_GROUPS["physical_signoff"])
+        return tuple(dict.fromkeys(stages))
+
+    @staticmethod
+    def evidence_state(
+        provenance_state: str, *, outcome: str | None = None, waived: bool = False,
+    ) -> str:
+        """Combine provenance freshness with an independently recorded tool outcome."""
+
+        if waived:
+            return "WAIVED"
+        freshness = str(provenance_state).upper()
+        if freshness == "MISSING":
+            return "MISSING"
+        if freshness == "STALE":
+            return "STALE"
+        if freshness == "MODIFIED":
+            return "INVALID"
+
+        normalized = str(outcome).upper() if outcome is not None else None
+        if normalized in {"FAILED", "REVIEW", "WAIVED"}:
+            return normalized
+        if freshness == "INVALID":
+            return "INVALID"
+        if freshness in {"CLEAN", "VALIDATED_OVERRIDE"}:
+            if normalized == "PASS":
+                return "PASS"
+            # Fresh artifacts without a recorded runtime outcome are not an EDA PASS.
+            return "REVIEW" if normalized is None else "INVALID"
+        return "INVALID"
+
+    @staticmethod
+    def build_qualification_report(
+        *,
+        ip_name: str,
+        reg_interface: str,
+        pdk: str,
+        spec: Mapping[str, object],
+        stage_states: Mapping[str, str],
+        contract_ready: bool,
+        requested_level: str | int | None = None,
+        stage_outcomes: Mapping[str, str | None] | None = None,
+    ) -> dict[str, object]:
+        """Derive the maximum release level from freshness plus independent outcomes."""
+
+        outcomes = dict(stage_outcomes or {})
+        evidence = {
+            stage: QualificationFlow.evidence_state(state, outcome=outcomes.get(stage))
+            for stage, state in stage_states.items()
+        }
+        maximum = 1 if contract_ready else 0
+        maximum_pass = maximum
+        levels: dict[str, object] = {}
+        for level in range(1, 6):
+            required = QualificationFlow.required_stages(spec, level)
+            blocking = [stage for stage in required if evidence.get(stage) not in {"PASS", "WAIVED"}]
+            waived = [stage for stage in required if evidence.get(stage) == "WAIVED"]
+            satisfied = contract_ready and not blocking and (level == 1 or maximum == level - 1)
+            status = "BLOCKED"
+            if satisfied:
+                maximum = level
+                status = "WAIVED" if waived else "PASS"
+                if status == "PASS":
+                    maximum_pass = level
+            levels[str(level)] = {
+                "name": QualificationFlow.qualification_name(level),
+                "status": status,
+                "required_evidence": list(required),
+                "blocking_evidence": blocking,
+                "waived_evidence": waived,
+            }
+
+        requested = QualificationFlow.normalize_qualification_level(requested_level)
+        target_status = (
+            levels[str(requested)]["status"]
+            if requested is not None and requested > 0
+            else (levels[str(maximum)]["status"] if maximum > 0 else "BLOCKED")
+        )
+        target_satisfied = True if requested is None else target_status in {"PASS", "WAIVED"}
+        return {
+            "schema": 1,
+            "ip": ip_name,
+            "reg_interface": reg_interface,
+            "pdk": pdk,
+            "contract_fingerprint": spec.get("fingerprint"),
+            "requirements": {
+                "total": spec.get("baselined_requirements", 0),
+                "covered": spec.get("covered_requirements", 0),
+                "status": "PASS" if spec.get("baselined_requirements") == spec.get("covered_requirements") else "FAILED",
+            },
+            "maximum_level": maximum,
+            "maximum_qualification": QualificationFlow.qualification_name(maximum),
+            "maximum_pass_level": maximum_pass,
+            "maximum_pass_qualification": QualificationFlow.qualification_name(maximum_pass),
+            "qualification_status": levels[str(maximum)]["status"] if maximum > 0 else "BLOCKED",
+            "requested_level": requested,
+            "target_status": target_status,
+            "target_satisfied": target_satisfied,
+            "levels": levels,
+            "evidence": evidence,
+            "freshness": {stage: str(state).upper() for stage, state in sorted(stage_states.items())},
+            "outcomes": {
+                stage: (str(value).upper() if value is not None else None)
+                for stage, value in sorted(outcomes.items())
+            },
+        }
+
+    @staticmethod
+    def write_contract_snapshot(
+        *,
+        staged: Path,
+        spec_root: Path,
+        ip_name: str,
+        reg_interface: str,
+        version: str | None = None,
+    ) -> Path:
+        """Write one release contract metadata file against the common IP spec."""
+
+        staged = Path(staged)
+        spec = QualificationFlow.validate_spec_bundle(spec_root, ip_name=ip_name)
+        meta = staged / "meta"
+        meta.mkdir(parents=True, exist_ok=True)
+
+        source_of_truth: dict[str, object] = {
+            "specification": {
+                name: {
+                    "source": f"spec/{name}",
+                    "sha256": spec["hashes"][name],
+                }
+                for name in SPEC_FILES
+            }
+        }
+        csr = []
+        for path in sorted((staged / "csr").glob("*.hjson")):
+            csr.append({"path": path.relative_to(staged).as_posix(), "sha256": QualificationFlow.sha256_file(path)})
+        source_of_truth["registers"] = csr
+
+        authored_rtl = []
+        for path in sorted((staged / "rtl").glob("*.sv")):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if "Auto-generated by flexsoc" in text or "Generated by reggen" in text:
+                continue
+            authored_rtl.append({"path": path.relative_to(staged).as_posix(), "sha256": QualificationFlow.sha256_file(path)})
+        source_of_truth["authored_rtl"] = authored_rtl
+
+        constraints = []
+        for path in sorted((staged / "constraints").glob("*.sdc")):
+            constraints.append({
+                "path": path.relative_to(staged).as_posix(),
+                "sha256": QualificationFlow.sha256_file(path),
+            })
+        source_of_truth["constraints"] = constraints
+
+        formal_properties = []
+        properties_root = staged / "dv" / "formal" / "properties"
+        if properties_root.is_dir():
+            for path in sorted(properties_root.rglob("*.sv")):
+                formal_properties.append({
+                    "path": path.relative_to(staged).as_posix(),
+                    "sha256": QualificationFlow.sha256_file(path),
+                })
+        source_of_truth["formal_properties"] = formal_properties
+
+        contract: dict[str, object] = {
+            "schema": 2,
+            "ip": ip_name,
+            "reg_interface": reg_interface,
+            "spec_fingerprint": spec["fingerprint"],
+            "source_of_truth": source_of_truth,
+        }
+        if version:
+            contract["version"] = version
+        design_intent = meta / "design_intent.json"
+        if design_intent.is_file():
+            intent = json.loads(design_intent.read_text(encoding="utf-8"))
+            for key in ("top", "ip_intent_sha256", "design_intent", "sources"):
+                if key in intent:
+                    contract[key] = intent[key]
+            design_intent.unlink()
+
+        shutil.rmtree(staged / "contract", ignore_errors=True)
+        output = meta / "contract.json"
+        output.write_text(json.dumps(contract, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return output
+
+    @staticmethod
+    def validate_contract_snapshot(
+        package_root: Path, *, spec_root: Path | None = None,
+    ) -> dict[str, object]:
+        """Validate new merged release metadata, with legacy package read support."""
+
+        root = Path(package_root)
+        contract_file = root / "meta" / "contract.json"
+        legacy = False
+        if not contract_file.is_file():
+            contract_file = root / "contract" / "contract.json"
+            legacy = True
+        if not contract_file.is_file():
+            raise FileNotFoundError(f"missing release contract: {contract_file}")
+        contract = json.loads(contract_file.read_text(encoding="utf-8"))
+        effective_spec_root = Path(spec_root) if spec_root is not None else (
+            root / "contract" if legacy else root.parent.parent / "spec"
+        )
+        spec = QualificationFlow.validate_spec_bundle(effective_spec_root, ip_name=str(contract.get("ip", "")))
+        if contract.get("spec_fingerprint") != spec["fingerprint"]:
+            if legacy:
+                raise ValueError("release contract fingerprint does not match packaged specification")
+            raise ValueError("IP-level spec fingerprint does not match packaged contract snapshot")
+
+        source_of_truth = contract.get("source_of_truth", {}) or {}
+        if not isinstance(source_of_truth, dict):
+            raise ValueError("release contract source_of_truth must be a mapping")
+        for group in ("registers", "authored_rtl", "constraints", "formal_properties"):
+            entries = source_of_truth.get(group, []) or []
+            if not isinstance(entries, list):
+                raise ValueError(f"release contract source_of_truth.{group} must be a list")
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    raise ValueError(f"release contract {group} entry must be a mapping")
+                relative = str(entry.get("path", "")).strip()
+                expected = str(entry.get("sha256", "")).strip()
+                if not relative or not expected:
+                    raise ValueError(f"release contract {group} entry is incomplete")
+                path = root / relative
+                try:
+                    path.resolve().relative_to(root.resolve())
+                except ValueError as exc:
+                    raise ValueError(f"release contract path escapes package: {relative}") from exc
+                if not path.is_file():
+                    raise FileNotFoundError(f"release source-of-truth artifact missing: {relative}")
+                actual = QualificationFlow.sha256_file(path)
+                if actual != expected:
+                    raise ValueError(
+                        f"release source-of-truth artifact is stale: {relative} "
+                        f"expected={expected} actual={actual}"
+                    )
+
+        return {"contract": contract, "spec": spec}
+
+    @staticmethod
+    def validate_release_package(
+        package_root: Path, *, spec_root: Path | None = None,
+    ) -> dict[str, object]:
+        """Validate one frozen interface release, common spec, and evidence references."""
+
+        root = Path(package_root)
+        manifest_path = root / "ip.json"
+        if not manifest_path.is_file():
+            raise FileNotFoundError(f"missing release manifest: {manifest_path}")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("format") != "flexsoc-ip":
+            raise ValueError(f"invalid release format in {manifest_path}")
+        if "profile" in manifest:
+            raise ValueError("legacy profile identity is not allowed in interface releases")
+        reg_interface = str(manifest.get("reg_interface", "")).strip()
+        if not reg_interface or root.name != reg_interface:
+            raise ValueError(
+                f"release path/interface mismatch: path={root.name!r} reg_interface={reg_interface!r}"
+            )
+        version = str(manifest.get("version", "")).strip() or None
+        interfaces_root = next(
+            (parent for parent in root.parents if parent.name == "interfaces"),
+            None,
+        )
+        if version:
+            path_version = interfaces_root.parent.name if interfaces_root is not None else None
+            if path_version != version:
+                raise ValueError(
+                    f"release path/version mismatch: path={path_version!r} version={version!r}"
+                )
+
+        contract_data = QualificationFlow.validate_contract_snapshot(root, spec_root=spec_root)
+        contract = contract_data["contract"]
+        if contract.get("reg_interface") != reg_interface:
+            raise ValueError("release manifest and contract snapshot disagree on reg_interface")
+        if contract.get("ip") != manifest.get("name"):
+            raise ValueError("release manifest and contract snapshot disagree on IP identity")
+        if version and contract.get("version") != version:
+            raise ValueError("release manifest and contract snapshot disagree on version")
+
+        common_spec_root = (
+            Path(spec_root)
+            if spec_root is not None
+            else (interfaces_root.parent / "spec" if interfaces_root is not None else root.parent.parent / "spec")
+        )
+        common_spec = QualificationFlow.validate_spec_bundle(common_spec_root, ip_name=str(manifest.get("name", "")))
+        if version and common_spec.get("version") != version:
+            raise ValueError("release manifest and common spec disagree on version")
+        if common_spec.get("fingerprint") != contract.get("spec_fingerprint"):
+            raise ValueError("IP-level spec fingerprint does not match packaged contract snapshot")
+
+        qualification = manifest.get("qualification", {}) or {}
+        if not isinstance(qualification, dict):
+            raise ValueError("ip.json qualification must be a mapping")
+        technologies = qualification.get("technologies", {}) or {}
+        if not isinstance(technologies, dict):
+            raise ValueError("ip.json qualification.technologies must be a mapping")
+
+        checked_refs = 0
+        report_levels: list[int] = []
+        metadata_keys = {
+            "maximum_level", "maximum_qualification", "maximum_pass_level",
+            "maximum_pass_qualification", "qualification_status",
+        }
+        for pdk, evidence in technologies.items():
+            if not isinstance(evidence, dict):
+                raise ValueError(f"qualification technology {pdk!r} must be a mapping")
+            for key, value in evidence.items():
+                if key in metadata_keys:
+                    continue
+                if not isinstance(value, str):
+                    continue
+                path = root / value
+                if not path.is_file() and not path.is_dir():
+                    raise FileNotFoundError(f"qualification evidence reference missing: {value}")
+                checked_refs += 1
+            report_ref = evidence.get("qualification")
+            if isinstance(report_ref, str):
+                report = json.loads((root / report_ref).read_text(encoding="utf-8"))
+                if report.get("reg_interface") != reg_interface:
+                    raise ValueError(f"{pdk}: qualification report has wrong reg_interface")
+                if str(report.get("pdk", "")) != str(pdk):
+                    raise ValueError(f"{pdk}: qualification report has wrong PDK identity")
+                if report.get("contract_fingerprint") != contract.get("spec_fingerprint"):
+                    raise ValueError(f"{pdk}: qualification report is stale against packaged contract")
+                try:
+                    level = int(report.get("maximum_level", 0))
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(f"{pdk}: qualification report has invalid maximum_level") from exc
+                if not 0 <= level < len(QUALIFICATION_LEVELS):
+                    raise ValueError(f"{pdk}: qualification report has invalid maximum_level {level}")
+                expected_name = QualificationFlow.qualification_name(level)
+                if report.get("maximum_qualification") != expected_name:
+                    raise ValueError(f"{pdk}: qualification report level/name mismatch")
+                for key in metadata_keys:
+                    if key in evidence and evidence.get(key) != report.get(key):
+                        raise ValueError(f"{pdk}: ip.json {key} disagrees with qualification report")
+                report_levels.append(level)
+
+        summary = qualification.get("summary", {}) or {}
+        if not isinstance(summary, dict):
+            raise ValueError("ip.json qualification.summary must be a mapping")
+        expected_level = max([1, *report_levels])
+        try:
+            declared_level = int(summary.get("maximum_level", -1))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("ip.json qualification.summary.maximum_level is invalid") from exc
+        if declared_level != expected_level:
+            raise ValueError(
+                f"ip.json qualification summary is stale: maximum_level={declared_level} "
+                f"expected={expected_level}"
+            )
+        if summary.get("maximum_qualification") != QualificationFlow.qualification_name(expected_level):
+            raise ValueError("ip.json qualification summary level/name mismatch")
+
+        return {
+            "schema": 1,
+            "ip": manifest.get("name"),
+            "version": version,
+            "reg_interface": reg_interface,
+            "contract_fingerprint": contract.get("spec_fingerprint"),
+            "technology_branches": sorted(str(item) for item in technologies),
+            "checked_evidence_refs": checked_refs,
+        }

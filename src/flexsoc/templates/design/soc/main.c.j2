@@ -1,0 +1,14 @@
+<<% for module in modules|sort %>>#include "<<: module :>>.h"
+<<% endfor %>>
+int main(void) {
+<<% for module in modules %>>  <<: module :>>_init((<<: module :>>_t)<<: module|upper :>>_BASE);
+<<% endfor %>><<% if uses_uart %>>  uart_puts("FlexSoC SoC boot\n");
+  (void)uart_in((uart_t)UART_BASE);
+<<% endif %>>  for (;;) {
+<<% if uses_uart %>>    int ch = uart_in((uart_t)UART_BASE);
+    if (ch >= 0) {
+      uart_putchar(ch);
+    }
+<<% endif %>>  }
+  return 0;
+}

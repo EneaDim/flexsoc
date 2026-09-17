@@ -10,7 +10,9 @@ from pathlib import Path
 from typing import Annotated, Any, Iterable, Mapping
 
 from .api import TARGETS, FlexSoC, FlexSoCConfig
-from .backend.core.session import DEBUG_TARGETS, DEFAULT_SETTINGS, SETUP_ONLY_TARGETS, SETUP_TARGETS
+from .backend.core.flow.session import (
+    DEBUG_TARGETS, DEFAULT_SETTINGS, SETUP_ONLY_TARGETS, SETUP_TARGETS, WorkspaceFlow,
+)
 
 try:  # Keep the entry point understandable if the new CLI deps are not installed yet.
     import click
@@ -19,7 +21,7 @@ try:  # Keep the entry point understandable if the new CLI deps are not installe
     from rich.console import Console
     from rich.panel import Panel
     from rich.table import Table
-    from .backend.core.show import ShowRenderer
+    from .backend.core.render.show import ShowRenderer
 except ModuleNotFoundError as exc:  # pragma: no cover - exercised only in incomplete envs.
     _MISSING = exc.name
 else:
@@ -28,16 +30,20 @@ else:
 
 if _MISSING:  # pragma: no cover - exercised only in incomplete envs.
 
-    def app(argv: list[str] | None = None) -> int:
-        """Explain how to install the CLI dependencies."""
+    class FlexSoCCli:
+        """CLI entry point used when optional front-end dependencies are missing."""
 
-        print(
-            f"missing CLI dependency: {_MISSING}\n"
-            "run: uv sync\n"
-            "then: uv run fx --help",
-            file=sys.stderr,
-        )
-        return 2
+        def __call__(self, argv: list[str] | None = None) -> int:
+            del argv
+            print(
+                f"missing CLI dependency: {_MISSING}\n"
+                "run: uv sync\n"
+                "then: uv run fx --help",
+                file=sys.stderr,
+            )
+            return 2
+
+    app = FlexSoCCli()
 
 
 else:
@@ -95,15 +101,7 @@ Use `fx commands` to list every backend target.
     # Completion and help text
     # -----------------------------------------------------------------------
 
-    def _completion_words() -> tuple[str, ...]:
-        """Return words offered by shell and REPL completion."""
 
-        return tuple(dict.fromkeys((*PSEUDO_COMMANDS, *TARGETS, *PUBLIC_KEYWORDS, *OPTION_WORDS)))
-
-    def _complete_items(incomplete: str) -> list[str]:
-        """Complete pseudo-commands and backend targets."""
-
-        return [word for word in _completion_words() if word.startswith(incomplete)]
 
     HELP_WORDS = {"help", "info", "-h", "--help"}
     SETUP_ONLY = SETUP_ONLY_TARGETS
@@ -150,10 +148,10 @@ Use `fx commands` to list every backend target.
             ),
         ),
         (
-            "5. Synthesize and prove equivalence",
+            "5. Synthesize and prepare equivalence",
             (
                 ("fx syn --setup | fx syn", "Generate synthesis scripts, then produce the mapped netlist."),
-                ("fx eqy --setup | fx eqy", "Generate EQY configuration, then prove RTL versus mapped-netlist equivalence."),
+                ("fx eqy --setup | fx eqy", "Materialize the authored EQY scaffold, then run equivalence explicitly when desired."),
                 ("fx eqy_debug [partition]", "Diagnose unresolved equivalence partitions."),
             ),
         ),
@@ -176,10 +174,10 @@ Use `fx commands` to list every backend target.
             (
                 ("fx pnr", "Run OpenROAD and produce the final netlist, SDC, SPEF, ODB, and GDS."),
                 ("fx physical_signoff", "Run ORFS physical closure first: route DRC, antenna evidence, GDS DRC, LVS, and IR/PDN evidence."),
-                ("fx signoff_post_pnr --setup | fx sdf_post_pnr | fx sta_post_pnr", "Write routed SDF, then consume <TOP>.sdc plus routed SPEF for propagated-clock/interconnect timing."),
-                ("fx sim_post_pnr_all", "Run timing-aware post-PnR GLS across selected tests and scenarios."),
-                ("fx power_estimate_post_pnr", "Run vectorless routed power estimation."),
-                ("fx power_analysis_post_pnr_all | fx fusion_analysis_post_pnr_all", "Use routed GLS activity for activity power and timing/power correlation."),
+                ("fx signoff_post_impl --setup | fx sdf_post_impl | fx sta_post_impl", "Write routed SDF, then consume <TOP>.sdc plus routed SPEF for propagated-clock/interconnect timing."),
+                ("fx sim_post_impl_all", "Run timing-aware post-implementation GLS across selected tests and scenarios."),
+                ("fx power_estimate_post_impl", "Run vectorless routed power estimation."),
+                ("fx power_analysis_post_impl_all | fx fusion_analysis_post_impl_all", "Use routed GLS activity for activity power and timing/power correlation."),
                 ("fx manifest | fx metrics | fx check", "Collect identity, snapshot metrics, then render the closure dashboard."),
                 ("fx ip_save", "Save a reusable IP package after closure."),
             ),
@@ -191,7 +189,7 @@ Use `fx commands` to list every backend target.
                 ("fx requirements --less | fx testplan --less | fx meta --less", "Inspect the loaded contract and metadata."),
                 ("fx regmap_py tests_gen regression --setup", "Refresh generator-owned DV collateral."),
                 ("fx tests_gen --check", "Verify config.regs and vector files still match the Python generators."),
-                ("fx lint_suite regression formal syn eqy", "Run the same qualification gates as a scaffolded IP."),
+                ("fx lint_suite regression formal syn", "Run the standard reusable gates; run EQY explicitly per IP when its profile is ready."),
                 ("fx soc_start", "Initialize the SoC workspace from loaded IPs; run later SoC steps explicitly."),
             ),
         ),
@@ -241,7 +239,7 @@ Use `fx commands` to list every backend target.
         "SDF_FILE": "Explicit SDF file used for GLS.",
         "SDF_CORNER": "Corner selected for SDF generation or annotation.",
         "NETLIST": "Explicit synthesized or post-route netlist.",
-        "SIGNOFF_STAGE": "Sign-off source stage: post_syn or post_route; view also accepts post_pnr.",
+        "SIGNOFF_STAGE": "Sign-off source stage: post_syn or post_route; view also accepts post_impl.",
         "SPEF_FILE": "Extracted parasitics for post-route timing/power.",
         "PNR_SDC_FILE": "Post-route SDC override.",
         "LIBS": "Corner Liberty list or mapping.",
@@ -305,7 +303,7 @@ Use `fx commands` to list every backend target.
         "view": (
             "fx view --set PDK=ihp-sg13g2 --set SIGNOFF_STAGE=post_syn "
             "--set SIM_NAME=smoke_sv_tt --set WAVE_VIEWER=surfer",
-            "fx view --set PDK=ihp-sg13g2 --set SIGNOFF_STAGE=post_pnr "
+            "fx view --set PDK=ihp-sg13g2 --set SIGNOFF_STAGE=post_impl "
             "--set SIM_NAME=smoke_sv_tt --set WAVE_VIEWER=surfer",
         ),
         "syn": (
@@ -313,7 +311,7 @@ Use `fx commands` to list every backend target.
             "fx syn --setup --force",
             "fx syn --set TARGET_OPT=delay1",
         ),
-        "eqy": ("fx eqy --setup --force", "fx eqy"),
+        "eqy": ("fx eqy --setup", "fx eqy", "fx eqy --debug"),
         "signoff": ("fx signoff --setup --force", "fx signoff"),
         "cdc_rdc": ("fx cdc_rdc --setup --force", "fx cdc_rdc", "fx cdc_rdc --live"),
         "compile_post_syn": (
@@ -416,110 +414,11 @@ Use `fx commands` to list every backend target.
     # Human-readable guide and command help
     # -----------------------------------------------------------------------
 
-    def _guide() -> None:
-        """Print the canonical IP lifecycle in execution order."""
 
-        console.print()
-        console.print(
-            Panel(
-                "[white]Production-oriented digital IP flow: scaffold, verify, synthesize, "
-                "sign off, implement, and package.[/white]\n"
-                "[grey70]The same public commands apply to one or many clock domains.[/grey70]",
-                title="[bold orange1]FlexSoC fx[/bold orange1]",
-                subtitle="[bold bright_cyan]IP lifecycle[/bold bright_cyan]",
-                border_style="orange1",
-                padding=(1, 2),
-            )
-        )
-        table = Table(
-            title="[bold orange1]Canonical IP lifecycle[/bold orange1]",
-            box=box.ROUNDED,
-            expand=True,
-            header_style="bold white",
-            show_lines=True,
-        )
-        table.add_column("Step", style="orange1", no_wrap=True, width=30)
-        table.add_column("Command", style="bright_cyan", ratio=4)
-        table.add_column("Purpose", style="white", ratio=3)
-        for title, rows in FLOW_GUIDE:
-            for index, (command, purpose) in enumerate(rows):
-                table.add_row(title if index == 0 else "", command, purpose)
-        console.print(table)
-        console.print()
-        console.print(
-            Panel(
-                "[bold bright_cyan]fx <command> --help[/bold bright_cyan]  "
-                "[white]dedicated command help[/white]\n"
-                "[bold bright_cyan]fx <command> help[/bold bright_cyan] or "
-                "[bold bright_cyan]fx <command> info[/bold bright_cyan]  "
-                "[white]equivalent forms[/white]\n"
-                "[bold bright_cyan]fx commands[/bold bright_cyan]  "
-                "[white]complete target catalogue[/white]\n"
-                "[bold bright_cyan]--set KEY=VALUE[/bold bright_cyan]  "
-                "[white]one-shot selector or backend override[/white]",
-                title="[bold orange1]Help and execution controls[/bold orange1]",
-                border_style="orange1",
-                padding=(1, 2),
-            )
-        )
-        console.print()
 
-    def _target_name(value: str) -> str:
-        """Resolve dashed or underscored spelling against the target catalogue."""
 
-        for candidate in (value, value.replace("-", "_"), value.replace("_", "-")):
-            if candidate in TARGETS:
-                return candidate
-        raise ValueError(f"unknown target {value!r}; run `fx commands`")
 
-    def _run_target(value: str, *, allow_setup_only: bool = False) -> str:
-        """Resolve one public lifecycle keyword to its backend run target."""
 
-        name = value.replace("-", "_")
-        target = name
-        if name in SETUP_ONLY and not allow_setup_only:
-            raise ValueError(f"{name} is setup-only; use `fx {name} --setup`")
-        return _target_name(target)
-
-    def _mode_targets(values: tuple[str, ...], *, setup: bool, debug: bool) -> tuple[str, ...]:
-        """Resolve public lifecycle keywords; setup remains an execution mode."""
-
-        if setup and debug:
-            raise typer.BadParameter("--setup and --debug are mutually exclusive")
-        targets = tuple(_run_target(value, allow_setup_only=setup or debug) for value in values)
-        if setup:
-            missing = [target for target in targets if target not in SETUP_TARGETS]
-            if missing:
-                raise ValueError(f"{missing[0]} has no setup phase")
-        return targets
-
-    def _parameter_description(name: str) -> str:
-        """Return concise help for one accepted target variable."""
-
-        if name in PARAMETER_HELP:
-            return PARAMETER_HELP[name]
-        prefixes = {
-            "EQY_": "Equivalence-check override",
-            "FORMAL_": "Property-formal override",
-            "SLANG_": "Slang elaboration override",
-            "DEPS_": "Managed dependency override",
-            "TUTORIAL_": "Tutorial workspace override",
-        }
-        for prefix, label in prefixes.items():
-            if name.startswith(prefix):
-                suffix = name[len(prefix):].replace("_", " ").lower()
-                return f"{label}: {suffix}."
-        return f"Advanced backend override: {name.replace('_', ' ').lower()}."
-
-    def _target_examples(name: str, params: tuple[str, ...]) -> tuple[str, ...]:
-        """Return practical examples without duplicating the target catalogue."""
-
-        if name in TARGET_EXAMPLES:
-            return TARGET_EXAMPLES[name]
-        command = f"fx {name}"
-        if "FORCE" in params:
-            command += " --force"
-        return (command,)
 
     TARGET_HELP_SECTIONS = {
         "syn": (
@@ -588,1597 +487,1439 @@ Use `fx commands` to list every backend target.
         ),
     }
 
-    def _print_target_sections(name: str) -> None:
-        """Render concise target-specific semantics after the generic options."""
 
-        for title, rows in TARGET_HELP_SECTIONS.get(name, ()):
-            console.print(f"[bold orange1]{title}[/bold orange1]")
-            table = Table(box=box.SIMPLE, expand=True, show_header=False)
-            table.add_column("Keyword", style="bright_cyan", no_wrap=True, width=28)
-            table.add_column("Meaning", style="white", ratio=4)
-            for keyword, meaning in rows:
-                table.add_row(keyword, meaning)
-            console.print(table)
 
-    def _print_target_help(name: str) -> None:
-        """Render dedicated help for one public lifecycle keyword."""
 
-        public = name.replace("-", "_")
-        target = _run_target(public, allow_setup_only=True)
-        group, description, params = TARGETS[target]
-        console.print()
-        console.print(
-            Panel(
-                f"[white]{description}[/white]",
-                title=f"[bold orange1]fx {public}[/bold orange1]",
-                subtitle=f"[bold bright_cyan]{group}[/bold bright_cyan]",
-                border_style="orange1",
-                padding=(1, 2),
-            )
-        )
-        console.print("[bold orange1]Usage[/bold orange1]")
-        examples = (f"fx {public} --setup",) if public in SETUP_ONLY else _target_examples(target, params)
-        for example in examples:
-            console.print(f"  [bold bright_cyan]{example}[/bold bright_cyan]")
-        if target in SETUP_TARGETS:
-            console.print(
-                "[bold orange1]Setup phase[/bold orange1]  "
-                f"[white]fx {public} --setup[/white] "
-                "[grey70](--force regenerates)[/grey70]"
-            )
-        else:
-            console.print("[bold orange1]Setup phase[/bold orange1]  [grey70]none[/grey70]")
-        console.print("[bold orange1]Accepted target variables[/bold orange1]")
-        if params:
-            table = Table(box=box.SIMPLE_HEAVY, expand=True, header_style="bold white")
-            table.add_column("Variable", style="bright_cyan", no_wrap=True, width=30)
-            table.add_column("Meaning", style="white", ratio=3)
-            table.add_column("Default", style="grey70", no_wrap=True, ratio=1)
-            for parameter in params:
-                table.add_row(
-                    parameter,
-                    _parameter_description(parameter),
-                    str(DEFAULT_SETTINGS.get(parameter, "—")),
-                )
-            console.print(table)
-            console.print(
-                "[grey70]Pass variables with[/grey70] "
-                "[bold bright_cyan]--set KEY=VALUE[/bold bright_cyan]"
-            )
-        else:
-            console.print("  [grey70]No target-specific variables.[/grey70]")
-        console.print(
-            "[bold orange1]Common controls[/bold orange1]  "
-            "[bright_cyan]--workdir PATH[/bright_cyan], "
-            "[bright_cyan]--setup[/bright_cyan] [grey70](when available)[/grey70], "
-            "[bright_cyan]--dry-run[/bright_cyan], "
-            "[bright_cyan]--live[/bright_cyan], "
-            "[bright_cyan]--debug[/bright_cyan], "
-            "[bright_cyan]--info[/bright_cyan]"
-        )
-        _print_target_sections(target)
-        console.print()
 
-    def _print_pseudo_help(name: str) -> None:
-        """Render dedicated help for one Python-side pseudo-command."""
-
-        description, examples, options = PSEUDO_HELP[name]
-        console.print()
-        console.print(
-            Panel(
-                f"[white]{description}[/white]",
-                title=f"[bold orange1]fx {name}[/bold orange1]",
-                subtitle="[bold bright_cyan]CLI command[/bold bright_cyan]",
-                border_style="orange1",
-                padding=(1, 2),
-            )
-        )
-        console.print("[bold orange1]Usage[/bold orange1]")
-        for example in examples:
-            console.print(f"  [bold bright_cyan]{example}[/bold bright_cyan]")
-        console.print("[bold orange1]Options[/bold orange1]")
-        for option in options:
-            console.print(f"  [bright_cyan]{option}[/bright_cyan]")
-        console.print()
-
-    def _print_command_help(name: str) -> None:
-        """Render pseudo-command or target help from the installed catalogue."""
-
-        if name in PSEUDO_HELP:
-            _print_pseudo_help(name)
-        else:
-            _print_target_help(name)
-
-    def _help_request(args: list[str]) -> str | None:
-        """Recognize all supported dedicated-help spellings before Typer parsing."""
-
-        if len(args) != 2:
-            return None
-        if args[0] == "help":
-            return args[1]
-        if args[1] in HELP_WORDS:
-            return args[0]
-        return None
 
     # -----------------------------------------------------------------------
     # Persistent project settings and clock/reset intent
     # -----------------------------------------------------------------------
 
-    def _upper(values: Mapping[str, Any]) -> dict[str, str]:
-        """Convert settings to normalized uppercase strings."""
-
-        return {str(key).upper(): str(value) for key, value in values.items() if value is not None}
-
-    def _settings_path(root: Path, workdir: Path | None = None) -> Path:
-        """Return the settings file for the selected project or workspace."""
-
-        scope = workdir.expanduser().resolve() if workdir is not None else root
-        return scope / ".flexsoc" / "settings.json"
-
-    def _read_settings(root: Path, workdir: Path | None = None) -> dict[str, str]:
-        """Read workspace settings, falling back to project settings when absent."""
-
-        path = _settings_path(root, workdir)
-        if workdir is not None and not path.exists():
-            path = _settings_path(root)
-        values = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-        return {**DEFAULT_SETTINGS, **_upper(values)}
-
-    def _write_settings(
-        root: Path, values: Mapping[str, Any], workdir: Path | None = None
-    ) -> None:
-        """Write settings to the selected project or workspace scope."""
-
-        path = _settings_path(root, workdir)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(_upper(values), indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-    def _assignments(items: Iterable[str]) -> dict[str, str]:
-        """Parse KEY=VALUE items."""
-
-        values: dict[str, str] = {}
-        for item in items:
-            if "=" not in item:
-                raise typer.BadParameter(f"expected KEY=VALUE, got {item!r}")
-            key, value = item.split("=", 1)
-            values[key.upper()] = value
-        return values
 
     # -----------------------------------------------------------------------
     # Output helpers
     # -----------------------------------------------------------------------
 
-    def _print_commands(client: FlexSoC, as_json: bool) -> None:
-        """Print the unified target table."""
 
-        targets = client.targets()
-        if as_json:
-            print(json.dumps([target.to_dict() for target in targets], indent=2))
-            return
-        table = Table(title="FlexSoC backend targets", show_lines=False)
-        table.add_column("Target", style="cyan", no_wrap=True)
-        table.add_column("Group", style="magenta", no_wrap=True)
-        table.add_column("Description")
-        table.add_column("Variables")
-        for target in targets:
-            table.add_row(target.name, target.group, target.description, ", ".join(target.params))
-        console.print(table)
 
-    def _print_settings(values: Mapping[str, str], as_json: bool) -> None:
-        """Print settings grouped by the flow phase they control."""
-
-        if as_json:
-            print(json.dumps(dict(values), indent=2))
-            return
-        groups = (
-            ("Run", ("TOP", "RUN_TOP", "RUN_ID", "HOST")),
-            ("Clocking", ("N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS")),
-            ("Technology", ("PDK", "PDK_ROOT")),
-            ("Verification", ("REG_ITF", "COMPILER", "GLS_SIMULATOR", "WAVE_FORMAT", "TIMING_MODE")),
-            ("Paths", ("WORKSPACE", "RUN_ROOT", "SYN_DIR", "EQUIV_DIR", "IMPL_DIR")),
-        )
-        shown: set[str] = set()
-        console.print("[bold orange1]FlexSoC settings[/bold orange1]")
-        for title, keys in groups:
-            rows = [(key, values[key]) for key in keys if key in values]
-            if not rows:
-                continue
-            console.print(f"[bold bright_cyan]{title}[/bold bright_cyan]")
-            table = Table(show_header=False, box=None, pad_edge=False)
-            table.add_column("Key", style="grey70", no_wrap=True)
-            table.add_column("Value", style="white")
-            for key, value in rows:
-                shown.add(key)
-                table.add_row(key, value)
-            console.print(table)
-        extra = [(key, value) for key, value in sorted(values.items()) if key not in shown]
-        if extra:
-            console.print("[bold bright_cyan]Advanced[/bold bright_cyan]")
-            table = Table(show_header=False, box=None, pad_edge=False)
-            table.add_column("Key", style="grey70", no_wrap=True)
-            table.add_column("Value", style="white")
-            for key, value in extra:
-                table.add_row(key, value)
-            console.print(table)
-
-    def _print_info(client: FlexSoC, targets: tuple[str, ...], as_json: bool) -> None:
-        """Print machine metadata or the full dedicated target help."""
-
-        data = [client.target_info(target).to_dict() for target in targets]
-        if as_json:
-            print(json.dumps(data[0] if len(data) == 1 else data, indent=2))
-            return
-        for item in data:
-            _print_target_help(item["name"])
 
     # -----------------------------------------------------------------------
     # Command handlers
     # -----------------------------------------------------------------------
 
-    def _settings(root: Path, workdir: Path | None, items: tuple[str, ...], sets: tuple[str, ...], unsets: tuple[str, ...], reset: bool, as_json: bool) -> None:
-        """Show or update persistent project settings plus derived run roots."""
 
-        from .backend.core import layout_from_values
 
-        values = dict(DEFAULT_SETTINGS if reset else _read_settings(root, workdir))
-        for key in unsets:
-            values.pop(key.upper(), None)
-        updates = _assignments((*items, *sets))
-        if "PDK" in updates and "PDK_ROOT" not in updates:
-            values.pop("PDK_ROOT", None)
-        clock_updates = {"N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS"} & updates.keys()
-        if {"N_CLOCKS", "CLOCK_DOMAINS"} & updates.keys() and "CLOCK_RELATIONSHIPS" not in updates:
-            values.pop("CLOCK_RELATIONSHIPS", None)
-        values.update(updates)
-        if clock_updates:
-            from .backend.core import clock_config
 
-            values.update(clock_config(values).to_settings())
-        if reset or unsets or sets or items:
-            _write_settings(root, values, workdir)
-        display = dict(values)
-        if workdir is not None:
-            display["WORKSPACE"] = str(workdir.expanduser().resolve())
-        layout = layout_from_values(root, display)
-        display["RUN_ROOT"] = str(layout.run_root)
-        display["SYN_DIR"] = str(layout.syn_dir)
-        display["EQUIV_DIR"] = str(layout.equivalence_dir)
-        display["IMPL_DIR"] = str(layout.pnr_dir)
-        _print_settings(display, as_json)
 
-    def _show(client: FlexSoC, args: tuple[str, ...], sets: tuple[str, ...], *, as_json: bool) -> int:
-        """Read and structure canonical machine-readable reports without rerunning stages."""
 
-        from .backend.core.show import files, issues, keys, load, load_file
 
-        overrides = _assignments(sets)
-        values = {**DEFAULT_SETTINGS, **client.settings, **overrides}
-        top = values.get("TOP", "test")
-        run_top = values.get("RUN_TOP") or top
-        run_id = values.get("RUN_ID", "default")
-        pdk = values.get("PDK", DEFAULT_SETTINGS["PDK"])
-        run = client.workdir / "runs" / run_top / run_id
-        raw_action = (args[0] if args else "keys").strip()
-        action = raw_action.lower().replace("-", "_")
-        if len(args) > 1:
-            error_console.print("[red]fx show accepts one key/path; use `fx show files` to list documents[/red]")
-            return 2
-        if action in {"keys", "list"}:
-            rows = keys(run, top=top, pdk=pdk)
-            if as_json:
-                print(json.dumps(rows, indent=2))
-                return 0
-            table = Table(title=f"FlexSoC reports · {run_top}/{run_id} · {pdk}", header_style="bold white", expand=True)
-            table.add_column("Key", style="bright_cyan", no_wrap=True)
-            table.add_column("Available", no_wrap=True)
-            table.add_column("Source")
-            for item in rows:
-                state = "[green]yes[/green]" if item["available"] else "[grey70]no[/grey70]"
-                source = str(item["path"])
-                if item.get("selector"):
-                    source += f" : {item['selector']}"
-                table.add_row(str(item["key"]), state, source)
-            console.print(table)
-            console.print("[grey70]Use `fx show files` for every important JSON and `fx show all` to render them all.[/grey70]")
-            return 0
-        if action in {"files", "documents"}:
-            rows = files(run, top=top, pdk=pdk)
-            if as_json:
-                print(json.dumps(rows, indent=2))
-                return 0
-            table = Table(title=f"Important JSON · {run_top}/{run_id}", header_style="bold white", expand=True)
-            table.add_column("Kind", style="bright_cyan", no_wrap=True)
-            table.add_column("Path")
-            table.add_column("Bytes", justify="right")
-            table.add_column("Readable", no_wrap=True)
-            for item in rows:
-                table.add_row(str(item["kind"]), str(item["key"]), str(item["size"]),
-                              "[green]yes[/green]" if not item["error"] else "[red]no[/red]")
-            console.print(table)
-            return 0
-        if action in {"issues", "failures"}:
-            rows = issues(run, top=top, pdk=pdk)
-            if as_json:
-                print(json.dumps(rows, indent=2))
-                return 0
-            table = Table(title=f"Flow issues · {run_top}/{run_id} · {pdk}", header_style="bold white", expand=True)
-            table.add_column("Key", style="bright_cyan", no_wrap=True)
-            table.add_column("State", no_wrap=True)
-            table.add_column("Detail")
-            table.add_column("Source")
-            if not rows:
-                console.print("[green]No non-PASS canonical reports found.[/green]")
-                return 0
-            for item in rows:
-                table.add_row(str(item["key"]), ShowRenderer(console).status(item["status"]), str(item["detail"]), str(item["source"]))
-            console.print(table)
-            return 0
-        if action == "all":
-            rows = files(run, top=top, pdk=pdk)
-            if not rows:
-                error_console.print(f"[red]no important JSON documents found under {run}[/red]")
-                return 2
-            payload = []
-            for item in rows:
-                if item["error"]:
-                    payload.append({"path": item["key"], "kind": "invalid", "error": item["error"]})
-                    continue
-                document = load_file(run, str(item["key"]))
-                payload.append({"path": document.key, "kind": document.kind, "data": document.data})
-            if as_json:
-                print(json.dumps(payload, indent=2, sort_keys=True))
-                return 0
-            for index, item in enumerate(payload):
-                if index:
-                    console.print()
-                console.rule(f"[bright_cyan]{item['path']}[/bright_cyan]")
-                console.print(f"[grey70]kind:[/grey70] [white]{item['kind']}[/white]")
-                if item.get("error"):
-                    console.print(f"[red]invalid JSON: {item['error']}[/red]")
-                    continue
-                document = load_file(run, str(item["path"]))
-                ShowRenderer(console).render(document)
-            return 0
-        try:
-            if "/" in raw_action or raw_action.lower().endswith(".json"):
-                document = load_file(run, raw_action)
-            else:
-                document = load(run, top=top, pdk=pdk, key=action)
-        except (FileNotFoundError, KeyError, ValueError) as exc:
-            error_console.print(f"[red]{exc}[/red]")
-            return 2
-        if as_json:
-            print(json.dumps(document.data, indent=2, sort_keys=True))
-            return 0
-        console.print(f"[grey70]source:[/grey70] [white]{document.path}[/white]")
-        ShowRenderer(console).render(document)
-        return 0
 
-    def _configured_run(client: FlexSoC, sets: tuple[str, ...]) -> tuple[Path, dict[str, str]]:
-        """Resolve the configured run path without modifying the workspace."""
 
-        values = {**DEFAULT_SETTINGS, **client.settings, **_assignments(sets)}
-        top = values.get("TOP", "test")
-        run_top = values.get("RUN_TOP") or top
-        run_id = values.get("RUN_ID", "default")
-        return client.workdir / "runs" / run_top / run_id, values
 
-    def _requirements(client: FlexSoC, sets: tuple[str, ...], *, less: bool, as_json: bool) -> int:
-        """Render the authoritative requirements document for the configured run."""
 
-        from .backend.core.show import load_spec
-
-        run, _ = _configured_run(client, sets)
-        try:
-            document = load_spec(run, "requirements")
-        except (FileNotFoundError, KeyError, ValueError) as exc:
-            error_console.print(f"[red]{exc}[/red]")
-            return 2
-        data = document.data
-        rows = data.get("requirements", []) if isinstance(data, Mapping) else []
-        if not isinstance(rows, list):
-            error_console.print(f"[red]{document.path}: requirements must be a list[/red]")
-            return 2
-        if as_json:
-            print(json.dumps(data, indent=2, sort_keys=False))
-            return 0
-
-        title = f"Requirements · {data.get('ip', '-') } · {data.get('version', '-') }"
-        table = Table(title=title, header_style="bold white", expand=not less)
-        table.add_column("ID", style="bright_cyan", no_wrap=True)
-        table.add_column("Status", no_wrap=True)
-        if not less:
-            table.add_column("Scope", style="magenta", no_wrap=True)
-            table.add_column("Origin", style="grey70", no_wrap=True)
-        table.add_column("Statement", overflow="fold")
-        for item in rows:
-            if not isinstance(item, Mapping):
-                continue
-            values = [
-                str(item.get("id", "-")),
-                str(item.get("status", "-")),
-            ]
-            if not less:
-                values.extend((str(item.get("scope", "-")), str(item.get("origin", "-"))))
-            values.append(str(item.get("statement", "-")))
-            table.add_row(*values)
-        console.print(table)
-        console.print(f"[grey70]requirements:[/grey70] [white]{len(rows)}[/white] · [grey70]source:[/grey70] [white]{document.path}[/white]")
-        return 0
-
-    def _testplan(client: FlexSoC, sets: tuple[str, ...], *, less: bool, as_json: bool) -> int:
-        """Render the authoritative test plan for the configured run."""
-
-        from .backend.core.show import load_spec
-
-        run, _ = _configured_run(client, sets)
-        try:
-            document = load_spec(run, "testplan")
-        except (FileNotFoundError, KeyError, ValueError) as exc:
-            error_console.print(f"[red]{exc}[/red]")
-            return 2
-        data = document.data
-        rows = data.get("items", []) if isinstance(data, Mapping) else []
-        if not isinstance(rows, list):
-            error_console.print(f"[red]{document.path}: items must be a list[/red]")
-            return 2
-        if as_json:
-            print(json.dumps(data, indent=2, sort_keys=False))
-            return 0
-
-        title = f"Test plan · {data.get('ip', '-') } · {data.get('version', '-') }"
-        table = Table(title=title, header_style="bold white", expand=not less)
-        table.add_column("ID", style="bright_cyan", no_wrap=True)
-        table.add_column("Requirements", style="magenta")
-        if not less:
-            table.add_column("Methods")
-        table.add_column("Tests")
-        if not less:
-            table.add_column("Properties")
-        for item in rows:
-            if not isinstance(item, Mapping):
-                continue
-            reqs = ", ".join(str(value) for value in item.get("requirements", []) or ()) or "-"
-            methods = ", ".join(str(value) for value in item.get("methods", []) or ()) or "-"
-            tests = ", ".join(str(value) for value in item.get("tests", []) or ()) or "-"
-            properties = ", ".join(str(value) for value in item.get("properties", []) or ()) or "-"
-            values = [str(item.get("id", "-")), reqs]
-            if not less:
-                values.append(methods)
-            values.append(tests)
-            if not less:
-                values.append(properties)
-            table.add_row(*values)
-        console.print(table)
-        qualification = data.get("qualification", {}) if isinstance(data, Mapping) else {}
-        evidence = qualification.get("required_evidence", []) if isinstance(qualification, Mapping) else []
-        console.print(
-            f"[grey70]items:[/grey70] [white]{len(rows)}[/white] · "
-            f"[grey70]evidence:[/grey70] [white]{', '.join(map(str, evidence)) or '-'}[/white] · "
-            f"[grey70]source:[/grey70] [white]{document.path}[/white]"
-        )
-        return 0
-
-    def _meta(client: FlexSoC, sets: tuple[str, ...], *, less: bool, as_json: bool) -> int:
-        """Render the configured run metadata, highlighting release-critical JSON."""
-
-        from .backend.core.show import meta_documents, meta_entries
-
-        run, _ = _configured_run(client, sets)
-        rows = meta_entries(run)
-        documents = meta_documents(run)
-        if as_json:
-            print(json.dumps({"files": rows, "documents": documents}, indent=2))
-            return 0
-        if not rows:
-            error_console.print(f"[red]no metadata found below {run / 'meta'}[/red]")
-            return 2
-
-        def state(value: object) -> str:
-            token = str(value or "-").upper()
-            color = "green" if token == "PASS" else "red" if token in {"FAIL", "FAILED", "INVALID"} else "orange1"
-            return f"[{color}]{token}[/{color}]"
-
-        if not less:
-            for document in documents:
-                kind = str(document["kind"])
-                pdk = document.get("pdk")
-                data = document.get("data")
-                path = str(document["path"])
-                if not isinstance(data, Mapping):
-                    error_console.print(f"[red]{path}: invalid JSON[/red]")
-                    continue
-
-                if kind == "design_intent":
-                    intent = data.get("design_intent", {})
-                    table = Table(title="Design intent", header_style="bold white")
-                    table.add_column("Field", style="bright_cyan", no_wrap=True)
-                    table.add_column("Value", style="white", overflow="fold")
-                    for key in ("TOP", "REG_ITF", "N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS"):
-                        if isinstance(intent, Mapping) and key in intent:
-                            table.add_row(key, str(intent[key]))
-                    table.add_row("Intent SHA256", str(data.get("ip_intent_sha256", "-")))
-                    table.add_row("Sources", str(len(data.get("sources", []) or ())))
-                    console.print(table)
-                    sources = data.get("sources", [])
-                    if isinstance(sources, list) and sources:
-                        source_table = Table(title="Design-intent sources", header_style="bold grey70")
-                        source_table.add_column("Path", style="white", overflow="fold")
-                        source_table.add_column("SHA256", style="grey70", no_wrap=True)
-                        for item in sources:
-                            if isinstance(item, Mapping):
-                                source_table.add_row(str(item.get("path", "-")), str(item.get("sha256", "-")))
-                        console.print(source_table)
-
-                elif kind == "qualification":
-                    title = f"Qualification · {pdk or '-'}"
-                    requirements = data.get("requirements", {})
-                    req_text = "-"
-                    if isinstance(requirements, Mapping):
-                        req_text = f"{requirements.get('covered', '-')} / {requirements.get('total', '-')} · {requirements.get('status', '-')}"
-                    summary = Table(title=title, header_style="bold white")
-                    summary.add_column("Field", style="bright_cyan", no_wrap=True)
-                    summary.add_column("Value", style="white", overflow="fold")
-                    summary.add_row("Maximum", f"L{data.get('maximum_level', '-')} · {data.get('maximum_qualification', '-')}")
-                    summary.add_row("Maximum PASS", f"L{data.get('maximum_pass_level', '-')} · {data.get('maximum_pass_qualification', '-')}")
-                    summary.add_row("Status", state(data.get("qualification_status")))
-                    summary.add_row("Requirements", req_text)
-                    console.print(summary)
-
-                    levels = data.get("levels", {})
-                    if isinstance(levels, Mapping) and levels:
-                        level_table = Table(title=f"Qualification levels · {pdk or '-'}", header_style="bold grey70")
-                        level_table.add_column("Level", style="bright_cyan", no_wrap=True)
-                        level_table.add_column("Name", style="white")
-                        level_table.add_column("Status", no_wrap=True)
-                        level_table.add_column("Blocking evidence", style="white", overflow="fold")
-                        for level, item in levels.items():
-                            if not isinstance(item, Mapping):
-                                continue
-                            blocking = ", ".join(map(str, item.get("blocking_evidence", []) or ())) or "-"
-                            level_table.add_row(f"L{level}", str(item.get("name", "-")), state(item.get("status")), blocking)
-                        console.print(level_table)
-
-                    evidence = data.get("evidence", {})
-                    if isinstance(evidence, Mapping) and evidence:
-                        evidence_table = Table(title=f"Qualification evidence · {pdk or '-'}", header_style="bold grey70")
-                        evidence_table.add_column("Stage", style="bright_cyan")
-                        evidence_table.add_column("State", no_wrap=True)
-                        for stage, value in evidence.items():
-                            evidence_table.add_row(str(stage), state(value))
-                        console.print(evidence_table)
-
-                elif kind == "provenance":
-                    stages = data.get("stages", {})
-                    table = Table(title=f"Provenance · {pdk or '-'}", header_style="bold white")
-                    table.add_column("Stage", style="bright_cyan")
-                    table.add_column("Inputs", justify="right")
-                    table.add_column("Generated", justify="right")
-                    table.add_column("Parents", justify="right")
-                    table.add_column("Paths", no_wrap=True)
-                    table.add_column("Fingerprint", style="grey70", no_wrap=True)
-                    if isinstance(stages, Mapping):
-                        for stage, item in stages.items():
-                            if not isinstance(item, Mapping):
-                                continue
-                            path_state = "OK" if item.get("input_paths_match", True) else "MISMATCH"
-                            table.add_row(
-                                str(stage),
-                                str(len(item.get("inputs", []) or ())),
-                                str(len(item.get("generated", []) or ())),
-                                str(len(item.get("parents", {}) or {})),
-                                state("PASS" if path_state == "OK" else "INVALID"),
-                                str(item.get("fingerprint", "-"))[:16],
-                            )
-                    console.print(table)
-
-            console.print(
-                "[grey70]Raw JSON:[/grey70] [white]fx show design_intent[/white] · "
-                "[white]fx show qualification[/white] · [white]fx show provenance[/white]"
-            )
-
-        table = Table(title=f"Metadata files · {run.name}", header_style="bold white", expand=not less)
-        table.add_column("Path", style="bright_cyan")
-        table.add_column("Bytes", justify="right", no_wrap=True)
-        if not less:
-            table.add_column("Summary", overflow="fold")
-        for item in rows:
-            values = [str(item["path"]), str(item["size"])]
-            if not less:
-                values.append(str(item.get("summary") or "-"))
-            table.add_row(*values)
-        console.print(table)
-        console.print(f"[grey70]files:[/grey70] [white]{len(rows)}[/white] · [grey70]root:[/grey70] [white]{run / 'meta'}[/white]")
-        return 0
-
-    def _tests_gen_check(client: FlexSoC, sets: tuple[str, ...], *, as_json: bool) -> int:
-        """Verify generated vector files against the authoritative Python generators."""
-
-        flow = client.flows(**_assignments(sets))
-        paths = flow.context.paths
-        try:
-            result = flow.dv.functional.check_tests(paths.tests, paths.top)
-        except (FileNotFoundError, RuntimeError, OSError) as exc:
-            error_console.print(f"[red]{exc}[/red]")
-            return 2
-        if as_json:
-            print(json.dumps(result, indent=2))
-            return 0 if result["ok"] else 1
-        if result["ok"]:
-            console.print(
-                f"[green]PASS[/green] generated tests match Python source · "
-                f"[white]{result['files']} files[/white]"
-            )
-            return 0
-        table = Table(title="Generated-test drift", header_style="bold white")
-        table.add_column("State", no_wrap=True)
-        table.add_column("Path", style="white")
-        for state in ("missing", "extra", "modified"):
-            for path in result[state]:
-                color = "red" if state != "extra" else "orange1"
-                table.add_row(f"[{color}]{state.upper()}[/{color}]", str(path))
-        console.print(table)
-        error_console.print("[red]generated tests do not match the authoritative Python source; run `fx tests_gen`[/red]")
-        return 1
 
     # -----------------------------------------------------------------------
     # Technology and equivalence diagnostics
     # -----------------------------------------------------------------------
 
-    def _pdk(
-        root: Path,
-        workdir: Path | None,
-        args: tuple[str, ...],
-        sets: tuple[str, ...],
-        *,
-        force: bool,
-        as_json: bool,
-    ) -> int:
-        """List, inspect, fetch, or activate a PDK profile."""
-
-        from .backend.core import (
-            describe, discover_views, fetch, json_text, list_data, normalize_name, pdk_settings,
-        )
-
-        action = args[0] if args else "list"
-        name = args[1] if len(args) > 1 else None
-        extra = _assignments(sets)
-        pdk_root = extra.get("PDK_ROOT")
-
-        if action == "list":
-            data = list_data(root)
-            if as_json:
-                print(json_text(data))
-                return 0
-            table = Table(title="FlexSoC PDK catalogue")
-            table.add_column("PDK", style="bright_cyan", no_wrap=True)
-            table.add_column("Node", no_wrap=True)
-            table.add_column("Class")
-            table.add_column("ORFS", no_wrap=True)
-            table.add_column("Local")
-            for item in data:
-                views = item["views"]
-                state = "ready" if views["usable"] else ("fetched" if Path(views["root"]).exists() else "-")
-                table.add_row(str(item["name"]), str(item["node"]), str(item["classification"]), str(item["orfs_platform"]), state)
-            console.print(table)
-            return 0
-
-        if action not in {"info", "fetch", "use"}:
-            raise typer.BadParameter("pdk action must be list, info, fetch, or use")
-        if not name:
-            raise typer.BadParameter(f"fx pdk {action} requires a PDK name")
-        canonical = normalize_name(name)
-
-        if action == "fetch":
-            path = fetch(root, canonical, force=force, version=extra.get("PDK_VERSION"))
-            data = describe(root, canonical, path)
-            if as_json:
-                print(json_text(data))
-            else:
-                console.print(f"[bold orange1]PDK fetched[/bold orange1]: [bright_cyan]{canonical}[/bright_cyan]")
-                console.print(f"[white]path[/white]: {path}")
-                ready = bool(data["views"]["usable"])
-                state = "ready for digital flow" if ready else "source fetched; digital Liberty/Verilog views still need preparation"
-                console.print(f"[white]status[/white]: {state}")
-            return 0
-
-        data = describe(root, canonical, pdk_root)
-        if action == "info":
-            if as_json:
-                print(json_text(data))
-            else:
-                views = data["views"]
-                console.print(f"[bold orange1]PDK profile[/bold orange1] · [bold bright_cyan]{data['title']}[/bold bright_cyan]")
-                for title, rows in (
-                    ("Identity", (("Name", canonical), ("Node", data["node"]), ("Class", data["classification"]), ("OpenROAD platform", data["orfs_platform"]))),
-                    ("Source / installation", (("Provider", data["fetch_provider"]), ("Source", data["source_url"]), ("Revision", data.get("fetch", {}).get("revision") or "-"), ("Root", views["root"]), ("Status", "ready" if views["usable"] else "not ready"))),
-                    ("Digital views", (("Liberty typical", views.get("liberty_typ") or "missing"), ("Liberty slow", views.get("liberty_slow") or "-"), ("Liberty fast", views.get("liberty_fast") or "-"), ("Functional Verilog", f"{len(views['verilog_models'])} model(s)" if views["verilog_models"] else "missing"))),
-                ):
-                    console.print(f"[bold bright_cyan]{title}[/bold bright_cyan]")
-                    table = Table(show_header=False, box=None, pad_edge=False)
-                    table.add_column("Field", style="grey70", no_wrap=True)
-                    table.add_column("Value", style="white")
-                    for key, value in rows:
-                        table.add_row(str(key), str(value))
-                    console.print(table)
-                if data.get("formal_adapter_required"):
-                    console.print(f"[grey70]Formal adapter:[/grey70] [white]{data.get('formal_adapter') or 'missing'}[/white]")
-                console.print(f"[grey70]{data['note']}[/grey70]")
-            return 0
-
-        install = Path(pdk_root).expanduser().resolve() if pdk_root else Path(data["views"]["root"])
-        views = discover_views(install, canonical)
-        if not views.usable:
-            raise typer.BadParameter(
-                f"PDK {canonical} is not ready for digital flow under {install}; "
-                "need at least a typical Liberty and functional gate-level Verilog model"
-            )
-        current = _read_settings(root, workdir)
-        current.update({"PDK": canonical, "PDK_ROOT": str(install)})
-        _write_settings(root, current, workdir)
-        derived = pdk_settings(root, canonical, install)
-        if as_json:
-            print(json_text({"active": canonical, "settings": current, "derived": derived}))
-        else:
-            console.print(f"[bold orange1]PDK active[/bold orange1]: [bright_cyan]{canonical}[/bright_cyan]")
-            console.print(f"[white]root[/white]: {install}")
-            console.print(f"[white]Liberty[/white]: {derived.get('LIB_SYN', '-')}")
-            console.print(f"[white]OpenROAD[/white]: {derived.get('ORS_TECH', '-')}")
-            console.print(
-                "[grey70]Shared RTL, DV, formal, and SDC artifacts remain valid. "
-                "Rerun syn --setup/syn, eqy --setup/eqy, signoff --setup, SDF/STA/power, "
-                "GLS activity power, manifest, metrics, and check.[/grey70]"
-            )
-        return 0
 
 
 
-    def _eqy_debug(
-        root: Path,
-        workdir: Path | None,
-        args: tuple[str, ...],
-        sets: tuple[str, ...],
-        *,
-        as_json: bool,
-    ) -> int:
-        """Explain one EQY failure; expensive probes target only the selected partition."""
-
-        from .backend.syn.eqy import (
-            choose_trace, describe_partition, discover_result_dir, explain_counterexample, open_wave,
-            run_reset_normalized_diagnostic, run_synthesis_boundary_diagnostics,
-            scan, select, synthesis_boundary_diagnosis,
-        )
-
-        settings = _read_settings(root, workdir)
-        settings.update(_assignments(sets))
-        top = settings.get("TOP", "test")
-        run_top = settings.get("RUN_TOP") or top
-        run_id = settings.get("RUN_ID", "default")
-        pdk = settings.get("PDK", DEFAULT_SETTINGS["PDK"])
-        workspace = (workdir or Path(settings.get("WORKSPACE", root / "workspace"))).expanduser().resolve()
-
-        values = list(args)
-        action = "show"
-        if values and values[0] in {"--wave", "wave", "open"}:
-            action = "wave"
-            values.pop(0)
-        elif values and values[0] in {"--files", "files"}:
-            action = "files"
-            values.pop(0)
-        partition = values.pop(0) if values else None
-        trace_kind = values.pop(0) if values else "auto"
-        if values:
-            error_console.print("[red]eqy_debug accepts at most one partition and one trace kind[/red]")
-            return 2
-
-        try:
-            result_dir = discover_result_dir(root, workspace, top=top, run_top=run_top, run_id=run_id, pdk=pdk)
-            rows = scan(result_dir)
-        except (FileNotFoundError, ValueError) as exc:
-            error_console.print(f"[red]{exc}[/red]")
-            return 2
-
-        total = len(rows)
-        passed = sum(row.status == "PASS" for row in rows)
-        closure = 100.0 * passed / total if total else 0.0
-        non_pass = tuple(row for row in rows if row.status != "PASS")
-        if not non_pass:
-            payload = {"pdk": pdk, "result_dir": str(result_dir), "passed": passed, "total": total, "closure_pct": closure}
-            if as_json:
-                print(json.dumps(payload, indent=2))
-            else:
-                console.print(Panel.fit(
-                    f"PDK: [white]{pdk}[/white]\n[green]{passed}/{total} partitions proven · {closure:.2f}%[/green]\n[green]EQY PASS[/green]",
-                    title="EQY debug", border_style="green",
-                ))
-            return 0
-
-        try:
-            item = select(rows, partition)
-        except ValueError as exc:
-            if partition is not None:
-                error_console.print(f"[red]{exc}[/red]")
-                return 2
-            if as_json:
-                print(json.dumps({"pdk": pdk, "passed": passed, "total": total, "closure_pct": closure,
-                                  "counterexamples": [entry.to_dict() for entry in non_pass]}, indent=2))
-            else:
-                table = Table(title=f"EQY debug · {passed}/{total} PASS · {closure:.2f}%",
-                              header_style="bold grey70", border_style="grey50")
-                table.add_column("Partition", style="white")
-                table.add_column("Status")
-                table.add_column("Strategy", style="grey70")
-                max_rows = 24
-                for entry in non_pass[:max_rows]:
-                    strategy = entry.failing_strategy
-                    color = "red" if entry.status == "FAIL" else "orange1"
-                    table.add_row(entry.partition, f"[{color}]{entry.status}[/{color}]", strategy.name if strategy else "-")
-                console.print(table)
-                hidden = len(non_pass) - max_rows
-                if hidden > 0:
-                    console.print(
-                        f"[grey70]Showing {max_rows}/{len(non_pass)} non-PASS partitions; "
-                        f"{hidden} omitted. Use[/grey70] [white]fx eqy_debug --json[/white] [grey70]for the complete list.[/grey70]"
-                    )
-                console.print("[grey70]Select one:[/grey70] [white]fx eqy_debug <partition>[/white]")
-            return 0
-
-        strategy = item.failing_strategy
-        if strategy is None:
-            error_console.print(
-                f"[red]partition {item.partition} has no failing strategy[/red]"
-            )
-            return 2
-        if action == "files":
-            files = (*strategy.traces, *strategy.logs)
-            if as_json:
-                print(json.dumps({"partition": item.partition, "strategy": strategy.name,
-                                  "directory": str(strategy.directory), "files": [str(path) for path in files]}, indent=2))
-            else:
-                console.print(f"[orange1]{item.partition}[/orange1] · [white]{strategy.name}[/white]")
-                console.print(f"[grey70]directory:[/grey70] [white]{strategy.directory}[/white]")
-                for path in files:
-                    console.print(f"  [white]{path}[/white]")
-            return 0
-        if action == "wave":
-            try:
-                trace = choose_trace(strategy, trace_kind)
-                viewer = settings.get("WAVE_VIEWER", "gtkwave")
-                session, _ = open_wave(trace, item.partition, viewer=viewer)
-            except (FileNotFoundError, ValueError, OSError) as exc:
-                error_console.print(f"[red]{exc}[/red]")
-                return 2
-            if as_json:
-                print(json.dumps({"partition": item.partition, "trace": str(trace), "viewer": viewer,
-                                  "session": str(session) if session else None}, indent=2))
-            else:
-                console.print(f"[orange1][eqy_debug][/orange1] waveform · [white]{item.partition}[/white]")
-                console.print(f"[grey70]trace:[/grey70] [white]{trace}[/white]")
-                console.print(f"[grey70]viewer:[/grey70] [white]{viewer}[/white]")
-            return 0
-
-        try:
-            explanation = explain_counterexample(item)
-        except (FileNotFoundError, ValueError, OSError) as exc:
-            error_console.print(f"[red]{exc}[/red]")
-            return 2
-
-        if not as_json:
-            console.print(Panel.fit(
-                f"PDK: [white]{pdk}[/white]\n[white]{passed}/{total} partitions proven[/white] · [orange1]{closure:.2f}%[/orange1]\n"
-                f"partition: [white]{item.partition}[/white]\nstatus: [red]{item.status}[/red] · strategy: [white]{strategy.name}[/white]",
-                title="EQY debug", border_style="orange1",
-            ))
-            failure = explanation.get("failure") or {}
-            divergence = explanation.get("first_divergence")
-            facts = Table(title="Counterexample", header_style="bold grey70", border_style="grey50")
-            facts.add_column("Field", style="grey70")
-            facts.add_column("Value", style="white")
-            phase = failure.get("phase") or "unknown"
-            step = failure.get("step")
-            facts.add_row("Proof", phase + (f" · step {step}" if step is not None else ""))
-            facts.add_row("Class", str(explanation.get("classification", "unclassified")))
-            decoded = describe_partition(item.partition)
-            if decoded:
-                facts.add_row("Signal", decoded)
-            if divergence:
-                facts.add_row("First divergence", f"t={divergence.get('time')}")
-                facts.add_row("Gold", f"{divergence.get('gold_signal')} = {divergence.get('gold')}")
-                facts.add_row("Gate", f"{divergence.get('gate_signal')} = {divergence.get('gate')}")
-                if divergence.get("gold_x_signal"):
-                    facts.add_row("X masks", f"gold={divergence.get('gold_x')} · gate={divergence.get('gate_x')}")
-            console.print(facts)
-
-        clock = settings.get("EQY_CLOCK", "clk_i").strip() or "clk_i"
-        reset = settings.get("EQY_RESET", "rst_ni").strip() or "rst_ni"
-        reset_active = settings.get("EQY_RESET_ACTIVE", "low").strip().lower() or "low"
-        explicit_reset = any(key in settings for key in ("EQY_CLOCK", "EQY_RESET", "EQY_RESET_ACTIVE"))
-        reset_domains = None
-        if not explicit_reset:
-            try:
-                from .backend.core import clock_config
-                reset_domains = tuple(
-                    (domain.signal, domain.reset, domain.reset_polarity)
-                    for domain in clock_config(settings).domains
-                )
-            except (TypeError, ValueError):
-                reset_domains = None
-        try:
-            reset_cycles = int(settings.get("EQY_RESET_CYCLES", "1"))
-        except ValueError:
-            reset_cycles = 1
-        eqy = str(settings.get("EQY", "eqy"))
-
-        if not as_json:
-            console.print(f"[bold orange1][eqy_debug][/bold orange1] reset-state probe · [bright_cyan]{item.partition}[/bright_cyan]")
-        try:
-            reset_probe = run_reset_normalized_diagnostic(
-                result_dir, partition=item.partition, clock=clock, reset=reset,
-                reset_active=reset_active, reset_cycles=reset_cycles, eqy=eqy,
-                domains=reset_domains,
-            )
-        except (FileNotFoundError, ValueError, RuntimeError, OSError) as exc:
-            reset_probe = {"valid": False, "error": str(exc)}
-        if not as_json:
-            if reset_probe.get("valid"):
-                status = str(reset_probe.get("status", "UNKNOWN"))
-                color = "green" if status == "PASS" else "red" if status == "FAIL" else "orange1"
-                cached = " · cached" if reset_probe.get("cached") else ""
-                console.print(f"  [{color}]{status}[/{color}]{cached}")
-            else:
-                console.print("  [orange1]INCONCLUSIVE[/orange1]")
-
-        synthesis_probe: dict[str, object] | None = None
-        if reset_probe.get("valid") and reset_probe.get("status") != "PASS":
-            from .backend.core import pdk_run_layout, run_root
-            layout = pdk_run_layout(run_root(workspace, run_top=run_top, run_id=run_id), pdk=pdk, top=top)
-            def progress(stage: str) -> None:
-                if not as_json:
-                    labels = {
-                        "generic": "generic synthesis",
-                        "dffmap": "after dfflibmap",
-                        "abc": "after ABC",
-                        "clean": "after final cleanup",
-                    }
-                    console.print(f"[bold orange1][eqy_debug][/bold orange1] {labels.get(stage, stage)} · [bright_cyan]{item.partition}[/bright_cyan]")
-            synthesis_probe = run_synthesis_boundary_diagnostics(
-                result_dir, top=top, syn_dir=layout.syn_dir, partition=item.partition,
-                eqy=eqy, progress=progress,
-            )
-            if not as_json:
-                for stage_name in ("generic", "dffmap", "abc", "clean"):
-                    stage = (synthesis_probe.get("stages") or {}).get(stage_name, {})
-                    if stage.get("valid"):
-                        status = str(stage.get("status", "UNKNOWN"))
-                        color = (
-                            "green"
-                            if status == "PASS"
-                            else "red" if status == "FAIL" else "orange1"
-                        )
-                        cached = " · cached" if stage.get("cached") else ""
-                        console.print(f"  [{color}]{status}[/{color}]{cached}")
-
-        payload = {"pdk": pdk, "result_dir": str(result_dir), "passed": passed, "total": total,
-                   "closure_pct": closure, "counterexample": explanation,
-                   "reset_probe": reset_probe, "synthesis_probe": synthesis_probe}
-        if as_json:
-            print(json.dumps(payload, indent=2))
-            return 0
-
-        probe = Table(title="Targeted probes", header_style="bold grey70", border_style="grey50")
-        probe.add_column("Boundary", style="white")
-        probe.add_column("Selected partition", style="white")
-        probe.add_row("mapped baseline", f"[red]{item.status}[/red]")
-        if reset_probe.get("valid"):
-            rs = str(reset_probe.get("status", "UNKNOWN"))
-            rc = (
-                "green"
-                if rs == "PASS"
-                else "red" if rs == "FAIL" else "orange1"
-            )
-            probe.add_row("after reset", f"[{rc}]{rs}[/{rc}]")
-        else:
-            probe.add_row("after reset", "[orange1]inconclusive[/orange1]")
-        stages = (synthesis_probe or {}).get("stages", {}) if synthesis_probe else {}
-        for key, label in (
-            ("generic", "generic synthesis"),
-            ("dffmap", "after dfflibmap"),
-            ("abc", "after ABC"),
-            ("clean", "after final cleanup"),
-        ):
-            stage = stages.get(key, {}) if isinstance(stages, dict) else {}
-            if stage.get("valid"):
-                ss = str(stage.get("status", "UNKNOWN"))
-                sc = (
-                    "green"
-                    if ss == "PASS"
-                    else "red" if ss == "FAIL" else "orange1"
-                )
-                probe.add_row(label, f"[{sc}]{ss}[/{sc}]")
-            elif stage.get("missing"):
-                probe.add_row(label, "[grey70]checkpoint missing[/grey70]")
-        console.print(probe)
-
-        if reset_probe.get("status") == "PASS":
-            console.print("[orange1]Diagnosis:[/orange1] [white]mismatch disappears after deterministic reset initialization.[/white]")
-        elif synthesis_probe:
-            diagnosis = synthesis_boundary_diagnosis(stages if isinstance(stages, dict) else {})
-            messages = {
-                "missing": "synthesis checkpoints missing; run `fx syn --force`, `fx eqy --force`, then `fx eqy_debug`.",
-                "generic_fail": "mismatch already exists after generic Yosys synthesis, before technology mapping.",
-                "dffmap_fail": "generic synthesis passes; mismatch appears across dfflibmap/sequential mapping.",
-                "abc_fail": "dfflibmap passes; mismatch is introduced by ABC combinational technology mapping.",
-                "clean_fail": "ABC mapping passes but the cleanup checkpoint fails. Because cleanup is function-preserving, suspect loss of EQY match-points/names rather than a logic change; keep public names during final cleanup.",
-                "serialization": "all RTLIL checkpoints pass; mismatch appears only after final Verilog serialization/readback in the EQY gate flow.",
-            }
-            message = messages.get(
-                diagnosis,
-                "synthesis-boundary probe is inconclusive; UNKNOWN and TIMEOUT are not evidence of a logic mismatch.",
-            )
-            console.print(f"[orange1]Diagnosis:[/orange1] [white]{message}[/white]")
-        else:
-            console.print("[orange1]Diagnosis:[/orange1] [white]reset probe inconclusive; inspect its log before synthesis-boundary attribution.[/white]")
-        console.print(f"[grey70]Waveform:[/grey70] [white]fx eqy_debug --wave {item.partition}[/white]")
-        console.print(f"[grey70]Artifacts:[/grey70] [white]fx eqy_debug --files {item.partition}[/white]")
-        return 0
 
     # -----------------------------------------------------------------------
     # Target invocation and one-shot overrides
     # -----------------------------------------------------------------------
 
-    def _overrides(sets: tuple[str, ...], tool: str | None, force: bool) -> dict[str, str]:
-        """Collect one-shot FlexSoC setting overrides."""
 
-        values = _assignments(sets)
-        if tool:
-            values["LINT_TOOL"] = tool
-        if force:
-            values["FORCE"] = "1"
-        return values
 
-    def _debug_log(
-        client: FlexSoC, target: str, values: Mapping[str, str], *, as_json: bool
-    ) -> int:
-        """Show the existing canonical command log for targets without richer diagnostics."""
 
-        path = client.log_path(target, **values)
-        if not path.is_file():
-            raise FileNotFoundError(f"log not found: {path}; run `fx {target}` first")
-        text = path.read_text(encoding="utf-8", errors="replace")
-        if as_json:
-            print(json.dumps({"target": target, "log": str(path), "text": text}, indent=2))
-        else:
-            from .backend.core.execution import print_log
-
-            print_log(path)
-            print(text, end="" if text.endswith("\n") else "\n")
-        return 0
-
-    def _cdc_rdc_debug(
-        client: FlexSoC, values: Mapping[str, str], *, as_json: bool, save_output: Path | None
-    ) -> int:
-        """Render root-cause-first CDC/RDC diagnosis from existing canonical artifacts."""
-
-        from collections import Counter
-        from .backend import BackendContext
-        from .backend.dv.cdc import CdcFlow
-
-        effective = client.values(values)
-        context = BackendContext(client.project_root, client.workdir, effective)
-        paths = context.paths
-        analysis = paths.cdc_rdc
-        payload = CdcFlow().debug_from_context(context)
-
-        if save_output is not None:
-            output = save_output.expanduser()
-            if output.suffix.lower() != ".json":
-                output.mkdir(parents=True, exist_ok=True)
-                output = output / "cdc_rdc_debug.json"
-            else:
-                output.parent.mkdir(parents=True, exist_ok=True)
-            output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-        if as_json:
-            print(json.dumps(payload, indent=2))
-            return 0
-
-        status = str(payload.get("status", "unknown")).upper()
-        status_color = "green" if status == "PASS" else "red" if status == "FAIL" else "orange1"
-        obligation_checks = int(payload.get("verification_obligations", 0) or 0)
-        obligation_findings = int(payload.get("obligation_findings", 0) or 0)
-        console.print(Panel.fit(
-            f"Top: [white]{payload.get('top')}[/white]\n"
-            f"Analysis closure: [{status_color}]{status}[/{status_color}]\n"
-            f"Clocks: [white]{payload.get('clock_domains')}[/white] · "
-            f"Reset families: [white]{payload.get('reset_families', payload.get('reset_domains'))}[/white] · "
-            f"Reset signals: [white]{payload.get('reset_domains')}[/white] · "
-            f"Sequential: [white]{payload.get('sequential_elements')}[/white]\n"
-            f"Open obligations: [white]{obligation_checks} checks / {obligation_findings} findings[/white]\n"
-            "Debug execution: [green]OK[/green] · read-only canonical-artifact inspection",
-            title="CDC/RDC debug",
-            border_style=status_color,
-        ))
-
-        contracts = payload.get("contracts", {})
-        contract_table = Table(title="CDC contract survival", header_style="bold grey70", border_style="grey50")
-        contract_table.add_column("Layer", style="bright_cyan")
-        contract_table.add_column("Contracts", style="white")
-        src = contracts.get("source", {})
-        structural = contracts.get("structural_design", {})
-        contract_table.add_row("RTL source", ", ".join(f"{k}×{v}" for k, v in src.items()) or "none")
-        contract_table.add_row("design.json/top", ", ".join(f"{k}×{v}" for k, v in structural.items()) or "none")
-        frontend_hierarchy = bool(contracts.get("frontend_hierarchy_preserved"))
-        selective_guard = bool(contracts.get("selective_contract_guard"))
-        contract_table.add_row(
-            "Slang hierarchy",
-            "[green]preserved[/green]" if frontend_hierarchy else "[red]flattened in frontend[/red]",
-        )
-        contract_table.add_row(
-            "contract guard",
-            "[green]present[/green]" if selective_guard else "[red]missing[/red]",
-        )
-        guard_state = str(contracts.get("extract_guard_state") or ("present" if contracts.get("extract_guard") else "missing"))
-        guard_style = "green" if guard_state in {"effective", "not_applicable"} else "orange1" if "partial" in guard_state else "red"
-        contract_table.add_row("extract guard", f"[{guard_style}]{guard_state}[/{guard_style}]")
-        console.print(contract_table)
-
-        triage = payload.get("triage", {})
-        triage_state = str(triage.get("state", "UNKNOWN")).upper()
-        triage_color = "green" if triage_state == "PASS" else "orange1" if triage_state == "REVIEW" else "red"
-        console.print(Panel.fit(
-            f"Phase: [bright_cyan]{triage.get('phase', '-')}[/bright_cyan]\n"
-            f"State: [{triage_color}]{triage_state}[/{triage_color}]\n"
-            f"Next action: [white]{triage.get('next_action', '-')}[/white]",
-            title="Triage",
-            border_style=triage_color,
-        ))
-
-        scopes = payload.get("scopes", {})
-        downstream_deferred = str(triage.get("downstream", "active")) == "deferred"
-        scope_title = "Observed closure counts (downstream deferred)" if downstream_deferred else "Closure by scope"
-        table = Table(title=scope_title, header_style="bold grey70", border_style="grey50")
-        table.add_column("Scope", style="bright_cyan")
-        table.add_column("ERROR", justify="right")
-        table.add_column("WARN", justify="right")
-        table.add_column("REVIEW", justify="right")
-        table.add_column("SAFE", justify="right")
-        table.add_column("Non-PASS classes", style="white")
-        for name in ("setup", "glitch", "cdc", "rdc"):
-            item = scopes.get(name, {})
-            classes = item.get("classes", {})
-            class_text = ", ".join(f"{key}×{value}" for key, value in classes.items()) or "-"
-            table.add_row(
-                name.upper(),
-                str(item.get("errors", 0)),
-                str(item.get("warnings", 0)),
-                str(item.get("review", 0)),
-                str(item.get("safe", 0)),
-                class_text,
-            )
-        console.print(table)
-        if downstream_deferred:
-            console.print(
-                "[orange1]CDC/RDC protocol findings are downstream symptoms until extraction/clock setup closes; "
-                "do not waive or fix them individually yet.[/orange1]"
-            )
-
-        diagnoses = payload.get("diagnoses", [])
-        if diagnoses:
-            diag = Table(title="Root-cause diagnosis", header_style="bold grey70", border_style="grey50")
-            diag.add_column("Severity")
-            diag.add_column("Code", style="bright_cyan")
-            diag.add_column("Meaning", style="white")
-            for item in diagnoses:
-                sev = str(item.get("severity", "INFO"))
-                color = "red" if sev == "ERROR" else "orange1" if sev in {"WARN", "REVIEW"} else "green"
-                diag.add_row(f"[{color}]{sev}[/{color}]", str(item.get("code", "-")), str(item.get("message", "")))
-            console.print(diag)
-
-        blockers = Table(title="Representative active findings", header_style="bold grey70", border_style="grey50")
-        blockers.add_column("Scope", style="bright_cyan")
-        blockers.add_column("ID", style="white")
-        blockers.add_column("State")
-        blockers.add_column("Class", style="white")
-        blockers.add_column("Representative evidence", style="grey70")
-        rows = 0
-        active_scopes = ("setup", "glitch") if downstream_deferred else ("setup", "glitch", "cdc", "rdc")
-        for scope in active_scopes:
-            for item in scopes.get(scope, {}).get("samples", []):
-                evidence = list(item.get("issues") or ()) + list(item.get("evidence") or ())
-                blockers.add_row(
-                    scope.upper(),
-                    str(item.get("id") or "-"),
-                    str(item.get("status") or "-"),
-                    str(item.get("classification") or "-"),
-                    str(evidence[0] if evidence else "-"),
-                )
-                rows += 1
-        if rows:
-            console.print(blockers)
-
-        obligations = payload.get("obligations", [])
-        if obligations:
-            grouped: Counter[tuple[str, str, tuple[str, ...]]] = Counter()
-            for item in obligations:
-                key = (
-                    str(item.get("scope") or "-"),
-                    str(item.get("classification") or "-"),
-                    tuple(str(value) for value in (item.get("obligations") or ())),
-                )
-                grouped[key] += 1
-            title = "Downstream obligations (deferred)" if downstream_deferred else "Open verification obligations"
-            obligation_table = Table(title=title, header_style="bold grey70", border_style="grey50")
-            obligation_table.add_column("Count", justify="right")
-            obligation_table.add_column("Scope", style="bright_cyan")
-            obligation_table.add_column("Class", style="white")
-            obligation_table.add_column("Obligation checks", style="grey70")
-            for (scope, classification, texts), count in sorted(grouped.items()):
-                obligation_table.add_row(str(count), scope, classification, ", ".join(texts) or "-")
-            console.print(obligation_table)
-
-        artifacts = payload.get("artifacts", {})
-        console.print(
-            "[grey70]Artifacts:[/grey70] "
-            f"[white]{artifacts.get('summary')}[/white] · "
-            f"[white]{artifacts.get('design_json')}[/white] · "
-            f"[white]{artifacts.get('extract_script')}[/white]"
-        )
-        if save_output is not None:
-            console.print(f"[grey70]Saved:[/grey70] [white]{output}[/white]")
-        return 0
-
-    def _run(
-        client: FlexSoC,
-        targets: tuple[str, ...],
-        *,
-        sets: tuple[str, ...],
-        tool: str | None,
-        force: bool,
-        dry_run: bool,
-        script: bool,
-        capture: bool,
-        live: bool,
-        debug: bool,
-        setup: bool,
-        save_output: Path | None,
-        as_json: bool,
-        info: bool,
-        on: str,
-    ) -> int:
-        """Run, preview, or describe requested targets."""
-
-        if info:
-            _print_info(client, targets, as_json)
-            return 0
-
-        try:
-            values = _overrides(sets, tool, force)
-            if live:
-                values["LIVE"] = "1"
-            if debug:
-                if len(targets) != 1:
-                    raise typer.BadParameter("--debug requires exactly one target")
-                if targets[0] == "cdc_rdc":
-                    return _cdc_rdc_debug(client, values, as_json=as_json, save_output=save_output)
-                if targets[0] not in DEBUG_TARGETS:
-                    if save_output is not None:
-                        raise typer.BadParameter("--save-output/-o requires a target with structured debug support")
-                    return _debug_log(client, targets[0], values, as_json=as_json)
-                values["DEBUG"] = "1"
-                if save_output is not None:
-                    values["DEBUG_OUTPUT"] = str(save_output)
-            elif save_output is not None:
-                raise typer.BadParameter("--save-output/-o requires --debug")
-
-            result = client.run(
-                *targets,
-                check=False,
-                dry_run=dry_run,
-                capture=capture,
-                live=live,
-                setup=setup,
-                on=on,
-                **values,
-            )
-        except (ValueError, RuntimeError, OSError, typer.BadParameter) as exc:
-            error_console.print(f"[red]{exc}[/red]")
-            return getattr(exc, "returncode", 2) or 2
-
-        items = list(result)
-
-        if dry_run:
-            text = "\n".join(item.shell_line() for item in items)
-            if script:
-                print("#!/usr/bin/env bash\nset -euo pipefail\n" + text)
-            else:
-                print(text)
-            return 0
-
-        if as_json:
-            data = [item.to_dict() for item in items]
-            print(json.dumps(data[0] if len(data) == 1 else data, indent=2))
-        elif capture:
-            print("".join(item.stdout or "" for item in items), end="")
-        failed = [item for item in items if not item.ok]
-        return failed[0].returncode if failed else 0
 
     # -----------------------------------------------------------------------
     # Interactive shell
     # -----------------------------------------------------------------------
 
-    def _shell(root: Path, workdir: Path | None) -> int:
-        """Open a Prompt Toolkit shell with command completion."""
-
-        try:
-            from prompt_toolkit import PromptSession
-            from prompt_toolkit.completion import WordCompleter
-            from prompt_toolkit.history import FileHistory
-        except ModuleNotFoundError:
-            console.print("[red]missing dependency: prompt_toolkit[/red]")
-            return 2
-        history = _settings_path(root, workdir).with_name("history")
-        history.parent.mkdir(parents=True, exist_ok=True)
-        session = PromptSession(
-            history=FileHistory(str(history)),
-            completer=WordCompleter(_completion_words(), ignore_case=True, sentence=True),
-        )
-        console.print("[bold cyan]fx shell[/bold cyan]  type 'help', 'commands', 'exit' or backend targets")
-        while True:
-            try:
-                line = session.prompt("fx> ").strip()
-            except (EOFError, KeyboardInterrupt):
-                console.print()
-                return 0
-            if not line:
-                continue
-            if line in {"exit", "quit", ":q"}:
-                return 0
-            if line in {"help", "?"}:
-                _guide()
-                continue
-            app([*shlex.split(line), *( ["--workdir", str(workdir)] if workdir else [] )])
 
     # -----------------------------------------------------------------------
     # Typer command and entry point
     # -----------------------------------------------------------------------
 
-    @typer_app.command(name="fx", help=HELP, no_args_is_help=False)
-    def _entry(
-        items: Annotated[
-            list[str] | None,
-            typer.Argument(
-                help="Pseudo-command (`settings`, `commands`, `shell`) or one or more backend targets.",
-                autocompletion=_complete_items,
-                show_default=False,
-            ),
-        ] = None,
-        sets: Annotated[
-            list[str] | None,
-            typer.Option("--set", "-s", help="Add KEY=VALUE override.", rich_help_panel="Settings and overrides"),
-        ] = None,
-        unsets: Annotated[
-            list[str] | None,
-            typer.Option("--unset", help="Remove a persistent setting.", rich_help_panel="Settings and overrides"),
-        ] = None,
-        project_root: Annotated[
-            Path | None,
-            typer.Option("--project-root", help="Repository root used by backend flows.", rich_help_panel="Paths"),
-        ] = None,
-        workdir: Annotated[
-            Path | None,
-            typer.Option("--workdir", help="Workspace used by backend flows.", rich_help_panel="Paths"),
-        ] = None,
-        tool: Annotated[
-            str | None,
-            typer.Option("--tool", help="Shortcut for LINT_TOOL=VALUE.", rich_help_panel="Target options"),
-        ] = None,
-        deps_user: Annotated[
-            bool,
-            typer.Option("--user", help="Use rootless user dependency mode.", rich_help_panel="Dependency tooling"),
-        ] = False,
-        deps_system: Annotated[
-            bool,
-            typer.Option("--system", help="Use shared/system dependency mode.", rich_help_panel="Dependency tooling"),
-        ] = False,
-        deps_profile: Annotated[
-            str | None,
-            typer.Option("--profile", help="Dependency profile: base, impl, or riscv.", rich_help_panel="Dependency tooling"),
-        ] = None,
-        deps_jobs: Annotated[
-            int | None,
-            typer.Option("--jobs", help="Parallel dependency build jobs.", rich_help_panel="Dependency tooling"),
-        ] = None,
-        reset: Annotated[
-            bool,
-            typer.Option("--reset", help="Reset settings before applying updates.", rich_help_panel="Settings and overrides"),
-        ] = False,
-        force: Annotated[
-            bool,
-            typer.Option("--force", "--overwrite", help="Shortcut for FORCE=1.", rich_help_panel="Target options"),
-        ] = False,
-        setup: Annotated[
-            bool,
-            typer.Option("--setup", help="Run the setup phase for the selected lifecycle keyword.", rich_help_panel="Target options"),
-        ] = False,
-        on: Annotated[
-            str,
-            typer.Option("--on", help="Execution target name (local or configured server).", rich_help_panel="Target options"),
-        ] = "local",
-        dry_run: Annotated[
-            bool,
-            typer.Option("--dry-run", help="Print backend command previews without running them.", rich_help_panel="Output"),
-        ] = False,
-        script: Annotated[
-            bool,
-            typer.Option("--script", help="Render dry-run output as a bash script.", rich_help_panel="Output"),
-        ] = False,
-        capture: Annotated[
-            bool,
-            typer.Option("--capture", help="Capture and print target stdout.", rich_help_panel="Output"),
-        ] = False,
-        live: Annotated[
-            bool,
-            typer.Option("--live", help="Show generated scripts and the command log while retaining a plain log file.", rich_help_panel="Output"),
-        ] = False,
-        debug: Annotated[
-            bool,
-            typer.Option("--debug", help="Read existing target artifacts and print filtered diagnostics without rerunning the target.", rich_help_panel="Output"),
-        ] = False,
-        save_output: Annotated[
-            Path | None,
-            typer.Option("--save-output", "-o", help="Save filtered --debug output to a file or directory.", rich_help_panel="Output"),
-        ] = None,
-        as_json: Annotated[
-            bool,
-            typer.Option("--json", help="Print machine-readable JSON.", rich_help_panel="Output"),
-        ] = False,
-        less: Annotated[
-            bool,
-            typer.Option("--less", help="Use the compact human-readable view for requirements, testplan, or meta.", rich_help_panel="Output"),
-        ] = False,
-        check_generated: Annotated[
-            bool,
-            typer.Option("--check", help="For tests_gen, verify generated vectors without modifying them.", rich_help_panel="Output"),
-        ] = False,
-        info: Annotated[
-            bool,
-            typer.Option("--info", help="Describe targets instead of running them.", rich_help_panel="Output"),
-        ] = False,
-    ) -> None:
-        """Dispatch pseudo-commands or ordered backend targets."""
 
-        root = (project_root or Path.cwd()).resolve()
-        args, set_args, unset_args = tuple(items or ()), tuple(sets or ()), tuple(unsets or ())
-        if deps_user and deps_system:
-            raise click.BadParameter("choose only one of --user or --system")
-        if deps_profile is not None and deps_profile not in {"base", "impl", "riscv"}:
-            raise click.BadParameter("--profile must be base, impl, or riscv")
-        if deps_jobs is not None and deps_jobs < 1:
-            raise click.BadParameter("--jobs must be a positive integer")
-        if deps_user or deps_system or deps_profile is not None or deps_jobs is not None:
-            dep_targets = {"deps-bootstrap", "deps", "deps-doctor", "deps-versions", "deps-env", "deps-status", "deps-prune"}
-            if not args or any(arg not in dep_targets for arg in args):
-                raise click.BadParameter("--user/--system/--profile/--jobs are only valid for dependency targets")
-            dep_sets = []
-            if deps_user:
-                dep_sets.append("DEPS_MODE=user")
-            if deps_system:
-                dep_sets.append("DEPS_MODE=system")
-            if deps_profile is not None:
-                dep_sets.append(f"DEPS_PROFILE={deps_profile}")
-            if deps_jobs is not None:
-                dep_sets.append(f"DEPS_JOBS={deps_jobs}")
-            set_args = (*set_args, *dep_sets)
-        client = FlexSoC(FlexSoCConfig(root, workdir), **_read_settings(root, workdir))
-        if not args:
-            _guide()
-            return
-        if args[0] == "commands":
-            _print_commands(client, as_json)
-            return
-        if args[0] == "settings":
-            _settings(root, workdir, args[1:], set_args, unset_args, reset, as_json)
-            return
-        if args[0] == "show":
-            raise typer.Exit(_show(client, args[1:], set_args, as_json=as_json))
-        if args[0] == "requirements":
-            if len(args) != 1:
-                raise click.BadParameter("fx requirements accepts no positional arguments")
-            raise typer.Exit(_requirements(client, set_args, less=less, as_json=as_json))
-        if args[0] == "testplan":
-            if len(args) != 1:
-                raise click.BadParameter("fx testplan accepts no positional arguments")
-            raise typer.Exit(_testplan(client, set_args, less=less, as_json=as_json))
-        if args[0] == "meta":
-            if len(args) != 1:
-                raise click.BadParameter("fx meta accepts no positional arguments")
-            raise typer.Exit(_meta(client, set_args, less=less, as_json=as_json))
-        if less:
-            raise click.BadParameter("--less is only valid with requirements, testplan, or meta")
-        if check_generated:
-            if args != ("tests_gen",):
-                raise click.BadParameter("--check is only valid with `fx tests_gen`")
-            raise typer.Exit(_tests_gen_check(client, set_args, as_json=as_json))
-        if args[0] == "doctor":
-            from .backend.core.toolchain import run as run_doctor
 
-            raise typer.Exit(run_doctor(root, as_json=as_json))
-        if args[0] == "pdk":
-            raise typer.Exit(_pdk(root, workdir, args[1:], set_args, force=force, as_json=as_json))
-        if args[0] == "eqy_debug":
-            raise typer.Exit(_eqy_debug(root, workdir, args[1:], set_args, as_json=as_json))
-        if args[0] == "shell":
-            raise typer.Exit(_shell(root, workdir))
-        try:
-            targets = _mode_targets(args, setup=setup, debug=debug)
-        except (ValueError, typer.BadParameter) as exc:
-            error_console.print(f"[red]{exc}[/red]")
-            raise typer.Exit(2)
-        raise typer.Exit(
-            _run(
-                client,
-                targets,
-                sets=set_args,
-                tool=tool,
-                force=force,
-                dry_run=dry_run,
-                script=script,
-                capture=capture,
-                live=live,
-                debug=debug,
-                setup=setup,
-                save_output=save_output,
-                as_json=as_json,
-                info=info,
-                on=on,
+
+
+    class FlexSoCCli:
+        """Thin object-oriented CLI facade: parse, delegate and render."""
+
+        def __call__(self, argv: list[str] | None = None) -> int:
+            return self._run_cli(argv)
+
+        @staticmethod
+        def _completion_words() -> tuple[str, ...]:
+            """Return words offered by shell and REPL completion."""
+
+            return tuple(dict.fromkeys((*PSEUDO_COMMANDS, *TARGETS, *PUBLIC_KEYWORDS, *OPTION_WORDS)))
+
+        @staticmethod
+        def _complete_items(incomplete: str) -> list[str]:
+            """Complete pseudo-commands and backend targets."""
+
+            return [word for word in FlexSoCCli._completion_words() if word.startswith(incomplete)]
+
+        def _guide(self) -> None:
+            """Print the canonical IP lifecycle in execution order."""
+
+            console.print()
+            console.print(
+                Panel(
+                    "[white]Production-oriented digital IP flow: scaffold, verify, synthesize, "
+                    "sign off, implement, and package.[/white]\n"
+                    "[grey70]The same public commands apply to one or many clock domains.[/grey70]",
+                    title="[bold orange1]FlexSoC fx[/bold orange1]",
+                    subtitle="[bold bright_cyan]IP lifecycle[/bold bright_cyan]",
+                    border_style="orange1",
+                    padding=(1, 2),
+                )
             )
-        )
+            table = Table(
+                title="[bold orange1]Canonical IP lifecycle[/bold orange1]",
+                box=box.ROUNDED,
+                expand=True,
+                header_style="bold white",
+                show_lines=True,
+            )
+            table.add_column("Step", style="orange1", no_wrap=True, width=30)
+            table.add_column("Command", style="bright_cyan", ratio=4)
+            table.add_column("Purpose", style="white", ratio=3)
+            for title, rows in FLOW_GUIDE:
+                for index, (command, purpose) in enumerate(rows):
+                    table.add_row(title if index == 0 else "", command, purpose)
+            console.print(table)
+            console.print()
+            console.print(
+                Panel(
+                    "[bold bright_cyan]fx <command> --help[/bold bright_cyan]  "
+                    "[white]dedicated command help[/white]\n"
+                    "[bold bright_cyan]fx <command> help[/bold bright_cyan] or "
+                    "[bold bright_cyan]fx <command> info[/bold bright_cyan]  "
+                    "[white]equivalent forms[/white]\n"
+                    "[bold bright_cyan]fx commands[/bold bright_cyan]  "
+                    "[white]complete target catalogue[/white]\n"
+                    "[bold bright_cyan]--set KEY=VALUE[/bold bright_cyan]  "
+                    "[white]one-shot selector or backend override[/white]",
+                    title="[bold orange1]Help and execution controls[/bold orange1]",
+                    border_style="orange1",
+                    padding=(1, 2),
+                )
+            )
+            console.print()
 
-    def _click_command() -> click.Command:
-        """Build the Click command generated by Typer."""
+        def _target_name(self, value: str) -> str:
+            """Resolve dashed or underscored spelling against the target catalogue."""
 
-        return typer.main.get_command(typer_app)
+            for candidate in (value, value.replace("-", "_"), value.replace("_", "-")):
+                if candidate in TARGETS:
+                    return candidate
+            raise ValueError(f"unknown target {value!r}; run `fx commands`")
 
-    def app(argv: list[str] | None = None) -> int:
-        """Run the fx command-line interface."""
+        def _run_target(self, value: str, *, allow_setup_only: bool = False) -> str:
+            """Resolve one public lifecycle keyword to its backend run target."""
 
-        args = list(sys.argv[1:] if argv is None else argv)
-        if "eqy_debug" in args:
-            index = args.index("eqy_debug")
-            args[index + 1:] = [
-                token[2:] if token in {"--wave", "--files"} else token
-                for token in args[index + 1:]
-            ]
-        if os.environ.get("_FX_COMPLETE") or os.environ.get("_FLEXSOC_COMPLETE"):
+            name = value.replace("-", "_")
+            target = name
+            if name in SETUP_ONLY and not allow_setup_only:
+                raise ValueError(f"{name} is setup-only; use `fx {name} --setup`")
+            return self._target_name(target)
+
+        def _mode_targets(self, values: tuple[str, ...], *, setup: bool, debug: bool) -> tuple[str, ...]:
+            """Resolve public lifecycle keywords; setup remains an execution mode."""
+
+            if setup and debug:
+                raise typer.BadParameter("--setup and --debug are mutually exclusive")
+            targets = tuple(self._run_target(value, allow_setup_only=setup or debug) for value in values)
+            if setup:
+                missing = [target for target in targets if target not in SETUP_TARGETS]
+                if missing:
+                    raise ValueError(f"{missing[0]} has no setup phase")
+            return targets
+
+        def _parameter_description(self, name: str) -> str:
+            """Return concise help for one accepted target variable."""
+
+            if name in PARAMETER_HELP:
+                return PARAMETER_HELP[name]
+            prefixes = {
+                "EQY_": "Equivalence-check override",
+                "FORMAL_": "Property-formal override",
+                "SLANG_": "Slang elaboration override",
+                "DEPS_": "Managed dependency override",
+                "TUTORIAL_": "Tutorial workspace override",
+            }
+            for prefix, label in prefixes.items():
+                if name.startswith(prefix):
+                    suffix = name[len(prefix):].replace("_", " ").lower()
+                    return f"{label}: {suffix}."
+            return f"Advanced backend override: {name.replace('_', ' ').lower()}."
+
+        def _target_examples(self, name: str, params: tuple[str, ...]) -> tuple[str, ...]:
+            """Return practical examples without duplicating the target catalogue."""
+
+            if name in TARGET_EXAMPLES:
+                return TARGET_EXAMPLES[name]
+            command = f"fx {name}"
+            if "FORCE" in params:
+                command += " --force"
+            return (command,)
+
+        def _print_target_sections(self, name: str) -> None:
+            """Render concise target-specific semantics after the generic options."""
+
+            for title, rows in TARGET_HELP_SECTIONS.get(name, ()):
+                console.print(f"[bold orange1]{title}[/bold orange1]")
+                table = Table(box=box.SIMPLE, expand=True, show_header=False)
+                table.add_column("Keyword", style="bright_cyan", no_wrap=True, width=28)
+                table.add_column("Meaning", style="white", ratio=4)
+                for keyword, meaning in rows:
+                    table.add_row(keyword, meaning)
+                console.print(table)
+
+        def _print_target_help(self, name: str) -> None:
+            """Render dedicated help for one public lifecycle keyword."""
+
+            public = name.replace("-", "_")
+            target = self._run_target(public, allow_setup_only=True)
+            group, description, params = TARGETS[target]
+            console.print()
+            console.print(
+                Panel(
+                    f"[white]{description}[/white]",
+                    title=f"[bold orange1]fx {public}[/bold orange1]",
+                    subtitle=f"[bold bright_cyan]{group}[/bold bright_cyan]",
+                    border_style="orange1",
+                    padding=(1, 2),
+                )
+            )
+            console.print("[bold orange1]Usage[/bold orange1]")
+            examples = (f"fx {public} --setup",) if public in SETUP_ONLY else self._target_examples(target, params)
+            for example in examples:
+                console.print(f"  [bold bright_cyan]{example}[/bold bright_cyan]")
+            if target in SETUP_TARGETS:
+                console.print(
+                    "[bold orange1]Setup phase[/bold orange1]  "
+                    f"[white]fx {public} --setup[/white] "
+                    "[grey70](--force regenerates)[/grey70]"
+                )
+            else:
+                console.print("[bold orange1]Setup phase[/bold orange1]  [grey70]none[/grey70]")
+            console.print("[bold orange1]Accepted target variables[/bold orange1]")
+            if params:
+                table = Table(box=box.SIMPLE_HEAVY, expand=True, header_style="bold white")
+                table.add_column("Variable", style="bright_cyan", no_wrap=True, width=30)
+                table.add_column("Meaning", style="white", ratio=3)
+                table.add_column("Default", style="grey70", no_wrap=True, ratio=1)
+                for parameter in params:
+                    table.add_row(
+                        parameter,
+                        self._parameter_description(parameter),
+                        str(DEFAULT_SETTINGS.get(parameter, "—")),
+                    )
+                console.print(table)
+                console.print(
+                    "[grey70]Pass variables with[/grey70] "
+                    "[bold bright_cyan]--set KEY=VALUE[/bold bright_cyan]"
+                )
+            else:
+                console.print("  [grey70]No target-specific variables.[/grey70]")
+            console.print(
+                "[bold orange1]Common controls[/bold orange1]  "
+                "[bright_cyan]--workdir PATH[/bright_cyan], "
+                "[bright_cyan]--setup[/bright_cyan] [grey70](when available)[/grey70], "
+                "[bright_cyan]--dry-run[/bright_cyan], "
+                "[bright_cyan]--live[/bright_cyan], "
+                "[bright_cyan]--debug[/bright_cyan], "
+                "[bright_cyan]--info[/bright_cyan]"
+            )
+            self._print_target_sections(target)
+            console.print()
+
+        def _print_pseudo_help(self, name: str) -> None:
+            """Render dedicated help for one Python-side pseudo-command."""
+
+            description, examples, options = PSEUDO_HELP[name]
+            console.print()
+            console.print(
+                Panel(
+                    f"[white]{description}[/white]",
+                    title=f"[bold orange1]fx {name}[/bold orange1]",
+                    subtitle="[bold bright_cyan]CLI command[/bold bright_cyan]",
+                    border_style="orange1",
+                    padding=(1, 2),
+                )
+            )
+            console.print("[bold orange1]Usage[/bold orange1]")
+            for example in examples:
+                console.print(f"  [bold bright_cyan]{example}[/bold bright_cyan]")
+            console.print("[bold orange1]Options[/bold orange1]")
+            for option in options:
+                console.print(f"  [bright_cyan]{option}[/bright_cyan]")
+            console.print()
+
+        def _print_command_help(self, name: str) -> None:
+            """Render pseudo-command or target help from the installed catalogue."""
+
+            if name in PSEUDO_HELP:
+                self._print_pseudo_help(name)
+            else:
+                self._print_target_help(name)
+
+        def _help_request(self, args: list[str]) -> str | None:
+            """Recognize all supported dedicated-help spellings before Typer parsing."""
+
+            if len(args) != 2:
+                return None
+            if args[0] == "help":
+                return args[1]
+            if args[1] in HELP_WORDS:
+                return args[0]
+            return None
+
+        def _assignments(self, items: Iterable[str]) -> dict[str, str]:
+            """Parse KEY=VALUE items."""
+
+            values: dict[str, str] = {}
+            for item in items:
+                if "=" not in item:
+                    raise typer.BadParameter(f"expected KEY=VALUE, got {item!r}")
+                key, value = item.split("=", 1)
+                values[key.upper()] = value
+            return values
+
+        def _print_commands(self, client: FlexSoC, as_json: bool) -> None:
+            """Print the unified target table."""
+
+            targets = client.targets()
+            if as_json:
+                print(json.dumps([target.to_dict() for target in targets], indent=2))
+                return
+            table = Table(title="FlexSoC backend targets", show_lines=False)
+            table.add_column("Target", style="cyan", no_wrap=True)
+            table.add_column("Group", style="magenta", no_wrap=True)
+            table.add_column("Description")
+            table.add_column("Variables")
+            for target in targets:
+                table.add_row(target.name, target.group, target.description, ", ".join(target.params))
+            console.print(table)
+
+        def _print_settings(self, values: Mapping[str, str], as_json: bool) -> None:
+            """Print settings grouped by the flow phase they control."""
+
+            if as_json:
+                print(json.dumps(dict(values), indent=2))
+                return
+            groups = (
+                ("Run", ("TOP", "RUN_TOP", "RUN_ID", "HOST")),
+                ("Clocking", ("N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS")),
+                ("Technology", ("PDK", "PDK_ROOT")),
+                ("Verification", ("REG_ITF", "COMPILER", "GLS_SIMULATOR", "WAVE_FORMAT", "TIMING_MODE")),
+                ("Paths", ("WORKSPACE", "RUN_ROOT", "SYN_DIR", "EQUIV_DIR", "IMPL_DIR")),
+            )
+            shown: set[str] = set()
+            console.print("[bold orange1]FlexSoC settings[/bold orange1]")
+            for title, keys in groups:
+                rows = [(key, values[key]) for key in keys if key in values]
+                if not rows:
+                    continue
+                console.print(f"[bold bright_cyan]{title}[/bold bright_cyan]")
+                table = Table(show_header=False, box=None, pad_edge=False)
+                table.add_column("Key", style="grey70", no_wrap=True)
+                table.add_column("Value", style="white")
+                for key, value in rows:
+                    shown.add(key)
+                    table.add_row(key, value)
+                console.print(table)
+            extra = [(key, value) for key, value in sorted(values.items()) if key not in shown]
+            if extra:
+                console.print("[bold bright_cyan]Advanced[/bold bright_cyan]")
+                table = Table(show_header=False, box=None, pad_edge=False)
+                table.add_column("Key", style="grey70", no_wrap=True)
+                table.add_column("Value", style="white")
+                for key, value in extra:
+                    table.add_row(key, value)
+                console.print(table)
+
+        def _print_info(self, client: FlexSoC, targets: tuple[str, ...], as_json: bool) -> None:
+            """Print machine metadata or the full dedicated target help."""
+
+            data = [client.target_info(target).to_dict() for target in targets]
+            if as_json:
+                print(json.dumps(data[0] if len(data) == 1 else data, indent=2))
+                return
+            for item in data:
+                self._print_target_help(item["name"])
+
+        def _settings(self, root: Path, workdir: Path | None, items: tuple[str, ...], sets: tuple[str, ...], unsets: tuple[str, ...], reset: bool, as_json: bool) -> None:
+            """Show or update persistent project settings plus derived run roots."""
+
+            from .backend.core import PDKRunLayout
+
+            values = dict(DEFAULT_SETTINGS if reset else WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS))
+            for key in unsets:
+                values.pop(key.upper(), None)
+            updates = self._assignments((*items, *sets))
+            if "PDK" in updates and "PDK_ROOT" not in updates:
+                values.pop("PDK_ROOT", None)
+            clock_updates = {"N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS"} & updates.keys()
+            if {"N_CLOCKS", "CLOCK_DOMAINS"} & updates.keys() and "CLOCK_RELATIONSHIPS" not in updates:
+                values.pop("CLOCK_RELATIONSHIPS", None)
+            values.update(updates)
+            if clock_updates:
+                from .backend.core import ClockConfig
+
+                values.update(ClockConfig.from_values(values).to_settings())
+            if reset or unsets or sets or items:
+                WorkspaceFlow.write_settings(root, values, workdir)
+            display = dict(values)
+            if workdir is not None:
+                display["WORKSPACE"] = str(workdir.expanduser().resolve())
+            layout = PDKRunLayout.from_values(root, display)
+            display["RUN_ROOT"] = str(layout.run_root)
+            display["SYN_DIR"] = str(layout.syn_dir)
+            display["EQUIV_DIR"] = str(layout.equivalence_dir)
+            display["IMPL_DIR"] = str(layout.pnr_dir)
+            self._print_settings(display, as_json)
+
+        def _show(self, client: FlexSoC, args: tuple[str, ...], sets: tuple[str, ...], *, as_json: bool) -> int:
+            """Render canonical machine-readable reports without rerunning stages."""
+
+            run, values = self._configured_run(client, sets)
+            return ShowRenderer(console, error_console).command(
+                run,
+                top=values.get("TOP", "test"),
+                pdk=values.get("PDK", DEFAULT_SETTINGS["PDK"]),
+                args=args,
+                as_json=as_json,
+            )
+
+        def _configured_run(self, client: FlexSoC, sets: tuple[str, ...]) -> tuple[Path, dict[str, str]]:
+            """Resolve the configured run path without modifying the workspace."""
+
+            values = {**DEFAULT_SETTINGS, **client.settings, **self._assignments(sets)}
+            top = values.get("TOP", "test")
+            run_top = values.get("RUN_TOP") or top
+            run_id = values.get("RUN_ID", "default")
+            return client.workdir / "runs" / run_top / run_id, values
+
+        def _requirements(self, client: FlexSoC, sets: tuple[str, ...], *, less: bool, as_json: bool) -> int:
+            """Render the authoritative requirements document for the configured run."""
+
+            run, _ = self._configured_run(client, sets)
+            return ShowRenderer(console, error_console).requirements(run, less=less, as_json=as_json)
+
+        def _testplan(self, client: FlexSoC, sets: tuple[str, ...], *, less: bool, as_json: bool) -> int:
+            """Render the authoritative test plan for the configured run."""
+
+            run, _ = self._configured_run(client, sets)
+            return ShowRenderer(console, error_console).testplan(run, less=less, as_json=as_json)
+
+        def _meta(self, client: FlexSoC, sets: tuple[str, ...], *, less: bool, as_json: bool) -> int:
+            """Render release-critical metadata for the configured run."""
+
+            run, _ = self._configured_run(client, sets)
+            return ShowRenderer(console, error_console).meta(run, less=less, as_json=as_json)
+
+        def _tests_gen_check(self, client: FlexSoC, sets: tuple[str, ...], *, as_json: bool) -> int:
+            """Verify generated vector files against the authoritative Python generators."""
+
+            flow = client.flows(**self._assignments(sets))
+            paths = flow.context.paths
             try:
-                return _click_command().main(
-                    args=args, prog_name="fx", standalone_mode=False
-                ) or 0
-            except click.exceptions.Exit as exc:
-                return int(exc.exit_code or 0)
-        if (
-            not args
-            or args in (["-h"], ["--help"], ["help"])
-            or (len(args) == 2 and args[0] == "help" and args[1] in HELP_WORDS)
-        ):
-            _guide()
-            return 0
-        help_command = _help_request(args)
-        if help_command is not None:
-            try:
-                _print_command_help(help_command)
-            except ValueError as exc:
+                result = flow.dv.functional.check_tests(paths.tests, paths.top)
+            except (FileNotFoundError, RuntimeError, OSError) as exc:
                 error_console.print(f"[red]{exc}[/red]")
                 return 2
-            return 0
-        try:
-            return _click_command().main(args=args, prog_name="fx", standalone_mode=False) or 0
-        except click.exceptions.Exit as exc:
-            return int(exc.exit_code or 0)
-        except (click.ClickException, typer.BadParameter) as exc:
-            exc.show()
-            return int(exc.exit_code or 2)
-        except KeyboardInterrupt:
-            error_console.print("\n[red]interrupted[/red]")
-            return 130
+            if as_json:
+                print(json.dumps(result, indent=2))
+                return 0 if result["ok"] else 1
+            if result["ok"]:
+                console.print(
+                    f"[green]PASS[/green] generated tests match Python source · "
+                    f"[white]{result['files']} files[/white]"
+                )
+                return 0
+            table = Table(title="Generated-test drift", header_style="bold white")
+            table.add_column("State", no_wrap=True)
+            table.add_column("Path", style="white")
+            for state in ("missing", "extra", "modified"):
+                for path in result[state]:
+                    color = "red" if state != "extra" else "orange1"
+                    table.add_row(f"[{color}]{state.upper()}[/{color}]", str(path))
+            console.print(table)
+            error_console.print("[red]generated tests do not match the authoritative Python source; run `fx tests_gen`[/red]")
+            return 1
 
+        def _pdk(self,
+            root: Path,
+            workdir: Path | None,
+            args: tuple[str, ...],
+            sets: tuple[str, ...],
+            *,
+            force: bool,
+            as_json: bool,
+            runner=None,
+            on: str = "local",
+        ) -> int:
+            """List, inspect, fetch, or activate a PDK profile."""
+
+            from .backend.core import PdkManager
+
+            manager = PdkManager(root, runner)
+            action = args[0] if args else "list"
+            name = args[1] if len(args) > 1 else None
+            extra = self._assignments(sets)
+            pdk_root = extra.get("PDK_ROOT")
+
+            if action == "list":
+                data = PdkManager.catalog(root)
+                if as_json:
+                    print(PdkManager.json_text(data))
+                    return 0
+                table = Table(title="FlexSoC PDK catalogue")
+                table.add_column("PDK", style="bright_cyan", no_wrap=True)
+                table.add_column("Node", no_wrap=True)
+                table.add_column("Class")
+                table.add_column("ORFS", no_wrap=True)
+                table.add_column("Local")
+                for item in data:
+                    views = item["views"]
+                    state = "ready" if views["usable"] else ("fetched" if Path(views["root"]).exists() else "-")
+                    table.add_row(str(item["name"]), str(item["node"]), str(item["classification"]), str(item["orfs_platform"]), state)
+                console.print(table)
+                return 0
+
+            if action not in {"info", "fetch", "use"}:
+                raise typer.BadParameter("pdk action must be list, info, fetch, or use")
+            if not name:
+                raise typer.BadParameter(f"fx pdk {action} requires a PDK name")
+            canonical = PdkManager.normalize_name(name)
+
+            if action == "fetch":
+                path = manager.fetch(
+                    canonical, force=force, version=extra.get("PDK_VERSION"), on=on,
+                )
+                data = PdkManager.describe(root, canonical, path)
+                if as_json:
+                    print(PdkManager.json_text(data))
+                else:
+                    console.print(f"[bold orange1]PDK fetched[/bold orange1]: [bright_cyan]{canonical}[/bright_cyan]")
+                    console.print(f"[white]path[/white]: {path}")
+                    ready = bool(data["views"]["usable"])
+                    state = "ready for digital flow" if ready else "source fetched; digital Liberty/Verilog views still need preparation"
+                    console.print(f"[white]status[/white]: {state}")
+                return 0
+
+            data = PdkManager.describe(root, canonical, pdk_root)
+            if action == "info":
+                if as_json:
+                    print(PdkManager.json_text(data))
+                else:
+                    views = data["views"]
+                    console.print(f"[bold orange1]PDK profile[/bold orange1] · [bold bright_cyan]{data['title']}[/bold bright_cyan]")
+                    for title, rows in (
+                        ("Identity", (("Name", canonical), ("Node", data["node"]), ("Class", data["classification"]), ("OpenROAD platform", data["orfs_platform"]))),
+                        ("Source / installation", (("Provider", data["fetch_provider"]), ("Source", data["source_url"]), ("Revision", data.get("fetch", {}).get("revision") or "-"), ("Root", views["root"]), ("Status", "ready" if views["usable"] else "not ready"))),
+                        ("Digital views", (("Liberty typical", views.get("liberty_typ") or "missing"), ("Liberty slow", views.get("liberty_slow") or "-"), ("Liberty fast", views.get("liberty_fast") or "-"), ("Functional Verilog", f"{len(views['verilog_models'])} model(s)" if views["verilog_models"] else "missing"))),
+                    ):
+                        console.print(f"[bold bright_cyan]{title}[/bold bright_cyan]")
+                        table = Table(show_header=False, box=None, pad_edge=False)
+                        table.add_column("Field", style="grey70", no_wrap=True)
+                        table.add_column("Value", style="white")
+                        for key, value in rows:
+                            table.add_row(str(key), str(value))
+                        console.print(table)
+                    if data.get("formal_adapter_required"):
+                        console.print(f"[grey70]Formal adapter:[/grey70] [white]{data.get('formal_adapter') or 'missing'}[/white]")
+                    console.print(f"[grey70]{data['note']}[/grey70]")
+                return 0
+
+            install = Path(pdk_root).expanduser().resolve() if pdk_root else Path(data["views"]["root"])
+            views = PdkManager.discover_views(install, canonical)
+            if not views.usable:
+                raise typer.BadParameter(
+                    f"PDK {canonical} is not ready for digital flow under {install}; "
+                    "need at least a typical Liberty and functional gate-level Verilog model"
+                )
+            current = WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS)
+            current.update({"PDK": canonical, "PDK_ROOT": str(install)})
+            WorkspaceFlow.write_settings(root, current, workdir)
+            derived = PdkManager.settings(root, canonical, install)
+            if as_json:
+                print(PdkManager.json_text({"active": canonical, "settings": current, "derived": derived}))
+            else:
+                console.print(f"[bold orange1]PDK active[/bold orange1]: [bright_cyan]{canonical}[/bright_cyan]")
+                console.print(f"[white]root[/white]: {install}")
+                console.print(f"[white]Liberty[/white]: {derived.get('LIB_SYN', '-')}")
+                console.print(f"[white]OpenROAD[/white]: {derived.get('ORS_TECH', '-')}")
+                console.print(
+                    "[grey70]Shared RTL, DV, formal, and SDC artifacts remain valid. "
+                    "Rerun syn --setup/syn, regenerate eqy --setup and run eqy when appropriate, signoff --setup, SDF/STA/power, "
+                    "GLS activity power, manifest, metrics, and check.[/grey70]"
+                )
+            return 0
+
+        def _eqy_debug(
+                self,
+                root: Path,
+            workdir: Path | None,
+            args: tuple[str, ...],
+            sets: tuple[str, ...],
+            *,
+            as_json: bool,
+            runner=None,
+            on: str = "local",
+        ) -> int:
+            """Explain one EQY failure; expensive probes target only the selected partition."""
+
+            from .backend.syn.eqy import (
+                choose_trace, describe_partition, discover_result_dir, explain_counterexample, open_wave,
+                run_reset_normalized_diagnostic, run_synthesis_boundary_diagnostics,
+                scan, select, synthesis_boundary_diagnosis,
+            )
+
+            settings = WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS)
+            settings.update(self._assignments(sets))
+            top = settings.get("TOP", "test")
+            run_top = settings.get("RUN_TOP") or top
+            run_id = settings.get("RUN_ID", "default")
+            pdk = settings.get("PDK", DEFAULT_SETTINGS["PDK"])
+            workspace = (workdir or Path(settings.get("WORKSPACE", root / "workspace"))).expanduser().resolve()
+
+            values = list(args)
+            action = "show"
+            if values and values[0] in {"--wave", "wave", "open"}:
+                action = "wave"
+                values.pop(0)
+            elif values and values[0] in {"--files", "files"}:
+                action = "files"
+                values.pop(0)
+            partition = values.pop(0) if values else None
+            trace_kind = values.pop(0) if values else "auto"
+            if values:
+                error_console.print("[red]eqy_debug accepts at most one partition and one trace kind[/red]")
+                return 2
+
+            try:
+                result_dir = discover_result_dir(root, workspace, top=top, run_top=run_top, run_id=run_id, pdk=pdk)
+                rows = scan(result_dir)
+            except (FileNotFoundError, ValueError) as exc:
+                error_console.print(f"[red]{exc}[/red]")
+                return 2
+
+            total = len(rows)
+            passed = sum(row.status == "PASS" for row in rows)
+            closure = 100.0 * passed / total if total else 0.0
+            non_pass = tuple(row for row in rows if row.status != "PASS")
+            if not non_pass:
+                payload = {"pdk": pdk, "result_dir": str(result_dir), "passed": passed, "total": total, "closure_pct": closure}
+                if as_json:
+                    print(json.dumps(payload, indent=2))
+                else:
+                    console.print(Panel.fit(
+                        f"PDK: [white]{pdk}[/white]\n[green]{passed}/{total} partitions proven · {closure:.2f}%[/green]\n[green]EQY PASS[/green]",
+                        title="EQY debug", border_style="green",
+                    ))
+                return 0
+
+            try:
+                item = select(rows, partition)
+            except ValueError as exc:
+                if partition is not None:
+                    error_console.print(f"[red]{exc}[/red]")
+                    return 2
+                if as_json:
+                    print(json.dumps({"pdk": pdk, "passed": passed, "total": total, "closure_pct": closure,
+                                      "counterexamples": [entry.to_dict() for entry in non_pass]}, indent=2))
+                else:
+                    table = Table(title=f"EQY debug · {passed}/{total} PASS · {closure:.2f}%",
+                                  header_style="bold grey70", border_style="grey50")
+                    table.add_column("Partition", style="white")
+                    table.add_column("Status")
+                    table.add_column("Strategy", style="grey70")
+                    max_rows = 24
+                    for entry in non_pass[:max_rows]:
+                        strategy = entry.failing_strategy
+                        color = "red" if entry.status == "FAIL" else "orange1"
+                        table.add_row(entry.partition, f"[{color}]{entry.status}[/{color}]", strategy.name if strategy else "-")
+                    console.print(table)
+                    hidden = len(non_pass) - max_rows
+                    if hidden > 0:
+                        console.print(
+                            f"[grey70]Showing {max_rows}/{len(non_pass)} non-PASS partitions; "
+                            f"{hidden} omitted. Use[/grey70] [white]fx eqy_debug --json[/white] [grey70]for the complete list.[/grey70]"
+                        )
+                    console.print("[grey70]Select one:[/grey70] [white]fx eqy_debug <partition>[/white]")
+                return 0
+
+            strategy = item.failing_strategy
+            if strategy is None:
+                error_console.print(
+                    f"[red]partition {item.partition} has no failing strategy[/red]"
+                )
+                return 2
+            if action == "files":
+                files = (*strategy.traces, *strategy.logs)
+                if as_json:
+                    print(json.dumps({"partition": item.partition, "strategy": strategy.name,
+                                      "directory": str(strategy.directory), "files": [str(path) for path in files]}, indent=2))
+                else:
+                    console.print(f"[orange1]{item.partition}[/orange1] · [white]{strategy.name}[/white]")
+                    console.print(f"[grey70]directory:[/grey70] [white]{strategy.directory}[/white]")
+                    for path in files:
+                        console.print(f"  [white]{path}[/white]")
+                return 0
+            if action == "wave":
+                try:
+                    trace = choose_trace(strategy, trace_kind)
+                    viewer = settings.get("WAVE_VIEWER", "gtkwave")
+                    session, _ = open_wave(
+                        trace, item.partition, viewer=viewer, runner=runner, on=on
+                    )
+                except (FileNotFoundError, ValueError, OSError) as exc:
+                    error_console.print(f"[red]{exc}[/red]")
+                    return 2
+                if as_json:
+                    print(json.dumps({"partition": item.partition, "trace": str(trace), "viewer": viewer,
+                                      "session": str(session) if session else None}, indent=2))
+                else:
+                    console.print(f"[orange1][eqy_debug][/orange1] waveform · [white]{item.partition}[/white]")
+                    console.print(f"[grey70]trace:[/grey70] [white]{trace}[/white]")
+                    console.print(f"[grey70]viewer:[/grey70] [white]{viewer}[/white]")
+                return 0
+
+            try:
+                explanation = explain_counterexample(item)
+            except (FileNotFoundError, ValueError, OSError) as exc:
+                error_console.print(f"[red]{exc}[/red]")
+                return 2
+
+            if not as_json:
+                console.print(Panel.fit(
+                    f"PDK: [white]{pdk}[/white]\n[white]{passed}/{total} partitions proven[/white] · [orange1]{closure:.2f}%[/orange1]\n"
+                    f"partition: [white]{item.partition}[/white]\nstatus: [red]{item.status}[/red] · strategy: [white]{strategy.name}[/white]",
+                    title="EQY debug", border_style="orange1",
+                ))
+                failure = explanation.get("failure") or {}
+                divergence = explanation.get("first_divergence")
+                facts = Table(title="Counterexample", header_style="bold grey70", border_style="grey50")
+                facts.add_column("Field", style="grey70")
+                facts.add_column("Value", style="white")
+                phase = failure.get("phase") or "unknown"
+                step = failure.get("step")
+                facts.add_row("Proof", phase + (f" · step {step}" if step is not None else ""))
+                facts.add_row("Class", str(explanation.get("classification", "unclassified")))
+                decoded = describe_partition(item.partition)
+                if decoded:
+                    facts.add_row("Signal", decoded)
+                if divergence:
+                    facts.add_row("First divergence", f"t={divergence.get('time')}")
+                    facts.add_row("Gold", f"{divergence.get('gold_signal')} = {divergence.get('gold')}")
+                    facts.add_row("Gate", f"{divergence.get('gate_signal')} = {divergence.get('gate')}")
+                    if divergence.get("gold_x_signal"):
+                        facts.add_row("X masks", f"gold={divergence.get('gold_x')} · gate={divergence.get('gate_x')}")
+                console.print(facts)
+
+            clock = settings.get("EQY_CLOCK", "clk_i").strip() or "clk_i"
+            reset = settings.get("EQY_RESET", "rst_ni").strip() or "rst_ni"
+            reset_active = settings.get("EQY_RESET_ACTIVE", "low").strip().lower() or "low"
+            explicit_reset = any(key in settings for key in ("EQY_CLOCK", "EQY_RESET", "EQY_RESET_ACTIVE"))
+            reset_domains = None
+            if not explicit_reset:
+                try:
+                    from .backend.core import ClockConfig
+                    reset_domains = tuple(
+                        (domain.signal, domain.reset, domain.reset_polarity)
+                        for domain in ClockConfig.from_values(settings).domains
+                    )
+                except (TypeError, ValueError):
+                    reset_domains = None
+            try:
+                reset_cycles = int(settings.get("EQY_RESET_CYCLES", "1"))
+            except ValueError:
+                reset_cycles = 1
+            eqy = str(settings.get("EQY", "eqy"))
+
+            if not as_json:
+                console.print(f"[bold orange1][eqy_debug][/bold orange1] reset-state probe · [bright_cyan]{item.partition}[/bright_cyan]")
+            try:
+                reset_probe = run_reset_normalized_diagnostic(
+                    result_dir, partition=item.partition, clock=clock, reset=reset,
+                    reset_active=reset_active, reset_cycles=reset_cycles, eqy=eqy,
+                    domains=reset_domains, runner=runner, on=on,
+                )
+            except (FileNotFoundError, ValueError, RuntimeError, OSError) as exc:
+                reset_probe = {"valid": False, "error": str(exc)}
+            if not as_json:
+                if reset_probe.get("valid"):
+                    status = str(reset_probe.get("status", "UNKNOWN"))
+                    color = "green" if status == "PASS" else "red" if status == "FAIL" else "orange1"
+                    cached = " · cached" if reset_probe.get("cached") else ""
+                    console.print(f"  [{color}]{status}[/{color}]{cached}")
+                else:
+                    console.print("  [orange1]INCONCLUSIVE[/orange1]")
+
+            synthesis_probe: dict[str, object] | None = None
+            if reset_probe.get("valid") and reset_probe.get("status") != "PASS":
+                from .backend.core import PDKRunLayout
+                layout = PDKRunLayout.from_run(PDKRunLayout.build_run_root(workspace, run_top=run_top, run_id=run_id), pdk=pdk, top=top)
+                def progress(stage: str) -> None:
+                    if not as_json:
+                        labels = {
+                            "generic": "generic synthesis",
+                            "dffmap": "after dfflibmap",
+                            "abc": "after ABC",
+                            "clean": "after final cleanup",
+                        }
+                        console.print(f"[bold orange1][eqy_debug][/bold orange1] {labels.get(stage, stage)} · [bright_cyan]{item.partition}[/bright_cyan]")
+                synthesis_probe = run_synthesis_boundary_diagnostics(
+                    result_dir, top=top, syn_dir=layout.syn_dir, partition=item.partition,
+                    eqy=eqy, progress=progress, runner=runner, on=on,
+                )
+                if not as_json:
+                    for stage_name in ("generic", "dffmap", "abc", "clean"):
+                        stage = (synthesis_probe.get("stages") or {}).get(stage_name, {})
+                        if stage.get("valid"):
+                            status = str(stage.get("status", "UNKNOWN"))
+                            color = (
+                                "green"
+                                if status == "PASS"
+                                else "red" if status == "FAIL" else "orange1"
+                            )
+                            cached = " · cached" if stage.get("cached") else ""
+                            console.print(f"  [{color}]{status}[/{color}]{cached}")
+
+            payload = {"pdk": pdk, "result_dir": str(result_dir), "passed": passed, "total": total,
+                       "closure_pct": closure, "counterexample": explanation,
+                       "reset_probe": reset_probe, "synthesis_probe": synthesis_probe}
+            if as_json:
+                print(json.dumps(payload, indent=2))
+                return 0
+
+            probe = Table(title="Targeted probes", header_style="bold grey70", border_style="grey50")
+            probe.add_column("Boundary", style="white")
+            probe.add_column("Selected partition", style="white")
+            probe.add_row("mapped baseline", f"[red]{item.status}[/red]")
+            if reset_probe.get("valid"):
+                rs = str(reset_probe.get("status", "UNKNOWN"))
+                rc = (
+                    "green"
+                    if rs == "PASS"
+                    else "red" if rs == "FAIL" else "orange1"
+                )
+                probe.add_row("after reset", f"[{rc}]{rs}[/{rc}]")
+            else:
+                probe.add_row("after reset", "[orange1]inconclusive[/orange1]")
+            stages = (synthesis_probe or {}).get("stages", {}) if synthesis_probe else {}
+            for key, label in (
+                ("generic", "generic synthesis"),
+                ("dffmap", "after dfflibmap"),
+                ("abc", "after ABC"),
+                ("clean", "after final cleanup"),
+            ):
+                stage = stages.get(key, {}) if isinstance(stages, dict) else {}
+                if stage.get("valid"):
+                    ss = str(stage.get("status", "UNKNOWN"))
+                    sc = (
+                        "green"
+                        if ss == "PASS"
+                        else "red" if ss == "FAIL" else "orange1"
+                    )
+                    probe.add_row(label, f"[{sc}]{ss}[/{sc}]")
+                elif stage.get("missing"):
+                    probe.add_row(label, "[grey70]checkpoint missing[/grey70]")
+            console.print(probe)
+
+            if reset_probe.get("status") == "PASS":
+                console.print("[orange1]Diagnosis:[/orange1] [white]mismatch disappears after deterministic reset initialization.[/white]")
+            elif synthesis_probe:
+                diagnosis = synthesis_boundary_diagnosis(stages if isinstance(stages, dict) else {})
+                messages = {
+                    "missing": "synthesis checkpoints missing; rerun synthesis, regenerate `fx eqy --setup --force`, then run `fx eqy` explicitly when the IP profile is ready.",
+                    "generic_fail": "mismatch already exists after generic Yosys synthesis, before technology mapping.",
+                    "dffmap_fail": "generic synthesis passes; mismatch appears across dfflibmap/sequential mapping.",
+                    "abc_fail": "dfflibmap passes; mismatch is introduced by ABC combinational technology mapping.",
+                    "clean_fail": "ABC mapping passes but the cleanup checkpoint fails. Because cleanup is function-preserving, suspect loss of EQY match-points/names rather than a logic change; keep public names during final cleanup.",
+                    "serialization": "all RTLIL checkpoints pass; mismatch appears only after final Verilog serialization/readback in the EQY gate flow.",
+                }
+                message = messages.get(
+                    diagnosis,
+                    "synthesis-boundary probe is inconclusive; UNKNOWN and TIMEOUT are not evidence of a logic mismatch.",
+                )
+                console.print(f"[orange1]Diagnosis:[/orange1] [white]{message}[/white]")
+            else:
+                console.print("[orange1]Diagnosis:[/orange1] [white]reset probe inconclusive; inspect its log before synthesis-boundary attribution.[/white]")
+            console.print(f"[grey70]Waveform:[/grey70] [white]fx eqy_debug --wave {item.partition}[/white]")
+            console.print(f"[grey70]Artifacts:[/grey70] [white]fx eqy_debug --files {item.partition}[/white]")
+            return 0
+
+        # -----------------------------------------------------------------------
+        # Target invocation and one-shot overrides
+        # -----------------------------------------------------------------------
+        def _overrides(self, sets: tuple[str, ...], tool: str | None, force: bool) -> dict[str, str]:
+            """Collect one-shot FlexSoC setting overrides."""
+
+            values = self._assignments(sets)
+            if tool:
+                values["LINT_TOOL"] = tool
+            if force:
+                values["FORCE"] = "1"
+            return values
+
+        def _debug_log(self,
+            client: FlexSoC, target: str, values: Mapping[str, str], *, as_json: bool
+        ) -> int:
+            """Show the existing canonical command log for targets without richer diagnostics."""
+
+            path = client.log_path(target, **values)
+            if not path.is_file():
+                raise FileNotFoundError(f"log not found: {path}; run `fx {target}` first")
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if as_json:
+                print(json.dumps({"target": target, "log": str(path), "text": text}, indent=2))
+            else:
+                from .backend.core.runtime.execution import Terminal
+
+                Terminal.print_log(path)
+                print(text, end="" if text.endswith("\n") else "\n")
+            return 0
+
+        def _cdc_rdc_debug(self,
+            client: FlexSoC, values: Mapping[str, str], *, as_json: bool, save_output: Path | None
+        ) -> int:
+            """Render root-cause-first CDC/RDC diagnosis from existing canonical artifacts."""
+
+            from collections import Counter
+            from .backend import BackendContext
+            from .backend.dv.lint.cdc import CdcFlow
+
+            effective = client.values(values)
+            context = BackendContext(client.project_root, client.workdir, effective)
+            paths = context.paths
+            analysis = paths.cdc_rdc
+            payload = CdcFlow().debug_from_context(context)
+
+            if save_output is not None:
+                output = save_output.expanduser()
+                if output.suffix.lower() != ".json":
+                    output.mkdir(parents=True, exist_ok=True)
+                    output = output / "cdc_rdc_debug.json"
+                else:
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+            if as_json:
+                print(json.dumps(payload, indent=2))
+                return 0
+
+            status = str(payload.get("status", "unknown")).upper()
+            status_color = "green" if status == "PASS" else "red" if status == "FAIL" else "orange1"
+            obligation_checks = int(payload.get("verification_obligations", 0) or 0)
+            obligation_findings = int(payload.get("obligation_findings", 0) or 0)
+            console.print(Panel.fit(
+                f"Top: [white]{payload.get('top')}[/white]\n"
+                f"Analysis closure: [{status_color}]{status}[/{status_color}]\n"
+                f"Clocks: [white]{payload.get('clock_domains')}[/white] · "
+                f"Reset families: [white]{payload.get('reset_families', payload.get('reset_domains'))}[/white] · "
+                f"Reset signals: [white]{payload.get('reset_domains')}[/white] · "
+                f"Sequential: [white]{payload.get('sequential_elements')}[/white]\n"
+                f"Open obligations: [white]{obligation_checks} checks / {obligation_findings} findings[/white]\n"
+                "Debug execution: [green]OK[/green] · read-only canonical-artifact inspection",
+                title="CDC/RDC debug",
+                border_style=status_color,
+            ))
+
+            contracts = payload.get("contracts", {})
+            contract_table = Table(title="CDC contract survival", header_style="bold grey70", border_style="grey50")
+            contract_table.add_column("Layer", style="bright_cyan")
+            contract_table.add_column("Contracts", style="white")
+            src = contracts.get("source", {})
+            structural = contracts.get("structural_design", {})
+            contract_table.add_row("RTL source", ", ".join(f"{k}×{v}" for k, v in src.items()) or "none")
+            contract_table.add_row("design.json/top", ", ".join(f"{k}×{v}" for k, v in structural.items()) or "none")
+            frontend_hierarchy = bool(contracts.get("frontend_hierarchy_preserved"))
+            selective_guard = bool(contracts.get("selective_contract_guard"))
+            contract_table.add_row(
+                "Slang hierarchy",
+                "[green]preserved[/green]" if frontend_hierarchy else "[red]flattened in frontend[/red]",
+            )
+            contract_table.add_row(
+                "contract guard",
+                "[green]present[/green]" if selective_guard else "[red]missing[/red]",
+            )
+            guard_state = str(contracts.get("extract_guard_state") or ("present" if contracts.get("extract_guard") else "missing"))
+            guard_style = "green" if guard_state in {"effective", "not_applicable"} else "orange1" if "partial" in guard_state else "red"
+            contract_table.add_row("extract guard", f"[{guard_style}]{guard_state}[/{guard_style}]")
+            console.print(contract_table)
+
+            triage = payload.get("triage", {})
+            triage_state = str(triage.get("state", "UNKNOWN")).upper()
+            triage_color = "green" if triage_state == "PASS" else "orange1" if triage_state == "REVIEW" else "red"
+            console.print(Panel.fit(
+                f"Phase: [bright_cyan]{triage.get('phase', '-')}[/bright_cyan]\n"
+                f"State: [{triage_color}]{triage_state}[/{triage_color}]\n"
+                f"Next action: [white]{triage.get('next_action', '-')}[/white]",
+                title="Triage",
+                border_style=triage_color,
+            ))
+
+            scopes = payload.get("scopes", {})
+            downstream_deferred = str(triage.get("downstream", "active")) == "deferred"
+            scope_title = "Observed closure counts (downstream deferred)" if downstream_deferred else "Closure by scope"
+            table = Table(title=scope_title, header_style="bold grey70", border_style="grey50")
+            table.add_column("Scope", style="bright_cyan")
+            table.add_column("ERROR", justify="right")
+            table.add_column("WARN", justify="right")
+            table.add_column("REVIEW", justify="right")
+            table.add_column("SAFE", justify="right")
+            table.add_column("Non-PASS classes", style="white")
+            for name in ("setup", "glitch", "cdc", "rdc"):
+                item = scopes.get(name, {})
+                classes = item.get("classes", {})
+                class_text = ", ".join(f"{key}×{value}" for key, value in classes.items()) or "-"
+                table.add_row(
+                    name.upper(),
+                    str(item.get("errors", 0)),
+                    str(item.get("warnings", 0)),
+                    str(item.get("review", 0)),
+                    str(item.get("safe", 0)),
+                    class_text,
+                )
+            console.print(table)
+            if downstream_deferred:
+                console.print(
+                    "[orange1]CDC/RDC protocol findings are downstream symptoms until extraction/clock setup closes; "
+                    "do not waive or fix them individually yet.[/orange1]"
+                )
+
+            diagnoses = payload.get("diagnoses", [])
+            if diagnoses:
+                diag = Table(title="Root-cause diagnosis", header_style="bold grey70", border_style="grey50")
+                diag.add_column("Severity")
+                diag.add_column("Code", style="bright_cyan")
+                diag.add_column("Meaning", style="white")
+                for item in diagnoses:
+                    sev = str(item.get("severity", "INFO"))
+                    color = "red" if sev == "ERROR" else "orange1" if sev in {"WARN", "REVIEW"} else "green"
+                    diag.add_row(f"[{color}]{sev}[/{color}]", str(item.get("code", "-")), str(item.get("message", "")))
+                console.print(diag)
+
+            blockers = Table(title="Representative active findings", header_style="bold grey70", border_style="grey50")
+            blockers.add_column("Scope", style="bright_cyan")
+            blockers.add_column("ID", style="white")
+            blockers.add_column("State")
+            blockers.add_column("Class", style="white")
+            blockers.add_column("Representative evidence", style="grey70")
+            rows = 0
+            active_scopes = ("setup", "glitch") if downstream_deferred else ("setup", "glitch", "cdc", "rdc")
+            for scope in active_scopes:
+                for item in scopes.get(scope, {}).get("samples", []):
+                    evidence = list(item.get("issues") or ()) + list(item.get("evidence") or ())
+                    blockers.add_row(
+                        scope.upper(),
+                        str(item.get("id") or "-"),
+                        str(item.get("status") or "-"),
+                        str(item.get("classification") or "-"),
+                        str(evidence[0] if evidence else "-"),
+                    )
+                    rows += 1
+            if rows:
+                console.print(blockers)
+
+            obligations = payload.get("obligations", [])
+            if obligations:
+                grouped: Counter[tuple[str, str, tuple[str, ...]]] = Counter()
+                for item in obligations:
+                    key = (
+                        str(item.get("scope") or "-"),
+                        str(item.get("classification") or "-"),
+                        tuple(str(value) for value in (item.get("obligations") or ())),
+                    )
+                    grouped[key] += 1
+                title = "Downstream obligations (deferred)" if downstream_deferred else "Open verification obligations"
+                obligation_table = Table(title=title, header_style="bold grey70", border_style="grey50")
+                obligation_table.add_column("Count", justify="right")
+                obligation_table.add_column("Scope", style="bright_cyan")
+                obligation_table.add_column("Class", style="white")
+                obligation_table.add_column("Obligation checks", style="grey70")
+                for (scope, classification, texts), count in sorted(grouped.items()):
+                    obligation_table.add_row(str(count), scope, classification, ", ".join(texts) or "-")
+                console.print(obligation_table)
+
+            artifacts = payload.get("artifacts", {})
+            console.print(
+                "[grey70]Artifacts:[/grey70] "
+                f"[white]{artifacts.get('summary')}[/white] · "
+                f"[white]{artifacts.get('design_json')}[/white] · "
+                f"[white]{artifacts.get('extract_script')}[/white]"
+            )
+            if save_output is not None:
+                console.print(f"[grey70]Saved:[/grey70] [white]{output}[/white]")
+            return 0
+
+        def _run(self,
+            client: FlexSoC,
+            targets: tuple[str, ...],
+            *,
+            sets: tuple[str, ...],
+            tool: str | None,
+            force: bool,
+            dry_run: bool,
+            script: bool,
+            capture: bool,
+            live: bool,
+            debug: bool,
+            setup: bool,
+            save_output: Path | None,
+            as_json: bool,
+            info: bool,
+            on: str,
+        ) -> int:
+            """Run, preview, or describe requested targets."""
+
+            if info:
+                self._print_info(client, targets, as_json)
+                return 0
+
+            try:
+                values = self._overrides(sets, tool, force)
+                if live:
+                    values["LIVE"] = "1"
+                if debug:
+                    if len(targets) != 1:
+                        raise typer.BadParameter("--debug requires exactly one target")
+                    if targets[0] == "cdc_rdc":
+                        return self._cdc_rdc_debug(client, values, as_json=as_json, save_output=save_output)
+                    if targets[0] not in DEBUG_TARGETS:
+                        if save_output is not None:
+                            raise typer.BadParameter("--save-output/-o requires a target with structured debug support")
+                        return self._debug_log(client, targets[0], values, as_json=as_json)
+                    values["DEBUG"] = "1"
+                    if save_output is not None:
+                        values["DEBUG_OUTPUT"] = str(save_output)
+                elif save_output is not None:
+                    raise typer.BadParameter("--save-output/-o requires --debug")
+
+                result = client.run(
+                    *targets,
+                    check=False,
+                    dry_run=dry_run,
+                    capture=capture,
+                    live=live,
+                    setup=setup,
+                    on=on,
+                    **values,
+                )
+            except (ValueError, RuntimeError, OSError, typer.BadParameter) as exc:
+                error_console.print(f"[red]{exc}[/red]")
+                return getattr(exc, "returncode", 2) or 2
+
+            items = list(result)
+
+            if dry_run:
+                text = "\n".join(item.shell_line() for item in items)
+                if script:
+                    print("#!/usr/bin/env bash\nset -euo pipefail\n" + text)
+                else:
+                    print(text)
+                return 0
+
+            if as_json:
+                data = [item.to_dict() for item in items]
+                print(json.dumps(data[0] if len(data) == 1 else data, indent=2))
+            elif capture:
+                print("".join(item.stdout or "" for item in items), end="")
+            failed = [item for item in items if not item.ok]
+            return failed[0].returncode if failed else 0
+
+        def _shell(self, root: Path, workdir: Path | None) -> int:
+            """Open a Prompt Toolkit shell with command completion."""
+
+            try:
+                from prompt_toolkit import PromptSession
+                from prompt_toolkit.completion import WordCompleter
+                from prompt_toolkit.history import FileHistory
+            except ModuleNotFoundError:
+                console.print("[red]missing dependency: prompt_toolkit[/red]")
+                return 2
+            history = WorkspaceFlow.settings_path(root, workdir).with_name("history")
+            history.parent.mkdir(parents=True, exist_ok=True)
+            session = PromptSession(
+                history=FileHistory(str(history)),
+                completer=WordCompleter(self._completion_words(), ignore_case=True, sentence=True),
+            )
+            console.print("[bold cyan]fx shell[/bold cyan]  type 'help', 'commands', 'exit' or backend targets")
+            while True:
+                try:
+                    line = session.prompt("fx> ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    console.print()
+                    return 0
+                if not line:
+                    continue
+                if line in {"exit", "quit", ":q"}:
+                    return 0
+                if line in {"help", "?"}:
+                    self._guide()
+                    continue
+                self._run_cli([*shlex.split(line), *( ["--workdir", str(workdir)] if workdir else [] )])
+
+        def _entry(self,
+            items: Annotated[
+                list[str] | None,
+                typer.Argument(
+                    help="Pseudo-command (`settings`, `commands`, `shell`) or one or more backend targets.",
+                    autocompletion=FlexSoCCli._complete_items,
+                    show_default=False,
+                ),
+            ] = None,
+            sets: Annotated[
+                list[str] | None,
+                typer.Option("--set", "-s", help="Add KEY=VALUE override.", rich_help_panel="Settings and overrides"),
+            ] = None,
+            unsets: Annotated[
+                list[str] | None,
+                typer.Option("--unset", help="Remove a persistent setting.", rich_help_panel="Settings and overrides"),
+            ] = None,
+            project_root: Annotated[
+                Path | None,
+                typer.Option("--project-root", help="Repository root used by backend flows.", rich_help_panel="Paths"),
+            ] = None,
+            workdir: Annotated[
+                Path | None,
+                typer.Option("--workdir", help="Workspace used by backend flows.", rich_help_panel="Paths"),
+            ] = None,
+            tool: Annotated[
+                str | None,
+                typer.Option("--tool", help="Shortcut for LINT_TOOL=VALUE.", rich_help_panel="Target options"),
+            ] = None,
+            deps_user: Annotated[
+                bool,
+                typer.Option("--user", help="Use rootless user dependency mode.", rich_help_panel="Dependency tooling"),
+            ] = False,
+            deps_system: Annotated[
+                bool,
+                typer.Option("--system", help="Use shared/system dependency mode.", rich_help_panel="Dependency tooling"),
+            ] = False,
+            deps_profile: Annotated[
+                str | None,
+                typer.Option("--profile", help="Dependency profile: base, impl, or riscv.", rich_help_panel="Dependency tooling"),
+            ] = None,
+            deps_jobs: Annotated[
+                int | None,
+                typer.Option("--jobs", help="Parallel dependency build jobs.", rich_help_panel="Dependency tooling"),
+            ] = None,
+            reset: Annotated[
+                bool,
+                typer.Option("--reset", help="Reset settings before applying updates.", rich_help_panel="Settings and overrides"),
+            ] = False,
+            force: Annotated[
+                bool,
+                typer.Option("--force", "--overwrite", help="Shortcut for FORCE=1.", rich_help_panel="Target options"),
+            ] = False,
+            setup: Annotated[
+                bool,
+                typer.Option("--setup", help="Run the setup phase for the selected lifecycle keyword.", rich_help_panel="Target options"),
+            ] = False,
+            on: Annotated[
+                str,
+                typer.Option("--on", help="Execution target name (local or configured server).", rich_help_panel="Target options"),
+            ] = "local",
+            dry_run: Annotated[
+                bool,
+                typer.Option("--dry-run", help="Print backend command previews without running them.", rich_help_panel="Output"),
+            ] = False,
+            script: Annotated[
+                bool,
+                typer.Option("--script", help="Render dry-run output as a bash script.", rich_help_panel="Output"),
+            ] = False,
+            capture: Annotated[
+                bool,
+                typer.Option("--capture", help="Capture and print target stdout.", rich_help_panel="Output"),
+            ] = False,
+            live: Annotated[
+                bool,
+                typer.Option("--live", help="Show generated scripts and the command log while retaining a plain log file.", rich_help_panel="Output"),
+            ] = False,
+            debug: Annotated[
+                bool,
+                typer.Option("--debug", help="Read existing target artifacts and print filtered diagnostics without rerunning the target.", rich_help_panel="Output"),
+            ] = False,
+            save_output: Annotated[
+                Path | None,
+                typer.Option("--save-output", "-o", help="Save filtered --debug output to a file or directory.", rich_help_panel="Output"),
+            ] = None,
+            as_json: Annotated[
+                bool,
+                typer.Option("--json", help="Print machine-readable JSON.", rich_help_panel="Output"),
+            ] = False,
+            less: Annotated[
+                bool,
+                typer.Option("--less", help="Use the compact human-readable view for requirements, testplan, or meta.", rich_help_panel="Output"),
+            ] = False,
+            check_generated: Annotated[
+                bool,
+                typer.Option("--check", help="For tests_gen, verify generated vectors without modifying them.", rich_help_panel="Output"),
+            ] = False,
+            info: Annotated[
+                bool,
+                typer.Option("--info", help="Describe targets instead of running them.", rich_help_panel="Output"),
+            ] = False,
+        ) -> None:
+            """Dispatch pseudo-commands or ordered backend targets."""
+
+            root = (project_root or Path.cwd()).resolve()
+            args, set_args, unset_args = tuple(items or ()), tuple(sets or ()), tuple(unsets or ())
+            if deps_user and deps_system:
+                raise click.BadParameter("choose only one of --user or --system")
+            if deps_profile is not None and deps_profile not in {"base", "impl", "riscv"}:
+                raise click.BadParameter("--profile must be base, impl, or riscv")
+            if deps_jobs is not None and deps_jobs < 1:
+                raise click.BadParameter("--jobs must be a positive integer")
+            if deps_user or deps_system or deps_profile is not None or deps_jobs is not None:
+                dep_targets = {"deps-bootstrap", "deps", "deps-doctor", "deps-versions", "deps-env", "deps-status", "deps-prune"}
+                if not args or any(arg not in dep_targets for arg in args):
+                    raise click.BadParameter("--user/--system/--profile/--jobs are only valid for dependency targets")
+                dep_sets = []
+                if deps_user:
+                    dep_sets.append("DEPS_MODE=user")
+                if deps_system:
+                    dep_sets.append("DEPS_MODE=system")
+                if deps_profile is not None:
+                    dep_sets.append(f"DEPS_PROFILE={deps_profile}")
+                if deps_jobs is not None:
+                    dep_sets.append(f"DEPS_JOBS={deps_jobs}")
+                set_args = (*set_args, *dep_sets)
+            client = FlexSoC(FlexSoCConfig(root, workdir), **WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS))
+            if not args:
+                self._guide()
+                return
+            if args[0] == "commands":
+                self._print_commands(client, as_json)
+                return
+            if args[0] == "settings":
+                self._settings(root, workdir, args[1:], set_args, unset_args, reset, as_json)
+                return
+            if args[0] == "show":
+                raise typer.Exit(self._show(client, args[1:], set_args, as_json=as_json))
+            if args[0] == "requirements":
+                if len(args) != 1:
+                    raise click.BadParameter("fx requirements accepts no positional arguments")
+                raise typer.Exit(self._requirements(client, set_args, less=less, as_json=as_json))
+            if args[0] == "testplan":
+                if len(args) != 1:
+                    raise click.BadParameter("fx testplan accepts no positional arguments")
+                raise typer.Exit(self._testplan(client, set_args, less=less, as_json=as_json))
+            if args[0] == "meta":
+                if len(args) != 1:
+                    raise click.BadParameter("fx meta accepts no positional arguments")
+                raise typer.Exit(self._meta(client, set_args, less=less, as_json=as_json))
+            if less:
+                raise click.BadParameter("--less is only valid with requirements, testplan, or meta")
+            if check_generated:
+                if args != ("tests_gen",):
+                    raise click.BadParameter("--check is only valid with `fx tests_gen`")
+                raise typer.Exit(self._tests_gen_check(client, set_args, as_json=as_json))
+            if args[0] in {"doctor", "pdk", "eqy_debug"}:
+                from .backend.core import ToolRunner
+
+                runner = ToolRunner(client.execution_targets, project_root=root)
+                if args[0] == "doctor":
+                    from .backend.core.runtime.toolchain import Toolchain
+
+                    raise typer.Exit(Toolchain.run(root, as_json=as_json, runner=runner, on=on))
+                if args[0] == "pdk":
+                    raise typer.Exit(
+                        self._pdk(
+                            root, workdir, args[1:], set_args, force=force, as_json=as_json,
+                            runner=runner, on=on,
+                        )
+                    )
+                raise typer.Exit(
+                    self._eqy_debug(
+                        root, workdir, args[1:], set_args, as_json=as_json, runner=runner, on=on
+                    )
+                )
+            if args[0] == "shell":
+                raise typer.Exit(self._shell(root, workdir))
+            try:
+                targets = self._mode_targets(args, setup=setup, debug=debug)
+            except (ValueError, typer.BadParameter) as exc:
+                error_console.print(f"[red]{exc}[/red]")
+                raise typer.Exit(2)
+            raise typer.Exit(
+                self._run(
+                    client,
+                    targets,
+                    sets=set_args,
+                    tool=tool,
+                    force=force,
+                    dry_run=dry_run,
+                    script=script,
+                    capture=capture,
+                    live=live,
+                    debug=debug,
+                    setup=setup,
+                    save_output=save_output,
+                    as_json=as_json,
+                    info=info,
+                    on=on,
+                )
+            )
+
+        def _click_command(self) -> click.Command:
+            """Build the Click command generated by Typer."""
+
+            return typer.main.get_command(typer_app)
+
+        def _run_cli(self, argv: list[str] | None = None) -> int:
+            """Run the fx command-line interface."""
+
+            args = list(sys.argv[1:] if argv is None else argv)
+            if "eqy_debug" in args:
+                index = args.index("eqy_debug")
+                args[index + 1:] = [
+                    token[2:] if token in {"--wave", "--files"} else token
+                    for token in args[index + 1:]
+                ]
+            if os.environ.get("_FX_COMPLETE") or os.environ.get("_FLEXSOC_COMPLETE"):
+                try:
+                    return self._click_command().main(
+                        args=args, prog_name="fx", standalone_mode=False
+                    ) or 0
+                except click.exceptions.Exit as exc:
+                    return int(exc.exit_code or 0)
+            if (
+                not args
+                or args in (["-h"], ["--help"], ["help"])
+                or (len(args) == 2 and args[0] == "help" and args[1] in HELP_WORDS)
+            ):
+                self._guide()
+                return 0
+            help_command = self._help_request(args)
+            if help_command is not None:
+                try:
+                    self._print_command_help(help_command)
+                except ValueError as exc:
+                    error_console.print(f"[red]{exc}[/red]")
+                    return 2
+                return 0
+            try:
+                return self._click_command().main(args=args, prog_name="fx", standalone_mode=False) or 0
+            except click.exceptions.Exit as exc:
+                return int(exc.exit_code or 0)
+            except (click.ClickException, typer.BadParameter) as exc:
+                exc.show()
+                return int(exc.exit_code or 2)
+            except KeyboardInterrupt:
+                error_console.print("\n[red]interrupted[/red]")
+                return 130
+    app = FlexSoCCli()
+    typer_app.command(name="fx", help=HELP, no_args_is_help=False)(app._entry)

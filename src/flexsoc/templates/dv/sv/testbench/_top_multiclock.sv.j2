@@ -8,15 +8,7 @@ module <<: tb_module :>>;
 <<: clock_decls :>>
 <<: bus_decls :>>
 
-  logic rx_valid_i;
-  logic rx_ready_o;
-  logic signed [15:0] rx_sample_i;
-  logic signed [15:0] rx_coeff_i;
-  logic dsp_valid_o;
-  logic dsp_ready_i;
-  logic signed [31:0] dsp_result_o;
-  logic dsp_above_threshold_o;
-  logic dsp_overflow_o;
+<<: signal_decls :>>
 
   string cfg_path;
   string data_in_path;
@@ -27,11 +19,7 @@ module <<: tb_module :>>;
   localparam integer INITIAL_RESET_CYCLES = 5;
 <<: bus_helpers :>>
 
-  logic [31:0] exp_result [0:1023];
-  logic        exp_above_threshold [0:1023];
-  logic        exp_overflow [0:1023];
-  integer exp_count;
-  integer got_count;
+<<: expected_decls :>>
 <<: clock_drivers :>>
 
   <<: top :>> u_dut (
@@ -87,13 +75,13 @@ module <<: tb_module :>>;
 
     load_config(cfg_path);
     load_expected(data_out_path);
-    repeat (8) @(posedge dsp_clk_i);
+    repeat (8) <<: output_sample :>>;
     fork
       run_inputs(data_in_path);
       check_outputs();
     join
 
-    repeat (10) @(posedge dsp_clk_i);
+    repeat (10) <<: output_sample :>>;
     if (errors == 0) begin
       $display("[TB] PASS");
       $finish;

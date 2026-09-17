@@ -7,11 +7,14 @@
 //   data_in.vec:  <CYCLE> @write <REG_OR_ADDR> <DATA> [MASK]
 //   data_out.vec: <CYCLE> @read  <REG_OR_ADDR> <EXPECTED> [MASK]
 
-function automatic bit tb_cfg_is_dec_char(input byte ch);
+<<% if packed %>>function automatic logic [32:0] tb_parse_cfg_u32(input tb_token_t raw);
+  return tb_parse_u32(raw);
+<<% else %>>function automatic bit tb_cfg_is_dec_char(input byte ch);
   return ch >= 8'h30 && ch <= 8'h39;
-endfunction
+<<% endif %>>endfunction
 
-function automatic bit tb_cfg_is_hex_alpha(input byte ch);
+<<% if packed %>>function automatic logic [32:0] tb_lookup_reg_addr(input tb_token_t reg_key);
+<<% else %>>function automatic bit tb_cfg_is_hex_alpha(input byte ch);
   return (ch >= 8'h41 && ch <= 8'h46) || (ch >= 8'h61 && ch <= 8'h66);
 endfunction
 
@@ -148,7 +151,7 @@ task automatic tb_cfg_tokenize9(
 endtask
 
 function automatic logic [32:0] tb_lookup_reg_addr(input string reg_key);
-  logic [31:0] addr;
+<<% endif %>>  logic [31:0] addr;
   logic [32:0] parsed;
   bit found;
 
@@ -185,8 +188,9 @@ task automatic tb_reg_read_addr(
 endtask
 
 task automatic tb_reg_write_key(
-  input string reg_key,
-  input logic [31:0] data,
+<<% if packed %>>  input tb_token_t reg_key,
+<<% else %>>  input string reg_key,
+<<% endif %>>  input logic [31:0] data,
   input logic [31:0] mask,
   output bit ok
 );
@@ -211,8 +215,9 @@ task automatic tb_reg_write_key(
 endtask
 
 task automatic tb_reg_read_key(
-  input string reg_key,
-  output logic [31:0] data,
+<<% if packed %>>  input tb_token_t reg_key,
+<<% else %>>  input string reg_key,
+<<% endif %>>  output logic [31:0] data,
   output bit ok
 );
   logic [31:0] addr;
@@ -242,7 +247,21 @@ task automatic run_reg_config(input string cfg_path);
   int writes;
   int wait_cycles;
   logic [31:0] wait_value;
-  string line;
+<<% if packed %>>  tb_line_t line_buf;
+  tb_token_t t0;
+  tb_token_t t1;
+  tb_token_t t2;
+  tb_token_t t3;
+  tb_token_t t4;
+  tb_token_t t5;
+  tb_token_t t6;
+  tb_token_t t7;
+  tb_token_t t8;
+  tb_token_t reg_key;
+  tb_token_t data_raw;
+  tb_token_t mask_raw;
+  tb_token_t wait_raw;
+<<% else %>>  string line;
   reg [8*4096-1:0] line_buf;
   string t0;
   string t1;
@@ -257,7 +276,7 @@ task automatic run_reg_config(input string cfg_path);
   string data_raw;
   string mask_raw;
   string wait_raw;
-  logic [31:0] data;
+<<% endif %>>  logic [31:0] data;
   logic [31:0] mask;
   logic [32:0] parsed;
   bit ok;
@@ -273,17 +292,20 @@ task automatic run_reg_config(input string cfg_path);
   $display("[TB] applying register config: %s", cfg_path);
 
   while (!$feof(fd)) begin : tb_cfg_line_1
-    line = "";
+<<% if packed %>><<% else %>>    line = "";
     tb_cfg_tokenize9(line, code, t0, t1, t2, t3, t4, t5, t6, t7, t8);
 
-    line_buf = '0;
-    void'($fgets(line_buf, fd));
+<<% endif %>>    line_buf = '0;
+<<% if packed %>>    code = $fgets(line_buf, fd);
+    tb_tokenize9(line_buf, code, t0, t1, t2, t3, t4, t5, t6, t7, t8);
+<<% else %>>    void'($fgets(line_buf, fd));
     line = $sformatf("%0s", line_buf);
     tb_cfg_tokenize9(line, code, t0, t1, t2, t3, t4, t5, t6, t7, t8);
-
+<<% endif %>>
     if (code < 1) disable tb_cfg_line_1;
-    if (t0.len() > 0 && t0.substr(0, 0) == "#") disable tb_cfg_line_1;
-
+<<% if packed %>>    if (tb_token_comment(t0)) disable tb_cfg_line_1;
+<<% else %>>    if (t0.len() > 0 && t0.substr(0, 0) == "#") disable tb_cfg_line_1;
+<<% endif %>>
     reg_key = "";
     data_raw = "";
     mask_raw = "";
@@ -291,8 +313,9 @@ task automatic run_reg_config(input string cfg_path);
 
     if (t0 == "write" || t0 == "@write" || t0 == "reg_write" || t0 == "@reg_write") begin
       if (code < 3) begin
-        $display("[TB][WARN] malformed config write row: %s", line);
-        disable tb_cfg_line_1;
+<<% if packed %>>        $display("[TB][WARN] malformed config write row: %0s", line_buf);
+<<% else %>>        $display("[TB][WARN] malformed config write row: %s", line);
+<<% endif %>>        disable tb_cfg_line_1;
       end
 
       reg_key = t1;
@@ -301,8 +324,9 @@ task automatic run_reg_config(input string cfg_path);
       wait_raw = t4;
     end else begin
       if (code < 2) begin
-        $display("[TB][WARN] malformed config row: %s", line);
-        disable tb_cfg_line_1;
+<<% if packed %>>        $display("[TB][WARN] malformed config row: %0s", line_buf);
+<<% else %>>        $display("[TB][WARN] malformed config row: %s", line);
+<<% endif %>>        disable tb_cfg_line_1;
       end
 
       reg_key = t0;
@@ -311,9 +335,11 @@ task automatic run_reg_config(input string cfg_path);
       wait_raw = t3;
     end
 
-    if (data_raw.len() > 0 && data_raw.substr(0, 0) == "#") begin
+<<% if packed %>>    if (tb_token_comment(data_raw)) begin
+      $display("[TB][WARN] malformed config row: %0s", line_buf);
+<<% else %>>    if (data_raw.len() > 0 && data_raw.substr(0, 0) == "#") begin
       $display("[TB][WARN] malformed config row: %s", line);
-      disable tb_cfg_line_1;
+<<% endif %>>      disable tb_cfg_line_1;
     end
 
     parsed = tb_parse_cfg_u32(data_raw);
@@ -321,16 +347,18 @@ task automatic run_reg_config(input string cfg_path);
     data = parsed[31:0];
 
     parsed = tb_parse_cfg_u32(mask_raw);
-    if (mask_raw.len() > 0 && mask_raw.substr(0, 0) != "#" && parsed[32]) begin
-      mask = parsed[31:0];
+<<% if packed %>>    if (!tb_token_empty(mask_raw) && !tb_token_comment(mask_raw) && parsed[32]) begin
+<<% else %>>    if (mask_raw.len() > 0 && mask_raw.substr(0, 0) != "#" && parsed[32]) begin
+<<% endif %>>      mask = parsed[31:0];
     end else begin
       mask = 32'hffff_ffff;
     end
 
     wait_cycles = 1;
     parsed = tb_parse_cfg_u32(wait_raw);
-    if (wait_raw.len() > 0 && wait_raw.substr(0, 0) != "#" && parsed[32]) begin
-      wait_value = parsed[31:0];
+<<% if packed %>>    if (!tb_token_empty(wait_raw) && !tb_token_comment(wait_raw) && parsed[32]) begin
+<<% else %>>    if (wait_raw.len() > 0 && wait_raw.substr(0, 0) != "#" && parsed[32]) begin
+<<% endif %>>      wait_value = parsed[31:0];
       wait_cycles = int'(wait_value);
     end
 

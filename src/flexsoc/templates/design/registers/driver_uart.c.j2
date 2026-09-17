@@ -1,0 +1,63 @@
+#include "<<: module_name :>>.h"
+
+#define DEV_WRITE(addr, val) (*((volatile uint32_t *)(uintptr_t)(addr)) = (uint32_t)(val))
+#define DEV_READ(addr) (*((volatile uint32_t *)(uintptr_t)(addr)))
+
+#ifndef BAUD_RATE
+#define BAUD_RATE 115200u
+#endif
+
+#ifndef SYSCLK_FREQ
+#define SYSCLK_FREQ 50000000u
+#endif
+
+#ifndef UART_EOF
+#define UART_EOF (-1)
+#endif
+
+int <<: module_name :>>_init(<<: module_name :>>_t base) {
+  uint32_t nco = (uint32_t)(((uint64_t)BAUD_RATE << 20) / SYSCLK_FREQ);
+  DEV_WRITE(base + <<: upper :>>_CTRL_REG_OFFSET, (nco << 16) | 0x3U);
+  return 0;
+}
+
+int <<: module_name :>>_in(<<: module_name :>>_t base) {
+  int res = UART_EOF;
+#ifdef <<: upper :>>_STATUS_REG_OFFSET
+#ifdef <<: upper :>>_STATUS_RXEMPTY_BIT
+  if (!(DEV_READ(base + <<: upper :>>_STATUS_REG_OFFSET) & (1u << <<: upper :>>_STATUS_RXEMPTY_BIT))) {
+    res = (int)DEV_READ(base + <<: upper :>>_RDATA_REG_OFFSET);
+  }
+#else
+  res = (int)DEV_READ(base + <<: upper :>>_RDATA_REG_OFFSET);
+#endif
+#else
+  res = (int)DEV_READ(base + <<: upper :>>_RDATA_REG_OFFSET);
+#endif
+  return res;
+}
+
+void <<: module_name :>>_out(<<: module_name :>>_t base, char c) {
+#ifdef <<: upper :>>_STATUS_REG_OFFSET
+#ifdef <<: upper :>>_STATUS_TXFULL_BIT
+  while (DEV_READ(base + <<: upper :>>_STATUS_REG_OFFSET) & (1u << <<: upper :>>_STATUS_TXFULL_BIT)) {
+  }
+#endif
+#endif
+  DEV_WRITE(base + <<: upper :>>_WDATA_REG_OFFSET, (uint32_t)(uint8_t)c);
+}
+
+int <<: module_name :>>_putchar(int c) {
+  if (c == '\n') {
+    <<: module_name :>>_out((<<: module_name :>>_t)<<: upper :>>_BASE, '\r');
+  }
+  <<: module_name :>>_out((<<: module_name :>>_t)<<: upper :>>_BASE, (char)c);
+  return c;
+}
+
+int <<: module_name :>>_puts(const char* str) {
+  while (*str) {
+    <<: module_name :>>_putchar(*str++);
+  }
+  return 0;
+}

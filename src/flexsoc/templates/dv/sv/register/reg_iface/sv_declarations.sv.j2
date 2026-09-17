@@ -1,4 +1,3 @@
-  <<: top :>>_cfg_reg_pkg::reg_req_t cfg_reg_req_i;
-  <<: top :>>_cfg_reg_pkg::reg_rsp_t cfg_reg_rsp_o;
-  <<: top :>>_dsp_reg_pkg::reg_req_t dsp_reg_req_i;
-  <<: top :>>_dsp_reg_pkg::reg_rsp_t dsp_reg_rsp_o;
+<<% for window in windows %>>  <<: top :>>_<<: window :>>_reg_pkg::reg_req_t <<: window :>>_reg_req_i;
+  <<: top :>>_<<: window :>>_reg_pkg::reg_rsp_t <<: window :>>_reg_rsp_o;
+<<% endfor %>>

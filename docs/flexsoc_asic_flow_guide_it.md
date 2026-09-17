@@ -4,7 +4,7 @@
 >
 > L'obiettivo è spiegare **cosa fa FlexSoC, perché esiste ogni stage, quali script e tool vengono coinvolti, quali evidenze produce e cosa significa realmente un PASS**. Non è un tutorial di progettazione RTL e non è il riferimento completo di ogni opzione CLI. Per la sintassi esatta dei comandi usare `docs/command_reference.md`; per ownership e policy di rigenerazione usare `docs/project_lifecycle.md` e `docs/ip_development_guide.md`.
 
-> **Policy attuale di qualificazione degli scaffold.** Questa guida documenta la capability EQY completa e può mostrare `fx eqy` nei flow di riferimento. La baseline scaffold corrente esegue intenzionalmente solo `fx eqy --setup`; il solo setup non è equivalence PASS e quindi non soddisfa L3.
+> **Policy attuale di qualificazione degli scaffold.** `fx eqy --setup` materializza lo scaffold editabile e `fx eqy` lo esegue esplicitamente; la matrice E2E automatica non lancia EQY finché i profili restano specifici per IP/interfaccia. Il solo setup non è equivalence PASS e quindi non soddisfa L3.
 
 ---
 
@@ -80,24 +80,24 @@ Per una prima lettura conviene seguire le sezioni in ordine. Per lavorare sul co
 
 | Responsabilità nel flow | Implementazione FlexSoC principale |
 | --- | --- |
-| template CSR HJSON | `src/flexsoc/backend/design/regs.py` |
-| helper Python CSR/regmap | `src/flexsoc/backend/design/regs.py` |
-| collateral driver software | `src/flexsoc/backend/design/regs.py` |
-| starter RTL single/N-clock | `src/flexsoc/backend/design/rtl.py` |
+| template CSR HJSON | `src/flexsoc/backend/design/ip/regs.py` |
+| helper Python CSR/regmap | `src/flexsoc/backend/design/ip/regs.py` |
+| collateral driver software | `src/flexsoc/backend/design/ip/regs.py` |
+| starter RTL single/N-clock | `src/flexsoc/backend/design/ip/rtl.py` |
 | orchestrazione lint | `src/flexsoc/backend/dv/dv.py` |
-| estrazione e qualification CDC/RDC | `src/flexsoc/backend/dv/cdc.py` |
-| generazione scenari/vettori | `src/flexsoc/backend/design/model.py`, `src/flexsoc/backend/dv/functional.py`, `dv/testbench.py`, `dv/functional.py` |
-| generazione testbench cocotb | `src/flexsoc/backend/dv/testbench.py` |
-| generazione formal CSR/design | `src/flexsoc/backend/dv/formal.py` |
+| estrazione e qualification CDC/RDC | `src/flexsoc/backend/dv/lint/cdc.py` |
+| generazione scenari/vettori | `src/flexsoc/backend/design/ip/model.py`, `src/flexsoc/backend/dv/func/functional.py`, `dv/tb/testbench.py`, `dv/func/functional.py` |
+| generazione testbench cocotb | `src/flexsoc/backend/dv/tb/testbench.py` |
+| generazione formal CSR/design | `src/flexsoc/backend/dv/formal/formal.py` |
 | script Yosys/ABC | `src/flexsoc/backend/syn/syn.py` |
 | equivalence RTL↔synthesis | `src/flexsoc/backend/syn/eqy.py` |
 | SDC/STA/SDF/power/fusion OpenSTA | `src/flexsoc/backend/signoff/sta.py`, `power.py`, `fusion.py` |
-| GLS post-syn/post-PnR | `src/flexsoc/backend/signoff/gls.py` |
-| configurazione fisica ORFS | `src/flexsoc/backend/impl/impl.py` |
-| esecuzione ORFS/tool resolution | `src/flexsoc/backend/impl/impl.py` |
+| GLS post-syn/post-implementation | `src/flexsoc/backend/signoff/gls.py` |
+| configurazione fisica ORFS | `src/flexsoc/backend/impl/implementation.py` |
+| esecuzione ORFS/tool resolution | `src/flexsoc/backend/impl/implementation.py` |
 | DRC/LVS/antenna/IR finali | `src/flexsoc/backend/signoff/__init__.py` |
-| lifecycle metrics/check | `src/flexsoc/backend/core/reporting.py` |
-| manifest artifact/tool | `src/flexsoc/backend/core/reporting.py` |
+| lifecycle metrics/check | `src/flexsoc/backend/release/reporting.py` |
+| manifest artifact/tool | `src/flexsoc/backend/release/reporting.py` |
 
 ### Contenuto compatto
 
@@ -1760,9 +1760,9 @@ Per Icarus, le modalità timing routed compilano con:
 Il JSON di risultato registra esplicitamente:
 
 ```text
-stage=post_pnr
+stage=post_impl
 netlist=.../6_final.v
-sdf=.../post_pnr/sdf/<corner>/...
+sdf=.../post_impl/sdf/<corner>/...
 interconnect_delays=enabled
 ```
 
@@ -2255,7 +2255,7 @@ esegui physical implementation ORFS
 usando final netlist + SDC + SPEF ORFS:
   esegui routed STA
   scrivi routed SDF
-  esegui post-PnR GLS
+  esegui post-implementation GLS
   esegui power/activity/fusion
 
 esegui physical sign-off:
@@ -2695,7 +2695,6 @@ fx coverage_detail
 fx syn --setup
 fx syn
 fx eqy --setup
-fx eqy
 
 # Sign-off pre-implementation / gate verification
 fx signoff --setup
@@ -2710,13 +2709,13 @@ fx fusion_analysis_all
 fx pnr --set ORS=/path/to/OpenROAD-flow-scripts/flow
 
 # Routed sign-off
-fx signoff_post_pnr --setup --force
-fx sta_post_pnr
-fx sdf_post_pnr
-fx power_estimate_post_pnr
-fx sim_post_pnr_all
-fx power_analysis_post_pnr_all
-fx fusion_analysis_post_pnr_all
+fx signoff_post_impl --setup --force
+fx sta_post_impl
+fx sdf_post_impl
+fx power_estimate_post_impl
+fx sim_post_impl_all
+fx power_analysis_post_impl_all
+fx fusion_analysis_post_impl_all
 
 # Final physical sign-off
 fx physical_signoff --set ORS=/path/to/OpenROAD-flow-scripts/flow

@@ -2,40 +2,49 @@ from __future__ import annotations
 
 from cocotb.triggers import ReadOnly
 
-from .reg_driver import _sample_cycle, rows
+from .reg_driver import PRIMARY_CLOCK, _sample_cycle, rows
+
+SIGNAL_CLOCKS = <<: signal_clocks :>>
+OUTPUT_VALID = <<: output_valid :>>
 
 
 def expected_outputs(path: str):
-    """Load expected output transactions by order."""
+    """Group expected signals by logical vector step, preserving file order."""
     out = []
+    current_step = None
+    current = None
     for parts in rows(path):
         if len(parts) < 3:
             continue
-        _, sig, value = parts[:3]
-        value = int(value, 0)
-        if sig == "dsp_result_o":
-            out.append({"result": value, "above_threshold": 0, "overflow": 0})
-        elif sig == "dsp_above_threshold_o" and out:
-            out[-1]["above_threshold"] = value & 1
-        elif sig == "dsp_overflow_o" and out:
-            out[-1]["overflow"] = value & 1
+        step, signal, raw = parts[:3]
+        if step != current_step:
+            current_step = step
+            current = {}
+            out.append(current)
+        current[signal] = int(raw, 0)
     return out
 
 
 async def check_outputs(dut, expected):
-    """Check DSP outputs in transaction order."""
-    got = 0
-    timeout = 0
-    while got < len(expected) and timeout < 4096:
-        await _sample_cycle(dut.dsp_clk_i)
+    """Consume expected output transactions without design-specific signal names."""
+    for index, transaction in enumerate(expected):
+        if OUTPUT_VALID is not None:
+            valid, clock = OUTPUT_VALID
+            for _ in range(4096):
+                await _sample_cycle(getattr(dut, clock))
+                if bool(getattr(dut, valid).value):
+                    break
+            else:
+                raise AssertionError(f"timed out waiting for {valid}")
+        else:
+            await _sample_cycle(getattr(dut, PRIMARY_CLOCK))
         await ReadOnly()
-        if bool(dut.dsp_valid_o.value):
-            result = int(dut.dsp_result_o.value) & 0xFFFFFFFF
-            above_threshold = int(dut.dsp_above_threshold_o.value) & 1
-            overflow = int(dut.dsp_overflow_o.value) & 1
-            assert result == expected[got]["result"], f"result[{got}] got=0x{result:08x} exp=0x{expected[got]['result']:08x}"
-            assert above_threshold == expected[got]["above_threshold"], f"above_threshold[{got}] got={above_threshold} exp={expected[got]['above_threshold']}"
-            assert overflow == expected[got]["overflow"], f"overflow[{got}] got={overflow} exp={expected[got]['overflow']}"
-            got += 1
-        timeout += 1
-    assert got == len(expected), f"observed {got}/{len(expected)} expected outputs"
+        for signal, value in transaction.items():
+            if not hasattr(dut, signal):
+                raise AssertionError(f"unknown expected-output vector signal: {signal}")
+            got = int(getattr(dut, signal).value) & 0xFFFFFFFF
+            expected_value = int(value) & 0xFFFFFFFF
+            if got != expected_value:
+                raise AssertionError(
+                    f"{signal}[{index}] got=0x{got:08x} exp=0x{expected_value:08x}"
+                )

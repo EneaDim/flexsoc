@@ -1,5 +1,5 @@
-"""Physical implementation package API."""
+"""Physical implementation backend."""
 
-from .impl import ImplementationFlow
+from .implementation import ImplementationFlow
 
 __all__ = ["ImplementationFlow"]

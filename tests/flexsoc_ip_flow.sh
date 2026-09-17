@@ -98,7 +98,7 @@ flexsoc_ip_flow() {
     echo "save version  : $SAVE_VERSION"
     echo "GLS tests     : $GLS_TESTS"
     echo "GLS timing    : min,typ,max  (FF,TT,SS)"
-    echo "GLS count     : 9 post-syn + 9 post-PnR per PDK"
+    echo "GLS count     : 9 post-syn + 9 post-implementation per PDK"
     echo "GLS backend   : $GLS_BACKEND"
     echo "workspace     : $WS"
     echo "================================================================"
@@ -454,47 +454,47 @@ flexsoc_ip_flow() {
         if [ "$PHYS_RC" -ne 0 ]; then
             PHYSICAL_REVIEW=1
             echo "[REVIEW] physical_signoff RC=$PHYS_RC"
-            echo "[REVIEW] continuing with post-PnR timing/power qualification"
+            echo "[REVIEW] continuing with post-implementation timing/power qualification"
             echo "[REVIEW] physical signoff != STA PASS"
         fi
 
         echo
-        echo "=== POST-PNR SIGNOFF / $PDK ==="
+        echo "=== POST-IMPLEMENTATION SIGNOFF / $PDK ==="
 
-        fx signoff_post_pnr \
+        fx signoff_post_impl \
             --setup \
             --force \
             --workdir "$WS" || return 1
 
-        fx sdf_post_pnr \
+        fx sdf_post_impl \
             --workdir "$WS" || return 1
 
-        fx sta_post_pnr \
+        fx sta_post_impl \
             --workdir "$WS" || return 1
 
         echo
-        echo "=== POST-PNR GLS: 3 TESTS x FF/TT/SS = 9 RUNS ==="
+        echo "=== POST-IMPLEMENTATION GLS: 3 TESTS x FF/TT/SS = 9 RUNS ==="
 
-        fx sim_post_pnr_all \
+        fx sim_post_impl_all \
             --set GLS_BACKEND="$GLS_BACKEND" \
             --set TIMING_MODES="$GLS_TIMING_MODES" \
             --set TEST_NAMES="$GLS_TESTS" \
             --set SDF_STRICT=1 \
             --workdir "$WS" || return 1
 
-        fx power_estimate_post_pnr \
+        fx power_estimate_post_impl \
             --workdir "$WS" || return 1
 
         echo
-        echo "=== POST-PNR POWER / FUSION: SAME 3 x 3 MATRIX ==="
+        echo "=== POST-IMPLEMENTATION POWER / FUSION: SAME 3 x 3 MATRIX ==="
 
-        fx power_analysis_post_pnr_all \
+        fx power_analysis_post_impl_all \
             --set POWER_TEST_NAMES="$GLS_TESTS" \
             --set POWER_GLS_BACKENDS="$GLS_BACKEND" \
             --set POWER_TIMING_MODES="$GLS_TIMING_MODES" \
             --workdir "$WS" || return 1
 
-        fx fusion_analysis_post_pnr_all \
+        fx fusion_analysis_post_impl_all \
             --set POWER_TEST_NAMES="$GLS_TESTS" \
             --set POWER_GLS_BACKENDS="$GLS_BACKEND" \
             --set POWER_TIMING_MODES="$GLS_TIMING_MODES" \
@@ -583,8 +583,8 @@ flexsoc_ip_flow() {
             return 1
         fi
 
-        if [ ! -f "$SAVED/signoff/$PDK/post_pnr/sdf/write_sdf.tcl" ]; then
-            echo "[STOP] missing post-PnR write_sdf.tcl for $PDK"
+        if [ ! -f "$SAVED/signoff/$PDK/post_impl/sdf/write_sdf.tcl" ]; then
+            echo "[STOP] missing post-implementation write_sdf.tcl for $PDK"
             return 1
         fi
     done
@@ -597,7 +597,7 @@ flexsoc_ip_flow() {
     echo "interface       : $TARGET_ITF"
     echo "GLS tests       : $GLS_TESTS"
     echo "GLS post-syn    : 9 per PDK (3 tests x min,typ,max)"
-    echo "GLS post-PnR    : 9 per PDK (3 tests x min,typ,max)"
+    echo "GLS post-implementation    : 9 per PDK (3 tests x min,typ,max)"
     echo "EQY             : SETUP ONLY"
     echo "physical review : $PHYSICAL_REVIEW"
     echo "saved           : $SAVED"

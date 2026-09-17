@@ -1,64 +1,34 @@
-// Shared timing intent: every domain drives/samples from its clock period and IO delay.
+// Shared timing intent: every register window uses its owning clock domain.
 task automatic apply_defaults();
-  cfg_reg_req_i = '0;
-  dsp_reg_req_i = '0;
-  rx_valid_i = 1'b0;
-  rx_sample_i = '0;
-  rx_coeff_i = '0;
-  dsp_ready_i = 1'b1;
+<<% for window in windows %>>  <<: window :>>_reg_req_i = '0;
+<<% endfor %>><<: input_defaults :>>
 endtask
 
-<<: reset_tasks :>>task automatic cfg_write(input logic [31:0] addr, input logic [31:0] data);
-  cfg_drive_cycle();
-  cfg_reg_req_i.valid = 1'b1;
-  cfg_reg_req_i.write = 1'b1;
-  cfg_reg_req_i.addr = addr;
-  cfg_reg_req_i.wdata = data;
-  cfg_reg_req_i.wstrb = '1;
-  do cfg_sample_cycle(); while (!cfg_reg_rsp_o.ready);
-  if (cfg_reg_rsp_o.error) errors++;
-  cfg_drive_cycle();
-  cfg_reg_req_i = '0;
+<<: reset_tasks :>><<% for window in windows %>>task automatic <<: window :>>_write(input logic [31:0] addr, input logic [31:0] data);
+  <<: window :>>_drive_cycle();
+  <<: window :>>_reg_req_i.valid = 1'b1;
+  <<: window :>>_reg_req_i.write = 1'b1;
+  <<: window :>>_reg_req_i.addr = addr;
+  <<: window :>>_reg_req_i.wdata = data;
+  <<: window :>>_reg_req_i.wstrb = '1;
+  do <<: window :>>_sample_cycle(); while (!<<: window :>>_reg_rsp_o.ready);
+  if (<<: window :>>_reg_rsp_o.error) errors++;
+  <<: window :>>_drive_cycle();
+  <<: window :>>_reg_req_i = '0;
 endtask
 
-task automatic cfg_read(input logic [31:0] addr, output logic [31:0] data);
-  cfg_drive_cycle();
-  cfg_reg_req_i.valid = 1'b1;
-  cfg_reg_req_i.write = 1'b0;
-  cfg_reg_req_i.addr = addr;
-  cfg_reg_req_i.wdata = '0;
-  cfg_reg_req_i.wstrb = '0;
-  do cfg_sample_cycle(); while (!cfg_reg_rsp_o.ready);
-  data = cfg_reg_rsp_o.rdata;
-  if (cfg_reg_rsp_o.error) errors++;
-  cfg_drive_cycle();
-  cfg_reg_req_i = '0;
+task automatic <<: window :>>_read(input logic [31:0] addr, output logic [31:0] data);
+  <<: window :>>_drive_cycle();
+  <<: window :>>_reg_req_i.valid = 1'b1;
+  <<: window :>>_reg_req_i.write = 1'b0;
+  <<: window :>>_reg_req_i.addr = addr;
+  <<: window :>>_reg_req_i.wdata = '0;
+  <<: window :>>_reg_req_i.wstrb = '0;
+  do <<: window :>>_sample_cycle(); while (!<<: window :>>_reg_rsp_o.ready);
+  data = <<: window :>>_reg_rsp_o.rdata;
+  if (<<: window :>>_reg_rsp_o.error) errors++;
+  <<: window :>>_drive_cycle();
+  <<: window :>>_reg_req_i = '0;
 endtask
 
-task automatic dsp_write(input logic [31:0] addr, input logic [31:0] data);
-  dsp_drive_cycle();
-  dsp_reg_req_i.valid = 1'b1;
-  dsp_reg_req_i.write = 1'b1;
-  dsp_reg_req_i.addr = addr;
-  dsp_reg_req_i.wdata = data;
-  dsp_reg_req_i.wstrb = '1;
-  do dsp_sample_cycle(); while (!dsp_reg_rsp_o.ready);
-  if (dsp_reg_rsp_o.error) errors++;
-  dsp_drive_cycle();
-  dsp_reg_req_i = '0;
-endtask
-
-task automatic dsp_read(input logic [31:0] addr, output logic [31:0] data);
-  dsp_drive_cycle();
-  dsp_reg_req_i.valid = 1'b1;
-  dsp_reg_req_i.write = 1'b0;
-  dsp_reg_req_i.addr = addr;
-  dsp_reg_req_i.wdata = '0;
-  dsp_reg_req_i.wstrb = '0;
-  do dsp_sample_cycle(); while (!dsp_reg_rsp_o.ready);
-  data = dsp_reg_rsp_o.rdata;
-  if (dsp_reg_rsp_o.error) errors++;
-  dsp_drive_cycle();
-  dsp_reg_req_i = '0;
-endtask
-
+<<% endfor %>>

@@ -1,139 +1,72 @@
-      // Shared timing intent: every domain drives/samples from its clock period and IO delay.
-      task automatic apply_defaults();
-        cfg_axi_lite_i = '0;
-        dsp_axi_lite_i = '0;
-        rx_valid_i = 1'b0;
-        rx_sample_i = '0;
-        rx_coeff_i = '0;
-        dsp_ready_i = 1'b1;
-      endtask
-<<: reset_tasks :>>task automatic cfg_write(input logic [31:0] addr, input logic [31:0] data);
+// Shared timing intent: every register window uses its owning clock domain.
+task automatic apply_defaults();
+<<% for window in windows %>>  <<: window :>>_axi_lite_i = '0;
+<<% endfor %>><<: input_defaults :>>
+endtask
+
+<<: reset_tasks :>><<% for window in windows %>>task automatic <<: window :>>_write(input logic [31:0] addr, input logic [31:0] data);
   bit aw_done;
   bit w_done;
   int guard;
-  cfg_drive_cycle();
-  cfg_axi_lite_i.aw.addr = addr[<<: top :>>_cfg_reg_pkg::AW-1:0];
-  cfg_axi_lite_i.aw.prot = '0;
-  cfg_axi_lite_i.aw_valid = 1'b1;
-  cfg_axi_lite_i.w.data = data;
-  cfg_axi_lite_i.w.strb = '1;
-  cfg_axi_lite_i.w_valid = 1'b1;
+  <<: window :>>_drive_cycle();
+  <<: window :>>_axi_lite_i.aw.addr = addr[<<: top :>>_<<: window :>>_reg_pkg::AW-1:0];
+  <<: window :>>_axi_lite_i.aw.prot = '0;
+  <<: window :>>_axi_lite_i.aw_valid = 1'b1;
+  <<: window :>>_axi_lite_i.w.data = data;
+  <<: window :>>_axi_lite_i.w.strb = '1;
+  <<: window :>>_axi_lite_i.w_valid = 1'b1;
   aw_done = 1'b0;
   w_done = 1'b0;
   guard = 0;
   while (!(aw_done && w_done)) begin
-    cfg_sample_cycle();
-    if (!aw_done && cfg_axi_lite_o.aw_ready) begin
+    <<: window :>>_sample_cycle();
+    if (!aw_done && <<: window :>>_axi_lite_o.aw_ready) begin
       aw_done = 1'b1;
-      cfg_axi_lite_i.aw_valid = 1'b0;
+      <<: window :>>_axi_lite_i.aw_valid = 1'b0;
     end
-    if (!w_done && cfg_axi_lite_o.w_ready) begin
+    if (!w_done && <<: window :>>_axi_lite_o.w_ready) begin
       w_done = 1'b1;
-      cfg_axi_lite_i.w_valid = 1'b0;
+      <<: window :>>_axi_lite_i.w_valid = 1'b0;
     end
     guard++;
     if (guard > 1000) $fatal(1, "AXI4-Lite write request timeout");
   end
   guard = 0;
   do begin
-    cfg_sample_cycle();
+    <<: window :>>_sample_cycle();
     guard++;
     if (guard > 1000) $fatal(1, "AXI4-Lite write response timeout");
-  end while (!cfg_axi_lite_o.b_valid);
-  if (cfg_axi_lite_o.b.resp != 2'b00) errors++;
-  cfg_axi_lite_i.b_ready = 1'b1;
-  cfg_sample_cycle();
-  cfg_axi_lite_i.b_ready = 1'b0;
+  end while (!<<: window :>>_axi_lite_o.b_valid);
+  if (<<: window :>>_axi_lite_o.b.resp != 2'b00) errors++;
+  <<: window :>>_axi_lite_i.b_ready = 1'b1;
+  <<: window :>>_sample_cycle();
+  <<: window :>>_axi_lite_i.b_ready = 1'b0;
 endtask
 
-task automatic cfg_read(input logic [31:0] addr, output logic [31:0] data);
+task automatic <<: window :>>_read(input logic [31:0] addr, output logic [31:0] data);
   int guard;
-  cfg_drive_cycle();
-  cfg_axi_lite_i.ar.addr = addr[<<: top :>>_cfg_reg_pkg::AW-1:0];
-  cfg_axi_lite_i.ar.prot = '0;
-  cfg_axi_lite_i.ar_valid = 1'b1;
+  <<: window :>>_drive_cycle();
+  <<: window :>>_axi_lite_i.ar.addr = addr[<<: top :>>_<<: window :>>_reg_pkg::AW-1:0];
+  <<: window :>>_axi_lite_i.ar.prot = '0;
+  <<: window :>>_axi_lite_i.ar_valid = 1'b1;
   guard = 0;
   do begin
-    cfg_sample_cycle();
+    <<: window :>>_sample_cycle();
     guard++;
     if (guard > 1000) $fatal(1, "AXI4-Lite read request timeout");
-  end while (!cfg_axi_lite_o.ar_ready);
-  cfg_axi_lite_i.ar_valid = 1'b0;
+  end while (!<<: window :>>_axi_lite_o.ar_ready);
+  <<: window :>>_axi_lite_i.ar_valid = 1'b0;
   guard = 0;
   do begin
-    cfg_sample_cycle();
+    <<: window :>>_sample_cycle();
     guard++;
     if (guard > 1000) $fatal(1, "AXI4-Lite read response timeout");
-  end while (!cfg_axi_lite_o.r_valid);
-  data = cfg_axi_lite_o.r.data;
-  if (cfg_axi_lite_o.r.resp != 2'b00) errors++;
-  cfg_axi_lite_i.r_ready = 1'b1;
-  cfg_sample_cycle();
-  cfg_axi_lite_i.r_ready = 1'b0;
+  end while (!<<: window :>>_axi_lite_o.r_valid);
+  data = <<: window :>>_axi_lite_o.r.data;
+  if (<<: window :>>_axi_lite_o.r.resp != 2'b00) errors++;
+  <<: window :>>_axi_lite_i.r_ready = 1'b1;
+  <<: window :>>_sample_cycle();
+  <<: window :>>_axi_lite_i.r_ready = 1'b0;
 endtask
 
-task automatic dsp_write(input logic [31:0] addr, input logic [31:0] data);
-  bit aw_done;
-  bit w_done;
-  int guard;
-  dsp_drive_cycle();
-  dsp_axi_lite_i.aw.addr = addr[<<: top :>>_dsp_reg_pkg::AW-1:0];
-  dsp_axi_lite_i.aw.prot = '0;
-  dsp_axi_lite_i.aw_valid = 1'b1;
-  dsp_axi_lite_i.w.data = data;
-  dsp_axi_lite_i.w.strb = '1;
-  dsp_axi_lite_i.w_valid = 1'b1;
-  aw_done = 1'b0;
-  w_done = 1'b0;
-  guard = 0;
-  while (!(aw_done && w_done)) begin
-    dsp_sample_cycle();
-    if (!aw_done && dsp_axi_lite_o.aw_ready) begin
-      aw_done = 1'b1;
-      dsp_axi_lite_i.aw_valid = 1'b0;
-    end
-    if (!w_done && dsp_axi_lite_o.w_ready) begin
-      w_done = 1'b1;
-      dsp_axi_lite_i.w_valid = 1'b0;
-    end
-    guard++;
-    if (guard > 1000) $fatal(1, "AXI4-Lite write request timeout");
-  end
-  guard = 0;
-  do begin
-    dsp_sample_cycle();
-    guard++;
-    if (guard > 1000) $fatal(1, "AXI4-Lite write response timeout");
-  end while (!dsp_axi_lite_o.b_valid);
-  if (dsp_axi_lite_o.b.resp != 2'b00) errors++;
-  dsp_axi_lite_i.b_ready = 1'b1;
-  dsp_sample_cycle();
-  dsp_axi_lite_i.b_ready = 1'b0;
-endtask
-
-task automatic dsp_read(input logic [31:0] addr, output logic [31:0] data);
-  int guard;
-  dsp_drive_cycle();
-  dsp_axi_lite_i.ar.addr = addr[<<: top :>>_dsp_reg_pkg::AW-1:0];
-  dsp_axi_lite_i.ar.prot = '0;
-  dsp_axi_lite_i.ar_valid = 1'b1;
-  guard = 0;
-  do begin
-    dsp_sample_cycle();
-    guard++;
-    if (guard > 1000) $fatal(1, "AXI4-Lite read request timeout");
-  end while (!dsp_axi_lite_o.ar_ready);
-  dsp_axi_lite_i.ar_valid = 1'b0;
-  guard = 0;
-  do begin
-    dsp_sample_cycle();
-    guard++;
-    if (guard > 1000) $fatal(1, "AXI4-Lite read response timeout");
-  end while (!dsp_axi_lite_o.r_valid);
-  data = dsp_axi_lite_o.r.data;
-  if (dsp_axi_lite_o.r.resp != 2'b00) errors++;
-  dsp_axi_lite_i.r_ready = 1'b1;
-  dsp_sample_cycle();
-  dsp_axi_lite_i.r_ready = 1'b0;
-endtask
-
+<<% endfor %>>

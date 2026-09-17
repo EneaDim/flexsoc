@@ -14,7 +14,7 @@ from typing import Iterator
 
 import pytest
 
-from flexsoc.backend.design.model import SHARED_VECTOR_TESTS
+from flexsoc.backend.design.ip.model import SHARED_VECTOR_TESTS
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -710,7 +710,7 @@ def _run_scaffold_power_fusion(
 ) -> None:
     """Run power/fusion for exactly the scaffold GLS workload matrix."""
 
-    suffix = "_post_pnr_all" if stage == "post_pnr" else "_all"
+    suffix = "_post_impl_all" if stage == "post_impl" else "_all"
     selectors = (
         f"--set POWER_TEST_NAMES={','.join(tests)} "
         f"--set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} "
@@ -757,19 +757,19 @@ def _assert_scaffold_qualification(
     assert evidence.get("requirements_traceability") == "PASS"
     assert evidence.get("cdc_rdc") == "PASS"
 
-    # EQY is intentionally setup-only in scaffold E2E.
+    # Automatic scaffold E2E intentionally materializes EQY only; runtime is exercised per IP.
     assert evidence.get("eqy") == "MISSING"
 
     required = {"syn", "sdf", "sta", "power_estimate"}
     if config.run_post_syn:
         required.update({"sim_post_syn_all", "power_analysis_all", "fusion_analysis_all"})
     if config.run_pnr:
-        required.update({"pnr", "sdf_post_pnr", "sta_post_pnr", "power_estimate_post_pnr"})
+        required.update({"pnr", "sdf_post_impl", "sta_post_impl", "power_estimate_post_impl"})
         if config.run_post_syn:
             required.update({
-                "sim_post_pnr_all",
-                "power_analysis_post_pnr_all",
-                "fusion_analysis_post_pnr_all",
+                "sim_post_impl_all",
+                "power_analysis_post_impl_all",
+                "fusion_analysis_post_impl_all",
             })
 
     missing = sorted(stage for stage in required if evidence.get(stage) != "PASS")
@@ -787,7 +787,7 @@ def _assert_scaffold_qualification(
         flush=True,
     )
 
-def _run_post_pnr_signoff(
+def _run_post_impl_signoff(
     *, workspace: Path, top: str, run_id: str, run: Path, workdir: str,
     pdk: str, config: E2EConfig, gls_tests: tuple[str, ...],
 ) -> None:
@@ -795,10 +795,10 @@ def _run_post_pnr_signoff(
 
     del run, pdk
     _run(
-        f"fx signoff_post_pnr --setup --workdir {workdir}",
+        f"fx signoff_post_impl --setup --workdir {workdir}",
         workspace=workspace, top=top, run_id=run_id,
     )
-    for target in ("sdf_post_pnr", "sta_post_pnr"):
+    for target in ("sdf_post_impl", "sta_post_impl"):
         _run(
             f"fx {target} --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
@@ -807,18 +807,18 @@ def _run_post_pnr_signoff(
     if config.run_post_syn:
         _run_scaffold_gls_matrix(
             workspace=workspace, top=top, run_id=run_id, workdir=workdir,
-            tests=gls_tests, stage="post_pnr",
+            tests=gls_tests, stage="post_impl",
         )
 
     _run(
-        f"fx power_estimate_post_pnr --workdir {workdir}",
+        f"fx power_estimate_post_impl --workdir {workdir}",
         workspace=workspace, top=top, run_id=run_id,
     )
 
     if config.run_post_syn:
         _run_scaffold_power_fusion(
             workspace=workspace, top=top, run_id=run_id, workdir=workdir,
-            tests=gls_tests, stage="post_pnr",
+            tests=gls_tests, stage="post_impl",
         )
 
 def _run_implementation(
@@ -855,7 +855,7 @@ def _run_implementation(
             flush=True,
         )
 
-    _run_post_pnr_signoff(
+    _run_post_impl_signoff(
         workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
         pdk=pdk, config=config, gls_tests=gls_tests,
     )
@@ -3054,12 +3054,12 @@ def test_fx_provenance_lifecycle_debug(request: pytest.FixtureRequest) -> None:
             command=f"fx pnr --set {ors} --workdir {workdir}",
         )
         _run(
-            f"fx signoff_post_pnr --setup --force --workdir {workdir}",
+            f"fx signoff_post_impl --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _exercise_stage_override(
             workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-            stage="signoff_post_pnr.setup",
-            artifact=run / "signoff/sky130/post_pnr/sdf/write_sdf.tcl",
-            command=f"fx sdf_post_pnr --workdir {workdir}",
+            stage="signoff_post_impl.setup",
+            artifact=run / "signoff/sky130/post_impl/sdf/write_sdf.tcl",
+            command=f"fx sdf_post_impl --workdir {workdir}",
         )

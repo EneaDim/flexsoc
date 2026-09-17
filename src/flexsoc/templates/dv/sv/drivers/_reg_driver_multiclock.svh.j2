@@ -1,26 +1,18 @@
-<<: phase_helpers :>><<: bus_section :>>      task automatic apply_reg(input string reg_name, input logic [31:0] value);
-        if (reg_name == "cfg.CTRL") cfg_write(32'h0, value);
-        else if (reg_name == "dsp.GAIN") dsp_write(32'h10, value);
-        else if (reg_name == "dsp.DSP_CTRL") dsp_write(32'h0, value);
-        else if (reg_name == "dsp.THRESHOLD") dsp_write(32'h4, value);
-        else $display("[TB][WARN] unknown config register: %s", reg_name);
+<<% if packed %>><<: phase_helpers :>><<: bus_section :>>      task automatic apply_reg(input tb_token_t reg_name, input logic [31:0] value);
+<<% else %>><<: phase_helpers :>><<: bus_section :>>      task automatic apply_reg(input string reg_name, input logic [31:0] value);
+<<% endif %>><<: write_cases :>>
       endtask
 
-      task automatic read_reg(input string reg_name, output logic [31:0] value);
-        value = '0;
-        if (reg_name == "cfg.CTRL") cfg_read(32'h0, value);
-        else if (reg_name == "dsp.GAIN") dsp_read(32'h10, value);
-        else if (reg_name == "dsp.DSP_CTRL") dsp_read(32'h0, value);
-        else if (reg_name == "dsp.THRESHOLD") dsp_read(32'h4, value);
-        else begin
-          $display("[TB][WARN] unknown read register: %s", reg_name);
-          errors++;
-        end
+<<% if packed %>>      task automatic read_reg(input tb_token_t reg_name, output logic [31:0] value);
+<<% else %>>      task automatic read_reg(input string reg_name, output logic [31:0] value);
+<<% endif %>>        value = '0;
+<<: read_cases :>>
       endtask
 
       task automatic apply_reg_masked(
-        input string reg_name,
-        input logic [31:0] value,
+<<% if packed %>>        input tb_token_t reg_name,
+<<% else %>>        input string reg_name,
+<<% endif %>>        input logic [31:0] value,
         input logic [31:0] mask
       );
         logic [31:0] current;
@@ -34,8 +26,9 @@
       endtask
 
       task automatic expect_reg(
-        input string reg_name,
-        input logic [31:0] expected,
+<<% if packed %>>        input tb_token_t reg_name,
+<<% else %>>        input string reg_name,
+<<% endif %>>        input logic [31:0] expected,
         input logic [31:0] mask
       );
         logic [31:0] got;
@@ -49,12 +42,14 @@
       task automatic load_config(input string path);
         integer fd;
         integer code;
-        string reg_name;
-        logic [31:0] value;
+<<% if packed %>>        tb_token_t reg_name;
+<<% else %>>        string reg_name;
+<<% endif %>>        logic [31:0] value;
         logic [31:0] mask;
-        string line;
+<<% if packed %>>              tb_line_t line_buf;
+<<% else %>>        string line;
         reg [8*4096-1:0] line_buf;
-        begin : load_config_body
+<<% endif %>>        begin : load_config_body
         fd = $fopen(path, "r");
         if (fd == 0) begin
           $display("[TB][ERROR] config file not found: %s", path);
@@ -62,18 +57,27 @@
           disable load_config_body;
         end
         while (!$feof(fd)) begin : tb_nclk_cfg_line
-          line = "";
+<<% if packed %>>                line_buf = '0;
+          code = $fgets(line_buf, fd);
+          code = $sscanf(line_buf, "%s %h", reg_name, value);
+<<% else %>>          line = "";
           line_buf = '0;
           void'($fgets(line_buf, fd));
           line = $sformatf("%0s", line_buf);
           if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_nclk_cfg_line;
           code = $sscanf(line, "%s %h", reg_name, value);
-          if (code == 2) begin
+<<% endif %>>          if (code == 2) begin
             mask = 32'hffff_ffff;
-            if ($sscanf(line, "%s %h %h", reg_name, value, mask) != 3)
-              mask = 32'hffff_ffff;
-            if (reg_name.len() > 6 && reg_name.substr(0, 5) == "clk_i.") reg_name = reg_name.substr(6, reg_name.len() - 1);
-            apply_reg_masked(reg_name, value, mask);
+<<% if packed %>>            if ($sscanf(line_buf, "%s %h %h", reg_name, value, mask) != 3)
+<<% else %>>            if ($sscanf(line, "%s %h %h", reg_name, value, mask) != 3)
+<<% endif %>>              mask = 32'hffff_ffff;
+<<% if packed %>>            begin
+              tb_token_t short_name;
+              short_name = '0;
+              if ($sscanf(reg_name, "clk_i.%s", short_name) == 1) reg_name = short_name;
+            end
+<<% else %>>            if (reg_name.len() > 6 && reg_name.substr(0, 5) == "clk_i.") reg_name = reg_name.substr(6, reg_name.len() - 1);
+<<% endif %>>            apply_reg_masked(reg_name, value, mask);
           end
         end
         $fclose(fd);
