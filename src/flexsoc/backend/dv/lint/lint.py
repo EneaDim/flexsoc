@@ -44,7 +44,7 @@ class Lint:
     def _run(self, tool: str, *, kind: str, part: str, on: str):
         """Run one exact lint class through the shared execution abstraction."""
 
-        values, paths = self.context.values, self.context.paths
+        paths = self.context.paths
         if not paths.rtl_common.is_file() or not paths.rtl_ip.is_file():
             raise FileNotFoundError("RTL filelists missing; generate them before lint")
         if tool not in {"slang", "verilator"}:

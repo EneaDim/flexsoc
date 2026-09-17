@@ -690,7 +690,6 @@ __all__ = [
     "SETUP_TARGETS", "SETUP_STAGES", "SETUP_ONLY_TARGETS",
     "POST_IMPL_SIGNOFF_TARGETS", "ACTIVITY_ANALYSIS_TARGETS",
     "STREAM_BY_DEFAULT_TARGETS", "QUIET_BY_DEFAULT_TARGETS",
-    "setup_public", "setup_command", "dependencies", "_returncode",
 ]
 
 

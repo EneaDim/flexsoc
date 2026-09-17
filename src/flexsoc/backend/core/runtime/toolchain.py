@@ -134,7 +134,7 @@ class Toolchain:
         root = active_runner.project_root
         log = root / ".flexsoc" / "logs" / "toolchain" / "klayout-version.log"
         try:
-            result = active_runner.run(
+            active_runner.run(
                 CommandRequest((str(executable), "-v"), root, {}, log, timeout_s=5), on=on
             )
         except OSError as exc:

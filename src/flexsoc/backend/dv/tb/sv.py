@@ -1108,7 +1108,6 @@ class SystemVerilogTestbench:
             ])
         else:
             wait = '  $display("[TB][ERROR] @wait_output requires exactly one *_valid_o stream");\n  errors++;'
-        settle = f"{clocks.domains[0].name}_sample_cycle()"
         return "\n".join(state), "\n\n".join(helpers), "\n".join(cases), wait + "\n"
 
     @staticmethod
