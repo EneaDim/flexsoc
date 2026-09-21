@@ -33,9 +33,10 @@ SAVED_IP_CUSTOM_TESTS = {
     "cordic": ("smoke_zero", "rotate_45deg", "quadrant_sweep", "random_small"),
     "uart": ("line_loopback", "rx_fifo", "noise_filter", "parity_reconfig"),
 }
+SAVED_IP_VERSIONS = {"uart": "1.0.0"}
 AMBIENT_FX_SETTING_KEYS = (
     "TOP", "RUN_TOP", "RUN_ID", "HOST", "WORKSPACE", "RUN_ROOT", "PDK",
-    "N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS", "REG_ITF", "CLK_PERIOD", "FORCE",
+    "N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS", "REG_ITF", "IP_VERSION", "CLK_PERIOD", "FORCE",
     "GLS_SIMULATOR", "WAVE_FORMAT", "TIMING_MODE", "FST2VCD", "GLS_BACKEND",
     "GLS_UNIT_DELAY", "SDF_STRICT", "SIGNOFF_STAGE", "SYN_DIR", "EQUIV_DIR", "IMPL_DIR",
 )
@@ -343,13 +344,17 @@ def _sha256(path: Path) -> str:
 def _repo_ip_interface(top: str, reg_interface: str) -> Path:
     """Return one repository-owned frozen register-interface release root."""
 
-    return REPO_ROOT / "hw" / "ips" / top / "interfaces" / reg_interface
+    root = REPO_ROOT / "hw" / "ips" / top
+    version = SAVED_IP_VERSIONS.get(top)
+    return (root / version if version else root) / "interfaces" / reg_interface
 
 
 def _saved_ip_interface(library_root: Path, top: str, reg_interface: str) -> Path:
     """Return one saved frozen register-interface release root."""
 
-    return library_root / top / "interfaces" / reg_interface
+    root = library_root / top
+    version = SAVED_IP_VERSIONS.get(top)
+    return (root / version if version else root) / "interfaces" / reg_interface
 
 
 def _ip_protected_sources(top: str, profile: str) -> tuple[Path, ...]:
@@ -407,7 +412,7 @@ def _validate_ip_layout(top: str, profile: str) -> None:
         f"dv/formal/properties/prove/{top}_prove.sv",
         f"dv/formal/properties/cover/{top}_cover.sv",
         "syn/sky130/synth.ys", "syn/sky130/synth_sv.ys",
-        "syn/sky130/abc.constr", "syn/sky130/area.abc",
+        "syn/sky130/abc.constr", "syn/sky130/delay1.abc",
         f"constraints/{top}.sdc",
     )
     missing = [
@@ -1146,11 +1151,7 @@ def test_fx_single_clock_flow_debug(
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"fx lint_slang_suite --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"fx lint_verilator_suite --workdir {workdir}",
+            f"fx lint --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
@@ -1493,11 +1494,7 @@ def test_fx_multi_clock_flow_debug(
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"fx lint_slang_suite --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"fx lint_verilator_suite --workdir {workdir}",
+            f"fx lint --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
@@ -1816,11 +1813,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"fx lint_slang_suite --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
-                f"fx lint_verilator_suite --workdir {workdir}",
+                f"fx lint --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -2361,7 +2354,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 (
                     f"fx settings --reset TOP={top} RUN_TOP={top} "
                     f"RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} REG_ITF={reg_itf} TARGET_OPT={target_opt} "
-                    f"CLOCK_DOMAINS={clock_domains} "
+                    f"IP_VERSION={SAVED_IP_VERSIONS[top]} CLOCK_DOMAINS={clock_domains} "
                     f"CLOCK_RELATIONSHIPS={clock_relationships} --workdir {workdir}"
                 ),
                 workspace=workspace, top=top, run_id=run_id,
@@ -2393,11 +2386,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"fx lint_slang_suite --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
-                f"fx lint_verilator_suite --workdir {workdir}",
+                f"fx lint --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(

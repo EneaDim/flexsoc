@@ -19,14 +19,14 @@ task automatic load_expected(input string path);
     errors++;
     disable load_expected_body;
   end
-  while (!$feof(fd)) begin : tb_nclk_expected_line
+  while (!$feof(fd)) begin : tb_stream_expected_line
 <<% if packed %>><<% else %>>    line = "";
 <<% endif %>>    line_buf = '0;
 <<% if packed %>>    code = $fgets(line_buf, fd);
     code = $sscanf(line_buf, "%d %s %h", step, sig, value);
 <<% else %>>    void'($fgets(line_buf, fd));
     line = $sformatf("%0s", line_buf);
-    if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_nclk_expected_line;
+    if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_stream_expected_line;
     code = $sscanf(line, "%d %s %h", step, sig, value);
 <<% endif %>>    if (code == 3) begin
       if (step != current_step) begin

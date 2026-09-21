@@ -26,7 +26,7 @@ module <<: tb_module :>>;
 <<: dut_pins :>>
   );
 
-  // Verification helpers are split like the single-clock scaffold.
+  // Verification helpers share one structure for all clock topologies.
   `include "drivers/<<: top :>>_reg_driver.svh"
   `include "drivers/<<: top :>>_vec_monitor.svh"
   `include "drivers/<<: top :>>_vec_driver.svh"
@@ -73,15 +73,7 @@ module <<: tb_module :>>;
 <<: reset_release :>>
     repeat (8) @(posedge <<: primary_clock :>>);
 
-    load_config(cfg_path);
-    load_expected(data_out_path);
-    repeat (8) <<: output_sample :>>;
-    fork
-      run_inputs(data_in_path);
-      check_outputs();
-    join
-
-    repeat (10) <<: output_sample :>>;
+<<: vector_body :>>
     if (errors == 0) begin
       $display("[TB] PASS");
       $finish;

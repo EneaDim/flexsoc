@@ -7,7 +7,7 @@ import os
 import shlex
 import sys
 from pathlib import Path
-from typing import Annotated, Any, Iterable, Mapping
+from typing import Annotated, Iterable, Mapping
 
 from .api import TARGETS, FlexSoC, FlexSoCConfig
 from .backend.core.flow.session import (
@@ -58,7 +58,6 @@ else:
         "--unset",
         "--project-root",
         "--workdir",
-        "--tool",
         "--user",
         "--system",
         "--profile",
@@ -142,7 +141,7 @@ Use `fx commands` to list every backend target.
         (
             "4. Close RTL and properties",
             (
-                ("fx lint_suite", "Run the complete Slang and Verilator lint suites."),
+                ("fx lint", "Run one Slang pass and one Verilator pass with P0-P3 classification."),
                 ("fx slang_hier | fx slang_ast", "Inspect elaborated hierarchy and AST."),
                 ("fx formal --setup | fx formal", "Generate and run BMC, prove, and cover stages."),
             ),
@@ -189,7 +188,7 @@ Use `fx commands` to list every backend target.
                 ("fx requirements --less | fx testplan --less | fx meta --less", "Inspect the loaded contract and metadata."),
                 ("fx regmap_py tests_gen regression --setup", "Refresh generator-owned DV collateral."),
                 ("fx tests_gen --check", "Verify config.regs and vector files still match the Python generators."),
-                ("fx lint_suite regression formal syn", "Run the standard reusable gates; run EQY explicitly per IP when its profile is ready."),
+                ("fx lint regression formal syn", "Run the standard reusable gates; run EQY explicitly per IP when its profile is ready."),
                 ("fx soc_start", "Initialize the SoC workspace from loaded IPs; run later SoC steps explicitly."),
             ),
         ),
@@ -227,8 +226,9 @@ Use `fx commands` to list every backend target.
         "COCOTB_WAVES": "Enable cocotb waveform generation.",
         "COVERAGE": "Enable or select coverage collection.",
         "COVERAGE_DETAIL_LIMIT": "Maximum uncovered points printed by coverage_detail.",
-        "LINT_TOOL": "Selected lint implementation.",
-        "LINT_PART": "Selected lint diagnostic subset.",
+        "LINT_PROFILE": "Lint profile: critical for PRs or everything for full/nightly analysis.",
+        "SLANG_WAIVER_FILE": "Optional native Slang TOML waiver file.",
+        "VERILATOR_WAIVER_FILE": "Optional Verilator .vlt control / waiver file.",
         "VSV": "SystemVerilog/Verilog language selection used by backend scripts.",
         "GLS_SIMULATOR": "Gate-level simulator executable/family.",
         "GLS_BACKEND": "Gate-level driver backend, normally sv or cocotb.",
@@ -1363,12 +1363,10 @@ Use `fx commands` to list every backend target.
         # -----------------------------------------------------------------------
         # Target invocation and one-shot overrides
         # -----------------------------------------------------------------------
-        def _overrides(self, sets: tuple[str, ...], tool: str | None, force: bool) -> dict[str, str]:
+        def _overrides(self, sets: tuple[str, ...], force: bool) -> dict[str, str]:
             """Collect one-shot FlexSoC setting overrides."""
 
             values = self._assignments(sets)
-            if tool:
-                values["LINT_TOOL"] = tool
             if force:
                 values["FORCE"] = "1"
             return values
@@ -1402,8 +1400,6 @@ Use `fx commands` to list every backend target.
 
             effective = client.values(values)
             context = BackendContext(client.project_root, client.workdir, effective)
-            paths = context.paths
-            analysis = paths.cdc_rdc
             payload = CdcFlow().debug_from_context(context)
 
             if save_output is not None:
@@ -1569,7 +1565,6 @@ Use `fx commands` to list every backend target.
             targets: tuple[str, ...],
             *,
             sets: tuple[str, ...],
-            tool: str | None,
             force: bool,
             dry_run: bool,
             script: bool,
@@ -1589,7 +1584,7 @@ Use `fx commands` to list every backend target.
                 return 0
 
             try:
-                values = self._overrides(sets, tool, force)
+                values = self._overrides(sets, force)
                 if live:
                     values["LIVE"] = "1"
                 if debug:
@@ -1696,10 +1691,6 @@ Use `fx commands` to list every backend target.
                 Path | None,
                 typer.Option("--workdir", help="Workspace used by backend flows.", rich_help_panel="Paths"),
             ] = None,
-            tool: Annotated[
-                str | None,
-                typer.Option("--tool", help="Shortcut for LINT_TOOL=VALUE.", rich_help_panel="Target options"),
-            ] = None,
             deps_user: Annotated[
                 bool,
                 typer.Option("--user", help="Use rootless user dependency mode.", rich_help_panel="Dependency tooling"),
@@ -1750,8 +1741,20 @@ Use `fx commands` to list every backend target.
             ] = False,
             debug: Annotated[
                 bool,
-                typer.Option("--debug", help="Read existing target artifacts and print filtered diagnostics without rerunning the target.", rich_help_panel="Output"),
+                typer.Option("--debug", help="Show existing target evidence plus debug hints without rerunning the target.", rich_help_panel="Output"),
             ] = False,
+            show: Annotated[
+                bool,
+                typer.Option("--show", help="Show existing target evidence without rerunning the target.", rich_help_panel="Output"),
+            ] = False,
+            summary: Annotated[
+                bool,
+                typer.Option("--summary", help="Show only the compact target summary without rerunning the target.", rich_help_panel="Output"),
+            ] = False,
+            tool: Annotated[
+                str | None,
+                typer.Option("--tool", help="Filter lint show/debug to slang or verilator.", rich_help_panel="Output"),
+            ] = None,
             save_output: Annotated[
                 Path | None,
                 typer.Option("--save-output", "-o", help="Save filtered --debug output to a file or directory.", rich_help_panel="Output"),
@@ -1808,6 +1811,8 @@ Use `fx commands` to list every backend target.
                 self._settings(root, workdir, args[1:], set_args, unset_args, reset, as_json)
                 return
             if args[0] == "show":
+                if args[1:] == ("lint",):
+                    raise click.BadParameter("use `fx lint --show` for lint evidence")
                 raise typer.Exit(self._show(client, args[1:], set_args, as_json=as_json))
             if args[0] == "requirements":
                 if len(args) != 1:
@@ -1849,6 +1854,40 @@ Use `fx commands` to list every backend target.
                 )
             if args[0] == "shell":
                 raise typer.Exit(self._shell(root, workdir))
+            evidence_targets = {("lint",), ("slang_hier",)}
+            if show or summary:
+                if args not in evidence_targets:
+                    raise click.BadParameter("--show/--summary are supported by `fx lint` and `fx slang_hier`")
+            if tool is not None:
+                if args != ("lint",):
+                    raise click.BadParameter("--tool is only valid with `fx lint`")
+                if not (show or summary or debug):
+                    raise click.BadParameter("--tool requires `fx lint --show`, `fx lint --summary`, or `fx lint --debug`")
+                if tool not in {"slang", "verilator"}:
+                    raise click.BadParameter("--tool must be slang or verilator")
+            if args in evidence_targets and (show or summary or debug):
+                if sum((show, summary, debug)) > 1:
+                    raise click.BadParameter("choose only one of --show, --summary, or --debug")
+                flows = client.flows(**self._assignments(set_args))
+                try:
+                    if args == ("lint",):
+                        code = flows.dv.lint.show(
+                            tool=tool, debug=debug, summary=summary, as_json=as_json,
+                            output=str(save_output) if save_output is not None else None,
+                        )
+                    elif debug:
+                        code = flows.design.ip.hierarchy.debug(
+                            output=str(save_output) if save_output is not None else None, as_json=as_json,
+                        )
+                    else:
+                        code = flows.design.ip.hierarchy.show(
+                            summary=summary, output=str(save_output) if save_output is not None else None,
+                            as_json=as_json,
+                        )
+                except (FileNotFoundError, ValueError) as exc:
+                    error_console.print(f"[red]{exc}[/red]")
+                    raise typer.Exit(2)
+                raise typer.Exit(code)
             try:
                 targets = self._mode_targets(args, setup=setup, debug=debug)
             except (ValueError, typer.BadParameter) as exc:
@@ -1859,7 +1898,6 @@ Use `fx commands` to list every backend target.
                     client,
                     targets,
                     sets=set_args,
-                    tool=tool,
                     force=force,
                     dry_run=dry_run,
                     script=script,

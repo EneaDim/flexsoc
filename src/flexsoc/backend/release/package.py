@@ -455,12 +455,18 @@ class PackageFlow:
         summary = Reporting.collect_lint(top, run)
         if summary:
             for values in summary.get("tools", {}).values():
-                values.pop("command", None)
-                values.pop("log", None)
+                values.pop("artifacts", None)
             destination.mkdir(parents=True, exist_ok=True)
             (destination / "summary.json").write_text(
                 json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
             )
+
+        source = run / "dv" / "slang_hier" / "summary.json"
+        destination = staged / "dv" / "slang_hier"
+        shutil.rmtree(destination, ignore_errors=True)
+        if source.is_file():
+            destination.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination / "summary.json")
 
         source = run / "dv" / "cdc_rdc" / "summary.json"
         destination = staged / "dv" / "cdc_rdc"

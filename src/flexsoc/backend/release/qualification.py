@@ -70,7 +70,7 @@ LEVEL_ALIASES = {
 
 # Stage groups deliberately reuse the existing FlexSoC provenance graph.
 EVIDENCE_GROUPS: Mapping[str, tuple[str, ...]] = {
-    "lint": ("lint_slang_suite", "lint_verilator_suite"),
+    "lint": ("lint",),
     "functional": ("regression",),
     "traceability": ("requirements_traceability",),
     "cdc_rdc": ("cdc_rdc",),

@@ -462,20 +462,31 @@ Diagnostiche tipiche:
 - `UNUSEDSIGNAL`, `UNUSEDPARAM` — dichiarazioni morte/non usate;
 - diagnostiche più ampie di `-Wall` nello stage completo.
 
-### 6.3 Focused lint suite
+### 6.3 Policy lint one-pass
 
-`fx lint_suite` esegue categorie mirate con entrambi i tool:
+`fx lint` esegue esattamente un pass Slang e un pass Verilator. Slang usa elaborazione completa e
+post-elaboration analysis; Verilator usa un solo run `--lint-only` con SARIF. Python classifica poi
+le diagnostiche senza rilanciare nessuno dei due frontend.
 
-| Categoria | Domanda posta da FlexSoC |
+| Priorità | Policy |
 | --- | --- |
-| `all` | L'RTL raggiungibile è globalmente lint-clean? |
-| `latch` | Il combinatorio ha inferito storage accidentalmente? |
-| `undriven` | Esistono segnali osservati ma non pilotati? |
-| `width` | Ci sono mismatch/truncation/extension di width? |
-| `unconnected` | Mancano porte o sono vuote intenzionalmente? |
-| `unused` | Esiste logica/configurazione presente ma inutilizzata? |
+| `P0` | Rischio strutturale / semantico critico; evidenza in primo piano. |
+| `P1` | Rischio funzionale; fix o waiver esplicito. |
+| `P2` | QoR / portabilità; review nel report. |
+| `P3` | Hygiene / style; informativo. |
 
-I log raw vengono preservati per distinguere warning legittimi di primitive/library da warning di proprietà dell'IP. Obiettivo: **zero warning inspiegati nell'RTL designer-owned**, non "zero warning a qualsiasi costo".
+`LINT_PROFILE=critical` è pensato per developer / PR. `LINT_PROFILE=everything` abilita Slang
+`-Weverything` e Verilator `-Wall` con il set portabile di warning lint/style; è il default
+per qualification completa e nightly. I waiver restano quelli nativi Slang TOML e Verilator `.vlt`,
+senza introdurre un linguaggio waiver proprietario FlexSoC.
+
+P0-P3 sono priorità di reporting nell'attuale fase di sviluppo: non trasformano una run lint completa
+in `FAILED` o `REVIEW`. `PASS` significa che entrambi i tool hanno prodotto evidence diagnostica valida.
+`fx lint --summary` mostra solo i conteggi; `fx lint --show` stampa tutti i diagnostic con linea e file,
+opzionalmente filtrato con `--tool slang|verilator`; `fx lint --debug` aggiunge gli hint sugli artifact.
+
+L'evidence canonica di release è `dv/lint/summary.json`. JSON Slang, SARIF Verilator e log testuali
+restano artifact runtime di debug e non vengono copiati nel package IP riusabile.
 
 ### 6.4 Cosa non dimostra il lint
 
@@ -493,7 +504,7 @@ Sono gate separati per scelta architetturale.
 
 ## 7. CDC/RDC: analisi strutturale clock/reset-domain
 
-Nel lifecycle eseguibile questo stage gira **dopo il lint e dopo la creazione dell'SDC authored `constraints/<TOP>.sdc`**: `lint_suite → sdc --setup → cdc_rdc --setup → cdc_rdc`. La sezione 10 descrive il contratto timing più avanti per raggruppamento concettuale.
+Nel lifecycle eseguibile questo stage gira **dopo il lint e dopo la creazione dell'SDC authored `constraints/<TOP>.sdc`**: `lint → sdc --setup → cdc_rdc --setup → cdc_rdc`. La sezione 10 descrive il contratto timing più avanti per raggruppamento concettuale.
 
 FlexSoC implementa un pass CDC/RDC strutturale e technology-neutral, invece di affidarsi a semplici pattern testuali.
 
@@ -2677,7 +2688,7 @@ fx rtl_stub --force
 fx flist --force
 
 # Chiusura strutturale e intento timing authored
-fx lint_suite
+fx lint
 fx sdc --setup --force
 # review/edit constraints/<TOP>.sdc
 

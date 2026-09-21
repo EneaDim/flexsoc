@@ -477,7 +477,7 @@ For ASIC flows, `syn` publishes the repaired pre-PnR netlist rather than the raw
 
 The levels are hierarchical. A later technology or physical result does not hide a missing earlier gate. EQY remains part of `Netlist Qualified`. The automatic scaffold E2E matrix runs `fx eqy --setup` only; `fx eqy` is an explicit runtime target for a prepared IP/interface profile. Setup-only is not equivalence PASS, so qualification correctly stops before L3 until a real equivalence result exists.
 
-Runtime evidence covers the canonical lifecycle: Slang/Verilator lint suites, CDC/RDC, functional regression, individual formal BMC/prove/cover stages, synthesis, optional EQY execution, SDF/STA/vectorless power, post-synthesis SV GLS, PnR, physical sign-off, and routed SDF/STA/power/SV GLS. Composite commands such as `fx lint_suite`, `fx formal`, `fx signoff`, and `fx signoff_post_impl` are compositions of those same canonical stages, so aggregate and manual execution use the same contract evidence.
+Runtime evidence covers the canonical lifecycle: Slang/Verilator lint suites, CDC/RDC, functional regression, individual formal BMC/prove/cover stages, synthesis, optional EQY execution, SDF/STA/vectorless power, post-synthesis SV GLS, PnR, physical sign-off, and routed SDF/STA/power/SV GLS. Composite commands such as `fx lint`, `fx formal`, `fx signoff`, and `fx signoff_post_impl` are compositions of those same canonical stages, so aggregate and manual execution use the same contract evidence.
 
 
 ### Contract and generated-DV inspection

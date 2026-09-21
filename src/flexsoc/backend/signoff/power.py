@@ -48,20 +48,17 @@ class PowerAnalysis:
     def setup_estimate(self) -> Path:
         """Generate only the vectorless power Tcl template."""
 
-        from .sta import generate_family
-        return generate_family(self.project_root, self.values, "power_estimate")
+        return StaAnalysis.generate_family(self.project_root, self.values, "power_estimate")
 
     def setup_activity(self) -> Path:
         """Generate only the activity-power Tcl template."""
 
-        from .sta import generate_family
-        return generate_family(self.project_root, self.values, "power_analysis")
+        return StaAnalysis.generate_family(self.project_root, self.values, "power_analysis")
 
     def estimate(self, *, on: str = "local") -> int:
         """Run vectorless power over configured corners."""
 
-        from .sta import execute_static
-        return execute_static(
+        return StaAnalysis.execute_static(
             "power_estimate", self.project_root, self.values, runner=self.runner, on=on
         )
 
@@ -931,13 +928,6 @@ class PowerAnalysis:
         return StaAnalysis._write(path, "\n".join(lines))
 
     @staticmethod
-    def _enrich_fusion_report(*args, **kwargs):
-        """Delegate fusion enrichment without creating an import cycle."""
-
-        from .fusion import _enrich_fusion_report as enrich
-        return enrich(*args, **kwargs)
-
-    @staticmethod
     def analyze_activity_spec(
         analysis: str,
         project_root: Path,
@@ -952,6 +942,9 @@ class PowerAnalysis:
 
         if analysis not in {"power_analysis", "fusion_analysis"}:
             raise ValueError(f"unsupported activity analysis: {analysis}")
+        if analysis == "fusion_analysis":
+            from .fusion import FusionAnalysis
+
         layout = PDKRunLayout.from_values(project_root, values)
         stage = values.get("SIGNOFF_STAGE", "post_syn")
         root = layout.signoff_stage_root(stage)
@@ -1048,7 +1041,7 @@ class PowerAnalysis:
                     primary = report_dir / primary_name
                     fusion_details: dict[str, Any] = {}
                     if analysis == "fusion_analysis":
-                        fusion_details = PowerAnalysis._enrich_fusion_report(
+                        fusion_details = FusionAnalysis._enrich_fusion_report(
                             project_root,
                             values,
                             ctx,

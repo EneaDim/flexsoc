@@ -13,13 +13,10 @@ module <<: top :>>_tb;
       if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
       if (sdf_path != "") begin
         `ifdef FLEXSOC_SDF_MIN
-          $display("[TB] sdf = %s scope=u_dut mode=MINIMUM", sdf_path);
           $sdf_annotate(sdf_path, u_dut);
         `elsif FLEXSOC_SDF_TYP
-          $display("[TB] sdf = %s scope=u_dut mode=TYPICAL", sdf_path);
           $sdf_annotate(sdf_path, u_dut);
         `else
-          $display("[TB] sdf = %s scope=u_dut mode=MAXIMUM", sdf_path);
           $sdf_annotate(sdf_path, u_dut);
         `endif
       end

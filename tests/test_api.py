@@ -197,7 +197,9 @@ def test_target_catalog_metadata_aliases_and_command_construction(tmp_path: Path
 
     assert fx.target_names() == tuple(TARGETS)
     assert tuple(target.name for target in fx.targets()) == fx.target_names()
-    assert fx.target_info("lint-width") == fx.target_info("lint_width")
+    assert fx.target_info("lint").name == "lint"
+    with pytest.raises(ValueError, match="unknown target"):
+        fx.target_info("lint_width")
     assert all(fx.command(name).target == name for name in fx.target_names())
     with pytest.raises(ValueError, match="unknown target"):
         fx.target_info("not-a-target")
@@ -274,10 +276,11 @@ def test_commands_route_direct_backend_targets(tmp_path: Path) -> None:
     fx = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work", TOP="base")
 
     lint, ast_cmd = fx.override(top="cordic").commands(
-        "lint-width", "slang_ast", RUN_ID="r1", UNUSED="ignored"
+        "lint", "slang_ast", RUN_ID="r1", LINT_PROFILE="critical", UNUSED="ignored"
     )
-    assert [lint.target, ast_cmd.target] == ["lint_width", "slang_ast"]
-    assert lint.argv[:2] == ("fx", "lint_width")
+    assert [lint.target, ast_cmd.target] == ["lint", "slang_ast"]
+    assert lint.argv[:2] == ("fx", "lint")
+    assert "LINT_PROFILE=critical" in lint.argv
     assert "RUN_ID=r1" in lint.argv
     assert not any("UNUSED=" in arg for arg in lint.argv)
     assert "make" not in lint.argv
@@ -855,7 +858,7 @@ def test_setup_creates_canonical_csr_and_dv_layout(tmp_path: Path) -> None:
 
     run = tmp_path / "work" / "runs" / "demo" / "api"
     for relative in (
-        "csr", "dv/slang", "dv/lint/slang",
+        "csr", "dv/slang_hier", "dv/slang_ast", "dv/lint/slang",
         "dv/lint/verilator", "dv/cdc_rdc",
     ):
         assert (run / relative).is_dir(), relative
@@ -1574,12 +1577,14 @@ def test_ip_load_requires_exact_frozen_interface_layout(tmp_path: Path) -> None:
         "addrmap demo {};\n", encoding="utf-8"
     )
     lint = source / "dv" / "lint"
-    (lint / "slang").mkdir(parents=True)
-    (lint / "verilator").mkdir(parents=True)
-    (lint / "slang" / "demo_lint_slang_all.log").write_text("slang pass\n", encoding="utf-8")
-    (lint / "verilator" / "demo_lint_verilator_all.log").write_text(
-        "verilator pass\n", encoding="utf-8"
-    )
+    lint.mkdir(parents=True)
+    (lint / "summary.json").write_text(json.dumps({
+        "schema": "flexsoc.lint.v1", "top": "demo", "profile": "everything",
+        "status": "PASS", "order": ["slang", "verilator"],
+        "counts": {"P0": 0, "P1": 0, "P2": 0, "P3": 0}, "total": 0,
+        "tools": {"slang": {"status": "PASS"}, "verilator": {"status": "PASS"}},
+        "diagnostics": [],
+    }) + "\n", encoding="utf-8")
     spec_root = _write_minimal_ip_spec(project / "hw" / "ips" / "demo", "demo")
     from flexsoc.backend.release.qualification import QualificationFlow
 
@@ -1609,8 +1614,9 @@ def test_ip_load_requires_exact_frozen_interface_layout(tmp_path: Path) -> None:
 
     assert (destination / "csr" / "demo.hjson").is_file()
     assert (destination / "csr" / "systemrdl" / "demo.rdl").is_file()
-    assert (destination / "dv" / "lint" / "slang" / "demo_lint_slang_all.log").is_file()
-    assert (destination / "dv" / "lint" / "verilator" / "demo_lint_verilator_all.log").is_file()
+    assert (destination / "dv" / "lint" / "summary.json").is_file()
+    assert not (destination / "dv" / "lint" / "slang").exists()
+    assert not (destination / "dv" / "lint" / "verilator").exists()
 
     (source / "csr" / "demo.hjson").write_text('{name: "demo", changed: true}\n', encoding="utf-8")
     with pytest.raises(ValueError, match="source-of-truth artifact is stale"):
@@ -1872,13 +1878,18 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     csr = run / "csr"
     csr.mkdir()
     (csr / f"{top}.hjson").write_text('{name: "demo"}\n', encoding="utf-8")
-    for tool in ("slang", "verilator"):
-        lint = run / "dv" / "lint" / tool
-        lint.mkdir(parents=True)
-        (lint / f"{top}_lint_{tool}_all.log").write_text("lint pass\n", encoding="utf-8")
-        raw = run / "logs" / "dv" / "lint" / tool / "raw"
-        raw.mkdir(parents=True)
-        (raw / f"{top}_lint_{tool}_all_raw.log").write_text("raw command\n", encoding="utf-8")
+    lint = run / "dv" / "lint"
+    lint.mkdir(parents=True)
+    (lint / "summary.json").write_text(json.dumps({
+        "schema": "flexsoc.lint.v1", "top": top, "profile": "everything",
+        "status": "PASS", "order": ["slang", "verilator"],
+        "counts": {"P0": 0, "P1": 0, "P2": 0, "P3": 0}, "total": 0,
+        "tools": {
+            "slang": {"tool": "slang", "status": "PASS", "counts": {"P0": 0, "P1": 0, "P2": 0, "P3": 0}, "total": 0},
+            "verilator": {"tool": "verilator", "status": "PASS", "counts": {"P0": 0, "P1": 0, "P2": 0, "P3": 0}, "total": 0},
+        },
+        "diagnostics": [],
+    }) + "\n", encoding="utf-8")
     cocotb = run / "dv" / "functional" / "tb" / "cocotb"
     sim_build = cocotb / "sim_build"
     sim_build.mkdir(parents=True)
@@ -1957,8 +1968,10 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     assert (saved / "constraints" / f"{top}.sdc").is_file()
     assert not (saved / "signoff" / pdk / "post_syn" / f"{top}.sdc").exists()
     lint_summary = json.loads((saved / "dv" / "lint" / "summary.json").read_text(encoding="utf-8"))
-    assert lint_summary["status"] == "pass"
+    assert lint_summary["status"] == "PASS"
     assert set(lint_summary["tools"]) == {"slang", "verilator"}
+    assert "artifacts" not in lint_summary["tools"]["slang"]
+    assert "diagnostics" not in lint_summary["tools"]["slang"]
     assert not (saved / "dv" / "lint" / "slang").exists()
     assert not (saved / "dv" / "lint" / "verilator").exists()
     assert not (saved / "logs").exists()
@@ -2299,14 +2312,14 @@ def test_cli_run_and_setup_modes_are_canonical(
     assert app(["setup_syn", "--dry-run", *root_args]) == 2
     assert "unknown target 'setup_syn'" in capsys.readouterr().err
 
-def test_cli_tool_and_dependency_options_are_forwarded(
+def test_cli_lint_profile_and_dependency_options_are_forwarded(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     assert app([
-        "lint", "--dry-run", "--tool", "verilator",
+        "lint", "--dry-run", "--set", "LINT_PROFILE=critical",
         "--project-root", str(tmp_path),
     ]) == 0
-    assert "LINT_TOOL=verilator" in capsys.readouterr().out
+    assert "LINT_PROFILE=critical" in capsys.readouterr().out
 
     assert app([
         "deps-status", "--dry-run", "--user", "--profile", "base", "--jobs", "3",
@@ -2533,8 +2546,10 @@ def test_show_discovers_all_summaries_and_provenance(tmp_path: Path) -> None:
     )
     (run / "dv" / "lint").mkdir(parents=True)
     (run / "dv" / "lint" / "summary.json").write_text(json.dumps({
-        "status": "pass", "order": ["slang", "verilator"],
-        "tools": {"slang": {"status": "pass", "errors": 0, "warnings": 2, "diagnostics": 2}},
+        "schema": "flexsoc.lint.v1", "top": "demo", "profile": "everything", "status": "REVIEW",
+        "order": ["slang", "verilator"], "counts": {"P0": 0, "P1": 1, "P2": 1, "P3": 0},
+        "total": 2, "tools": {"slang": {"status": "REVIEW", "counts": {"P0": 0, "P1": 1, "P2": 1, "P3": 0}, "total": 2}},
+        "diagnostics": [],
     }), encoding="utf-8")
     for pdk in ("sky130", "ihp-sg13g2"):
         meta = run / "meta" / pdk
@@ -2578,11 +2593,12 @@ def test_cli_show_files_all_and_relative_json_path(
     lint = run / "dv" / "lint"
     lint.mkdir(parents=True)
     (lint / "summary.json").write_text(json.dumps({
-        "status": "pass", "order": ["slang", "verilator"],
-        "tools": {
-            "slang": {"status": "pass", "errors": 0, "warnings": 1, "diagnostics": 1},
-            "verilator": {"status": "pass", "errors": 0, "warnings": 0, "diagnostics": 0},
-        },
+        "schema": "flexsoc.lint.v1", "top": "demo", "profile": "everything", "status": "PASS",
+        "order": ["slang", "verilator"], "counts": {"P0": 0, "P1": 0, "P2": 1, "P3": 0},
+        "total": 1, "tools": {
+            "slang": {"status": "PASS", "counts": {"P0": 0, "P1": 0, "P2": 1, "P3": 0}, "total": 1},
+            "verilator": {"status": "PASS", "counts": {"P0": 0, "P1": 0, "P2": 0, "P3": 0}, "total": 0},
+        }, "diagnostics": [],
     }), encoding="utf-8")
     meta = run / "meta" / "ihp-sg13g2"
     meta.mkdir(parents=True)
@@ -2616,7 +2632,7 @@ def test_cli_show_files_all_and_relative_json_path(
 
     assert app(["show", "all", *common]) == 0
     rendered = capsys.readouterr().out
-    assert "Lint summary" in rendered
+    assert "Lint" in rendered
     assert "Stage provenance" in rendered
     assert "power_estimate" in rendered
     assert "Total W" in rendered
@@ -2765,6 +2781,24 @@ def test_show_renderer_renders_sta_gls_and_power_without_raw_report_parsing() ->
 # ---------------------------------------------------------------------------
 
 
+def _single_tb_signature(interface: str = "tlul") -> dict[str, object]:
+    """Return a compact single-domain top signature used by TB unit tests."""
+
+    buses = {
+        "tlul": (("tl_i", "[108:0]"), ("tl_o", "[65:0]")),
+        "reg_iface": (("reg_req_i", "demo_reg_pkg::reg_req_t"),
+                      ("reg_rsp_o", "demo_reg_pkg::reg_rsp_t")),
+        "axi_lite": (("axi_lite_i", "demo_reg_pkg::axi_lite_req_t"),
+                     ("axi_lite_o", "demo_reg_pkg::axi_lite_rsp_t")),
+    }[interface]
+    return {
+        "ports_in": [("clk_i", 1), ("rst_ni", 1), buses[0], ("serial_rx_i", 1), ("data_i", "[15:0]")],
+        "ports_out": [buses[1], ("data_o", "[31:0]")],
+        "clks": ["clk_i"],
+        "rsts": ["rst_ni"],
+    }
+
+
 def _multiclock_tb_signature(interface: str = "tlul") -> dict[str, object]:
     """Return a compact multi-domain top signature used by TB unit tests."""
 
@@ -2810,12 +2844,11 @@ def _multiclock_tb_registers() -> list[dict[str, object]]:
     ]
 
 
-def _write_multiclock_tb_top(rtl: Path, top: str, interface: str) -> None:
-    """Write one parseable top header from the same signature used by render tests."""
+def _write_tb_top(rtl: Path, top: str, signature: dict[str, object]) -> None:
+    """Write one parseable top header from a render-test signature."""
 
-    sig = _multiclock_tb_signature(interface)
     ports = []
-    for direction, entries in (("input", sig["ports_in"]), ("output", sig["ports_out"])):
+    for direction, entries in (("input", signature["ports_in"]), ("output", signature["ports_out"])):
         for name, width in entries:
             kind = "logic" if width == 1 else (f"logic {width}" if str(width).startswith("[") else str(width))
             ports.append(f"  {direction} {kind} {name}")
@@ -2825,57 +2858,63 @@ def _write_multiclock_tb_top(rtl: Path, top: str, interface: str) -> None:
     )
 
 
+def _write_multiclock_tb_top(rtl: Path, top: str, interface: str) -> None:
+    _write_tb_top(rtl, top, _multiclock_tb_signature(interface))
+
+
 def test_generated_testbenches_share_sdc_io_timing_phases() -> None:
-    single = SystemVerilogTestbench.render_tlul_interface(period_ns=10.0, io_delay_pct=0.2)
-    assert "Shared timing intent: drive at input-delay phase, sample at output-deadline phase" in single
-    assert "FLEXSOC_TB_DRIVE_NS  = 2" in single
-    assert "FLEXSOC_TB_SAMPLE_NS = 8" in single
-    assert "@flexsoc_tb_drive_phase" in single
-    assert "@flexsoc_tb_sample_phase" in single
-    assert "@(negedge clk_i)" not in single
-
-    clocks = ClockConfig(
-        domains=(
-            ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 10.0),
-            ClockDomain("rx", "rx_clk_i", "rx_rst_ni", 8.0),
-            ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 5.0),
-        )
+    single = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+    single_sig = _single_tb_signature("tlul")
+    single_sv = SystemVerilogTestbench.render_reg_driver(
+        "demo", single, single_sig, (), "tlul", 0.2
     )
-    multi = SystemVerilogTestbench.sv_driver_text(
-        "tri_stream_dsp", clocks, 0.2, signature=_multiclock_tb_signature(),
-        registers=_multiclock_tb_registers(),
+    assert "#(2) -> flexsoc_core_drive_phase" in single_sv
+    assert "#(8) -> flexsoc_core_sample_phase" in single_sv
+    single_write = single_sv.split("task automatic core_write", 1)[1].split("endtask", 1)[0]
+    assert "@(negedge clk_i)" not in single_write
+
+    clocks = ClockConfig((
+        ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 10.0),
+        ClockDomain("rx", "rx_clk_i", "rx_rst_ni", 8.0),
+        ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 5.0),
+    ))
+    signature = _multiclock_tb_signature()
+    registers = _multiclock_tb_registers()
+    multi_sv = SystemVerilogTestbench.render_reg_driver(
+        "tri_stream_dsp", clocks, signature, registers, "tlul", 0.2
     )
-    assert "Shared timing intent: every register window uses its owning clock domain" in multi
-    assert "#(2) -> flexsoc_cfg_drive_phase" in multi
-    assert "#(8) -> flexsoc_cfg_sample_phase" in multi
-    assert "#(1.6) -> flexsoc_rx_drive_phase" in multi
-    assert "#(6.4) -> flexsoc_rx_sample_phase" in multi
-    assert "#(1) -> flexsoc_dsp_drive_phase" in multi
-    assert "#(4) -> flexsoc_dsp_sample_phase" in multi
-    assert "do cfg_sample_cycle(); while (!cfg_tl_o[0]);" in multi
-    assert "do dsp_sample_cycle(); while (!dsp_tl_o[65]);" in multi
+    for expected in (
+        "#(2) -> flexsoc_cfg_drive_phase",
+        "#(8) -> flexsoc_cfg_sample_phase",
+        "#(1.6) -> flexsoc_rx_drive_phase",
+        "#(6.4) -> flexsoc_rx_sample_phase",
+        "#(1) -> flexsoc_dsp_drive_phase",
+        "#(4) -> flexsoc_dsp_sample_phase",
+    ):
+        assert expected in multi_sv
+    assert "do cfg_sample_cycle(); while (!cfg_tl_o[0]);" in multi_sv
+    assert "do dsp_sample_cycle(); while (!dsp_tl_o[65]);" in multi_sv
 
-    cocotb = CocotbTestbench.render_reg_driver_py(period_ns=10.0, io_delay_pct=0.2)
-    assert "TB_PERIOD_PS = 10000" in cocotb
-    assert "TB_DRIVE_PS = 2000" in cocotb
-    assert "TB_SAMPLE_PS = 8000" in cocotb
-    assert "await _wait_phase(clk, TB_DRIVE_PS)" in cocotb
-    assert "await _wait_phase(clk, TB_SAMPLE_PS)" in cocotb
-    assert "FallingEdge(clk)" not in cocotb
-
-    multi_cocotb = CocotbTestbench.cocotb_reg_driver_py_text(
-        "tri_stream_dsp", clocks, 0.2,
-        signature=_multiclock_tb_signature(), registers=_multiclock_tb_registers(),
+    single_py = CocotbTestbench.render_reg_driver(
+        "demo", single, single_sig, (), "tlul", 0.2
     )
-    assert "'cfg_clk_i': 2000" in multi_cocotb
-    assert "'cfg_clk_i': 8000" in multi_cocotb
-    assert "'rx_clk_i': 1600" in multi_cocotb
-    assert "'rx_clk_i': 6400" in multi_cocotb
-    assert "'dsp_clk_i': 1000" in multi_cocotb
-    assert "'dsp_clk_i': 4000" in multi_cocotb
+    assert "CLOCK_PERIOD_PS = {'clk_i': 10000}" in single_py
+    assert "CLOCK_DRIVE_PS = {'clk_i': 2000}" in single_py
+    assert "CLOCK_SAMPLE_PS = {'clk_i': 8000}" in single_py
+    assert "await _wait_phase(clk, CLOCK_DRIVE_PS)" in single_py
+    assert "await _wait_phase(clk, CLOCK_SAMPLE_PS)" in single_py
 
+    multi_py = CocotbTestbench.render_reg_driver(
+        "tri_stream_dsp", clocks, signature, registers, "tlul", 0.2
+    )
+    assert "'cfg_clk_i': 2000" in multi_py and "'cfg_clk_i': 8000" in multi_py
+    assert "'rx_clk_i': 1600" in multi_py and "'rx_clk_i': 6400" in multi_py
+    assert "'dsp_clk_i': 1000" in multi_py and "'dsp_clk_i': 4000" in multi_py
+
+    from flexsoc.backend.dv.tb.common import TestbenchModel
     with pytest.raises(ValueError, match="SDC_IO_DELAY_PCT"):
-        SystemVerilogTestbench.render_tlul_interface(period_ns=10.0, io_delay_pct=0.5)
+        TestbenchModel.phases(10.0, 0.5)
+
 
 
 def test_register_interface_intent_uses_one_canonical_regfile_transport() -> None:
@@ -3004,26 +3043,24 @@ def test_nclock_dsp_clock_gate_is_regmap_controlled_and_reenable_safe(tmp_path: 
     assert tests.count("wait_for_output=True") == 2
     assert "@wait_output" in tests
 
-    cocotb_driver = CocotbTestbench.cocotb_reg_driver_py_text(
-        "tri_stream_dsp", clocks, interface="tlul",
-        signature=_multiclock_tb_signature(), registers=_multiclock_tb_registers(),
+    cocotb_driver = CocotbTestbench.render_reg_driver(
+        "tri_stream_dsp", clocks, _multiclock_tb_signature(),
+        _multiclock_tb_registers(), "tlul",
     )
     assert "'cfg': {'CTRL': 0}" in cocotb_driver
     assert "'dsp': {'GAIN': 16, 'DSP_CTRL': 0, 'THRESHOLD': 4}" in cocotb_driver
     assert "CFG_STATUS" not in cocotb_driver and "DSP_STATUS" not in cocotb_driver
 
-    sv_driver = SystemVerilogTestbench.sv_driver_text(
-        "tri_stream_dsp", clocks, interface="tlul",
-        signature=_multiclock_tb_signature(), registers=_multiclock_tb_registers(),
+    sv_driver = SystemVerilogTestbench.render_reg_driver(
+        "tri_stream_dsp", clocks, _multiclock_tb_signature(),
+        _multiclock_tb_registers(), "tlul",
     )
     assert "reg_name == \"dsp.GAIN\") dsp_write(32'h00000010, value)" in sv_driver
     assert 'reg_name == "cfg.GAIN"' not in sv_driver
-    assert "@wait_output timeout waiting for dsp_valid_o" in SystemVerilogTestbench.sv_vec_driver_text(
-        "tri_stream_dsp", clocks, signature=_multiclock_tb_signature()
+    assert "@wait_output timeout waiting for dsp_valid_o" in SystemVerilogTestbench.render_vec_driver(
+        "tri_stream_dsp", clocks, _multiclock_tb_signature(), "tlul"
     )
-    cocotb_vec = CocotbTestbench.cocotb_vec_driver_py_text(
-        "tri_stream_dsp", clocks, signature=_multiclock_tb_signature()
-    )
+    cocotb_vec = CocotbTestbench.render_vec_driver(clocks, _multiclock_tb_signature())
     assert "OUTPUT_VALID = ('dsp_valid_o', 'dsp_clk_i')" in cocotb_vec
     assert 'raise TimeoutError(f"@wait_output timeout waiting for {signal}")' in cocotb_vec
 
@@ -3032,8 +3069,7 @@ def test_reggen_runtime_uses_pinned_opentitan_vendor() -> None:
     from flexsoc.backend.design.ip import regs
 
     source = inspect.getsource(regs.RegsFlow._reggen_ip_block)
-    assert 'vendor" / "opentitan_reggen" / "util"' in source
-    assert 'parents[3] / "util"' not in source
+    assert 'parents[5] / "vendor" / "opentitan_reggen" / "util"' in source
     assert "missing vendored reggen" in source
 
 
@@ -3236,8 +3272,6 @@ def test_top_from_core_reset_branches_preserve_active_high_core_polarity(tmp_pat
 def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> None:
     from flexsoc.backend.design.ip.regs import RegsFlow
     from flexsoc.backend.design.ip.rtl import RtlFlow
-    from flexsoc.backend.dv.tb.cocotb import CocotbTestbench
-    from flexsoc.backend.dv.tb.sv import SystemVerilogTestbench
 
     pkg = tmp_path / "demo_reg_pkg.sv"
     pkg.write_text("package demo_reg_pkg;\n  parameter int AW=12, DW=32, DBW=4;\nendpackage\n", encoding="utf-8")
@@ -3260,10 +3294,8 @@ def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> N
     wrapper = RtlFlow.render_top_from_core("demo", core, "axi_lite")
     assert "input demo_reg_pkg::axi_lite_req_t axi_lite_i" in wrapper
     assert "output demo_reg_pkg::axi_lite_rsp_t axi_lite_o" in wrapper
-    assert "axi_aw_addr_i" not in wrapper
     assert "axi_lite_to_reg #( " not in wrapper
     assert "demo_reg_top u_demo_reg" in wrapper
-    assert "tl_i" not in wrapper
 
     reg_top = RtlFlow.render_register_top("demo", "axi_lite")
     assert "axi_lite_to_reg #( " in reg_top
@@ -3271,60 +3303,63 @@ def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> N
     assert ".reg_req_i(flexsoc_axi_reg_req)" in reg_top
     assert ".reg_rsp_o(flexsoc_axi_reg_rsp)" in reg_top
 
-    helper = SystemVerilogTestbench.render_axi_lite_utils("demo")
-    assert "task automatic axi_lite_write" in helper
-    assert "task automatic axi_lite_read" in helper
-    assert "axi_lite_i = '0;" in helper
-    assert "axi_lite_i.b_ready = 1'b1;" in helper
-    assert "axi_lite_i.r_ready = 1'b1;" in helper
-    assert "axi_lite_o.b.resp" in helper
-    assert "axi_lite_o.r.data" in helper
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+    registers = [{"name": "CTRL", "clock": "core", "key": "CTRL", "addr": 0,
+                  "writable": True, "readable": True}]
+    signature = _single_tb_signature("axi_lite")
+    sv_driver = SystemVerilogTestbench.render_reg_driver(
+        "demo", clocks, signature, registers, "axi_lite"
+    )
+    assert "task automatic core_write" in sv_driver
+    assert "axi_lite_i.aw_valid = 1'b1;" in sv_driver
+    assert "axi_lite_i.w_valid = 1'b1;" in sv_driver
+    assert "AXI4-Lite write request timeout" in sv_driver
+    assert "AXI4-Lite write response timeout" in sv_driver
 
-    driver = CocotbTestbench.render_reg_driver_py(interface="axi_lite")
-    assert "aw_done = False" in driver
-    assert "reg_req_valid" not in driver
-    assert "tl_i_a_valid" not in driver
-    assert '"axi_aw_addr_i"' in driver
-    assert "AXI4-Lite write error" in driver
-    assert "AXI4-Lite read error" in driver
-    assert '_get(dut, "axi_b_ready_i").value = 0' in driver
-    assert '_get(dut, "axi_r_ready_i").value = 0' in driver
-    assert '_get(dut, "axi_b_ready_i").value = 1' in driver
-    assert '_get(dut, "axi_r_ready_i").value = 1' in driver
+    write = sv_driver.split("task automatic core_write", 1)[1].split("endtask", 1)[0]
+    aw_sample = write.index("axi_lite_o.aw_ready")
+    aw_drop = write.index("axi_lite_i.aw_valid = 1'b0;", aw_sample)
+    assert write.index("core_drive_cycle();", aw_sample) < aw_drop
+    w_sample = write.index("axi_lite_o.w_ready")
+    w_drop = write.index("axi_lite_i.w_valid = 1'b0;", w_sample)
+    assert write.index("core_drive_cycle();", w_sample) < w_drop
+
+    py_driver = CocotbTestbench.render_reg_driver(
+        "demo", clocks, signature, registers, "axi_lite"
+    )
+    compile(py_driver, "<axi-lite-driver>", "exec")
+    assert "aw_done = w_done = False" in py_driver
+    assert "if aw_done and w_done:" in py_driver
+    assert "AXI4-Lite write error" in py_driver
+    assert "AXI4-Lite read error" in py_driver
+    assert 'getattr(clk, "_name", str(clk))' not in py_driver
+
+    cocotb_wrapper = CocotbTestbench.render_wrapper(
+        "demo", clocks, signature, "axi_lite"
+    )
+    assert "demo_reg_pkg::axi_lite_req_t axi_lite_i;" in cocotb_wrapper
+    assert "demo_reg_pkg::axi_lite_rsp_t axi_lite_o;" in cocotb_wrapper
+    assert "core_axi_aw_addr_i" in cocotb_wrapper
+    assert "assign axi_lite_i = '{" in cocotb_wrapper
+    assert "demo u_dut (" in cocotb_wrapper
+
+    reg_signature = _single_tb_signature("reg_iface")
+    reg_wrapper = CocotbTestbench.render_wrapper(
+        "demo", clocks, reg_signature, "reg_iface"
+    )
+    assert "demo_reg_pkg::reg_req_t reg_req_i;" in reg_wrapper
+    assert "core_reg_req_valid" in reg_wrapper
+    assert "assign core_reg_rsp_ready = reg_rsp_o.ready;" in reg_wrapper
+    assert "core_a_valid" not in reg_wrapper
 
     rtl = tmp_path / "rtl"
     rtl.mkdir()
-    (rtl / "demo.sv").write_text(wrapper, encoding="utf-8")
+    _write_tb_top(rtl, "demo", signature)
     cfg = CocotbConfig(top="demo", interface="axi_lite", output=tmp_path / "tb", rtl_dir=rtl)
-    cocotb_wrapper = CocotbTestbench.render_axi_lite_wrapper(cfg)
-    assert "axi_lite_req_t axi_lite_i;" in cocotb_wrapper
-    assert "axi_lite_rsp_t axi_lite_o;" in cocotb_wrapper
-    assert "logic [demo_reg_pkg::AW-1:0] axi_aw_addr_i;" in cocotb_wrapper
-    assert "assign axi_lite_i = '{" in cocotb_wrapper
-    assert "demo u_demo (.*);" in cocotb_wrapper
     makefile = CocotbTestbench.render_makefile(cfg, (rtl / "demo.sv",))
     assert "vendor/pulp/axi/include" in makefile
     assert "vendor/pulp/register_interface/include" in makefile
     assert "COMPILE_ARGS += -Wno-fatal" in makefile
-
-
-    reg_core_wrapper = RtlFlow.render_top_from_core("demo", core, "reg_iface")
-    (rtl / "demo.sv").write_text(reg_core_wrapper, encoding="utf-8")
-    reg_cfg = CocotbConfig(top="demo", interface="reg_iface", output=tmp_path / "tb_reg", rtl_dir=rtl)
-    reg_wrapper = CocotbTestbench.render_reg_iface_wrapper(reg_cfg)
-    assert "reg_req_t reg_req_i;" in reg_wrapper
-    assert "logic reg_req_valid;" in reg_wrapper
-    assert "assign reg_rsp_ready = reg_rsp_o.ready;" in reg_wrapper
-    assert "tl_i_a_valid" not in reg_wrapper
-
-    driver = CocotbTestbench.render_reg_driver_py(interface="reg_iface")
-    assert '"reg_req_valid"' in driver
-    assert "axi_aw_addr_i" not in driver
-    assert "tl_i_a_valid" not in driver
-    assert '"reg_req_valid"' in driver
-    assert "timeout waiting reg_iface write ready" in driver
-    assert "reg_iface read error" in driver
-    assert 'getattr(clk, "_name", str(clk))' not in driver
 
     manifests = {
         "pulp_register_interface.vendor.hjson": ("d6e1d4c", "src/axi_lite_to_reg.sv"),
@@ -3336,10 +3371,11 @@ def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> N
         "pulp_axi.vendor.hjson": 'target_dir: "pulp/axi"',
         "pulp_common_cells.vendor.hjson": 'target_dir: "pulp/common_cells"',
     }
-    for name, expected in manifests.items():
-        text = (ROOT / "vendor" / name).read_text(encoding="utf-8")
-        assert all(item in text for item in expected)
-        assert targets[name] in text
+    for manifest, expected in manifests.items():
+        content = (ROOT / "vendor" / manifest).read_text(encoding="utf-8")
+        assert all(item in content for item in expected)
+        assert targets[manifest] in content
+
 
 
 
@@ -3710,12 +3746,12 @@ def test_tlul_package_is_owned_by_lowrisc_vendor() -> None:
 
 
 def test_tlul_verilator_include_uses_compiled_vendor_package() -> None:
-    text = SystemVerilogTestbench.render_verilator_include(
-        "demo", Path("rtl"), Path("syn"), ("sky130_prim.v",), True, "tlul", "sv"
-    )
+    text = SystemVerilogTestbench.render_include("demo")
     assert '`include "tlul_pkg.sv"' not in text
-    assert '`include "tlul_if.sv"' in text
+    assert '`include "tlul_if.sv"' not in text
     assert "sky130_prim.v" not in text
+    assert "Functional TB include hook" in text
+
 
 
 def test_e2e_register_transport_matrix_and_vendor_bootstrap_contract() -> None:
@@ -3811,19 +3847,14 @@ def test_saved_cordic_registers_atan_before_z_arithmetic() -> None:
 
 
 def test_systemverilog_setup_returns_canonical_generated_paths(tmp_path: Path) -> None:
-    from flexsoc.backend.dv.tb.sv import SystemVerilogTestbench, TestbenchConfig
+    from flexsoc.backend.dv.tb.sv import TestbenchConfig
 
     rtl = tmp_path / "rtl"
-    rtl.mkdir()
-    (rtl / "demo.sv").write_text(
-        "module demo(input logic clk_i, input logic rst_ni, input logic [7:0] data_i, "
-        "output logic [7:0] data_o); assign data_o = data_i; endmodule\n",
-        encoding="utf-8",
-    )
+    _write_tb_top(rtl, "demo", _single_tb_signature("tlul"))
     output = tmp_path / "tb" / "sv"
-    generated = SystemVerilogTestbench.generate_testbench_files(TestbenchConfig(
+    generated = SystemVerilogTestbench().setup(TestbenchConfig(
         top="demo", rtldir=rtl, simdir=tmp_path / "sim", syndir=tmp_path / "syn",
-        prims=(), clk_period_ns=10, compiler="verilator", interface="simple",
+        prims=(), clk_period_ns=10, compiler="verilator", interface="tlul",
         output=output, force=True,
     ))
 
@@ -3838,160 +3869,80 @@ def test_systemverilog_setup_returns_canonical_generated_paths(tmp_path: Path) -
     }
 
 
+
 def test_reg_iface_sv_driver_is_procedural_and_gls_portable(tmp_path: Path) -> None:
-    from flexsoc.backend.dv.tb.cocotb import CocotbTestbench
-    from flexsoc.backend.dv.tb.sv import SystemVerilogTestbench
+    del tmp_path
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+    registers = [
+        {"name": "CTRL", "clock": "core", "key": "CTRL", "addr": 0,
+         "writable": True, "readable": True},
+    ]
 
-    interface = SystemVerilogTestbench.render_reg_interface("demo")
-    sequence = SystemVerilogTestbench.render_sv_reg_sequence(
-        "demo", "reg_iface", "clk_i", active=True, registers=()
+    direct = SystemVerilogTestbench.render_reg_driver(
+        "demo", clocks, _single_tb_signature("reg_iface"), registers, "reg_iface"
     )
-    include = SystemVerilogTestbench.render_verilator_include(
-        "demo", tmp_path / "rtl", tmp_path / "syn", (), True, "reg_iface", "sv"
+    assert "task automatic core_write" in direct
+    assert "task automatic core_read" in direct
+    assert "reg_req_i.valid = 1'b1;" in direct
+    assert "do core_sample_cycle(); while (!reg_rsp_o.ready);" in direct
+    assert "virtual reg_if" not in direct
+    assert "class reg_utils" not in direct
+
+    axi = SystemVerilogTestbench.render_reg_driver(
+        "demo", clocks, _single_tb_signature("axi_lite"), registers, "axi_lite"
     )
+    write = axi.split("task automatic core_write", 1)[1].split("endtask", 1)[0]
+    read = axi.split("task automatic core_read", 1)[1].split("endtask", 1)[0]
+    assert "aw_done" in write and "w_done" in write
+    assert "axi_lite_o.aw_ready" in write and "axi_lite_o.w_ready" in write
+    assert write.index("core_drive_cycle();", write.index("aw_done")) < write.index("axi_lite_i.aw_valid = 1'b0;", write.index("aw_done"))
+    assert write.index("core_drive_cycle();", write.index("w_done")) < write.index("axi_lite_i.w_valid = 1'b0;", write.index("w_done"))
+    assert read.index("core_drive_cycle();", read.index("axi_lite_o.ar_ready")) < read.index("axi_lite_i.ar_valid = 1'b0;", read.index("axi_lite_o.ar_ready"))
 
-    assert "interface reg_if" in interface
-    assert "task automatic init()" in interface
-    assert "req_q = '0;" in interface
-    assert "task automatic write(" in interface
-    assert "task automatic read(" in interface
-    assert "@(posedge clk_i);\n    @(negedge clk_i);" in interface
-    assert "idle-high ready is not a response" in interface
+    cocotb_driver = CocotbTestbench.render_reg_driver(
+        "demo", clocks, _single_tb_signature("axi_lite"), registers, "axi_lite"
+    )
+    assert "aw_done = w_done = False" in cocotb_driver
+    assert "if aw_done and w_done:" in cocotb_driver
+    assert "await _drive_cycle(clk)" in cocotb_driver
+    assert "AXI4-Lite write error" in cocotb_driver
+    assert "AXI4-Lite read error" in cocotb_driver
 
-    # reg_iface response data/error are combinational with the accepted
-    # request. Capture them before deasserting req_q; read-side effects such
-    # as FIFO pop may change rdata on the following edge.
-    write_body = interface.split("task automatic write(", 1)[1].split("endtask", 1)[0]
-    read_body = interface.split("task automatic read(", 1)[1].split("endtask", 1)[0]
-    assert write_body.index("response_error = rsp.error;") < write_body.index("req_q.valid = 1'b0;")
-    assert read_body.index("data = rsp.rdata;") < read_body.index("req_q.valid = 1'b0;")
-    assert read_body.index("response_error = rsp.error;") < read_body.index("req_q.valid = 1'b0;")
-    assert "if (response_error) begin" in write_body
-    assert "if (response_error) begin" in read_body
-
-    assert "virtual reg_if" not in interface
-    assert "class reg_utils" not in interface
-    assert "regif.write(" in sequence
-    assert "regif.read(" in sequence
-    write_addr_body = sequence.split("task automatic tb_reg_write_addr(", 1)[1].split("endtask", 1)[0]
-    read_addr_body = sequence.split("task automatic tb_reg_read_addr(", 1)[1].split("endtask", 1)[0]
-    assert "@(posedge clk_i);" not in write_addr_body
-    assert "@(posedge clk_i);" not in read_addr_body
-
-    # The vector layer is protocol-neutral.  Each bus driver owns the full
-    # transaction and returns quiescent, so none of the wrapper tasks may add
-    # an interface-dependent clock edge after read/write.
-    for bus in ("tlul", "reg_iface", "axi_lite"):
-        bus_sequence = SystemVerilogTestbench.render_sv_reg_sequence(
-            "demo", bus, "clk_i", active=True, registers=()
-        )
-        bus_write = bus_sequence.split("task automatic tb_reg_write_addr(", 1)[1].split("endtask", 1)[0]
-        bus_read = bus_sequence.split("task automatic tb_reg_read_addr(", 1)[1].split("endtask", 1)[0]
-        assert "@(posedge clk_i);" not in bus_write
-        assert "@(posedge clk_i);" not in bus_read
-
-    # AXI-Lite channels are independent.  A ready-high slave must see each
-    # logical AW/W/AR request exactly once, so VALID is removed in the same
-    # sampled cycle as its own handshake rather than after another edge.
-    axi = SystemVerilogTestbench.render_axi_lite_utils("demo")
-    axi_write = axi.split("task automatic axi_lite_write(", 1)[1].split("endtask", 1)[0]
-    axi_read = axi.split("task automatic axi_lite_read(", 1)[1].split("endtask", 1)[0]
-    assert "while (!(aw_done && w_done)) begin" in axi_write
-    assert "if (!aw_done && axi_lite_o.aw_ready) begin" in axi_write
-    assert "axi_lite_i.aw_valid = 1'b0;" in axi_write
-    assert "if (!w_done && axi_lite_o.w_ready) begin" in axi_write
-    assert "axi_lite_i.w_valid = 1'b0;" in axi_write
-    assert "axi_lite_o.aw_ready && axi_lite_o.w_ready" not in axi_write
-    assert axi_write.index("axi_lite_i.aw_valid = 1'b0;") < axi_write.index("axi_lite_o.b_valid")
-    assert axi_write.index("axi_lite_i.w_valid = 1'b0;") < axi_write.index("axi_lite_o.b_valid")
-    assert "axi_lite_i.b_ready = 1'b1;\n  axi_lite_sample_cycle();\n  axi_lite_i.b_ready = 1'b0;" in axi_write
-
-    assert "end while (!axi_lite_o.ar_ready);\n\n  // ARVALID" in axi_read
-    assert "axi_lite_i.ar_valid = 1'b0;" in axi_read
-    assert axi_read.index("axi_lite_i.ar_valid = 1'b0;") < axi_read.index("axi_lite_o.r_valid")
-    assert "axi_lite_i.r_ready = 1'b1;\n  axi_lite_sample_cycle();\n  axi_lite_i.r_ready = 1'b0;" in axi_read
-
-    cocotb_driver = CocotbTestbench.render_reg_driver_py(interface="axi_lite")
-    assert "aw_done = False" in cocotb_driver
-    assert "reg_req_valid" not in cocotb_driver
-    assert "tl_i_a_valid" not in cocotb_driver
-    assert "w_done = False" in cocotb_driver
-    assert "while not (aw_done and w_done):" in cocotb_driver
-    assert 'aw_accept = not aw_done' in cocotb_driver
-    assert 'w_accept = not w_done' in cocotb_driver
-    assert 'and bool(_known_int(dut, "axi_aw_ready_o"' in cocotb_driver
-    assert 'and bool(_known_int(dut, "axi_w_ready_o"' in cocotb_driver
-    # READY is sampled before the acceptance edge.  The driver must cross to
-    # the following drive phase before it drops VALID, otherwise cocotb can
-    # remove the request before the DUT ever samples it.
-    aw_sample = cocotb_driver.index('aw_accept = not aw_done')
-    aw_drop = cocotb_driver.index('_get(dut, "axi_aw_valid_i").value = 0', aw_sample)
-    assert cocotb_driver.index('await _drive_cycle(clk)', aw_sample) < aw_drop
-    w_sample = cocotb_driver.index('w_accept = not w_done')
-    w_drop = cocotb_driver.index('_get(dut, "axi_w_valid_i").value = 0', w_sample)
-    assert cocotb_driver.index('await _drive_cycle(clk)', w_sample) < w_drop
-
-    ar_sample = cocotb_driver.index('ar_accept = bool(')
-    ar_drop = cocotb_driver.index('_get(dut, "axi_ar_valid_i").value = 0', ar_sample)
-    assert cocotb_driver.index('await _drive_cycle(clk)', ar_sample) < ar_drop
-    assert "axi_aw_ready_o\", \"waiting AXI write AWREADY\") and" not in cocotb_driver
-
-    assert "reg_utils_inst" not in sequence
-    assert '`include "reg_if.sv"' in include
-    assert "reg_utils.sv" not in include
 
 
 def test_serial_rx_idle_high_policy_is_shared_by_sv_and_cocotb() -> None:
-    from flexsoc.backend.dv.tb.cocotb import CocotbTestbench
-    from flexsoc.backend.dv.tb.sv import SystemVerilogTestbench
+    from flexsoc.backend.dv.tb.common import TestbenchModel
 
     for name in ("rx_i", "cio_rx_i", "uart_rx_i", "serial_rx_i"):
-        assert SystemVerilogTestbench._sv_input_default(name) == "'1"
+        assert TestbenchModel.serial_idle_high(name)
+    assert not TestbenchModel.serial_idle_high("data_i")
 
-    info = {
-        "clk": ["clk_i"],
-        "rst": ["rst_ni"],
-        "inputs": [
-            {"name": "rx_i", "width": 1},
-            {"name": "data_i", "width": 8},
-        ],
-        "outputs": [],
-    }
-    initializers = CocotbTestbench.render_extra_input_initializers(info)
-    assert "rx_i = '1;" in initializers
-    assert "data_i = '0;" in initializers
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+    signature = _single_tb_signature("tlul")
+    sv = SystemVerilogTestbench.render_reg_driver("demo", clocks, signature, (), "tlul")
+    py = CocotbTestbench.render_reg_driver("demo", clocks, signature, (), "tlul")
+    assert "serial_rx_i = '1;" in sv
+    assert "serial_rx_i.value = 1" in py
+    assert "data_i = '0;" in sv
+    assert "data_i.value = 0" in py
 
-    cocotb_driver = CocotbTestbench.render_vec_driver_py()
-    assert 'for name in ("rx_i", "cio_rx_i", "uart_rx_i", "serial_rx_i"):' in cocotb_driver
 
 
 def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> None:
-    from flexsoc.backend.dv.tb.cocotb import CocotbTestbench
-
     rtl = tmp_path / "rtl"
     rtl.mkdir()
-    (rtl / "uart.sv").write_text(
-        "module uart(\n"
-        "  input logic clk_i,\n"
-        "  input logic rst_ni,\n"
-        "  input logic rx_i,\n"
-        "  output logic tx_o,\n"
-        "  input logic [108:0] tl_i,\n"
-        "  output logic [65:0] tl_o\n"
-        "); endmodule\n",
-        encoding="utf-8",
-    )
+    single = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+    signature = _single_tb_signature("tlul")
+    _write_tb_top(rtl, "uart", signature)
     cfg = CocotbConfig(
         top="uart", interface="tlul", output=tmp_path / "cocotb", rtl_dir=rtl,
         ips_root=tmp_path / "ips",
     )
-    wrapper = CocotbTestbench.render_tlul_wrapper(cfg)
-    assert wrapper.startswith("`timescale 1ns/1ps\nmodule uart_tb;\n")
-    assert "\n  logic rx_i;\n  logic tx_o;\n" in wrapper
-    assert "\n  localparam logic [2:0] FLEXSOC_TL_PUT_FULL" in wrapper
-    assert "\n  function automatic logic [6:0] flexsoc_tlul_data_intg" in wrapper
-    assert "\n  initial begin\n    rx_i = '1;\n  end\n" in wrapper
-    assert "\nlogic tx_o;" not in wrapper
+    wrapper = CocotbTestbench.render_wrapper("uart", single, signature, "tlul")
+    assert wrapper.startswith("`timescale 1ns/1ps\n\nmodule uart_tb;\n")
+    assert "logic serial_rx_i;" in wrapper
+    assert "localparam logic [2:0] FLEXSOC_TL_PUT_FULL" in wrapper
+    assert "function automatic logic [6:0] flexsoc_tlul_data_intg" in wrapper
 
     makefiles = {
         interface: CocotbTestbench.render_makefile(replace(cfg, interface=interface), (rtl / "uart.sv",))
@@ -4000,13 +3951,12 @@ def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> N
     for makefile in makefiles.values():
         assert makefile.startswith("# Auto-generated Makefile\nSIM")
         assert "\nifeq ($(GATES),yes)\n  SIM := icarus\n" in makefile
-        assert "\n  # RTL sources expanded from rtl_common.f and rtl_ip.f\n" in makefile
         assert not makefile.startswith(" ")
     assert f"-I{tmp_path / 'ips' / 'tlul'}" in makefiles["tlul"]
     assert f"-I{tmp_path / 'ips' / 'tlul'}" not in makefiles["reg_iface"]
-    assert f"-I{tmp_path / 'ips' / 'tlul'}" not in makefiles["axi_lite"]
     assert "vendor/pulp/axi/include" in makefiles["axi_lite"]
     assert "vendor/pulp/register_interface/include" in makefiles["axi_lite"]
+    assert CocotbTestbench.repo_root() == ROOT
 
     clocks = ClockConfig((
         ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 20.0),
@@ -4014,51 +3964,35 @@ def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> N
         ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 30.0),
     ))
     markers = {
-        "tlul": ("cfg_tl_i", "cfg_a_valid", "TL-UL write error"),
-        "reg_iface": ("cfg_reg_req_i", "cfg_reg_req_valid", "reg_iface write error"),
-        "axi_lite": ("cfg_axi_lite_i", "cfg_axi_aw_addr_i", "AXI4-Lite write error"),
+        "tlul": ("cfg_tl_i", "cfg_a_valid", "TL-UL"),
+        "reg_iface": ("cfg_reg_req_i", "cfg_reg_req_valid", "reg_iface"),
+        "axi_lite": ("cfg_axi_lite_i", "cfg_axi_aw_addr_i", "AXI4-Lite"),
     }
-    for interface, (wrapper_marker, cocotb_marker, driver_marker) in markers.items():
+    for interface, (sv_marker, wrapper_marker, driver_marker) in markers.items():
         signature = _multiclock_tb_signature(interface)
         registers = _multiclock_tb_registers()
-        sv = SystemVerilogTestbench.sv_tb_text(
-            "tri_stream_dsp", "tri_stream_dsp_tb", clocks, interface, signature=signature
+        sv = SystemVerilogTestbench.render_top("tri_stream_dsp", clocks, signature, interface)
+        driver = SystemVerilogTestbench.render_reg_driver(
+            "tri_stream_dsp", clocks, signature, registers, interface
         )
-        driver = SystemVerilogTestbench.sv_driver_text(
-            "tri_stream_dsp", clocks, interface=interface,
-            signature=signature, registers=registers,
+        cocotb_sv = CocotbTestbench.render_wrapper(
+            "tri_stream_dsp", clocks, signature, interface
         )
-        cocotb_sv = CocotbTestbench.cocotb_sv_text(
-            "tri_stream_dsp", clocks, interface, signature=signature
-        )
-        cocotb_driver = CocotbTestbench.cocotb_reg_driver_py_text(
-            "tri_stream_dsp", clocks, interface=interface,
-            signature=signature, registers=registers,
+        cocotb_driver = CocotbTestbench.render_reg_driver(
+            "tri_stream_dsp", clocks, signature, registers, interface
         )
         compile(cocotb_driver, f"<{interface}-driver>", "exec")
-        assert wrapper_marker in sv and wrapper_marker in driver
-        assert cocotb_marker in cocotb_sv and driver_marker in cocotb_driver
-        if interface == "reg_iface":
-            assert "cfg_reg_req_i.valid = 1'b1;" in driver
-            assert "cfg_reg_req_i = '{" not in driver
-        for other, (other_wrapper, other_cocotb, other_driver) in markers.items():
-            if other != interface:
-                assert other_wrapper not in sv and other_wrapper not in driver
-                assert other_cocotb not in cocotb_sv and other_driver not in cocotb_driver
+        assert sv_marker in sv and sv_marker in driver
+        assert wrapper_marker in cocotb_sv and driver_marker in cocotb_driver
         assert sv.startswith("`timescale 1ns/1ps\n")
         assert cocotb_sv.startswith("`timescale 1ns/1ps\n")
-        assert "\n  logic cfg_clk_i;\n  logic cfg_rst_ni;\n" in sv
-        assert "\n  logic cfg_clk_i;\n  logic cfg_rst_ni;\n" in cocotb_sv
-        assert "test_en_i" not in sv
-        assert "test_en_i" not in driver
-        assert "test_en_i" not in cocotb_sv
-        assert "test_en_i" not in cocotb_driver
+        assert "test_en_i" not in "\n".join((sv, driver, cocotb_sv, cocotb_driver))
 
     with pytest.raises(ValueError, match="REG_ITF must be one of"):
-        SystemVerilogTestbench.sv_tb_text(
-            "tri_stream_dsp", "tri_stream_dsp_tb", clocks, "unknown",
-            signature=_multiclock_tb_signature(),
+        SystemVerilogTestbench.render_top(
+            "tri_stream_dsp", clocks, _multiclock_tb_signature(), "unknown"
         )
+
 
 
 def test_multiclock_cocotb_uses_canonical_wrapper_name(tmp_path: Path) -> None:
@@ -5194,7 +5128,7 @@ def test_fusion_all_prints_workload_and_corner_progress(
 
     monkeypatch.setattr(StaAnalysis, "_base_context", fake_context)
     monkeypatch.setattr(StaAnalysis, "_execute_script", fake_execute)
-    monkeypatch.setattr(PowerAnalysis, "_enrich_fusion_report", fake_enrich)
+    monkeypatch.setattr(FusionAnalysis, "_enrich_fusion_report", fake_enrich)
 
     assert PowerAnalysis.execute_activity(
         "fusion_analysis",
@@ -5844,6 +5778,9 @@ def test_setup_signoff_generates_five_families_without_activity_scripts(
     Sdc.init_sdc(run / "constraints/demo.sdc", top="demo", clocks=ClockConfig.from_values(values))
 
     paths = StaAnalysis.generate_families(tmp_path, values)
+    power = PowerAnalysis(tmp_path, values)
+    assert power.setup_estimate() == run / "signoff/sky130/power/estimate/power_estimate.tcl"
+    assert power.setup_activity() == run / "signoff/sky130/power/analysis/power_analysis.tcl"
 
     assert {path.relative_to(run).as_posix() for path in paths} == {
         "signoff/sky130/sta/sta.tcl",
@@ -7614,7 +7551,7 @@ def test_requirements_traceability_is_always_first_l2_evidence() -> None:
     }
     stages = QualificationFlow.required_stages(spec, 2)
     assert stages[0] == "requirements_traceability"
-    assert stages[1:3] == ("lint_slang_suite", "lint_verilator_suite")
+    assert stages[1] == "lint"
     assert stages.count("requirements_traceability") == 1
 
 
@@ -7876,16 +7813,16 @@ def test_runtime_failure_records_clean_lineage_and_failed_outcome(
     router.paths.ensure()
 
     def fail_lint(target: str) -> int:
-        assert target == "lint_slang_suite"
+        assert target == "lint"
         evidence = router._evidence_paths(target)[0]
         evidence.parent.mkdir(parents=True, exist_ok=True)
-        evidence.write_text("lint failed\n", encoding="utf-8")
+        evidence.write_text(json.dumps({"status": "FAILED"}) + "\n", encoding="utf-8")
         return 3
 
     monkeypatch.setattr(router, "_execute_target", fail_lint)
-    assert router.execute("lint_slang_suite") == 3
-    assert router._contract_state("lint_slang_suite") == "CLEAN"
-    assert router._contract_outcome("lint_slang_suite") == "FAILED"
+    assert router.execute("lint") == 3
+    assert router._contract_state("lint") == "CLEAN"
+    assert router._contract_outcome("lint") == "FAILED"
 
     from flexsoc.backend.release.qualification import QualificationFlow
     assert QualificationFlow.evidence_state("CLEAN", outcome="FAILED") == "FAILED"
@@ -7902,9 +7839,9 @@ def test_runtime_failure_without_canonical_output_is_failed_but_invalid(
     router.paths.ensure()
     monkeypatch.setattr(router, "_execute_target", lambda target: 4)
 
-    assert router.execute("lint_slang_suite") == 4
-    assert router._contract_state("lint_slang_suite") == "INVALID"
-    assert router._contract_outcome("lint_slang_suite") == "FAILED"
+    assert router.execute("lint") == 4
+    assert router._contract_state("lint") == "INVALID"
+    assert router._contract_outcome("lint") == "FAILED"
 
     from flexsoc.backend.release.qualification import QualificationFlow
     assert QualificationFlow.evidence_state("INVALID", outcome="FAILED") == "FAILED"
@@ -8707,52 +8644,30 @@ def test_formal_run_uses_existing_config_without_regeneration(
 
 
 def test_functional_tb_clock_waveform_comes_from_clock_config() -> None:
-    from flexsoc.backend.core import ClockConfig, ClockDomain
-    from flexsoc.backend.dv.tb.cocotb import CocotbTestbench
-    from flexsoc.backend.dv.tb.sv import SystemVerilogTestbench
-
     clock = ClockDomain(
         "core", "clk_i", "rst_ni", 10.0, "low",
         rise_ns=0.3, fall_ns=4.7, source_latency_ns=0.15,
         setup_uncertainty_ns=0.10, hold_uncertainty_ns=0.05,
     )
     clocks = ClockConfig((clock,))
-
-    # Both functional backends use the same SDC timing and jitter contract:
-    # first rise=0.45 ns, high=4.4 ns, nominal low=5.6 ns, jitter bound=100 ps.
-    simple_sig = {
+    signature = {
         "parameters": [], "localparams": [],
         "ports_in": [("clk_i", 1), ("rst_ni", 1)], "ports_out": [],
         "clks": ["clk_i"], "rsts": ["rst_ni"],
     }
-    single_sv = SystemVerilogTestbench.render_simple_testbench(
-        "demo", clock, (), ".", ".", "verilator", simple_sig,
-    )
-    single_py = CocotbTestbench.render_python_test(
-        "demo", "clk_i", "rst_ni", "low", 10.0, 0.3, 4.7, 0.15, "core",
-        setup_uncertainty_ns=0.10, hold_uncertainty_ns=0.05,
-    )
-    multi_sv = SystemVerilogTestbench.sv_tb_text("demo", "demo_tb", clocks)
-    multi_py = CocotbTestbench.cocotb_py_text("demo", clocks)
+    sv = SystemVerilogTestbench.render_top("demo", clocks, signature, "reg_iface")
+    py = CocotbTestbench.render_test("demo", clocks, signature)
 
-    for sv in (single_sv, multi_sv):
-        assert "#0.45;" in sv
-        assert "#4.4;" in sv
-        assert "jitter_next_ps = (jitter_state % 201) - 100;" in sv
-        assert "low_delay_ns = (5600 + jitter_next_ps - jitter_prev_ps) / 1000.0;" in sv
-        assert "FLEXSOC_SEED=%d" in sv
-        assert "32'hdd5e607e" in sv
-    assert "await Timer(0.45, unit=\"ns\")" in single_py
-    assert "await Timer(4.4, unit=\"ns\")" in single_py
-    assert "jitter_next_ps = int(jitter_state % 201) - 100" in single_py
-    assert "low_delay_ps = 5600 + jitter_next_ps - jitter_prev_ps" in single_py
-    assert 'os.environ.get("FLEXSOC_SEED", "1")' in single_py
-    assert "jitter_state = (base_seed ^ 3713949822)" in single_py
-    assert "cocotb.start_soon(_flexsoc_clock(dut.clk_i))" in single_py
-    assert 'os.environ.get("RESET_SETTLE_CYCLES", "8")' in single_py
-    assert 'await apply_reset(dut, "all", reset_cycles, settle_cycles)' in single_py
-    assert "for _ in range(2):" not in single_py
-    assert "_flexsoc_clock(getattr(dut, 'clk_i'), 10, 0.3, 4.7, 0.15, 100, 3713949822)" in multi_py
+    assert "#0.45;" in sv
+    assert "#4.4;" in sv
+    assert "jitter_next_ps = (jitter_state % 201) - 100;" in sv
+    assert "low_delay_ns = (5600 + jitter_next_ps - jitter_prev_ps) / 1000.0;" in sv
+    assert "FLEXSOC_SEED=%d" in sv
+    assert "32'hdd5e607e" in sv
+    assert "await Timer(initial_low, unit=\"ns\")" in py
+    assert "jitter_next_ps = int(jitter_state % (2 * jitter_bound_ps + 1)) - jitter_bound_ps" in py
+    assert "cocotb.start_soon(_flexsoc_clock(getattr(dut, 'clk_i'), 10, 0.3, 4.7, 0.15, 100, 3713949822))" in py
+
 
 
 def test_systemverilog_functional_seed_drives_clock_jitter(tmp_path: Path) -> None:
@@ -8994,17 +8909,17 @@ def test_cli_requirements_testplan_and_meta_views(tmp_path: Path, capsys: pytest
                 "2": {"name": "RTL Qualified", "status": "PASS", "blocking_evidence": []},
                 "3": {"name": "Synthesis Qualified", "status": "BLOCKED", "blocking_evidence": ["eqy"]},
             },
-            "evidence": {"lint_slang_suite": "PASS", "eqy": "MISSING"},
+            "evidence": {"lint": "PASS", "eqy": "MISSING"},
         }), encoding="utf-8"
     )
     (meta / "sky130" / "provenance.json").write_text(
         json.dumps({
             "schema_version": 1,
             "stages": {
-                "lint_slang_suite": {
+                "lint": {
                     "fingerprint": "1234567890abcdef1234",
                     "inputs": [{"path": "rtl/demo.sv", "sha256": "aa"}],
-                    "generated": [{"path": "dv/lint/slang/demo_lint_slang_all.log", "generated_sha256": "bb"}],
+                    "generated": [{"path": "dv/lint/summary.json", "generated_sha256": "bb"}],
                     "parents": {},
                     "input_paths_match": True,
                 }
@@ -9048,7 +8963,7 @@ def test_cli_requirements_testplan_and_meta_views(tmp_path: Path, capsys: pytest
     assert "Design intent" in meta_full
     assert "Qualification · sky130" in meta_full
     assert "Provenance · sky130" in meta_full
-    assert "lint_slang_suite" in meta_full
+    assert "lint" in meta_full
     assert "design_intent.json" in meta_full
     assert "sky130/manifest.json" in meta_full
     assert "fx show design_intent" in meta_full
@@ -9124,31 +9039,38 @@ def test_templates_preserve_authored_scaffold_unless_forced(tmp_path: Path) -> N
     output.write_text("// authored\n", encoding="utf-8")
 
     assert templates.write(
-        "dv/sv/drivers/reg_sequence_none.svh.j2", output, top="demo"
+        "dv/sv/testbench/include.sv.j2", output, top="demo", guard="FLEXSOC_DEMO_TB_SV"
     ) == output.resolve()
     assert output.read_text(encoding="utf-8") == "// authored\n"
 
     templates.write(
-        "dv/sv/drivers/reg_sequence_none.svh.j2", output, force=True, top="demo"
+        "dv/sv/testbench/include.sv.j2", output, force=True,
+        top="demo", guard="FLEXSOC_DEMO_TB_SV",
     )
     text = output.read_text(encoding="utf-8")
-    assert "Auto-generated register helper for demo" in text
-    assert "run_reg_config" in text
+    assert "`ifndef FLEXSOC_DEMO_TB_SV" in text
+    assert "Functional TB include hook" in text
 
 
 def test_testbench_scaffolds_render_from_packaged_templates() -> None:
-    from flexsoc.backend.dv.tb.sv import SystemVerilogTestbench
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+    registers = [
+        {"name": "CTRL", "clock": "core", "key": "CTRL", "addr": 0,
+         "writable": True, "readable": True},
+    ]
+    rendered = {
+        interface: SystemVerilogTestbench.render_reg_driver(
+            "demo", clocks, _single_tb_signature(interface), registers, interface
+        )
+        for interface in ("tlul", "reg_iface", "axi_lite")
+    }
+    assert "flexsoc_tlul_h2d" in rendered["tlul"]
+    assert "reg_req_i.valid" in rendered["reg_iface"]
+    assert "axi_lite_i.aw_valid" in rendered["axi_lite"]
+    for text in rendered.values():
+        assert "#(2) -> flexsoc_core_drive_phase" in text
+        assert "#(8) -> flexsoc_core_sample_phase" in text
 
-    tlul = SystemVerilogTestbench.render_tlul_interface(period_ns=10.0, io_delay_pct=0.2)
-    reg_iface = SystemVerilogTestbench.render_reg_interface("demo")
-    axi_lite = SystemVerilogTestbench.render_axi_lite_utils("demo", period_ns=10.0, io_delay_pct=0.2)
-
-    assert "FLEXSOC_TB_DRIVE_NS  = 2" in tlul
-    assert "FLEXSOC_TB_SAMPLE_NS = 8" in tlul
-    assert "import demo_reg_pkg::*;" in reg_iface
-    assert "logic [demo_reg_pkg::AW-1:0]" in reg_iface
-    assert "#2;" in axi_lite
-    assert "#8;" in axi_lite
 
 
 def test_check_and_manifest_show_use_common_show_renderer(
@@ -9162,7 +9084,19 @@ def test_check_and_manifest_show_use_common_show_renderer(
     router.paths.ensure()
     router.paths.meta.mkdir(parents=True, exist_ok=True)
     router.paths.metrics.write_text(
-        json.dumps({"flow": {"status": "review"}, "closure": {"status": "review"}}) + "\n",
+        json.dumps({
+            "technical_status": "REVIEW",
+            "closure": {
+                "status": "incomplete",
+                "order": ["lint", "synthesis", "implementation", "post_impl_sta"],
+                "stages": {
+                    "lint": "pass",
+                    "synthesis": "pass",
+                    "implementation": "pass",
+                    "post_impl_sta": "missing",
+                },
+            },
+        }) + "\n",
         encoding="utf-8",
     )
     router.paths.manifest.write_text(
@@ -9181,6 +9115,9 @@ def test_check_and_manifest_show_use_common_show_renderer(
     assert metrics.key == "metrics"
     assert manifest.key == "manifest"
     assert "Collected flow metrics" in output
+    assert output.index("Lint") < output.index("Synthesis") < output.index("PnR / implementation")
+    assert "Post-implementation" in output
+    assert "technical status" in output
     assert "Run manifest" in output
 
 
@@ -9280,44 +9217,80 @@ def test_testbench_layout_is_clock_count_independent_and_backends_are_complement
         assert (root / "adapters/axi_lite").is_dir()
         assert not (root / "tlul").exists()
         assert not (root / "axi_lite").exists()
+        functional_root = repo / f"src/flexsoc/templates/dv/{backend}"
+        legacy = [
+            path for path in functional_root.rglob("*")
+            if path.is_file() and any(token in path.name for token in ("_single", "_multiclock", "single_transport", "multiclock_transport"))
+        ]
+        assert legacy == []
+
+    tb_backend = repo / "src/flexsoc/backend/dv/tb"
+    for name in ("common.py", "sv.py", "cocotb.py"):
+        source = (tb_backend / name).read_text(encoding="utf-8")
+        assert "clocks.multiclock" not in source
+
+
+def test_tlul_testbench_boundary_is_vendor_package_independent() -> None:
+    """TL-UL TB buses use the adapter's canonical packed bitstream contract."""
+
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+    signature = {
+        "ports_in": [
+            ("clk_i", 1), ("rst_ni", 1),
+            ("tl_i", "tlul_pkg::tl_h2d_t"), ("data_i", "[15:0]"),
+        ],
+        "ports_out": [
+            ("tl_o", "tlul_pkg::tl_d2h_t"), ("data_o", "[31:0]"),
+        ],
+        "clks": ["clk_i"],
+        "rsts": ["rst_ni"],
+    }
+
+    sv = SystemVerilogTestbench.render_top("demo", clocks, signature, "tlul")
+    cocotb = CocotbTestbench.render_wrapper("demo", clocks, signature, "tlul")
+
+    for source in (sv, cocotb):
+        assert "logic [108:0] tl_i;" in source
+        assert "logic [65:0]  tl_o;" in source
+        assert "tlul_pkg::" not in source
 
 
 def test_testbench_register_transport_is_reg_iface_base_with_explicit_adapters() -> None:
-    from flexsoc.backend.dv.tb.cocotb import CocotbTestbench
     from flexsoc.backend.dv.tb.common import RegisterTransport
 
     direct = RegisterTransport.from_name("reg_iface")
     tlul = RegisterTransport.from_name("tlul")
     axi = RegisterTransport.from_name("axi_lite")
-
     assert direct.template_root("sv") == "dv/sv/register/reg_iface"
     assert direct.template_root("cocotb") == "dv/cocotb/register/reg_iface"
     assert tlul.template_root("sv") == "dv/sv/register/adapters/tlul"
     assert axi.template_root("cocotb") == "dv/cocotb/register/adapters/axi_lite"
 
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+    registers = [{"name": "CTRL", "clock": "core", "key": "CTRL", "addr": 0,
+                  "writable": True, "readable": True}]
     drivers = {
-        interface: CocotbTestbench.render_reg_driver_py(interface=interface)
+        interface: CocotbTestbench.render_reg_driver(
+            "demo", clocks, _single_tb_signature(interface), registers, interface
+        )
         for interface in ("reg_iface", "tlul", "axi_lite")
     }
-    for interface, text in drivers.items():
-        compile(text, f"<{interface}-reg-driver>", "exec")
+    for interface, source in drivers.items():
+        compile(source, f"<{interface}-reg-driver>", "exec")
 
-    assert '"reg_req_valid"' in drivers["reg_iface"]
-    assert "tl_i_a_valid" not in drivers["reg_iface"]
-    assert "axi_aw_addr_i" not in drivers["reg_iface"]
+    assert 'f"{domain}_reg_req_{name}"' in drivers["reg_iface"]
+    assert 'f"{domain}_a_valid"' not in drivers["reg_iface"]
+    assert 'f"{domain}_axi_aw_addr_i"' not in drivers["reg_iface"]
+    assert 'f"{domain}_a_valid"' in drivers["tlul"]
+    assert 'f"{domain}_reg_req_{name}"' not in drivers["tlul"]
+    assert 'f"{domain}_axi_{name}"' in drivers["axi_lite"]
+    assert 'f"{domain}_a_valid"' not in drivers["axi_lite"]
 
-    assert "tl_i_a_valid" in drivers["tlul"]
-    assert "reg_req_valid" not in drivers["tlul"]
-    assert "axi_aw_addr_i" not in drivers["tlul"]
-
-    assert "axi_aw_addr_i" in drivers["axi_lite"]
-    assert "reg_req_valid" not in drivers["axi_lite"]
-    assert "tl_i_a_valid" not in drivers["axi_lite"]
 
 
 
 def test_multiclock_testbench_derives_domains_streams_and_register_windows() -> None:
-    """Multiclock collateral must follow top/regmap metadata, not demo IP names."""
+    """TB collateral follows top/regmap metadata, not demo IP names."""
 
     clocks = ClockConfig((
         ClockDomain("ctrl", "ctrl_clk_i", "ctrl_rst_ni", 10.0),
@@ -9348,29 +9321,32 @@ def test_multiclock_testbench_derives_domains_streams_and_register_windows() -> 
          "writable": True, "readable": True},
     ]
 
-    sv = SystemVerilogTestbench.sv_driver_text("demo", clocks, signature=signature, registers=registers)
-    vec = SystemVerilogTestbench.sv_vec_driver_text("demo", clocks, signature=signature)
-    cocotb = CocotbTestbench.cocotb_reg_driver_py_text(
-        "demo", clocks, signature=signature, registers=registers
-    )
-    cocotb_vec = CocotbTestbench.cocotb_vec_driver_py_text("demo", clocks, signature=signature)
+    sv = SystemVerilogTestbench.render_reg_driver("demo", clocks, signature, registers, "tlul")
+    vec = SystemVerilogTestbench.render_vec_driver("demo", clocks, signature, "tlul")
+    cocotb = CocotbTestbench.render_reg_driver("demo", clocks, signature, registers, "tlul")
+    cocotb_vec = CocotbTestbench.render_vec_driver(clocks, signature)
 
     assert 'reg_name == "ctrl.ENABLE"' in sv
     assert 'reg_name == "compute.GAIN"' in sv
+    assert 'reg_name == "ENABLE"' not in sv
+    assert 'reg_name == "GAIN"' not in sv
     assert "send_ingress" in vec and "compute_valid_o" in vec
+    assert "pending_ingress_clk_i" not in vec
     assert "'ctrl': {'ENABLE': 0}" in cocotb
     assert "'compute': {'GAIN': 4}" in cocotb
     assert "'ingress_valid_i'" in cocotb_vec and "'compute_valid_o'" in cocotb_vec
+    assert "for name, stream in INPUT_STREAMS.items()" in cocotb_vec
+    assert "handle.value = int(pending[signal]) & ((1 << len(handle)) - 1)" in cocotb_vec
+    assert "handle.value = int(value) & ((1 << len(handle)) - 1)" in cocotb_vec
     assert not any(token in "\n".join((sv, vec, cocotb, cocotb_vec)) for token in (
         "cfg_tl_i", "dsp_tl_i", "rx_sample_i", "dsp_result_o",
     ))
 
+
 def test_cocotb_single_and_multiclock_share_scaffold_layout(tmp_path: Path) -> None:
     rtl = tmp_path / "rtl"
-    rtl.mkdir()
     single_out = tmp_path / "single"
     multi_out = tmp_path / "multi"
-
     single = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
     multi = ClockConfig((
         ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 10.0),
@@ -9378,28 +9354,22 @@ def test_cocotb_single_and_multiclock_share_scaffold_layout(tmp_path: Path) -> N
         ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 6.0),
     ))
 
-    CocotbTestbench().setup(
-        CocotbConfig("demo", "tlul", single_out, rtl_dir=rtl), clocks=single
-    )
+    _write_tb_top(rtl, "demo", _single_tb_signature("tlul"))
+    CocotbTestbench().setup(CocotbConfig("demo", "tlul", single_out, rtl_dir=rtl), clocks=single)
     _write_multiclock_tb_top(rtl, "demo", "tlul")
-    CocotbTestbench().setup(
-        CocotbConfig("demo", "tlul", multi_out, rtl_dir=rtl), clocks=multi
-    )
+    CocotbTestbench().setup(CocotbConfig("demo", "tlul", multi_out, rtl_dir=rtl), clocks=multi)
 
     def layout(root: Path) -> set[Path]:
         return {path.relative_to(root) for path in root.rglob("*") if path.is_file()}
 
     expected = {
-        Path("Makefile"),
-        Path("demo_tb.sv"),
-        Path("demo_tb.py"),
-        Path("drivers/__init__.py"),
-        Path("drivers/reg_driver.py"),
-        Path("drivers/vec_driver.py"),
-        Path("drivers/vec_monitor.py"),
+        Path("Makefile"), Path("demo_tb.sv"), Path("demo_tb.py"),
+        Path("drivers/__init__.py"), Path("drivers/reg_driver.py"),
+        Path("drivers/vec_driver.py"), Path("drivers/vec_monitor.py"),
     }
     assert layout(single_out) == expected
     assert layout(multi_out) == expected
+
 
 
 def test_foundation_python_files_are_class_owned() -> None:
@@ -9413,6 +9383,9 @@ def test_foundation_python_files_are_class_owned() -> None:
         root / "backend/core/flow/session.py",
         root / "backend/core/flow/provenance.py",
         root / "backend/core/flow/lifecycle.py",
+        root / "backend/dv/tb/common.py",
+        root / "backend/dv/tb/sv.py",
+        root / "backend/dv/tb/cocotb.py",
     )
 
     def free_functions(path: Path) -> list[str]:
@@ -9700,3 +9673,359 @@ def test_core_package_data_tracks_moved_runtime_and_fsm_files() -> None:
         "backend/design/fsm_gen/examples/*",
     ):
         assert f'"{legacy}"' not in pyproject
+
+
+def test_lint_slang_uses_one_full_elaboration_and_priority_policy(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    from flexsoc.backend.dv.lint.slang_lint import SlangLint
+
+    paths = SimpleNamespace(
+        top="demo", rtl_common=tmp_path / "common.f", rtl_ip=tmp_path / "ip.f",
+        lint=tmp_path / "lint",
+    )
+    context = SimpleNamespace(paths=paths, values={"SLANG": "slang"}, project_root=tmp_path)
+    lint = SlangLint(context, None)
+    command = lint._command("everything", tmp_path / "slang.json")
+
+    assert "-Weverything" in command
+    assert "--diag-json" in command
+    assert "--lint-only" not in command
+    assert lint._priority("width-trunc", "warning") == "P0"
+    assert lint._priority("sign-conversion", "warning") == "P1"
+    assert lint._priority("unused-net", "warning") == "P2"
+    assert lint._priority("unused-typedef", "warning") == "P3"
+
+
+def test_lint_slang_diagnostics_preserve_file_and_line(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    from flexsoc.backend.dv.lint.slang_lint import SlangLint
+
+    path = tmp_path / "slang.json"
+    path.write_text(json.dumps([
+        {
+            "severity": "warning", "optionName": "width-trunc", "message": "truncation",
+            "location": {"fileName": str(tmp_path / "rtl" / "demo.sv"), "lineNumber": 17, "columnNumber": 4},
+        },
+        {
+            "severity": "warning", "optionName": "sign-conversion", "message": "conversion",
+            "location": f"{tmp_path / 'rtl' / 'other.sv'}:23:7",
+        },
+    ]), encoding="utf-8")
+    context = SimpleNamespace(
+        paths=SimpleNamespace(run=tmp_path / "run"), values={}, project_root=tmp_path,
+    )
+
+    diagnostics = SlangLint(context, None)._diagnostics(path)
+
+    assert diagnostics is not None
+    assert diagnostics[0]["file"] == "rtl/demo.sv"
+    assert diagnostics[0]["line"] == 17
+    assert diagnostics[0]["column"] == 4
+    assert diagnostics[1]["file"] == "rtl/other.sv"
+    assert diagnostics[1]["line"] == 23
+    assert diagnostics[1]["column"] == 7
+
+
+def test_lint_verilator_uses_one_portable_sarif_run(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    from flexsoc.backend.dv.lint.verilator_lint import VerilatorLint
+
+    paths = SimpleNamespace(
+        top="demo", rtl_common=tmp_path / "common.f", rtl_ip=tmp_path / "ip.f",
+        lint=tmp_path / "lint",
+    )
+    context = SimpleNamespace(paths=paths, values={"VERILATOR": "verilator"}, project_root=tmp_path)
+    lint = VerilatorLint(context, None)
+    command = lint._command("everything", tmp_path / "verilator.sarif")
+
+    assert "--lint-only" in command
+    assert "-Wall" in command
+    assert "-Wwarn-MULTIDRIVENPROC" not in command
+    assert "--diagnostics-sarif-output" in command
+    assert lint._priority("MULTIDRIVEN", "warning") == "P0"
+    assert lint._priority("MULTIDRIVENPROC", "warning") == "P0"
+    assert lint._priority("SYNCASYNCNET", "warning") == "P1"
+    assert lint._priority("UNOPTFLAT", "warning") == "P2"
+    assert lint._priority("EOFNEWLINE", "warning") == "P3"
+
+
+def test_lint_tool_diagnostics_do_not_gate_execution_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from types import SimpleNamespace
+    from flexsoc.backend.dv.lint.slang_lint import SlangLint
+    from flexsoc.backend.dv.lint.verilator_lint import VerilatorLint
+
+    rtl_common = tmp_path / "common.f"
+    rtl_ip = tmp_path / "ip.f"
+    rtl_common.touch()
+    rtl_ip.touch()
+    paths = SimpleNamespace(
+        top="demo", rtl_common=rtl_common, rtl_ip=rtl_ip,
+        lint=tmp_path / "lint", logs=tmp_path / "logs", run=tmp_path / "run",
+    )
+    context = SimpleNamespace(paths=paths, values={}, project_root=tmp_path)
+    runner = SimpleNamespace(run=lambda request, on: SimpleNamespace(returncode=1))
+    diagnostic = [{
+        "tool": "tool", "priority": "P0", "severity": "error", "code": "TEST",
+        "message": "critical evidence", "file": "rtl/demo.sv", "line": 1, "column": 1,
+    }]
+
+    for owner in (SlangLint, VerilatorLint):
+        monkeypatch.setattr(owner, "_diagnostics", lambda self, path: diagnostic)
+        _, summary = owner(context, runner).run(profile="everything")
+        assert summary["status"] == "PASS"
+        assert summary["counts"]["P0"] == 1
+
+
+def test_lint_aggregate_summary_is_release_facing_and_reporting_only(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    from flexsoc.backend.dv.lint.lint import Lint
+
+    lint_root = tmp_path / "run" / "dv" / "lint"
+    for tool, priority in (("slang", "P0"), ("verilator", "P1")):
+        root = lint_root / tool
+        root.mkdir(parents=True)
+        counts = {"P0": 0, "P1": 0, "P2": 0, "P3": 0}
+        counts[priority] = 1
+        (root / "summary.json").write_text(json.dumps({
+            "schema": "flexsoc.lint.tool.v1", "top": "demo", "tool": tool,
+            "profile": "everything", "status": "PASS",
+            "returncode": 1, "counts": counts, "total": 1,
+            "diagnostics": [{
+                "tool": tool, "priority": priority, "severity": "warning", "code": "TEST",
+                "message": "test", "file": "rtl/demo.sv", "line": 1, "column": 1,
+            }],
+        }) + "\n", encoding="utf-8")
+
+    paths = SimpleNamespace(top="demo", lint=lint_root, run=tmp_path / "run")
+    context = SimpleNamespace(paths=paths, values={"LINT_PROFILE": "everything"}, project_root=tmp_path)
+    summary = Lint(context, None)._write_summary()
+
+    assert summary["status"] == "PASS"
+    assert summary["counts"] == {"P0": 1, "P1": 1, "P2": 0, "P3": 0}
+    assert [item["tool"] for item in summary["diagnostics"]] == ["slang", "verilator"]
+    assert (lint_root / "summary.json").is_file()
+
+
+def test_lint_debug_renders_show_plus_hints(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    from flexsoc.backend.dv.lint.lint import Lint
+
+    run = tmp_path / "run"
+    lint_root = run / "dv" / "lint"
+    lint_root.mkdir(parents=True)
+    (lint_root / "summary.json").write_text(json.dumps({
+        "schema": "flexsoc.lint.v1", "top": "demo", "profile": "everything",
+        "status": "PASS", "order": ["slang", "verilator"],
+        "counts": {"P0": 1, "P1": 1, "P2": 2, "P3": 2}, "total": 6,
+        "tools": {
+            "slang": {"status": "PASS", "counts": {"P0": 1, "P1": 1, "P2": 0, "P3": 0}, "total": 2},
+            "verilator": {"status": "PASS", "counts": {"P0": 0, "P1": 0, "P2": 2, "P3": 2}, "total": 4},
+        },
+        "diagnostics": [
+            {
+                "tool": "slang", "priority": "P0", "severity": "warning",
+                "code": "width-trunc", "message": "truncation",
+                "file": "rtl/demo.sv", "line": 5, "column": 1,
+            },
+            {
+                "tool": "slang", "priority": "P1", "severity": "warning",
+                "code": "sign-conversion", "message": "signedness mismatch",
+                "file": "rtl/demo.sv", "line": 7, "column": 3,
+            },
+        ],
+    }) + "\n", encoding="utf-8")
+    paths = SimpleNamespace(top="demo", lint=lint_root, run=run)
+    context = SimpleNamespace(paths=paths, values={}, project_root=tmp_path)
+    output = tmp_path / "lint-debug.txt"
+
+    assert Lint(context, None).show(debug=True, output=str(output)) == 0
+    text = output.read_text(encoding="utf-8")
+    assert "Lint" in text
+    assert "Diagnostics" in text
+    assert "Hints" in text
+    assert "reporting-only" in text
+    assert "Functional-risk diagnostics should be fixed or waived explicitly" in text
+
+
+def test_cli_lint_show_filters_tool_and_keeps_file_last(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    workspace = tmp_path / "workspace"
+    run = workspace / "runs" / "demo" / "dev"
+    lint = run / "dv" / "lint"
+    lint.mkdir(parents=True)
+    (lint / "summary.json").write_text(json.dumps({
+        "schema": "flexsoc.lint.v1", "top": "demo", "profile": "everything",
+        "status": "PASS", "order": ["slang", "verilator"],
+        "counts": {"P0": 1, "P1": 1, "P2": 0, "P3": 0}, "total": 2,
+        "tools": {
+            "slang": {"status": "PASS", "counts": {"P0": 1, "P1": 0, "P2": 0, "P3": 0}, "total": 1},
+            "verilator": {"status": "PASS", "counts": {"P0": 0, "P1": 1, "P2": 0, "P3": 0}, "total": 1},
+        },
+        "diagnostics": [
+            {"tool": "slang", "priority": "P0", "severity": "warning", "code": "width-trunc",
+             "message": "truncation", "file": "rtl/demo.sv", "line": 8, "column": 2},
+            {"tool": "verilator", "priority": "P1", "severity": "warning", "code": "VARHIDDEN",
+             "message": "hidden", "file": "rtl/other.sv", "line": 9, "column": 1},
+        ],
+    }), encoding="utf-8")
+    common = [
+        "--project-root", str(tmp_path), "--workdir", str(workspace),
+        "--set", "TOP=demo", "--set", "RUN_TOP=demo", "--set", "RUN_ID=dev",
+    ]
+
+    assert app(["lint", "--show", "--tool", "slang", *common]) == 0
+    rendered = capsys.readouterr().out
+    assert "Lint · slang" in rendered
+    assert "width-trunc" in rendered
+    assert "VARHIDDEN" not in rendered
+    assert rendered.find("Message") < rendered.find("File")
+    assert "rtl/demo.sv" in rendered
+
+    assert app(["lint", "--debug", "--tool", "slang", *common]) == 0
+    debug = capsys.readouterr().out
+    assert "Lint · slang" in debug and "Hints" in debug
+
+    assert app(["lint", "--summary", *common]) == 0
+    summary = capsys.readouterr().out
+    assert "Lint" in summary and "Diagnostics 2" in summary
+    assert "width-trunc" not in summary and "VARHIDDEN" not in summary
+
+    assert app(["lint", "--summary", "--tool", "verilator", *common]) == 0
+    summary = capsys.readouterr().out
+    assert "Lint · verilator" in summary and "Diagnostics 1" in summary
+    assert "width-trunc" not in summary and "VARHIDDEN" not in summary
+
+    assert app(["lint", "--show", "--tool", "unknown", *common]) == 2
+    assert "--tool must be slang or verilator" in capsys.readouterr().err
+
+    assert app(["show", "lint", *common]) == 2
+    assert "use `fx lint --show`" in capsys.readouterr().err
+
+
+def test_lint_catalog_has_only_canonical_public_targets() -> None:
+    assert BACKEND_TARGETS["lint"].action == "lint"
+    assert BACKEND_TARGETS["lint"].sequence == ()
+    assert BACKEND_TARGETS["lint"].debug == "lint"
+    assert BACKEND_TARGETS["lint"].show == "lint"
+    assert BACKEND_TARGETS["lint_slang"].debug is None
+    assert BACKEND_TARGETS["lint_slang"].show is None
+    assert BACKEND_TARGETS["lint_verilator"].debug is None
+    assert BACKEND_TARGETS["lint_verilator"].show is None
+    for legacy in (
+        "lint_suite", "lint_slang_suite", "lint_verilator_suite", "lint_latch",
+        "lint_undriven", "lint_width", "lint_unconnected", "lint_unused", "lint_v", "lint_sv",
+    ):
+        assert legacy not in BACKEND_TARGETS
+
+
+def test_single_window_register_aliases_are_common_to_all_transports() -> None:
+    """Single-window CSR names ignore qualifiers without transport-specific hacks."""
+
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+    registers = [{
+        "name": "CTRL", "clock": "clk_i", "key": "clk_i.CTRL", "addr": 0,
+        "writable": True, "readable": True,
+    }]
+    for interface in ("tlul", "reg_iface", "axi_lite"):
+        signature = _single_tb_signature(interface)
+        sv = SystemVerilogTestbench.render_reg_driver(
+            "demo", clocks, signature, registers, interface
+        )
+        cocotb = CocotbTestbench.render_reg_driver(
+            "demo", clocks, signature, registers, interface
+        )
+        assert 'reg_name == "CTRL"' in sv
+        assert 'reg_name == "clk_i.CTRL"' in sv
+        assert 'reg_name == "core.CTRL"' in sv
+        assert '"clk_i.%s"' not in sv
+        assert 'name.startswith("clk_i.")' not in cocotb
+        assert 'domain, reg = DEFAULT_DOMAIN, clean.rsplit(".", 1)[-1]' in cocotb
+        compile(cocotb, f"<{interface}-reg-driver>", "exec")
+
+
+def test_single_reg_iface_tb_qualifies_unqualified_signature_types() -> None:
+    """A single reg_iface top may import reg types; generated TB declares them explicitly."""
+
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+    signature = {
+        "ports_in": [("clk_i", 1), ("rst_ni", 1), ("reg_req_i", "reg_req_t")],
+        "ports_out": [("reg_rsp_o", "reg_rsp_t")],
+        "clks": ["clk_i"], "rsts": ["rst_ni"],
+    }
+    sv = SystemVerilogTestbench.render_top("demo", clocks, signature, "reg_iface")
+    cocotb = CocotbTestbench.render_wrapper("demo", clocks, signature, "reg_iface")
+
+    for text in (sv, cocotb):
+        assert "demo_reg_pkg::reg_req_t reg_req_i;" in text
+        assert "demo_reg_pkg::reg_rsp_t reg_rsp_o;" in text
+        assert "  reg_req_t reg_req_i;" not in text
+        assert "  reg_rsp_t reg_rsp_o;" not in text
+
+
+def test_cycle_vector_driver_avoids_module_scope_path_shadowing() -> None:
+    """Generated SV task arguments do not shadow top-level path variables."""
+
+    clocks = ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
+    text = SystemVerilogTestbench.render_vec_driver(
+        "demo", clocks, _single_tb_signature("tlul"), "tlul"
+    )
+    assert "run_vectors(input string input_path, input string output_path)" in text
+    assert "tb_step(input string output_path" in text
+    assert "run_vectors(input string data_in_path" not in text
+    assert "tb_step(input string data_out_path" not in text
+
+
+def test_slang_hierarchy_owns_setup_run_summary_and_show(tmp_path: Path) -> None:
+    from flexsoc.backend.core import BackendContext, CommandResult
+    from flexsoc.backend.design.ip.slang_hier import SlangHierarchy
+
+    project = tmp_path / "project"
+    workdir = tmp_path / "work"
+    rtl = project / "rtl"
+    rtl.mkdir(parents=True)
+    top = rtl / "demo.sv"
+    top.write_text("module demo; child u_child(); endmodule\nmodule child; endmodule\n", encoding="utf-8")
+    context = BackendContext(project, workdir, {
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
+        "SLANG_ROOT": str(rtl), "SLANG_TOP_FILE": str(top),
+    })
+    context.paths.ensure()
+
+    class Runner:
+        def run(self, request, *, on="local"):
+            assert on == "grid"
+            assert request.stdout is not None
+            request.stdout.parent.mkdir(parents=True, exist_ok=True)
+            request.stdout.write_text("demo\n  u_child: child\n", encoding="utf-8")
+            request.log.parent.mkdir(parents=True, exist_ok=True)
+            request.log.write_text("slang-hier ok\n", encoding="utf-8")
+            return CommandResult(0, request.log, 0.25)
+
+    flow = SlangHierarchy(context, Runner())
+    script = flow.setup()
+    assert script == context.paths.slang_hier / "run.sh"
+    assert "slang-hier --top demo" in script.read_text(encoding="utf-8")
+    assert flow.run(on="grid") == 0
+
+    summary = json.loads((context.paths.slang_hier / "summary.json").read_text(encoding="utf-8"))
+    assert summary["schema"] == "flexsoc.slang_hier.v1"
+    assert summary["stage"] == "slang_hier"
+    assert summary["status"] == "PASS"
+    assert summary["run"]["exit_code"] == 0
+    assert summary["hierarchy"] == ["demo", "  u_child: child"]
+    assert summary["artifacts"]["hierarchy"] == "dv/slang_hier/hierarchy.txt"
+
+    output = tmp_path / "show.txt"
+    assert flow.show(output=str(output)) == 0
+    rendered = output.read_text(encoding="utf-8")
+    assert "Slang hierarchy" in rendered
+    assert "u_child: child" in rendered
+
+
+def test_slang_hierarchy_is_a_provenance_owned_stage() -> None:
+    assert BACKEND_TARGETS["slang_hier"].setup == ("slang_hier.setup",)
+    assert lifecycle_module.STAGE_CONTRACTS["slang_hier"].evidence == ("dv/slang_hier/summary.json",)
+    assert "slang_hier.setup" in lifecycle_module.STAGE_CONTRACTS

@@ -37,7 +37,10 @@ IPXACT = (*IP_DEV, "IPXACT_VENDOR", "IPXACT_LIBRARY", "IPXACT_VERSION")
 SDC_INTENT = (*BASE, "FORCE", "SDC_IO_DELAY_PCT")
 SPEC = (*BASE, "IP_NAME", "FORCE")
 FETCH = (*BASE, "VENDOR", "TARGET", "FORCE")
-LINT = (*COMMON, "LINT_TOOL", "LINT_PART", "VSV")
+LINT_BASE = (*COMMON, "LINT_PROFILE")
+LINT = (*LINT_BASE, "SLANG_WAIVER_FILE", "VERILATOR_WAIVER_FILE")
+SLANG_LINT = (*LINT_BASE, "SLANG_WAIVER_FILE")
+VERILATOR_LINT = (*LINT_BASE, "VERILATOR_WAIVER_FILE")
 CDC_RDC = (*COMMON, "CLK_PERIOD", "CDC_RDC_HEARTBEAT", "CDC_RDC_STRICT")
 SLANG = (*LINT, "SLANG_ROOT", "SLANG_TOP_FILE", "SLANG_TOP", "SLANG_ARGS", "SLANG_SEARCH_ARGS", "SLANG_AST_SCOPE")
 SIM = (
@@ -186,22 +189,11 @@ TARGETS: dict[str, TargetSpec] = {
     "flist": ("IP flow", "Generate Slang-ordered common/IP RTL filelists", IP_DEV),
     "driver": ("IP flow", "Generate C driver files from HJSON", IP_DEV),
     "fetch": ("IP flow", "Fetch or update a vendored dependency", FETCH),
-    "lint": ("Linting", "Run Slang lint first, then Verilator lint", LINT),
-    "lint_slang": ("Linting", "Run Slang HDL lint", LINT),
-    "lint_verilator": ("Linting", "Run Verilator HDL lint", LINT),
-    "lint_slang_suite": ("Linting", "Run the full Slang lint suite", LINT),
-    "lint_verilator_suite": ("Linting", "Run the full Verilator lint suite", LINT),
-    "lint_suite": ("Linting", "Run full Slang suite, then full Verilator suite", LINT),
+    "lint": ("Linting", "Run one Slang pass and one Verilator pass, then classify P0-P3", LINT),
+    "lint_slang": ("Linting", "Run one full-elaboration Slang lint pass", SLANG_LINT),
+    "lint_verilator": ("Linting", "Run one Verilator lint pass", VERILATOR_LINT),
     "cdc_rdc": ("Domain analysis", "Run structural CDC/RDC, protocol, reset, setup, and glitch checks", CDC_RDC),
-    "lint_v": ("Linting", "Run Verilog lint checks", LINT),
-    "lint_sv": ("Linting", "Run SystemVerilog lint checks", LINT),
-    "lint_latch": ("Linting", "Run latch-focused HDL lint diagnostics", LINT),
-    "lint_undriven": ("Linting", "Run undriven-signal HDL lint diagnostics", LINT),
-    "lint_width": ("Linting", "Run width-focused HDL lint diagnostics", LINT),
-    "lint_unconnected": ("Linting", "Run unconnected-port HDL lint diagnostics", LINT),
-    "lint_unused": ("Linting", "Run unused-object HDL lint diagnostics", LINT),
-    "_lint_run": ("Linting", "Internal lint dispatcher", LINT),
-    "slang_hier": ("Linting", "Generate hierarchy text with slang-hier", SLANG),
+    "slang_hier": ("Linting", "Elaborate hierarchy and write canonical structural evidence", SLANG),
     "slang_ast": ("Linting", "Generate Slang AST JSON", SLANG),
     "slang_flist": ("Linting", "Generate a trimmed topological RTL filelist with Slang", SLANG),
     "regmap_py": ("DV functional", "Regenerate only <top>_regmap.py from HJSON", SIM),

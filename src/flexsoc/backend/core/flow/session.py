@@ -25,7 +25,7 @@ DEFAULT_SETTINGS = {
     "GLS_SIMULATOR": "iverilog", "GLS_BACKEND": "sv", "TIMING_MODE": "zero",
     "GLS_UNIT_DELAY": "1ps", "SDF_STRICT": "1", "FST2VCD": "fst2vcd",
     "SIGNOFF_STAGE": "post_syn", "POWER_VCD_SCOPE": "auto",
-    "POWER_DUT_INSTANCE": "auto", "QUAL_LEVEL": "auto",
+    "POWER_DUT_INSTANCE": "auto", "QUAL_LEVEL": "auto", "LINT_PROFILE": "everything",
 }
 
 DEBUG_TARGETS = frozenset(name for name, target in BACKEND_TARGETS.items() if target.debug)
@@ -254,7 +254,7 @@ class TargetSession:
         p = self.paths
         rtl = (p.rtl_common, p.rtl_ip, *self._rtl_sources())
         if stage in RUNTIME_STAGES:
-            if stage.startswith("lint_"):
+            if stage == "lint" or stage.startswith("lint_"):
                 inputs = rtl
             elif stage == "cdc_rdc":
                 inputs = self._execution_inputs("cdc_rdc.setup")

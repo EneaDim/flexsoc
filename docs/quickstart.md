@@ -95,7 +95,7 @@ timing contract.
 ### 4.1 Linting
 
 ```bash
-fx lint_suite
+fx lint
 ```
 
 ### 4.2 Author the timing contract
@@ -280,7 +280,7 @@ regenerate setup implicitly.
 # edit HJSON
 fx reg doc regmap_py tests_gen --force
 fx flist --force
-fx lint_suite
+fx lint
 fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tb cocotb --setup --force
@@ -298,7 +298,7 @@ fx eqy --setup --force
 ```bash
 # edit RTL, model, tests, and properties together
 fx flist --force
-fx lint_suite
+fx lint
 fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tests_gen --force
@@ -317,7 +317,7 @@ fx eqy --setup --force
 ```bash
 # edit <top>_core.sv
 fx top_from_core flist --force
-fx lint_suite
+fx lint
 # review/update constraints/<TOP>.sdc if interface timing changed
 fx cdc_rdc --setup --force
 fx cdc_rdc
@@ -340,7 +340,7 @@ and regenerate every clock-derived setup.
 ```bash
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
 fx top_from_core flist --force
-fx lint_suite
+fx lint
 fx sdc --setup --force
 # edit/review constraints/<TOP>.sdc before continuing
 fx cdc_rdc --setup --force
@@ -370,7 +370,7 @@ when clock relationships changed.
 fx setup --force
 fx ip_load --force
 fx flist --force
-fx lint_suite
+fx lint
 # the package-owned constraints/<TOP>.sdc remains authored timing intent
 fx cdc_rdc --setup --force
 fx cdc_rdc
@@ -393,7 +393,7 @@ the explicitly derived collateral.
 FlexSoC intentionally has no hidden composite IP-flow target. Run each lifecycle step explicitly so authored scaffolds, runtime outcomes, provenance, and qualification remain visible. A typical closure sequence is:
 
 ```bash
-fx lint_suite
+fx lint
 fx sdc --setup
 fx cdc_rdc --setup
 fx cdc_rdc

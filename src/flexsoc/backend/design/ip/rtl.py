@@ -130,32 +130,6 @@ class RtlFlow:
             synthesis=synthesis,
         ), runner=self.runner, on=on)
 
-    def show_hierarchy(
-        self,
-        *,
-        root: Path,
-        top_file: Path,
-        output: Path,
-        search_roots: Sequence[Path] = (),
-        top: str | None = None,
-        extra_args: str = "",
-        slang_hier: str = "slang-hier",
-        on: str = "local",
-    ) -> None:
-        """Write the elaborated hierarchy for one top."""
-
-        from types import SimpleNamespace
-
-        RtlFlow.run_hier(SimpleNamespace(
-            root=root,
-            search_root=list(search_roots),
-            top_file=top_file,
-            top=top,
-            extra_args=extra_args,
-            slang_hier=slang_hier,
-            output=output,
-        ), runner=self.runner, on=on)
-
     def show_ast(
         self,
         *,
@@ -1283,36 +1257,3 @@ class RtlFlow:
         finally:
             module_deps.unlink(missing_ok=True)
             include_deps.unlink(missing_ok=True)
-
-    @staticmethod
-    def run_hier(args, *, runner=None, on: str = "local") -> None:
-        """Write hierarchy through the shared execution layer."""
-
-        from flexsoc.backend.core import CommandRequest, ToolRunner
-
-        root = args.root.expanduser().resolve()
-        top_file = args.top_file.expanduser().resolve()
-        if not top_file.is_file():
-            raise FileNotFoundError(f"top source file not found: {top_file}")
-        roots = RtlFlow._ordered_roots(root, top_file, args.search_root)
-        top_name = args.top or RtlFlow.infer_top(top_file)
-        output = args.output.expanduser().resolve()
-        output.parent.mkdir(parents=True, exist_ok=True)
-        executable = RtlFlow._resolve_tool(args.slang_hier) if on == "local" else args.slang_hier
-        command = (
-            executable,
-            "--top",
-            top_name,
-            "-DSYNTHESIS",
-            *RtlFlow._default_timescale_args(top_file),
-            *RtlFlow._recursive_search_args(roots),
-            *shlex.split(args.extra_args),
-            str(top_file),
-        )
-        runner = runner or ToolRunner(project_root=root)
-        result = runner.run(
-            CommandRequest(command, root, {}, output, inputs=(top_file, *roots), outputs=(output,)),
-            on=on,
-        )
-        if result.returncode:
-            raise RuntimeError(f"slang-hier failed ({result.returncode}); output: {output}")

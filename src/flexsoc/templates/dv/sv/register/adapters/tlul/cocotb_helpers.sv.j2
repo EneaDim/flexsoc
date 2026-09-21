@@ -71,14 +71,14 @@
     end
   endfunction
 
-<<% for window in windows %>>assign <<: window :>>_tl_i = flexsoc_tlul_h2d(
-  <<: window :>>_a_valid, <<: window :>>_a_opcode, <<: window :>>_a_param, <<: window :>>_a_size,
-  <<: window :>>_a_source, <<: window :>>_a_address, <<: window :>>_a_mask, <<: window :>>_a_data,
-  <<: window :>>_d_ready
+<<% for window in windows %>>assign <<: window.request :>> = flexsoc_tlul_h2d(
+  <<: window.name :>>_a_valid, <<: window.name :>>_a_opcode, <<: window.name :>>_a_param, <<: window.name :>>_a_size,
+  <<: window.name :>>_a_source, <<: window.name :>>_a_address, <<: window.name :>>_a_mask, <<: window.name :>>_a_data,
+  <<: window.name :>>_d_ready
 );
-assign <<: window :>>_a_ready = <<: window :>>_tl_o[0];
-assign <<: window :>>_d_valid = <<: window :>>_tl_o[65];
-assign <<: window :>>_d_data  = <<: window :>>_tl_o[47:16];
-assign <<: window :>>_d_error = <<: window :>>_tl_o[1];
+assign <<: window.name :>>_a_ready = <<: window.response :>>[0];
+assign <<: window.name :>>_d_valid = <<: window.response :>>[65];
+assign <<: window.name :>>_d_data  = <<: window.response :>>[47:16];
+assign <<: window.name :>>_d_error = <<: window.response :>>[1];
 
 <<% endfor %>>

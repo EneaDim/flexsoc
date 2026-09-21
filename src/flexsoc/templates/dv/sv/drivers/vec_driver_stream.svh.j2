@@ -30,16 +30,16 @@ task automatic run_inputs(input string path);
     errors++;
     disable run_inputs_body;
   end
-  while (!$feof(fd)) begin : tb_nclk_input_line
+  while (!$feof(fd)) begin : tb_stream_input_line
 <<% if packed %>><<% else %>>    line = "";
 <<% endif %>>    line_buf = '0;
 <<% if packed %>>    code = $fgets(line_buf, fd);
     code = $sscanf(line_buf, "%d %s", step, token);
 <<% else %>>    void'($fgets(line_buf, fd));
     line = $sformatf("%0s", line_buf);
-    if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_nclk_input_line;
+    if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_stream_input_line;
     code = $sscanf(line, "%d %s", step, token);
-<<% endif %>>    if (code != 2) disable tb_nclk_input_line;
+<<% endif %>>    if (code != 2) disable tb_stream_input_line;
     if (token == "@wait_output" || token == "wait_output") begin
       wait_output_completion();
     end else if (token == "@write" || token == "write") begin
@@ -80,7 +80,7 @@ task automatic run_inputs(input string path);
     end else begin
 <<% if packed %>>      code = $sscanf(line_buf, "%d %s %h", step, token, value);
 <<% else %>>      code = $sscanf(line, "%d %s %h", step, token, value);
-<<% endif %>>      if (code != 3) disable tb_nclk_input_line;
+<<% endif %>>      if (code != 3) disable tb_stream_input_line;
 <<: drive_cases :>>
     end
   end

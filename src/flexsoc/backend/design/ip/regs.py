@@ -472,7 +472,7 @@ class RegsFlow:
     def _reggen_ip_block() -> Any:
         """Return ``IpBlock`` from the pinned OpenTitan reggen vendor."""
 
-        util_dir = Path(__file__).resolve().parents[4] / "vendor" / "opentitan_reggen" / "util"
+        util_dir = Path(__file__).resolve().parents[5] / "vendor" / "opentitan_reggen" / "util"
         if not (util_dir / "reggen").is_dir():
             raise SystemExit(
                 "missing vendored reggen; run `fx fetch --set VENDOR=opentitan_reggen`"

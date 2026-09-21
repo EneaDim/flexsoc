@@ -214,6 +214,8 @@ class ShowRenderer:
             return "sta"
         if name.startswith("summary") and {"tests", "reports"} <= keys:
             return "matrix"
+        if data.get("schema") == "flexsoc.slang_hier.v1":
+            return "slang_hier"
         if name == "summary.json" and {"order", "tools"} <= keys:
             return "lint"
         if name == "summary.json" and "clock_domains" in data and ("cdc" in data or "rdc" in data):
@@ -1079,23 +1081,102 @@ class ShowRenderer:
             )
         self.console.print(table)
 
+    def _show_slang_hier(self, document: Any) -> None:
+        """Render hierarchy evidence as a compact terminal tree."""
+
+        data = document.data if isinstance(document.data, Mapping) else {}
+        metrics = data.get("metrics", {}) if isinstance(data.get("metrics"), Mapping) else {}
+        self.console.print(
+            f"[bold bright_cyan]Slang hierarchy[/bold bright_cyan]  "
+            f"{self.status(data.get('status', 'MISSING'))}"
+        )
+        self.console.print(
+            f"Top [white]{data.get('top', '-')}[/white]  "
+            f"Lines [bright_cyan]{metrics.get('lines', 0)}[/bright_cyan]"
+        )
+        if data.get("summary_only"):
+            return
+        hierarchy = data.get("hierarchy", ())
+        if not hierarchy:
+            self.console.print("[grey70]No hierarchy output.[/grey70]")
+            return
+        self.console.print("[grey70]Hierarchy[/grey70]")
+        for line in hierarchy:
+            self.console.print(str(line), markup=False)
+
     def _show_lint(self, document: Any) -> None:
-        """Render compact lint QoR by tool."""
+        """Render compact lint summary and diagnostics without boxed tables."""
 
         data = document.data
+        counts = data.get("counts", {}) if isinstance(data, Mapping) else {}
         tools = data.get("tools", {}) if isinstance(data, Mapping) else {}
-        table = Table(title="Lint summary", header_style="bold white", expand=True)
-        table.add_column("Tool", style="bright_cyan")
-        table.add_column("Status", no_wrap=True)
-        table.add_column("Errors", justify="right")
-        table.add_column("Warnings", justify="right")
-        table.add_column("Diagnostics", justify="right")
-        for name, item in tools.items() if isinstance(tools, Mapping) else ():
-            item = item if isinstance(item, Mapping) else {}
-            table.add_row(str(name), self.status(item.get("status", "MISSING")),
-                          str(item.get("errors", 0)), str(item.get("warnings", 0)), str(item.get("diagnostics", 0)))
+        selected = data.get("selected_tool") if isinstance(data, Mapping) else None
+        title = f"Lint · {selected}" if selected else "Lint"
+        self.console.print(
+            f"[bold bright_cyan]{title}[/bold bright_cyan]  "
+            f"{self.status(data.get('status', 'MISSING'))}  "
+            f"[grey70]{data.get('profile', '-')} · reporting-only[/grey70]"
+        )
+        self.console.print(
+            f"Diagnostics [bold white]{data.get('total', 0)}[/bold white]  "
+            f"[bold red]P0 {counts.get('P0', 0)}[/bold red]  "
+            f"[bold orange1]P1 {counts.get('P1', 0)}[/bold orange1]  "
+            f"[bright_cyan]P2 {counts.get('P2', 0)}[/bright_cyan]  "
+            f"[grey70]P3 {counts.get('P3', 0)}[/grey70]"
+        )
+
+        table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+        for name in ("Tool", "Status", "Total", "P0", "P1", "P2", "P3"):
+            table.add_column(name, justify="right" if name not in {"Tool", "Status"} else "left")
+        for name in data.get("order", ()) if isinstance(data, Mapping) else ():
+            item = tools.get(name, {}) if isinstance(tools, Mapping) else {}
+            item_counts = item.get("counts", {}) if isinstance(item, Mapping) else {}
+            table.add_row(
+                str(name), self.status(item.get("status", "MISSING")), str(item.get("total", 0)),
+                f"[red]{item_counts.get('P0', 0)}[/red]",
+                f"[orange1]{item_counts.get('P1', 0)}[/orange1]",
+                f"[bright_cyan]{item_counts.get('P2', 0)}[/bright_cyan]",
+                f"[grey70]{item_counts.get('P3', 0)}[/grey70]",
+            )
         self.console.print(table)
-        self.console.print(f"[grey70]overall[/grey70] {self.status(data.get('status', 'MISSING'))}")
+
+        if data.get("summary_only"):
+            return
+
+        diagnostics = [
+            item for item in data.get("diagnostics", ())
+            if isinstance(item, Mapping)
+        ]
+        if not diagnostics:
+            self.console.print("[green]No diagnostics.[/green]")
+            return
+
+        self.console.print("[bold]Diagnostics[/bold]")
+        details = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70", expand=True)
+        details.add_column("Pri", no_wrap=True)
+        details.add_column("Tool", no_wrap=True)
+        details.add_column("Code", no_wrap=True)
+        details.add_column("Line", justify="right", no_wrap=True)
+        details.add_column("Message", ratio=4)
+        details.add_column("File", ratio=3, overflow="fold")
+        colors = {"P0": "red", "P1": "orange1", "P2": "bright_cyan", "P3": "grey70"}
+        for item in diagnostics:
+            priority = str(item.get("priority", "P3"))
+            color = colors.get(priority, "white")
+            line = str(item.get("line") or "-")
+            if item.get("column"):
+                line += f":{item.get('column')}"
+            message = str(item.get("message") or "-").splitlines()[0].strip() or "-"
+            file = str(item.get("file") or "<unknown>")
+            details.add_row(
+                f"[{color}]{priority}[/{color}]",
+                str(item.get("tool", "-")),
+                str(item.get("code", "-")),
+                line,
+                message,
+                f"[bright_blue]{file}[/bright_blue]",
+            )
+        self.console.print(details)
 
     def _show_cdc_rdc(self, document: Any) -> None:
         """Render structural CDC/RDC counts and obligations."""
@@ -1212,25 +1293,48 @@ class ShowRenderer:
         )
 
     def _show_metrics(self, document: Any) -> None:
-        """Render the canonical flow snapshot without re-reading tool logs."""
+        """Render the saved metrics snapshot in lifecycle order."""
 
         data = document.data if isinstance(document.data, Mapping) else {}
-        flow = data.get("flow", {}) if isinstance(data.get("flow"), Mapping) else {}
         closure = data.get("closure", {}) if isinstance(data.get("closure"), Mapping) else {}
+        stages = closure.get("stages", {}) if isinstance(closure.get("stages"), Mapping) else {}
+        order = closure.get("order", ()) if isinstance(closure.get("order"), list) else ()
+        labels = {
+            "lint": ("Verification", "Lint"),
+            "cdc_rdc": ("Verification", "CDC / RDC"),
+            "formal": ("Verification", "Formal"),
+            "regression": ("Verification", "RTL regression"),
+            "synthesis": ("Synthesis", "Synthesis"),
+            "equivalence": ("Synthesis", "Equivalence (EQY)"),
+            "sdf": ("Post-synthesis", "SDF"),
+            "sta": ("Post-synthesis", "STA"),
+            "power": ("Post-synthesis", "Power estimate"),
+            "post_syn_gls": ("Post-synthesis", "GLS"),
+            "power_activity": ("Post-synthesis", "Power analysis"),
+            "fusion": ("Post-synthesis", "Fusion analysis"),
+            "implementation": ("Implementation", "PnR / implementation"),
+            "physical_signoff": ("Post-implementation", "Physical signoff"),
+            "post_impl_sdf": ("Post-implementation", "SDF"),
+            "post_impl_sta": ("Post-implementation", "STA"),
+            "post_impl_gls": ("Post-implementation", "GLS"),
+            "post_impl_power": ("Post-implementation", "Power estimate"),
+            "post_impl_power_activity": ("Post-implementation", "Power analysis"),
+            "post_impl_fusion": ("Post-implementation", "Fusion analysis"),
+        }
+
         table = Table(title=document.title, header_style="bold white", expand=True)
-        table.add_column("Section", style="bright_cyan")
-        table.add_column("Status")
-        for key in ("analysis", "regression", "formal", "synthesis", "equivalence", "signoff", "implementation", "physical_signoff"):
-            value = data.get(key)
-            if not isinstance(value, Mapping):
-                continue
-            status = value.get("status")
-            if status is None and key == "signoff":
-                status = flow.get("signoff")
-            table.add_row(key, self.status(status or "MISSING"))
-        if closure:
-            table.add_row("closure", self.status(closure.get("status", "MISSING")))
+        table.add_column("#", justify="right", no_wrap=True)
+        table.add_column("Phase", style="magenta", no_wrap=True)
+        table.add_column("Step", style="bright_cyan")
+        table.add_column("Status", no_wrap=True)
+        for index, key in enumerate(order, 1):
+            phase, label = labels.get(str(key), ("Other", str(key)))
+            table.add_row(str(index), phase, label, self.status(stages.get(str(key), "MISSING")))
         self.console.print(table)
+        self.console.print(
+            f"[grey70]technical status[/grey70] {self.status(data.get('technical_status', 'REVIEW'))} · "
+            f"[grey70]closure[/grey70] {self.status(closure.get('status', 'MISSING'))}"
+        )
 
     def _show_manifest(self, document: Any) -> None:
         """Render immutable run identity and toolchain provenance compactly."""
@@ -1278,6 +1382,8 @@ class ShowRenderer:
             self._show_gls(document)
         elif kind == "lint":
             self._show_lint(document)
+        elif kind == "slang_hier":
+            self._show_slang_hier(document)
         elif kind == "cdc_rdc":
             self._show_cdc_rdc(document)
         elif kind == "coverage":

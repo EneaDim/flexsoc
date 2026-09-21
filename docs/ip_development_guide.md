@@ -164,7 +164,7 @@ For multiple domains, FlexSoC emits one equivalent `prim_ff_2sync` instance per 
 Run both supported lint views:
 
 ```bash
-fx lint_suite
+fx lint
 ```
 
 Do not continue because a later tool happens to accept malformed or ambiguous RTL. Fix:
@@ -661,7 +661,7 @@ is restored as authored timing intent. Do **not** call `fx sdc --setup --force` 
 Then qualify the loaded IP in the normal order:
 
 ```bash
-fx lint_suite
+fx lint
 fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tests_gen --force
@@ -728,7 +728,7 @@ For a newly authored IP:
 # Common technology-independent branch
 fx setup --force
 fx hjson reg doc rtl_stub top_from_core flist --force
-fx lint_suite
+fx lint
 fx sdc --setup --force
 # review constraints/<TOP>.sdc
 fx cdc_rdc --setup --force
@@ -787,7 +787,7 @@ Repeat the technology branch with `fx pdk use ihp-sg13g2` when both PDKs must be
 # edit csr/<top>*.hjson
 fx reg doc regmap_py --force
 fx top_from_core flist --force
-fx lint_suite
+fx lint
 fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tests_gen --force
@@ -804,7 +804,7 @@ Then regenerate/rerun technology-dependent setup from synthesis onward.
 ```bash
 # edit RTL/model/tests/properties as required by intended behavior
 fx flist --force
-fx lint_suite
+fx lint
 fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tests_gen --force
@@ -820,7 +820,7 @@ Then rerun synthesis, equivalence, and downstream sign-off.
 
 ```bash
 fx top_from_core flist --force
-fx lint_suite
+fx lint
 # review constraints/<TOP>.sdc
 fx cdc_rdc --setup --force
 fx cdc_rdc
@@ -833,7 +833,7 @@ Regenerate TB/formal/synthesis setup that consumes the changed interface.
 ```bash
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
 fx top_from_core flist --force
-fx lint_suite
+fx lint
 fx sdc --setup --force
 # reapply/review authored constraints/<TOP>.sdc intent
 fx cdc_rdc --setup --force

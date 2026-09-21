@@ -9,8 +9,8 @@ SIGNAL_CLOCKS = <<: signal_clocks :>>
 INPUT_STREAMS = <<: input_streams :>>
 OUTPUT_VALID = <<: output_valid :>>
 STREAM_BY_SIGNAL = {
-    signal: stream
-    for stream in INPUT_STREAMS.values()
+    signal: name
+    for name, stream in INPUT_STREAMS.items()
     for signal in (*stream["payload"], stream["valid"])
 }
 
@@ -24,7 +24,8 @@ async def _send_stream(dut, stream, pending):
     await _drive_cycle(clk)
     for signal in stream["payload"]:
         if signal in pending:
-            getattr(dut, signal).value = pending[signal]
+            handle = getattr(dut, signal)
+            handle.value = int(pending[signal]) & ((1 << len(handle)) - 1)
     getattr(dut, stream["valid"]).value = 1
     ready = stream.get("ready")
     if ready:
@@ -44,7 +45,8 @@ async def _drive_signal(dut, name: str, value: int):
     if not hasattr(dut, name):
         raise AssertionError(f"unknown input vector signal: {name}")
     await _drive_cycle(_clock(dut, name))
-    getattr(dut, name).value = value
+    handle = getattr(dut, name)
+    handle.value = int(value) & ((1 << len(handle)) - 1)
 
 
 async def _wait_output(dut):

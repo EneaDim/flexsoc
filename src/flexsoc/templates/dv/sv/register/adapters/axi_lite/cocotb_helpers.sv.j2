@@ -1,18 +1,18 @@
-<<% for window in windows %>>  assign <<: window :>>_axi_lite_i = '{
-    aw: '{addr: <<: window :>>_axi_aw_addr_i, prot: <<: window :>>_axi_aw_prot_i},
-    aw_valid: <<: window :>>_axi_aw_valid_i,
-    w: '{data: <<: window :>>_axi_w_data_i, strb: <<: window :>>_axi_w_strb_i},
-    w_valid: <<: window :>>_axi_w_valid_i, b_ready: <<: window :>>_axi_b_ready_i,
-    ar: '{addr: <<: window :>>_axi_ar_addr_i, prot: <<: window :>>_axi_ar_prot_i},
-    ar_valid: <<: window :>>_axi_ar_valid_i, r_ready: <<: window :>>_axi_r_ready_i
+<<% for window in windows %>>  assign <<: window.request :>> = '{
+    aw: '{addr: <<: window.name :>>_axi_aw_addr_i, prot: <<: window.name :>>_axi_aw_prot_i},
+    aw_valid: <<: window.name :>>_axi_aw_valid_i,
+    w: '{data: <<: window.name :>>_axi_w_data_i, strb: <<: window.name :>>_axi_w_strb_i},
+    w_valid: <<: window.name :>>_axi_w_valid_i, b_ready: <<: window.name :>>_axi_b_ready_i,
+    ar: '{addr: <<: window.name :>>_axi_ar_addr_i, prot: <<: window.name :>>_axi_ar_prot_i},
+    ar_valid: <<: window.name :>>_axi_ar_valid_i, r_ready: <<: window.name :>>_axi_r_ready_i
   };
-  assign <<: window :>>_axi_aw_ready_o = <<: window :>>_axi_lite_o.aw_ready;
-  assign <<: window :>>_axi_w_ready_o = <<: window :>>_axi_lite_o.w_ready;
-  assign <<: window :>>_axi_b_resp_o = <<: window :>>_axi_lite_o.b.resp;
-  assign <<: window :>>_axi_b_valid_o = <<: window :>>_axi_lite_o.b_valid;
-  assign <<: window :>>_axi_ar_ready_o = <<: window :>>_axi_lite_o.ar_ready;
-  assign <<: window :>>_axi_r_data_o = <<: window :>>_axi_lite_o.r.data;
-  assign <<: window :>>_axi_r_resp_o = <<: window :>>_axi_lite_o.r.resp;
-  assign <<: window :>>_axi_r_valid_o = <<: window :>>_axi_lite_o.r_valid;
+  assign <<: window.name :>>_axi_aw_ready_o = <<: window.response :>>.aw_ready;
+  assign <<: window.name :>>_axi_w_ready_o = <<: window.response :>>.w_ready;
+  assign <<: window.name :>>_axi_b_resp_o = <<: window.response :>>.b.resp;
+  assign <<: window.name :>>_axi_b_valid_o = <<: window.response :>>.b_valid;
+  assign <<: window.name :>>_axi_ar_ready_o = <<: window.response :>>.ar_ready;
+  assign <<: window.name :>>_axi_r_data_o = <<: window.response :>>.r.data;
+  assign <<: window.name :>>_axi_r_resp_o = <<: window.response :>>.r.resp;
+  assign <<: window.name :>>_axi_r_valid_o = <<: window.response :>>.r_valid;
 
 <<% endfor %>>

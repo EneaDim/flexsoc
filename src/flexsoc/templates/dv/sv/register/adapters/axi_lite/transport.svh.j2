@@ -1,0 +1,74 @@
+// One CSR transport contract; each window follows its owning clock domain.
+task automatic apply_defaults();
+<<% for window in windows %>>  <<: window.request :>> = '0;
+<<% endfor %>><<: input_defaults :>>
+endtask
+
+<<: reset_tasks :>><<% for window in windows %>>task automatic <<: window.name :>>_write(input logic [31:0] addr, input logic [31:0] data);
+  bit aw_done;
+  bit w_done;
+  int guard;
+  <<: window.domain :>>_drive_cycle();
+  <<: window.request :>>.aw.addr = addr;
+  <<: window.request :>>.aw.prot = '0;
+  <<: window.request :>>.aw_valid = 1'b1;
+  <<: window.request :>>.w.data = data;
+  <<: window.request :>>.w.strb = '1;
+  <<: window.request :>>.w_valid = 1'b1;
+  aw_done = 1'b0;
+  w_done = 1'b0;
+  guard = 0;
+  while (!(aw_done && w_done)) begin
+    <<: window.domain :>>_sample_cycle();
+    if (!aw_done && <<: window.response :>>.aw_ready) aw_done = 1'b1;
+    if (!w_done && <<: window.response :>>.w_ready) w_done = 1'b1;
+    guard++;
+    if (guard > 1000) $fatal(1, "AXI4-Lite write request timeout");
+    <<: window.domain :>>_drive_cycle();
+    if (aw_done) <<: window.request :>>.aw_valid = 1'b0;
+    if (w_done) <<: window.request :>>.w_valid = 1'b0;
+  end
+  guard = 0;
+  do begin
+    <<: window.domain :>>_sample_cycle();
+    guard++;
+    if (guard > 1000) $fatal(1, "AXI4-Lite write response timeout");
+  end while (!<<: window.response :>>.b_valid);
+  if (<<: window.response :>>.b.resp != 2'b00) errors++;
+  <<: window.domain :>>_drive_cycle();
+  <<: window.request :>>.b_ready = 1'b1;
+  <<: window.domain :>>_sample_cycle();
+  <<: window.domain :>>_drive_cycle();
+  <<: window.request :>>.b_ready = 1'b0;
+endtask
+
+task automatic <<: window.name :>>_read(input logic [31:0] addr, output logic [31:0] data);
+  int guard;
+  <<: window.domain :>>_drive_cycle();
+  <<: window.request :>>.ar.addr = addr;
+  <<: window.request :>>.ar.prot = '0;
+  <<: window.request :>>.ar_valid = 1'b1;
+  guard = 0;
+  do begin
+    <<: window.domain :>>_sample_cycle();
+    guard++;
+    if (guard > 1000) $fatal(1, "AXI4-Lite read request timeout");
+  end while (!<<: window.response :>>.ar_ready);
+  <<: window.domain :>>_drive_cycle();
+  <<: window.request :>>.ar_valid = 1'b0;
+  guard = 0;
+  do begin
+    <<: window.domain :>>_sample_cycle();
+    guard++;
+    if (guard > 1000) $fatal(1, "AXI4-Lite read response timeout");
+  end while (!<<: window.response :>>.r_valid);
+  data = <<: window.response :>>.r.data;
+  if (<<: window.response :>>.r.resp != 2'b00) errors++;
+  <<: window.domain :>>_drive_cycle();
+  <<: window.request :>>.r_ready = 1'b1;
+  <<: window.domain :>>_sample_cycle();
+  <<: window.domain :>>_drive_cycle();
+  <<: window.request :>>.r_ready = 1'b0;
+endtask
+
+<<% endfor %>>

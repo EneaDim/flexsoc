@@ -21,7 +21,7 @@ Examples:
 ```bash
 fx settings TOP=my_ip RUN_ID=dev
 fx hjson reg doc --force
-fx lint_suite
+fx lint
 fx sdc --setup --force
 fx cdc_rdc --setup --force
 fx cdc_rdc
@@ -61,7 +61,6 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `--reset` | `settings` | Reset persisted settings to defaults before applying updates. |
 | `--project-root PATH` | Any command | Use another FlexSoC project checkout. |
 | `--workdir PATH` | Any run command | Select the external workspace passed as `WORKSPACE`. |
-| `--tool NAME` | Lint targets | Shortcut for `--set LINT_TOOL=NAME`. |
 | `--user` / `--system` | Dependency targets only | Select rootless user or shared/system installation mode. |
 | `--profile base|impl|riscv` | Dependency targets only | Select the pinned dependency profile. |
 | `--jobs N` | Dependency targets only | Set dependency build jobs. EQY parallelism uses `--set EQY_JOBS=N`. |
@@ -241,7 +240,7 @@ Those outputs are isolated below `syn/<pdk>`, `impl/<pdk>`, `signoff/<pdk>`, `dv
 | --- | --- | --- |
 | Environment and technology | `fx doctor`, `fx deps-doctor`, `fx pdk info`, `fx pdk use` | Tool/PDK readiness |
 | Requirements to CSR/RTL entry | `fx setup`, `fx hjson`, `fx reg`, `fx doc`, `fx rtl_stub`, `fx top_from_core` | Register collateral and authored RTL boundary |
-| RTL elaboration and lint | `fx flist`, `fx lint_suite`, `fx slang_hier`, `fx slang_ast` | Reachable hierarchy and clean structural RTL |
+| RTL elaboration and lint | `fx flist`, `fx lint`, `fx slang_hier`, `fx slang_ast` | Reachable hierarchy and clean structural RTL |
 | Timing intent | `fx sdc --setup` | single authored `constraints/<TOP>.sdc` |
 | CDC/RDC | `fx cdc_rdc --setup`, `fx cdc_rdc` | `design.json`, `summary.json`, `cdc_rdc.rpt`, extraction setup/log |
 | Property formal | `fx formal --setup`, `fx formal` | BMC/prove/cover closure |
@@ -388,27 +387,29 @@ Enter the IP specification, generate register collateral, maintain the RTL wrapp
 
 Elaborate the reachable hierarchy and detect structural RTL issues before simulation or synthesis.
 
-**Main result:** Ordered filelists, hierarchy/AST reports, and lint logs.
+**Main result:** Ordered filelists, hierarchy/AST reports, and `dv/lint/summary.json`.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx lint` | Run Slang lint first, then Verilator lint. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx lint_slang` | Run Slang HDL lint. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx lint_verilator` | Run Verilator HDL lint. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx lint_slang_suite` | Run the full Slang lint suite. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx lint_verilator_suite` | Run the full Verilator lint suite. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx lint_suite` | Run full Slang suite, then full Verilator suite. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx lint_v` | Run Verilog lint checks. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx lint_sv` | Run SystemVerilog lint checks. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx lint_latch` | Run latch-focused HDL lint diagnostics. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx lint_undriven` | Run undriven-signal HDL lint diagnostics. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx lint_width` | Run width-focused HDL lint diagnostics. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx lint_unconnected` | Run unconnected-port HDL lint diagnostics. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx lint_unused` | Run unused-object HDL lint diagnostics. | `LINT_TOOL`, `LINT_PART`, `VSV` | Use `--info` for accepted overrides. |
-| `fx _lint_run` | Internal lint dispatcher. | `LINT_TOOL`, `LINT_PART`, `VSV` | Internal dispatcher used by lint targets; do not call directly. |
-| `fx slang_hier` | Generate hierarchy text with slang-hier. | `LINT_TOOL`, `LINT_PART`, `VSV`, `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | Use `--info` for accepted overrides. |
-| `fx slang_ast` | Generate Slang AST JSON. | `LINT_TOOL`, `LINT_PART`, `VSV`, `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | Use `--info` for accepted overrides. |
-| `fx slang_flist` | Generate a trimmed topological RTL filelist with Slang. | `LINT_TOOL`, `LINT_PART`, `VSV`, `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | Use `--info` for accepted overrides. |
+| `fx lint` | Run one Slang pass and one Verilator pass, then classify P0-P3. | `LINT_PROFILE`, `SLANG_WAIVER_FILE`, `VERILATOR_WAIVER_FILE`, `VSV` | Diagnostics are reporting-only in development mode; tool evidence controls PASS/FAILED. |
+| `fx lint_slang` | Run one full-elaboration Slang lint pass. | `LINT_PROFILE`, `SLANG_WAIVER_FILE`, `VSV` | Writes JSON diagnostics and canonical summary. |
+| `fx lint_verilator` | Run one Verilator lint pass. | `LINT_PROFILE`, `VERILATOR_WAIVER_FILE`, `VSV` | Writes SARIF diagnostics and canonical summary. |
+
+Inspect the existing evidence without rerunning either frontend:
+
+```bash
+fx lint --summary
+fx lint --summary --tool slang
+fx lint --show
+fx lint --show --tool slang
+fx lint --show --tool verilator
+fx lint --debug
+```
+
+`--summary` prints only counts and per-tool status. `--show` prints every diagnostic as a compact row with line and file columns. `--tool` filters rendering only and never launches an additional lint run.
+| `fx slang_hier` | Generate hierarchy text with slang-hier. | `LINT_PROFILE`, `SLANG_WAIVER_FILE`, `VERILATOR_WAIVER_FILE`, `VSV`, `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | Use `--info` for accepted overrides. |
+| `fx slang_ast` | Generate Slang AST JSON. | `LINT_PROFILE`, `SLANG_WAIVER_FILE`, `VERILATOR_WAIVER_FILE`, `VSV`, `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | Use `--info` for accepted overrides. |
+| `fx slang_flist` | Generate a trimmed topological RTL filelist with Slang. | `LINT_PROFILE`, `SLANG_WAIVER_FILE`, `VERILATOR_WAIVER_FILE`, `VSV`, `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | Use `--info` for accepted overrides. |
 
 ### 3.5 CDC/RDC structural analysis
 
@@ -422,7 +423,7 @@ than skipping the stage.
 | Target | Action | Main overrides | Notes |
 | --- | --- | --- | --- |
 | `fx cdc_rdc --setup` | Generate the pre-technology Yosys extraction script. | clock settings | Must exist and have valid provenance before `fx cdc_rdc` runs. |
-| `fx cdc_rdc` | Extract, classify, report, and optionally gate CDC/RDC findings. | `CDC_RDC_HEARTBEAT`, `CDC_RDC_STRICT` | Run-only consumer of valid `cdc_rdc --setup` provenance. Normal order is `lint_suite` → authored `<TOP>.sdc` → `cdc_rdc --setup` → `cdc_rdc`. |
+| `fx cdc_rdc` | Extract, classify, report, and optionally gate CDC/RDC findings. | `CDC_RDC_HEARTBEAT`, `CDC_RDC_STRICT` | Run-only consumer of valid `cdc_rdc --setup` provenance. Normal order is `lint` → authored `<TOP>.sdc` → `cdc_rdc --setup` → `cdc_rdc`. |
 
 The checker executes the structural families in a fixed, readable order: (1) scalar and multi-bit CDC crossings, (2) async-FIFO candidates, (3) closed-loop handshakes, (4) synchronized reconvergence, (5) setup/domain and glitch checks, then (6) reset-domain crossings, (7) reset synchronizers, (8) asynchronous reset release, and (9) reset sequencing. This order is reflected directly in `cdc.py`; later checks reuse facts from earlier checks instead of re-discovering the design independently.
 
@@ -934,8 +935,9 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `REG_ITF` | External control-register interface: `tlul`, `reg_iface`, or `axi_lite`. AXI4-Lite reuses the `reg_iface` CSR semantics through the pinned PULP adapter. |
 | `VENDOR` | Vendor/dependency identifier. |
 | `TARGET` | Fetch/build target used by dependency or vendor commands. |
-| `LINT_TOOL` | Selected lint backend or suite control. |
-| `LINT_PART` | Optional lint diagnostic subset. |
+| `LINT_PROFILE` | Lint profile: `critical` or `everything`. |
+| `SLANG_WAIVER_FILE` | Optional native Slang TOML waiver file. |
+| `VERILATOR_WAIVER_FILE` | Optional Verilator `.vlt` control / waiver file. |
 | `TARGET_SYN` | Synthesis goal/profile. |
 | `TARGET_OPT` | Yosys/ABC profile: `area0..area3` or `delay0..delay4`; default `area0`. |
 | `VSV` | Select Verilog (`v`) or SystemVerilog path where supported. |
@@ -1078,7 +1080,7 @@ their direct command boundary.
 ```bash
 fx reg doc regmap_py tests_gen --force
 fx flist --force
-fx lint_suite
+fx lint
 fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tb cocotb --setup --force
@@ -1094,7 +1096,7 @@ fx eqy --setup --force
 
 ```bash
 fx flist --force
-fx lint_suite
+fx lint
 fx cdc_rdc --setup --force
 fx cdc_rdc
 fx formal_prove formal_cover --setup --force
@@ -1117,7 +1119,7 @@ fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=s
 
 ```bash
 fx top_from_core flist --force
-fx lint_suite
+fx lint
 # review constraints/<TOP>.sdc if interface timing changed
 fx cdc_rdc tb cocotb --setup --force
 fx cdc_rdc
@@ -1135,7 +1137,7 @@ fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smok
 ```bash
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
 fx top_from_core flist --force
-fx lint_suite
+fx lint
 fx sdc --setup --force
 # review/reapply authored constraints/<TOP>.sdc
 fx tb cocotb cdc_rdc formal_prove formal_cover formal_csr_prove formal_csr_cover --setup --force
@@ -1350,7 +1352,7 @@ fx top_from_core --force
 fx flist --force
 fx slang_hier
 fx slang_ast
-fx lint_suite
+fx lint
 ```
 
 Use `rtl_stub` only for bootstrap. Once the core is authored, regenerate the top
@@ -1360,7 +1362,7 @@ wrapper from the core rather than regenerating the core.
 | --- | --- | --- |
 | unresolved module/package | `fx slang_hier`, inspect `rtl_common.f`/`rtl_ip.f` | fix source/include/package order and regenerate `flist` |
 | top port mismatch | `fx top_from_core --dry-run --script` | regenerate wrapper and both testbenches |
-| latch/width/sign warning | `fx lint_suite --live` | repair authored RTL; avoid broad warning suppression |
+| latch/width/sign warning | `fx lint --live` | repair authored RTL; avoid broad warning suppression |
 | hierarchy differs between tools | compare generated filelists and tool scripts | make all stages consume the same ordered hierarchy |
 
 ### 8.5 Functional-DV failures
@@ -1550,7 +1552,7 @@ fx settings \
   CLOCK_RELATIONSHIPS=
 
 fx setup hjson reg doc rtl_stub top_from_core flist --force
-fx lint_suite
+fx lint
 fx sdc --setup --force
 # review/edit constraints/<TOP>.sdc
 fx cdc_rdc --setup --force

@@ -1,11 +1,11 @@
-<<% for window in windows %>>  <<: top :>>_<<: window :>>_reg_pkg::reg_req_t <<: window :>>_reg_req_i;
-  <<: top :>>_<<: window :>>_reg_pkg::reg_rsp_t <<: window :>>_reg_rsp_o;
-  logic <<: window :>>_reg_req_valid;
-  logic <<: window :>>_reg_req_write;
-  logic [<<: top :>>_<<: window :>>_reg_pkg::AW-1:0] <<: window :>>_reg_req_addr;
-  logic [<<: top :>>_<<: window :>>_reg_pkg::DW-1:0] <<: window :>>_reg_req_wdata;
-  logic [<<: top :>>_<<: window :>>_reg_pkg::DBW-1:0] <<: window :>>_reg_req_wstrb;
-  logic <<: window :>>_reg_rsp_ready;
-  logic <<: window :>>_reg_rsp_error;
-  logic [<<: top :>>_<<: window :>>_reg_pkg::DW-1:0] <<: window :>>_reg_rsp_rdata;
+<<% for window in windows %>>  <<: window.request_type if window.package else default_package ~ "::" ~ window.request_type :>> <<: window.request :>>;
+  <<: window.response_type if window.package else default_package ~ "::" ~ window.response_type :>> <<: window.response :>>;
+  logic <<: window.name :>>_reg_req_valid;
+  logic <<: window.name :>>_reg_req_write;
+  logic [<<: window.package or default_package :>>::AW-1:0] <<: window.name :>>_reg_req_addr;
+  logic [<<: window.package or default_package :>>::DW-1:0] <<: window.name :>>_reg_req_wdata;
+  logic [<<: window.package or default_package :>>::DBW-1:0] <<: window.name :>>_reg_req_wstrb;
+  logic <<: window.name :>>_reg_rsp_ready;
+  logic <<: window.name :>>_reg_rsp_error;
+  logic [<<: window.package or default_package :>>::DW-1:0] <<: window.name :>>_reg_rsp_rdata;
 <<% endfor %>>

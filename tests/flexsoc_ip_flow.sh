@@ -235,10 +235,7 @@ flexsoc_ip_flow() {
     echo
     echo "=== LINT / STRUCTURAL ==="
 
-    fx lint_slang_suite \
-        --workdir "$WS" || return 1
-
-    fx lint_verilator_suite \
+    fx lint \
         --workdir "$WS" || return 1
 
     fx slang_hier \

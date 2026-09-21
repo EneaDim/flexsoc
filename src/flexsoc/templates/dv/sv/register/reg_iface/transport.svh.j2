@@ -1,0 +1,34 @@
+// One CSR transport contract; each window follows its owning clock domain.
+task automatic apply_defaults();
+<<% for window in windows %>>  <<: window.request :>> = '0;
+<<% endfor %>><<: input_defaults :>>
+endtask
+
+<<: reset_tasks :>><<% for window in windows %>>task automatic <<: window.name :>>_write(input logic [31:0] addr, input logic [31:0] data);
+  <<: window.domain :>>_drive_cycle();
+  <<: window.request :>>.valid = 1'b1;
+  <<: window.request :>>.write = 1'b1;
+  <<: window.request :>>.addr = addr;
+  <<: window.request :>>.wdata = data;
+  <<: window.request :>>.wstrb = '1;
+  do <<: window.domain :>>_sample_cycle(); while (!<<: window.response :>>.ready);
+  if (<<: window.response :>>.error) errors++;
+  <<: window.domain :>>_drive_cycle();
+  <<: window.request :>> = '0;
+endtask
+
+task automatic <<: window.name :>>_read(input logic [31:0] addr, output logic [31:0] data);
+  <<: window.domain :>>_drive_cycle();
+  <<: window.request :>>.valid = 1'b1;
+  <<: window.request :>>.write = 1'b0;
+  <<: window.request :>>.addr = addr;
+  <<: window.request :>>.wdata = '0;
+  <<: window.request :>>.wstrb = '0;
+  do <<: window.domain :>>_sample_cycle(); while (!<<: window.response :>>.ready);
+  data = <<: window.response :>>.rdata;
+  if (<<: window.response :>>.error) errors++;
+  <<: window.domain :>>_drive_cycle();
+  <<: window.request :>> = '0;
+endtask
+
+<<% endfor %>>

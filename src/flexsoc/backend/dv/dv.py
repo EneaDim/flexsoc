@@ -46,25 +46,12 @@ class DvFlow:
             return self._run_test_target(action, on=on)
         if action in {"tb_setup", "cocotb_setup", "coverage", "coverage_detail"} or action.startswith("functional_"):
             return self._run_functional_target(action, on=on)
+        if action == "lint":
+            return self.lint.run(on=on)
         if action == "lint_slang":
             return self.lint.run_slang(on=on)
         if action == "lint_verilator":
             return self.lint.run_verilator(on=on)
-        if action == "lint_slang_suite":
-            return self.lint.run_suite(tools=("slang",), on=on)
-        if action == "lint_verilator_suite":
-            return self.lint.run_suite(tools=("verilator",), on=on)
-        if action == "lint_focus":
-            values = self.context.values
-            kind = target.name.removeprefix("lint_") if target.name.startswith("lint_") else "all"
-            tool = values.get("LINT_TOOL", "slang")
-            part = values.get("LINT_PART", "ip")
-            if kind not in {"latch", "undriven", "width", "unconnected", "unused"}:
-                return self.lint.run_suite(tools=(tool,), part=part, on=on)
-            return (
-                self.lint.run_slang(kind=kind, part=part, on=on),
-                self.lint.run_verilator(kind=kind, part=part, on=on),
-            )
         if action == "cdc_setup":
             paths = self.context.paths
             analysis = paths.cdc_rdc
@@ -198,6 +185,9 @@ class DvFlow:
 
     def debug_target(self, target: Target, *, output: str | None = None) -> int:
         """List the concrete functional-DV artifacts produced by one target."""
+
+        if target.debug == "lint":
+            return self.lint.debug(output=output)
 
         paths = self.context.paths
         roots = (

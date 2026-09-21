@@ -35,6 +35,7 @@ STAGE_CONTRACTS: dict[str, StageContract] = {
     "tb.setup": StageContract((*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV")),
     "cocotb.setup": StageContract((*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV")),
     "cdc_rdc.setup": StageContract((*CLOCKS, "TOP", "CLK_PERIOD")),
+    "slang_hier.setup": StageContract(("TOP", "SLANG_ROOT", "SLANG_TOP_FILE", "SLANG_TOP", "SLANG_ARGS", "SLANG_SEARCH_ARGS")),
     "formal.prove.setup": StageContract((
         *CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_BMC_DEPTH", "FORMAL_BMC_APPEND",
         "FORMAL_BMC_ENGINE", "FORMAL_PROVE_ENGINE",
@@ -69,8 +70,22 @@ STAGE_CONTRACTS: dict[str, StageContract] = {
     ),
 
     # Runtime qualification evidence.
-    "lint_slang_suite": StageContract(("TOP",), evidence=("dv/lint/slang/{top}_lint_slang_all.log",), tools=("SLANG",)),
-    "lint_verilator_suite": StageContract(("TOP",), evidence=("dv/lint/verilator/{top}_lint_verilator_all.log",), tools=("VERILATOR",)),
+    "lint": StageContract(
+        ("TOP", "LINT_PROFILE", "SLANG_WAIVER_FILE", "VERILATOR_WAIVER_FILE"),
+        evidence=("dv/lint/summary.json",), tools=("SLANG", "VERILATOR"),
+    ),
+    "lint_slang": StageContract(
+        ("TOP", "LINT_PROFILE", "SLANG_WAIVER_FILE"),
+        evidence=("dv/lint/slang/summary.json",), tools=("SLANG",),
+    ),
+    "lint_verilator": StageContract(
+        ("TOP", "LINT_PROFILE", "VERILATOR_WAIVER_FILE"),
+        evidence=("dv/lint/verilator/summary.json",), tools=("VERILATOR",),
+    ),
+    "slang_hier": StageContract(
+        ("TOP", "SLANG_ROOT", "SLANG_TOP_FILE", "SLANG_TOP", "SLANG_ARGS", "SLANG_SEARCH_ARGS"),
+        ("slang_hier.setup",), evidence=("dv/slang_hier/summary.json",), tools=("SLANG",),
+    ),
     "cdc_rdc": StageContract((*CLOCKS, "TOP", "CDC_RDC_STRICT"), ("cdc_rdc.setup",), ("dv/cdc_rdc/summary.json",), tools=("SLANG", "YOSYS")),
     "regression": StageContract(
         (*CLOCKS, "TOP", "COMPILER", "REGRESSION_BACKENDS", "SEED", "RESET_SETTLE_CYCLES"),

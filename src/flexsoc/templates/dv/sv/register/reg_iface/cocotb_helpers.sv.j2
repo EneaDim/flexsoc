@@ -1,10 +1,10 @@
-<<% for window in windows %>>assign <<: window :>>_reg_req_i = '{
-  valid: <<: window :>>_reg_req_valid, write: <<: window :>>_reg_req_write,
-  addr: <<: window :>>_reg_req_addr, wdata: <<: window :>>_reg_req_wdata,
-  wstrb: <<: window :>>_reg_req_wstrb
+<<% for window in windows %>>assign <<: window.request :>> = '{
+  valid: <<: window.name :>>_reg_req_valid, write: <<: window.name :>>_reg_req_write,
+  addr: <<: window.name :>>_reg_req_addr, wdata: <<: window.name :>>_reg_req_wdata,
+  wstrb: <<: window.name :>>_reg_req_wstrb
 };
-assign <<: window :>>_reg_rsp_ready = <<: window :>>_reg_rsp_o.ready;
-assign <<: window :>>_reg_rsp_error = <<: window :>>_reg_rsp_o.error;
-assign <<: window :>>_reg_rsp_rdata = <<: window :>>_reg_rsp_o.rdata;
+assign <<: window.name :>>_reg_rsp_ready = <<: window.response :>>.ready;
+assign <<: window.name :>>_reg_rsp_error = <<: window.response :>>.error;
+assign <<: window.name :>>_reg_rsp_rdata = <<: window.response :>>.rdata;
 
 <<% endfor %>>

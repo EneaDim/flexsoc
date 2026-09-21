@@ -23,7 +23,6 @@ if TYPE_CHECKING:
     from flexsoc.backend.core.flow.target import Target
 
 
-LINT_KINDS = ("latch", "undriven", "width", "unconnected", "unused")
 FLOAT = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 COVERAGE_DISPLAY_COLUMNS = ("line", "toggle", "expr", "branch", "fsm", "user", "total")
 COVERAGE_TYPE_GROUPS = {
@@ -178,53 +177,13 @@ class Reporting:
         return text.split(start, 1)[1].split(end, 1)[0]
 
     @staticmethod
-    def collect_lint_tool(top: str, run_dir: Path, tool: str) -> dict[str, Any] | None:
-        """Collect one lint backend from its tool-specific logs."""
-
-        analysis_dir = run_dir / "dv" / "lint" / tool
-        raw_dir = run_dir / "logs" / "dv" / "lint" / tool / "raw"
-        full_log = analysis_dir / f"{top}_lint_{tool}_all.log"
-        raw_log = raw_dir / f"{top}_lint_{tool}_all_raw.log"
-        if not full_log.is_file():
-            return None
-
-        text = Reporting.read_text(full_log)
-        diagnostics: dict[str, int] = {}
-        for kind in LINT_KINDS:
-            path = analysis_dir / f"{top}_lint_{tool}_{kind}.log"
-            kind_text = Reporting.read_text(path) if path.is_file() else ""
-            diagnostics[kind] = 0 if kind_text.startswith("No ") else Reporting.line_count(path)
-
-        warnings = len(re.findall(r"(?:%Warning-|\bwarning:)", text, flags=re.IGNORECASE))
-        errors = len(re.findall(r"(?:%Error-|\berror:)", text, flags=re.IGNORECASE))
-        command = Reporting.read_text(raw_log).splitlines()[0] if raw_log.is_file() else ""
-        return {
-            "status": "pass" if errors == 0 else "fail",
-            "errors": errors,
-            "warnings": warnings,
-            "diagnostics": diagnostics,
-            "command": command,
-            "log": Reporting.relative(full_log, run_dir),
-        }
-
-    @staticmethod
     def collect_lint(top: str, run_dir: Path) -> dict[str, Any] | None:
-        """Collect Slang and Verilator lint independently, in execution order."""
-
-        tools: dict[str, Any] = {}
-        for tool in ("slang", "verilator"):
-            data = Reporting.collect_lint_tool(top, run_dir, tool)
-            if data is not None:
-                tools[tool] = data
-        if tools:
-            return {
-                "order": ["slang", "verilator"],
-                "status": "pass" if len(tools) == 2 and all(item["status"] == "pass" for item in tools.values()) else "partial",
-                "tools": tools,
-            }
+        """Load the canonical aggregated lint summary."""
 
         summary = Reporting._json_object(run_dir / "dv" / "lint" / "summary.json")
-        return summary if isinstance(summary.get("tools"), dict) else None
+        if summary.get("top") != top or not isinstance(summary.get("tools"), dict):
+            return None
+        return summary
 
     @staticmethod
     def collect_cdc_rdc(top: str, run_dir: Path) -> dict[str, Any] | None:
