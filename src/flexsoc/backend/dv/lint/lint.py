@@ -40,18 +40,6 @@ class Lint:
         self.verilator.run(profile=profile, on=on)
         return 0 if self._write_summary()["status"] == "PASS" else 1
 
-    def run_slang(self, *, on: str = "local") -> int:
-        """Run only the atomic Slang target."""
-
-        _, summary = self.slang.run(profile=self._profile(), on=on)
-        return 0 if summary["status"] == "PASS" else 1
-
-    def run_verilator(self, *, on: str = "local") -> int:
-        """Run only the atomic Verilator target."""
-
-        _, summary = self.verilator.run(profile=self._profile(), on=on)
-        return 0 if summary["status"] == "PASS" else 1
-
     # Presentation
 
     def show(
@@ -111,8 +99,16 @@ class Lint:
                 if not int(counts.get("P0", 0)) and not int(counts.get("P1", 0)):
                     console.print("[green]No P0/P1 diagnostics.[/green]")
                 console.print(f"[grey70]summary[/grey70] {summary_path}")
-                console.print(f"[grey70]slang JSON[/grey70] {self.context.paths.lint / 'slang' / 'slang_diag.json'}")
-                console.print(f"[grey70]verilator SARIF[/grey70] {self.context.paths.lint / 'verilator' / 'verilator.sarif'}")
+                tools = data.get("tools", {}) if isinstance(data.get("tools"), Mapping) else {}
+                for name in data.get("order", ()):
+                    item = tools.get(name, {}) if isinstance(tools, Mapping) else {}
+                    command = item.get("command", ()) if isinstance(item, Mapping) else ()
+                    if command:
+                        console.print(f"[grey70]{name} command[/grey70] {' '.join(map(str, command))}")
+                    artifacts = item.get("artifacts", {}) if isinstance(item, Mapping) else {}
+                    if isinstance(artifacts, Mapping):
+                        for kind, path in artifacts.items():
+                            console.print(f"[grey70]{name} {kind}[/grey70] {path}")
 
         if output and capture is not None:
             destination = Path(output)
@@ -151,7 +147,7 @@ class Lint:
 
             tools[name] = {
                 key: value for key, value in item.items()
-                if key not in {"diagnostics", "artifacts"}
+                if key != "diagnostics"
             }
             for priority in counts:
                 counts[priority] += int(item.get("counts", {}).get(priority, 0))

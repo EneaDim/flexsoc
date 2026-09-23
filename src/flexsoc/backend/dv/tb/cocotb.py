@@ -165,7 +165,7 @@ class CocotbTestbench:
     ) -> str:
         """Render cycle or stream vector semantics from the DUT contract."""
 
-        if TestbenchModel.vector_mode(signature, clocks) == "cycle":
+        if not TestbenchModel.uses_stream_handshake(signature, clocks):
             return templates.render("dv/cocotb/drivers/vec_driver_cycle.py.j2")
         inputs = TestbenchModel.stream_interfaces(
             signature, clocks, direction="input"
@@ -201,7 +201,7 @@ class CocotbTestbench:
     ) -> str:
         """Render the matching cycle or stream monitor."""
 
-        if TestbenchModel.vector_mode(signature, clocks) == "cycle":
+        if not TestbenchModel.uses_stream_handshake(signature, clocks):
             return templates.render("dv/cocotb/drivers/vec_monitor_cycle.py.j2")
         outputs = TestbenchModel.stream_interfaces(
             signature, clocks, direction="output"
@@ -219,10 +219,8 @@ class CocotbTestbench:
         )
 
     @staticmethod
-    def render_test(
-        top: str, clocks: ClockConfig, signature: dict[str, object]
-    ) -> str:
-        """Render one test entry point; only vector semantics vary."""
+    def render_test(top: str, clocks: ClockConfig) -> str:
+        """Render the common functional-vector test lifecycle."""
 
         starts = "\n".join(
             f"    cocotb.start_soon(_flexsoc_clock(getattr(dut, {domain.signal!r}), "
@@ -232,25 +230,11 @@ class CocotbTestbench:
             f"{TestbenchModel.clock_seed_salt(domain.name)}))"
             for domain in clocks.domains
         )
-        mode = TestbenchModel.vector_mode(signature, clocks)
-        if mode == "cycle":
-            imports = (
-                "from drivers.vec_driver import drive_vectors, load_vectors\n"
-                "from drivers.vec_monitor import LatencyMonitor"
-            )
-            body = templates.render("dv/cocotb/testbench/cycle_body.py.j2")
-        else:
-            imports = (
-                "from drivers.vec_driver import drive_inputs\n"
-                "from drivers.vec_monitor import check_outputs, expected_outputs"
-            )
-            body = templates.render("dv/cocotb/testbench/stream_body.py.j2")
         return templates.render(
             "dv/cocotb/testbench/test.py.j2",
             top=top,
             clock_starts=starts,
-            vector_imports=imports,
-            vector_body=body.rstrip(),
+            vector_body=templates.render("dv/cocotb/testbench/vector_body.py.j2").rstrip(),
         )
 
     @staticmethod
@@ -270,9 +254,7 @@ class CocotbTestbench:
             out / f"{config.top}_tb.sv": CocotbTestbench.render_wrapper(
                 config.top, clocks, signature, config.interface
             ),
-            out / f"{config.top}_tb.py": CocotbTestbench.render_test(
-                config.top, clocks, signature
-            ),
+            out / f"{config.top}_tb.py": CocotbTestbench.render_test(config.top, clocks),
             drivers / "__init__.py": "",
             drivers / "reg_driver.py": CocotbTestbench.render_reg_driver(
                 config.top,

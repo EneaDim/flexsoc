@@ -204,14 +204,13 @@ class TestbenchModel:
         return tuple(streams)
 
     @staticmethod
-    def vector_mode(signature: dict[str, object], clocks: ClockConfig) -> str:
-        """Return cycle or stream semantics from the DUT port contract."""
+    def uses_stream_handshake(signature: dict[str, object], clocks: ClockConfig) -> bool:
+        """Return whether vector traffic needs ready/valid transaction semantics."""
 
-        has_streams = bool(
+        return bool(
             TestbenchModel.stream_interfaces(signature, clocks, direction="input")
             or TestbenchModel.stream_interfaces(signature, clocks, direction="output")
         )
-        return "stream" if has_streams else "cycle"
 
     @staticmethod
     def render_signal_declarations(

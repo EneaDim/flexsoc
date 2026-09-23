@@ -108,8 +108,7 @@ class SystemVerilogTestbench:
         """Render cycle or stream vector semantics behind one generated driver file."""
 
         transport = TestbenchModel.register_transport(interface, signature, clocks)
-        mode = TestbenchModel.vector_mode(signature, clocks)
-        if mode == "stream":
+        if TestbenchModel.uses_stream_handshake(signature, clocks):
             values = SystemVerilogTestbench._stream_driver_values(
                 signature, clocks, transport
             )
@@ -134,8 +133,7 @@ class SystemVerilogTestbench:
         """Render the matching cycle or stream output monitor."""
 
         transport = TestbenchModel.register_transport(interface, signature, clocks)
-        mode = TestbenchModel.vector_mode(signature, clocks)
-        if mode == "stream":
+        if TestbenchModel.uses_stream_handshake(signature, clocks):
             values = SystemVerilogTestbench._stream_monitor_values(
                 signature, clocks, transport
             )
@@ -164,32 +162,18 @@ class SystemVerilogTestbench:
         bus_decls, bus_helpers = TestbenchModel.render_register_boundary(
             top, transport
         )
-        mode = TestbenchModel.vector_mode(signature, clocks)
         expected_decls = ""
-        if mode == "stream":
+        if TestbenchModel.uses_stream_handshake(signature, clocks):
             expected_decls = SystemVerilogTestbench._stream_monitor_parts(
                 signature, clocks, transport
             )[0]
-            vector_body = "\n".join(
-                (
-                    "    load_config(cfg_path);",
-                    "    load_expected(data_out_path);",
-                    f"    repeat (8) {clocks.domains[0].name}_sample_cycle();",
-                    "    fork",
-                    "      run_inputs(data_in_path);",
-                    "      check_outputs();",
-                    "    join",
-                    f"    repeat (10) {clocks.domains[0].name}_sample_cycle();",
-                )
+        vector_body = "\n".join(
+            (
+                "    load_config(cfg_path);",
+                "    run_vectors(data_in_path, data_out_path);",
+                f"    repeat (10) {clocks.domains[0].name}_sample_cycle();",
             )
-        else:
-            vector_body = "\n".join(
-                (
-                    "    load_config(cfg_path);",
-                    "    run_vectors(data_in_path, data_out_path);",
-                    f"    repeat (10) {clocks.domains[0].name}_sample_cycle();",
-                )
-            )
+        )
 
         clock_decls = "\n".join(
             f"  logic {domain.signal};\n  logic {domain.reset};"

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import cocotb
+
 from .reg_driver import (
-    CLOCKS, PRIMARY_CLOCK, _drive_cycle, _sample_cycle,
-    apply_reg, expect_reg, reset, rows, settle,
+    PRIMARY_CLOCK, _drive_cycle, _sample_cycle,
+    apply_config, apply_reg, expect_reg, reset, rows, settle,
 )
+from .vec_monitor import check_outputs, expected_outputs
 
 SIGNAL_CLOCKS = <<: signal_clocks :>>
 INPUT_STREAMS = <<: input_streams :>>
@@ -100,3 +103,10 @@ async def drive_inputs(dut, path: str):
             pending[token] = value
         elif token == stream["valid"] and value:
             await _send_stream(dut, stream, pending)
+
+
+async def run_vectors(dut, cfg, data_in, data_out):
+    await apply_config(dut, cfg)
+    checker = cocotb.start_soon(check_outputs(dut, expected_outputs(data_out)))
+    await drive_inputs(dut, data_in)
+    await checker

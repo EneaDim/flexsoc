@@ -130,34 +130,6 @@ class RtlFlow:
             synthesis=synthesis,
         ), runner=self.runner, on=on)
 
-    def show_ast(
-        self,
-        *,
-        root: Path,
-        top_file: Path,
-        output: Path,
-        search_roots: Sequence[Path] = (),
-        top: str | None = None,
-        extra_args: str = "",
-        slang: str = "slang",
-        scope: str | None = None,
-        on: str = "local",
-    ) -> None:
-        """Write the Slang AST JSON for one top."""
-
-        from types import SimpleNamespace
-
-        RtlFlow.run_ast(SimpleNamespace(
-            root=root,
-            search_root=list(search_roots),
-            top_file=top_file,
-            top=top,
-            extra_args=extra_args,
-            slang=slang,
-            json_out=output,
-            scope=scope,
-        ), runner=self.runner, on=on)
-
     def fetch_vendor(
         self,
         manifest: Path,
@@ -1003,28 +975,6 @@ class RtlFlow:
             raise RuntimeError(f"Slang failed ({result.returncode}); log: {log}")
         log.unlink(missing_ok=True)
         return top_name
-
-    @staticmethod
-    def run_ast(args, *, runner=None, on: str = "local") -> None:
-        """Generate elaborated Slang AST JSON."""
-
-        json_path = args.json_out.resolve()
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        action = ["--ast-json", str(json_path), "--ast-json-source-info"]
-        if args.scope:
-            action.extend(["--ast-json-scope", args.scope])
-        RtlFlow._run_slang(
-            slang=args.slang,
-            root=args.root,
-            search_roots=args.search_root,
-            top_file=args.top_file,
-            top=args.top,
-            extra_args=args.extra_args,
-            action_args=action,
-            runner=runner,
-            on=on,
-            outputs=(json_path,),
-        )
 
     @staticmethod
     def _dep_lines(path: Path) -> list[str]:

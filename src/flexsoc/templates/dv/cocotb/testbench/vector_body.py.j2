@@ -3,8 +3,4 @@
     cfg = os.environ.get("CFG", f"{test_root}/{test_name}/config.regs")
     data_in = os.environ.get("DATA_IN", f"{test_root}/{test_name}/data_in.vec")
     data_out = os.environ.get("DATA_OUT", f"{test_root}/{test_name}/data_out.vec")
-    await apply_config(dut, cfg)
-    expected = expected_outputs(data_out)
-    checker = cocotb.start_soon(check_outputs(dut, expected))
-    await drive_inputs(dut, data_in)
-    await checker
+    await run_vectors(dut, cfg, data_in, data_out)

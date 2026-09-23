@@ -10,7 +10,6 @@ from ...core import BackendContext, Target, ToolRunner
 from .model import ModelFlow
 from .regs import RegsFlow
 from .rtl import RtlFlow
-from .slang_hier import SlangHierarchy
 
 
 @dataclass(slots=True)
@@ -22,7 +21,6 @@ class IpDesign:
     regs: RegsFlow = field(init=False)
     rtl: RtlFlow = field(init=False)
     model: ModelFlow = field(init=False)
-    hierarchy: SlangHierarchy = field(init=False)
 
     def __post_init__(self) -> None:
         self.runner = self.runner or ToolRunner(project_root=self.context.project_root)
@@ -30,7 +28,6 @@ class IpDesign:
         self.regs = RegsFlow(root, self.runner)
         self.rtl = RtlFlow(root, self.runner)
         self.model = ModelFlow(root)
-        self.hierarchy = SlangHierarchy(self.context, self.runner)
 
     def run_target(self, target: Target, *, on: str = "local"):
         """Execute one registered design target through its owning component."""
@@ -88,12 +85,6 @@ class IpDesign:
                 self.context.project_root / "vendor" / f"{vendor}.vendor.hjson",
                 target_dir=self.context.project_root, force=force, on=on,
             )
-        if action == "slang_hier_setup":
-            return self.hierarchy.setup()
-        if action == "slang_hier":
-            return self.hierarchy.run(on=on)
-        if action == "slang_ast":
-            return self._run_slang_ast(on=on)
         if action == "model_setup":
             return self.model.setup(
                 top, paths.csr, paths.model, paths.rtl,
@@ -147,60 +138,3 @@ class IpDesign:
             slang=values.get("SLANG", "slang"),
             on=on,
         )
-
-    def _slang_inputs(self) -> tuple[Path, Path, tuple[Path, ...], str]:
-        """Resolve hierarchy/AST inputs from settings and canonical filelists."""
-
-        values, paths = self.context.values, self.context.paths
-        root = Path(values.get("SLANG_ROOT", paths.rtl)).expanduser().resolve()
-        top_file = Path(values.get("SLANG_TOP_FILE", root / f"{paths.top}.sv")).expanduser().resolve()
-        tokens = iter(shlex.split(values.get("SLANG_SEARCH_ARGS", "")))
-        roots: list[Path] = []
-        extra: list[str] = []
-        for token in tokens:
-            if token == "--search-root":
-                try:
-                    roots.append(Path(next(tokens)).expanduser().resolve())
-                except StopIteration as exc:
-                    raise ValueError("SLANG_SEARCH_ARGS: --search-root requires a path") from exc
-            elif token.startswith("--search-root="):
-                roots.append(Path(token.split("=", 1)[1]).expanduser().resolve())
-            else:
-                extra.append(token)
-        if not roots:
-            for filelist in (paths.rtl_common, paths.rtl_ip):
-                if not filelist.is_file():
-                    continue
-                for raw in filelist.read_text(encoding="utf-8").splitlines():
-                    item = raw.strip()
-                    if not item or item.startswith(("#", "+define+")):
-                        continue
-                    items = (
-                        item.removeprefix("+incdir+").split("+")
-                        if item.startswith("+incdir+")
-                        else [str(Path(item).parent)]
-                    )
-                    roots.extend(
-                        (root / path if not path.is_absolute() else path).resolve()
-                        for path in map(Path, items) if str(path)
-                    )
-            roots = list(dict.fromkeys(roots)) or [
-                paths.rtl, self.context.project_root / "hw" / "ips",
-                self.context.project_root / "vendor",
-            ]
-        args = [*shlex.split(values.get("SLANG_ARGS", "")), *extra]
-        return root, top_file, tuple(roots), shlex.join(args)
-
-    def _run_slang_ast(self, *, on: str):
-        """Write the Slang AST through the shared execution abstraction."""
-
-        values, paths = self.context.values, self.context.paths
-        root, top_file, search_roots, extra_args = self._slang_inputs()
-        return self.rtl.show_ast(
-            root=root, top_file=top_file,
-            output=paths.slang_ast / f"{paths.top}_ast.json",
-            search_roots=search_roots, top=values.get("SLANG_TOP", paths.top),
-            extra_args=extra_args, slang=values.get("SLANG", "slang"),
-            scope=values.get("SLANG_AST_SCOPE"), on=on,
-        )
-

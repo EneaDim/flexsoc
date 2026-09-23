@@ -57,19 +57,17 @@ class SlangLint:
         Terminal.print_label("lint", f"tool=slang · profile={profile}")
         Terminal.print_path_label("diagnostics", diagnostics_path)
         Terminal.print_path_label("log", log)
+        command = self._command(profile, diagnostics_path)
         result = self.runner.run(
-            CommandRequest(self._command(profile, diagnostics_path), self.context.project_root, {}, log),
+            CommandRequest(
+                command, self.context.project_root, {}, log, outputs=(diagnostics_path,),
+            ),
             on=on,
         )
 
         diagnostics = self._diagnostics(diagnostics_path)
         complete = diagnostics is not None
-        if diagnostics is None:
-            diagnostics = [{
-                "tool": "slang", "priority": "P0", "severity": "error",
-                "code": "tool-execution", "message": f"slang exited with status {result.returncode}",
-                "file": "", "line": 0, "column": 0,
-            }]
+        diagnostics = diagnostics or []
         counts = {priority: 0 for priority in ("P0", "P1", "P2", "P3")}
         for item in diagnostics:
             counts[item["priority"]] += 1
@@ -78,8 +76,11 @@ class SlangLint:
             "schema": "flexsoc.lint.tool.v1", "top": paths.top, "tool": "slang",
             "profile": profile, "status": "PASS" if complete else "FAILED",
             "returncode": result.returncode, "counts": counts, "total": len(diagnostics),
-            "diagnostics": diagnostics,
-            "artifacts": {"diagnostics": str(diagnostics_path), "log": str(log)},
+            "command": list(command), "diagnostics": diagnostics,
+            "artifacts": {
+                "diagnostics": "dv/lint/slang/slang_diag.json",
+                "log": "logs/dv/lint/slang/slang.log",
+            },
         }
         (analysis / "summary.json").write_text(
             json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"

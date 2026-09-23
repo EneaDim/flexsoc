@@ -449,6 +449,11 @@ class SshExecutor:
         for output in request.outputs:
             target = output.resolve()
             remote = self._remote(target)
+            exists = subprocess.run(
+                ["ssh", self.target.host, "test", "-e", str(remote)], check=False
+            ).returncode == 0
+            if not exists:
+                continue
             is_dir = subprocess.run(
                 ["ssh", self.target.host, "test", "-d", str(remote)], check=False
             ).returncode == 0
@@ -501,7 +506,7 @@ class SshExecutor:
                     log.flush()
                     request.line_callback(line)
                 returncode = proc.wait(timeout=request.timeout_s)
-        if returncode == 0 and not request.detach:
+        if not request.detach:
             self._sync_outputs(request)
         return CommandResult(returncode, request.log, monotonic() - start)
 

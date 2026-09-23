@@ -4,7 +4,16 @@ task automatic load_expected(input string path);
   integer code;
   integer step;
   integer current_step;
-<<% if packed %>>  tb_token_t sig;
+<<% if packed %>>  tb_token_t step_raw;
+  tb_token_t sig;
+  tb_token_t value_raw;
+  tb_token_t spare0;
+  tb_token_t spare1;
+  tb_token_t spare2;
+  tb_token_t spare3;
+  tb_token_t spare4;
+  tb_token_t spare5;
+  logic [32:0] parsed;
 <<% else %>>  string sig;
 <<% endif %>>  logic [31:0] value;
 <<% if packed %>>  tb_line_t line_buf;
@@ -23,12 +32,19 @@ task automatic load_expected(input string path);
 <<% if packed %>><<% else %>>    line = "";
 <<% endif %>>    line_buf = '0;
 <<% if packed %>>    code = $fgets(line_buf, fd);
-    code = $sscanf(line_buf, "%d %s %h", step, sig, value);
+    tb_tokenize9(line_buf, code, step_raw, sig, value_raw, spare0, spare1, spare2, spare3, spare4, spare5);
+    if (code < 3 || tb_token_comment(step_raw) || tb_token_comment(sig)) disable tb_stream_expected_line;
+    parsed = tb_parse_u32(step_raw);
+    if (!parsed[32]) disable tb_stream_expected_line;
+    step = int'(parsed[31:0]);
+    parsed = tb_parse_u32(value_raw);
+    if (!parsed[32]) disable tb_stream_expected_line;
+    value = parsed[31:0];
 <<% else %>>    void'($fgets(line_buf, fd));
     line = $sformatf("%0s", line_buf);
     if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_stream_expected_line;
     code = $sscanf(line, "%d %s %h", step, sig, value);
-<<% endif %>>    if (code == 3) begin
+<<% endif %>>    if (code >= 3) begin
       if (step != current_step) begin
         current_step = step;
 <<: clear_expected :>>

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from io import StringIO
 import json
 import os
 from pathlib import Path
@@ -12,8 +13,16 @@ import threading
 import time
 from typing import Any, Callable, Mapping, Sequence, TypeVar
 
-from flexsoc.backend.core import ClockConfig, ClockDomain
+from rich.console import Console
+from rich.table import Table
+
+from flexsoc.backend.core import (
+    BackendContext, ClockConfig, ClockDomain, CommandRequest, ToolRunner,
+)
+from flexsoc.backend.core.render.show import ShowRenderer
 from flexsoc.backend.core.runtime.execution import Terminal
+
+
 _T = TypeVar("_T")
 
 
@@ -98,7 +107,7 @@ class DomainFinding:
 
 
 @dataclass(frozen=True, slots=True)
-class ComprehensiveAnalysis:
+class CdcRdcResults:
     """Classification views layered on the shared structural dependency graph."""
 
     cdc: tuple[DomainFinding, ...]
@@ -119,7 +128,7 @@ class DesignIR:
 
 
 @dataclass(frozen=True, slots=True)
-class DomainAnalysis:
+class CrossingAnalysis:
     """Shared dependency graph with CDC and RDC views."""
 
     dependencies: tuple[Crossing, ...]
@@ -151,185 +160,420 @@ _SEQ_PORTS: dict[str, tuple[str, str, str | None, str | None]] = {
 }
 
 
-CDC_CHECK_ORDER = (
-    "scalar_and_multibit_crossings",
-    "async_fifo_candidates",
-    "closed_loop_handshakes",
-    "synchronized_reconvergence",
-)
-
-SETUP_GLITCH_CHECK_ORDER = (
-    "domain_setup",
-    "glitch_hazards",
-)
-
-RDC_CHECK_ORDER = (
-    "reset_domain_crossings",
-    "reset_synchronizers",
-    "async_reset_release",
-    "reset_sequence",
-)
-
-
-# Extraction, reporting, and command-line runner
-
-
-# ---------------------------------------------------------------------------
-# Read-only debug/triage of canonical CDC/RDC artifacts
-# ---------------------------------------------------------------------------
-
 _NON_PASS = {"ERROR", "WARN", "REVIEW"}
 _CONTRACT_RE = re.compile(r"flexsoc_cdc_contract\s*=\s*[\"']([^\"']+)[\"']")
 
 
-class _Heartbeat:
-    """Emit lightweight progress while a normally quiet phase is running."""
-
-    def __init__(self, label: str, seconds: float, detail: str = "") -> None:
-        self.label = label
-        self.seconds = max(0.0, seconds)
-        self.detail = detail
-        self.started = time.perf_counter()
-        self.stop = threading.Event()
-        self.thread: threading.Thread | None = None
-
-    def __enter__(self) -> "_Heartbeat":
-        if self.seconds > 0:
-            self.thread = threading.Thread(target=self._loop, daemon=True)
-            self.thread.start()
-        return self
-
-    def _loop(self) -> None:
-        while not self.stop.wait(self.seconds):
-            elapsed = time.perf_counter() - self.started
-            suffix = f" · {self.detail}" if self.detail else ""
-            print(f"[{self.label}] working {elapsed:.1f}s{suffix}", flush=True)
-
-    def __exit__(self, *_: object) -> None:
-        self.stop.set()
-        if self.thread is not None:
-            self.thread.join(timeout=0.2)
-
-
-@dataclass(slots=True)
 class CdcFlow:
-    """Prepare and run structural CDC/RDC analysis with explicit inputs."""
+    """Own structural CDC/RDC setup, execution, checks, evidence and debug triage.
 
-    runner: object | None = None
+    Run workflow: Yosys/Slang extraction -> DesignIR -> dependency graph ->
+    ordered CDC/RDC/setup/glitch checks -> summary.json + cdc_rdc.rpt.
+    """
 
-    def setup(
-        self,
-        *,
-        top: str,
-        script: Path,
-        design_json: Path,
-        repo_root: Path,
-        filelists: Sequence[Path],
-    ) -> int:
-        """Write the deterministic pre-technology extraction script."""
+    CHECKS = {
+        "cdc": (
+            "clock_crossings",
+            "async_fifo_candidates",
+            "closed_loop_handshakes",
+            "synchronized_reconvergence",
+            "cdc_contracts",
+        ),
+        "rdc": (
+            "reset_crossings",
+            "reset_synchronizers",
+            "async_reset_release",
+            "reset_sequence",
+        ),
+        "setup": (
+            "domain_assignment",
+            "clock_relationships",
+            "reset_polarity",
+            "reset_families",
+            "cdc_contracts",
+        ),
+        "glitch": (
+            "combinational_clock_paths",
+            "combinational_reset_paths",
+        ),
+    }
 
-        from types import SimpleNamespace
+    def __init__(self, context: BackendContext, runner: ToolRunner | None = None) -> None:
+        self.context = context
+        self.runner = runner or ToolRunner(project_root=context.project_root)
 
-        return CdcFlow.setup_analysis(SimpleNamespace(
-            top=top,
-            script=str(script),
-            design_json=str(design_json),
-            repo_root=str(repo_root),
-            filelist=[str(path) for path in filelists],
-        ))
+    def setup(self) -> Path:
+        """Write the deterministic pre-technology structural extraction script."""
 
-    def run(
-        self,
-        *,
-        top: str,
-        script: Path,
-        design_json: Path,
-        analysis_dir: Path,
-        log_dir: Path,
-        yosys: str = "yosys",
-        n_clocks: int = 1,
-        clock_domains: str = "",
-        clock_relationships: str = "",
-        clk_period: float = 10.0,
-        heartbeat: float = 5.0,
-        strict: bool = False,
-        inputs: Sequence[Path] = (),
-        on: str = "local",
-    ) -> int:
-        """Run CDC/RDC and write normalized reports."""
+        paths = self.context.paths
+        script = paths.cdc_rdc / "extract.ys"
+        design_json = paths.cdc_rdc / "design.json"
+        filelists = (paths.rtl_common.resolve(), paths.rtl_ip.resolve())
+        missing = [path for path in filelists if not path.is_file()]
+        if missing:
+            raise FileNotFoundError(
+                "missing RTL filelist(s): " + ", ".join(str(path) for path in missing)
+            )
+        script.parent.mkdir(parents=True, exist_ok=True)
+        design_json.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text(
+            self.render_extract_script(
+                top=paths.top,
+                filelists=filelists,
+                repo_root=self.context.project_root.resolve(),
+                design_json=design_json.resolve(),
+            ),
+            encoding="utf-8",
+        )
+        if self._live():
+            Terminal.print_script(script, details={"state": "generated"})
+        return script
 
-        from types import SimpleNamespace
+    def run(self, *, inputs: Sequence[Path] = (), on: str = "local") -> int:
+        """Run extraction once, execute every CDC/RDC check, and write canonical evidence."""
 
-        return CdcFlow.run_analysis(SimpleNamespace(
-            top=top,
-            script=str(script),
-            design_json=str(design_json),
-            analysis_dir=str(analysis_dir),
-            log_dir=str(log_dir),
-            yosys=yosys,
-            n_clocks=str(n_clocks),
-            clock_domains=clock_domains,
-            clock_relationships=clock_relationships,
-            clk_period=str(clk_period),
-            heartbeat=heartbeat,
-            strict=strict,
-        ), runner=self.runner, inputs=inputs, on=on)
+        from flexsoc.backend.signoff.sdc import Sdc
+
+        paths, values = self.context.paths, self.context.values
+        top = paths.top
+        analysis_dir = paths.cdc_rdc.resolve()
+        script = (analysis_dir / "extract.ys").resolve()
+        design_json = (analysis_dir / "design.json").resolve()
+        log_dir = (paths.logs / "dv" / "cdc_rdc").resolve()
+        extract_log = log_dir / "extract.log"
+        if not script.is_file():
+            raise FileNotFoundError(
+                f"missing CDC/RDC extraction script: {script}; run `fx cdc_rdc --setup`"
+            )
+        log_dir.mkdir(parents=True, exist_ok=True)
+        analysis_dir.mkdir(parents=True, exist_ok=True)
+
+        clocks = Sdc.read_clock_config(paths.sdc, self.context.clocks)
+        live = self._live()
+        heartbeat = float(values.get("CDC_RDC_HEARTBEAT", "5")) if live else 0.0
+        strict = values.get("CDC_RDC_STRICT", "0").strip().lower() in {"1", "true", "yes"}
+
+        # 1. Structural extraction through the normal FlexSoC execution path.
+        self._detail(live, "extract", f"top={top} · script={script}")
+
+        request = CommandRequest(
+            (values.get("YOSYS", "yosys"), "-ql", str(extract_log), str(script)),
+            script.parent,
+            {},
+            log_dir / "extract_driver.log",
+            inputs=tuple(dict.fromkeys((script, *(path.resolve() for path in inputs)))),
+            outputs=(design_json, extract_log),
+        )
+        proc, extract_dt = self._timed(
+            "extract", lambda: self.runner.run(request, on=on), heartbeat, f"log={extract_log}"
+        )
+        if proc.returncode:
+            Terminal.print_status_label(
+                "extract", "fail", f"rc={proc.returncode} · log={extract_log}"
+            )
+            return int(proc.returncode)
+        if not design_json.is_file():
+            raise FileNotFoundError(f"Yosys did not produce structural JSON: {design_json}")
+        self._detail(live, "extract", f"done {extract_dt:.3f}s · design={design_json}")
+
+        # 2. Normalize Yosys JSON into the technology-neutral DesignIR.
+        data, json_dt = self._timed(
+            "json",
+            lambda: json.loads(design_json.read_text(encoding="utf-8")),
+            heartbeat,
+            f"file={design_json}",
+        )
+        module = data.get("modules", {}).get(top, {})
+        cells = module.get("cells", {})
+        self._detail(
+            live,
+            "design",
+            f"cells={len(cells)} netnames={len(module.get('netnames', {}))} "
+            f"ports={len(module.get('ports', {}))} · json={json_dt:.3f}s",
+        )
+        if live:
+            for cell_type, count in Counter(
+                str(cell.get("type", "")) for cell in cells.values()
+            ).most_common(20):
+                Terminal.print_label("debug", f"cell_type={cell_type} count={count}")
+
+        ir, ir_dt = self._timed(
+            "ir", lambda: self.load_yosys_json(data, top, clocks), heartbeat
+        )
+        reset_names = {item.reset_signal for item in ir.sequential if item.reset_signal}
+        self._detail(
+            live,
+            "domains",
+            f"clocks={len(ir.clocks)} resets={len(reset_names)} "
+            f"sequential={len(ir.sequential)} · ir={ir_dt:.3f}s",
+        )
+        if live:
+            for domain in ir.clocks:
+                count = sum(
+                    1 for item in ir.sequential if item.clock_domain == domain.name
+                )
+                Terminal.print_label(
+                    "domain",
+                    f"{domain.name} clock={domain.signal} reset={domain.reset} "
+                    f"period={domain.period_ns:g}ns sequential={count}",
+                )
+
+        # 3. Build the shared dependency graph once.
+        analysis, graph_dt = self._timed(
+            "graph",
+            lambda: self.analyze_domains(ir, clocks),
+            heartbeat,
+            f"sequential={len(ir.sequential)}",
+        )
+        self._detail(
+            live, "graph", f"dependencies={len(analysis.dependencies)} · {graph_dt:.3f}s"
+        )
+
+        # 4. Run the ordered CDC, RDC, setup and glitch checks.
+        result, classify_dt = self._timed(
+            "classify",
+            lambda: self.classify_cdc_rdc(ir, analysis),
+            heartbeat,
+            f"cdc={len(analysis.clock_crossings)} rdc={len(analysis.reset_crossings)}",
+        )
+        cdc_counts = self._status_counts(result.cdc)
+        rdc_counts = self._status_counts(result.rdc)
+        setup_counts = self._status_counts(result.setup)
+        glitch_counts = self._status_counts(result.glitch)
+        self._detail(
+            live,
+            "CDC",
+            f"raw={len(analysis.clock_crossings)} safe={cdc_counts['safe']} "
+            f"review={cdc_counts['review']} warn={cdc_counts['warnings']} "
+            f"error={cdc_counts['errors']} · classify={classify_dt:.3f}s",
+        )
+        self._detail(
+            live,
+            "RDC",
+            f"raw={len(analysis.reset_crossings)} safe={rdc_counts['safe']} "
+            f"review={rdc_counts['review']} warn={rdc_counts['warnings']} "
+            f"error={rdc_counts['errors']}",
+        )
+        self._detail(
+            live,
+            "setup",
+            f"review={setup_counts['review']} warn={setup_counts['warnings']} "
+            f"error={setup_counts['errors']}",
+        )
+        self._detail(
+            live,
+            "glitch",
+            f"review={glitch_counts['review']} warn={glitch_counts['warnings']} "
+            f"error={glitch_counts['errors']}",
+        )
+        if live:
+            for scope, findings in (
+                ("CDC", result.cdc),
+                ("RDC", result.rdc),
+                ("SETUP", result.setup),
+                ("GLITCH", result.glitch),
+            ):
+                for name, count in self._class_counts(findings).items():
+                    Terminal.print_label(scope, f"check={name} findings={count}")
+                for index, finding in enumerate(findings, 1):
+                    crossing = finding.crossings[0] if finding.crossings else None
+                    route = ""
+                    if crossing is not None:
+                        route = (
+                            f" {crossing.source.name}[{crossing.source.bit_index}] -> "
+                            f"{crossing.destination.name}[{crossing.destination.bit_index}]"
+                        )
+                    Terminal.print_status_label(
+                        scope,
+                        finding.status,
+                        f"{scope}-{index:04d} {finding.classification}{route} "
+                        f"issues={','.join(finding.issues) or '-'} "
+                        f"obligations={','.join(finding.obligations) or '-'}",
+                    )
+
+        # 5. Write the canonical summary and human report.
+        summary = self.write_reports(
+            ir, analysis, analysis_dir=analysis_dir, log_dir=log_dir, result=result
+        )
+        Terminal.print_status_label(
+            "cdc_rdc",
+            summary["status"],
+            f"clocks={summary['clock_domains']} "
+            f"reset_families={summary.get('reset_families', summary['reset_domains'])} "
+            f"reset_signals={summary['reset_domains']} "
+            f"sequential={summary['sequential_elements']} · "
+            f"CDC raw={summary['cdc']['raw_crossings']} safe={summary['cdc']['safe']} "
+            f"review={summary['cdc']['review']} warn={summary['cdc']['warnings']} "
+            f"error={summary['cdc']['errors']} · "
+            f"RDC raw={summary['rdc']['raw_crossings']} safe={summary['rdc']['safe']} "
+            f"review={summary['rdc']['review']} warn={summary['rdc']['warnings']} "
+            f"error={summary['rdc']['errors']} · "
+            f"obligations={summary['verification_obligations']}",
+        )
+        Terminal.print_label("report", str(analysis_dir / "cdc_rdc.rpt"))
+        Terminal.print_label("summary", str(analysis_dir / "summary.json"))
+        return 2 if strict and summary["status"] == "fail" else 0
 
     def debug(
         self,
         *,
-        summary_path: Path,
-        design_json: Path,
-        extract_script: Path,
-        rtl_dir: Path,
-    ) -> dict[str, Any]:
-        """Read canonical CDC/RDC artifacts and return compact root-cause triage."""
+        output: str | None = None,
+        as_json: bool = False,
+    ) -> int:
+        """Render canonical evidence plus root-cause diagnostics without rerunning tools."""
 
-        return CdcFlow.collect_cdc_debug(
-            summary_path=summary_path,
-            design_json=design_json,
-            extract_script=extract_script,
-            rtl_dir=rtl_dir,
-        )
-
-    def debug_from_context(self, context) -> dict[str, Any]:
-        """Read CDC/RDC debug state from one BackendContext without rerunning analysis."""
-
-        paths = context.paths
+        paths = self.context.paths
         analysis = paths.cdc_rdc
-        return self.debug(
+        payload = self.collect_cdc_debug(
             summary_path=analysis / "summary.json",
             design_json=analysis / "design.json",
             extract_script=analysis / "extract.ys",
             rtl_dir=paths.rtl,
         )
+        capture = StringIO() if output else None
+        console = Console(file=capture, force_terminal=False) if capture else Console()
+        if as_json:
+            print(json.dumps(payload, indent=2, sort_keys=True), file=capture or None)
+        else:
+            document = ShowRenderer.load_file(paths.run, "dv/cdc_rdc/summary.json")
+            ShowRenderer(console).render(document)
+            self._render_debug(console, payload)
+        if output and capture is not None:
+            destination = Path(output)
+            if not destination.is_absolute():
+                destination = self.context.project_root / destination
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(capture.getvalue(), encoding="utf-8")
+        return 0
 
-    def run_from_context(
-        self, context, *, inputs: Sequence[Path] = (), on: str = "local"
-    ):
-        """Run CDC/RDC from an already prepared extraction script."""
+    def show(
+        self,
+        *,
+        summary: bool = False,
+        output: str | None = None,
+        as_json: bool = False,
+    ) -> int:
+        """Render summary.json only; never rerun extraction or reparsing."""
 
-        paths, values = context.paths, context.values
-        analysis = paths.cdc_rdc
-        from flexsoc.backend.signoff.sdc import Sdc
-        clocks = Sdc.read_clock_config(paths.sdc, context.clocks)
-        clock_values = clocks.to_settings()
-        return self.run(
-            top=paths.top, script=analysis / "extract.ys", design_json=analysis / "design.json",
-            analysis_dir=analysis, log_dir=paths.logs / "dv" / "cdc_rdc",
-            yosys=values.get("YOSYS", "yosys"), n_clocks=clocks.n_clocks,
-            clock_domains=clock_values["CLOCK_DOMAINS"],
-            clock_relationships=clock_values["CLOCK_RELATIONSHIPS"],
-            clk_period=clocks.fastest_period_ns,
-            heartbeat=float(values.get("CDC_RDC_HEARTBEAT", "5")),
-            strict=values.get("CDC_RDC_STRICT", "0") in {"1", "true", "yes"},
-            inputs=inputs, on=on,
+        path = self.context.paths.cdc_rdc / "summary.json"
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"CDC/RDC summary not found: {path}; run `fx cdc_rdc` first"
+            )
+        document = ShowRenderer.load_file(self.context.paths.run, "dv/cdc_rdc/summary.json")
+        data = dict(document.data)
+        if summary:
+            data["summary_only"] = True
+            document = replace(document, data=data)
+
+        capture = StringIO() if output else None
+        console = Console(file=capture, force_terminal=False) if capture else Console()
+        if as_json:
+            print(json.dumps(data, indent=2, sort_keys=True), file=capture or None)
+        else:
+            ShowRenderer(console).render(document)
+        if output and capture is not None:
+            destination = Path(output)
+            if not destination.is_absolute():
+                destination = self.context.project_root / destination
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(capture.getvalue(), encoding="utf-8")
+        return 0
+
+    # Check orchestration: this is the complete CDC/RDC check order.
+
+    @staticmethod
+    def classify_cdc_rdc(ir: DesignIR, analysis: CrossingAnalysis) -> CdcRdcResults:
+        """Run every structural check once in a visible, deterministic order."""
+
+        # CDC: raw crossings, protocol candidates, reconvergence, explicit contracts.
+        primary_cdc, multibit, synchronizers = CdcFlow._check_cdc_crossings(ir, analysis)
+        clean_scalar = CdcFlow._clean_scalar_synchronizers(primary_cdc, synchronizers)
+        contract_cdc, contract_setup = CdcFlow._check_cdc_contracts(ir)
+        cdc = (
+            *primary_cdc,
+            *CdcFlow._check_async_fifo_candidates(multibit),
+            *CdcFlow._check_closed_loop_handshakes(analysis, clean_scalar),
+            *CdcFlow._check_synchronized_reconvergence(analysis, clean_scalar),
+            *contract_cdc,
         )
+
+        # RDC: reset crossings, release synchronizers, asynchronous release, sequencing.
+        primary_rdc = CdcFlow._check_reset_crossings(analysis, cdc)
+        reset_sync = CdcFlow._check_reset_synchronizers(ir, analysis)
+        rdc_without_sequence = (
+            *primary_rdc,
+            *reset_sync,
+            *CdcFlow._check_async_reset_release(ir, reset_sync),
+        )
+        rdc = (
+            *rdc_without_sequence,
+            *CdcFlow._check_reset_sequence(rdc_without_sequence, ir, analysis),
+        )
+
+        # Setup and glitch checks are independent evidence, not CDC/RDC waivers.
+        setup = (*CdcFlow._check_setup(ir, analysis), *contract_setup)
+        glitch = CdcFlow._check_glitches(ir)
+
+        return CdcRdcResults(cdc, rdc, setup, glitch)
+
+    # Structural extraction script.
+
+    @staticmethod
+    def _read_slang_command(top: str, filelists: Sequence[Path], repo_root: Path) -> str:
+        """Render the canonical pre-technology Slang/Yosys frontend."""
+
+        include_dirs = (
+            repo_root / "hw" / "ips" / "pkgs",
+            repo_root / "hw" / "ips" / "prim",
+            repo_root / "hw" / "ips" / "prim_opentitan",
+            repo_root / "hw" / "ips" / "tlul",
+        )
+        options = [
+            *(f"-I {path}" for path in include_dirs),
+            "-D SYNTHESIS",
+            "-D FLEXSOC_CDC_ANALYSIS",
+            # read_slang flattens hierarchy during frontend elaboration by default.
+            # CDC contracts are instance-level intent, so preserve hierarchy until
+            # Yosys can mark only contracted boundaries before the explicit flatten.
+            "--keep-hierarchy",
+            "--ignore-assertions",
+        ]
+        options.extend(f"-f {path}" for path in filelists)
+        options.append(f"--top {top}")
+        return "read_slang " + " ".join(options)
+
+    @staticmethod
+    def render_extract_script(
+        *,
+        top: str,
+        filelists: Sequence[Path],
+        repo_root: Path,
+        design_json: Path,
+    ) -> str:
+        """Return a flattened, technology-neutral structural extraction script."""
+
+        lines = [
+            CdcFlow._read_slang_command(top, filelists, repo_root),
+            f"hierarchy -check -top {top}",
+            "proc",
+            "opt",
+            # Contract cells are trusted CDC boundaries. Set keep_hierarchy on the
+            # selected cell objects explicitly; all other hierarchy is flattened.
+            "setattr -set keep_hierarchy 1 a:flexsoc_cdc_contract",
+            "flatten",
+            "opt_clean",
+            f"write_json {design_json}",
+            "",
+        ]
+        return "\n".join(lines)
+
+    # Yosys JSON -> technology-neutral DesignIR.
 
     @staticmethod
     def _attribute_text(item: Mapping[str, Any], name: str) -> str | None:
         """Return one normalized Yosys attribute value."""
-    
+
         value = item.get("attributes", {}).get(name)
         if value is None:
             return None
@@ -364,7 +608,7 @@ class CdcFlow:
     @staticmethod
     def _net_names(module: Mapping[str, Any]) -> dict[NetBit, str]:
         """Return a stable readable name for every represented net bit."""
-    
+
         aliases: dict[NetBit, list[str]] = {}
         for name, port in module.get("ports", {}).items():
             bits = tuple(port.get("bits", ()))
@@ -384,7 +628,7 @@ class CdcFlow:
     @staticmethod
     def _domain_bit_map(module: Mapping[str, Any], clocks: ClockConfig) -> dict[NetBit, str]:
         """Map primary and explicitly contracted internal clocks to logical domains."""
-    
+
         names = CdcFlow._net_names(module)
         by_name = {name.split("[")[0]: bit for bit, name in names.items()}
         result: dict[NetBit, str] = {}
@@ -396,7 +640,7 @@ class CdcFlow:
                 bits = (by_name[domain.signal],)
             if len(bits) == 1:
                 result[bits[0]] = domain.name
-    
+
         # Clock-gate contracts are explicit design intent. Resolve them iteratively
         # so cascaded glitch-free gates can inherit their declared parent domain.
         pending = [
@@ -441,7 +685,7 @@ class CdcFlow:
     @staticmethod
     def _port_intent(module: Mapping[str, Any], clocks: ClockConfig) -> tuple[PortDomainIntent, ...]:
         """Seed interface intent from the canonical FlexSoC clock/reset contract."""
-    
+
         domains_by_clock = {domain.signal: domain for domain in clocks.domains}
         domains_by_reset = {domain.reset: domain for domain in clocks.domains}
         result: list[PortDomainIntent] = []
@@ -468,7 +712,7 @@ class CdcFlow:
     @staticmethod
     def load_yosys_json(data: Mapping[str, Any], top: str, clocks: ClockConfig) -> DesignIR:
         """Build the shared IR from a pre-technology Yosys ``write_json`` design."""
-    
+
         modules = data.get("modules", {})
         if top not in modules:
             raise ValueError(f"top module not found in Yosys JSON: {top}")
@@ -476,7 +720,7 @@ class CdcFlow:
         names = CdcFlow._net_names(module)
         domain_by_bit = CdcFlow._domain_bit_map(module, clocks)
         sequential: list[SequentialElement] = []
-    
+
         for name, cell in module.get("cells", {}).items():
             cell_type = str(cell.get("type", ""))
             spec = _SEQ_PORTS.get(cell_type)
@@ -511,7 +755,7 @@ class CdcFlow:
                     source=cell.get("attributes", {}).get("src"),
                 )
             )
-    
+
         return DesignIR(
             top=top,
             clocks=clocks.domains,
@@ -519,6 +763,8 @@ class CdcFlow:
             sequential=tuple(sequential),
             module=module,
         )
+
+    # Shared dependency graph used by every check.
 
     @staticmethod
     def _relationship(clocks: ClockConfig, source: str | None, target: str | None) -> str:
@@ -552,7 +798,7 @@ class CdcFlow:
             bits = tuple(port.get("bits", ()))
             for index, bit in enumerate(bits):
                 sources.setdefault(bit, Endpoint("input", name, index))
-    
+
         drivers: dict[NetBit, tuple[str, ...]] = {}
         cells = module.get("cells", {})
         for name, cell in cells.items():
@@ -587,7 +833,7 @@ class CdcFlow:
         active: set[NetBit],
     ) -> tuple[tuple[Endpoint, tuple[str, ...]], ...]:
         """Return one representative path per upstream endpoint for ``bit``."""
-    
+
         if isinstance(bit, str):
             return ()
         if bit in sources:
@@ -597,12 +843,12 @@ class CdcFlow:
             return cached
         if bit in active:
             return ()
-    
+
         driver = drivers.get(bit)
         if driver is None:
             memo[bit] = ()
             return ()
-    
+
         cell_name, _ = driver
         cell = cells[cell_name]
         active.add(bit)
@@ -629,7 +875,7 @@ class CdcFlow:
                             found[endpoint] = candidate
         finally:
             active.remove(bit)
-    
+
         result = tuple(
             sorted(found.items(), key=lambda item: (CdcFlow._endpoint_key(item[0]), item[1]))
         )
@@ -639,7 +885,7 @@ class CdcFlow:
     @staticmethod
     def _sequential_dependencies(ir: DesignIR, clocks: ClockConfig) -> tuple[Crossing, ...]:
         """Return sequential dependencies using a memoized combinational fan-in walk."""
-    
+
         sources, drivers, cells = CdcFlow._graph(ir)
         memo: dict[NetBit, tuple[tuple[Endpoint, tuple[str, ...]], ...]] = {}
         result: dict[tuple[Endpoint, Endpoint], Crossing] = {}
@@ -685,13 +931,13 @@ class CdcFlow:
     @staticmethod
     def _reset_bit(seq: SequentialElement) -> NetBit | None:
         """Return the effective reset bit of one sequential element."""
-    
+
         return seq.async_reset_bit if seq.async_reset_bit is not None else seq.sync_reset_bit
 
     @staticmethod
     def _reset_stage_deasserted_value(seq: SequentialElement) -> str | None:
         """Return the constant D value expected for a pure reset-release stage."""
-    
+
         if seq.reset_polarity == "low":
             return "1"
         if seq.reset_polarity == "high":
@@ -704,14 +950,14 @@ class CdcFlow:
         dependencies: Sequence[Crossing],
     ) -> set[str]:
         """Return sequential cells that are pure reset synchronizer/distribution stages.
-    
+
         Recognition is structural and depth-independent. A stage must be scalar, have
         a reset, and either drive the deasserted constant while its parent reset is
         asserted or continue a direct same-reset synchronizer chain. Arbitrary data
         logic is deliberately excluded so reset controllers/gating remain separate
         RDC families.
         """
-    
+
         seq_by_name = {seq.name: seq for seq in ir.sequential}
         direct_parent: dict[str, str] = {}
         for dep in dependencies:
@@ -721,7 +967,7 @@ class CdcFlow:
                 direct_parent[dep.destination.name] = ""
             else:
                 direct_parent[dep.destination.name] = dep.source.name
-    
+
         stages: set[str] = set()
         changed = True
         while changed:
@@ -755,14 +1001,14 @@ class CdcFlow:
         dependencies: Sequence[Crossing] | None = None,
     ) -> dict[str, str]:
         """Map reset consumers to the root of their structural reset family.
-    
+
         A reset family follows the complete ancestry of a pure reset tree, not one
         fixed split level. Alias/buffer/inverter paths and arbitrarily deep scalar
         reset-release/distribution stages inherit the same declared reset root. When
         lineage crosses dynamic logic or an unrecognized state element, tracing stops
         conservatively and that derived reset remains a distinct family.
         """
-    
+
         deps = tuple(dependencies) if dependencies is not None else CdcFlow._sequential_dependencies(ir, ClockConfig(ir.clocks))
         declared: dict[NetBit, str] = {}
         for domain in ir.clocks:
@@ -770,7 +1016,7 @@ class CdcFlow:
             if port:
                 for bit in port.get("bits", ()):
                     declared[bit] = domain.reset
-    
+
         sources, drivers, cells = CdcFlow._graph(ir)
         seq_by_name = {seq.name: seq for seq in ir.sequential}
         tree_stages = CdcFlow._reset_tree_stage_names(ir, deps)
@@ -779,7 +1025,7 @@ class CdcFlow:
         domain_reset_polarity = {domain.reset: domain.reset_polarity for domain in ir.clocks}
         memo: dict[str, str] = {}
         active: set[str] = set()
-    
+
         def path_polarity(origin: str | None, path: tuple[str, ...]) -> str | None:
             if origin not in {"low", "high"}:
                 return None
@@ -791,7 +1037,7 @@ class CdcFlow:
                 if cell_type in inversion_cells:
                     polarity = "high" if polarity == "low" else "low"
             return polarity
-    
+
         def family(seq: SequentialElement) -> str:
             cached = memo.get(seq.name)
             if cached is not None:
@@ -834,7 +1080,7 @@ class CdcFlow:
                 return result
             finally:
                 active.remove(seq.name)
-    
+
         return {
             seq.name: family(seq)
             for seq in ir.sequential
@@ -842,9 +1088,9 @@ class CdcFlow:
         }
 
     @staticmethod
-    def analyze_domains(ir: DesignIR, clocks: ClockConfig) -> DomainAnalysis:
+    def analyze_domains(ir: DesignIR, clocks: ClockConfig) -> CrossingAnalysis:
         """Build the dependency graph once and derive both CDC and RDC views."""
-    
+
         dependencies = CdcFlow._sequential_dependencies(ir, clocks)
         clock_crossings = tuple(
             crossing
@@ -860,24 +1106,24 @@ class CdcFlow:
             and reset_families.get(crossing.source.name, crossing.source.reset_signal)
             != reset_families.get(crossing.destination.name, crossing.destination.reset_signal)
         )
-        return DomainAnalysis(dependencies, clock_crossings, reset_crossings)
+        return CrossingAnalysis(dependencies, clock_crossings, reset_crossings)
 
     @staticmethod
     def find_clock_crossings(ir: DesignIR, clocks: ClockConfig) -> tuple[Crossing, ...]:
         """Return raw sequential CDC candidates before protocol classification."""
-    
+
         return CdcFlow.analyze_domains(ir, clocks).clock_crossings
 
     @staticmethod
     def find_reset_crossings(ir: DesignIR, clocks: ClockConfig) -> tuple[Crossing, ...]:
         """Return raw RDC candidates between differently reset sequential state."""
-    
+
         return CdcFlow.analyze_domains(ir, clocks).reset_crossings
 
     @staticmethod
     def _bit_consumers(ir: DesignIR, bit: NetBit) -> tuple[tuple[str, str, str], ...]:
         """Return structural consumers of one net bit as ``(kind, name, port)``."""
-    
+
         uses: set[tuple[str, str, str]] = set()
         for name, cell in ir.module.get("cells", {}).items():
             directions = cell.get("port_directions", {})
@@ -912,122 +1158,12 @@ class CdcFlow:
         )
 
     @staticmethod
-    def _classify_synchronizer_crossing(
-        ir: DesignIR,
-        analysis: DomainAnalysis,
-        crossing: Crossing,
-    ) -> SynchronizerFinding | None:
-        """Classify one bit crossing when it structurally resembles an N-FF chain."""
-    
-        if crossing.relationship not in {"async", "unknown"}:
-            return None
-        seq_by_name = {item.name: item for item in ir.sequential}
-        first = crossing.destination
-        first_seq = seq_by_name.get(first.name)
-        if first_seq is None:
-            return None
-    
-        successors = CdcFlow._same_domain_successors(first, analysis.dependencies)
-        if not successors:
-            return None
-    
-        direct = tuple(item for item in successors if not item.path)
-        if not direct:
-            candidate = min(
-                successors,
-                key=lambda item: (len(item.path), item.path, CdcFlow._endpoint_key(item.destination)),
-            )
-            return SynchronizerFinding(
-                crossing=crossing,
-                status="ERROR",
-                classification="nff_synchronizer",
-                stages=(first, candidate.destination),
-                issues=("combinational_between_stages",),
-            )
-    
-        next_dep = min(direct, key=lambda item: CdcFlow._endpoint_key(item.destination))
-        issues: list[str] = []
-        if crossing.path:
-            issues.append("combinational_before_first_stage")
-        if crossing.relationship == "unknown":
-            issues.append("undeclared_clock_relationship")
-    
-        q_bit = CdcFlow._seq_q_bit(first_seq, first.bit_index)
-        next_seq = seq_by_name.get(next_dep.destination.name)
-        if q_bit is None or next_seq is None:
-            return None
-        data_port = _SEQ_PORTS.get(next_seq.cell_type, ("", "D", None, None))[1]
-        allowed = ("cell", next_seq.name, data_port)
-        extra_uses = tuple(use for use in CdcFlow._bit_consumers(ir, q_bit) if use != allowed)
-        if len(direct) != 1 or extra_uses:
-            issues.append("first_stage_fanout")
-        if (
-            first_seq.reset_signal != next_seq.reset_signal
-            or first_seq.reset_polarity != next_seq.reset_polarity
-        ):
-            issues.append("reset_mismatch_between_stages")
-    
-        # Two clean destination stages identify a structural synchronizer.
-        # Do not absorb downstream functional registers into that chain.
-        stages = [first, next_dep.destination]
-    
-        fatal = {
-            "combinational_before_first_stage",
-            "combinational_between_stages",
-            "first_stage_fanout",
-            "reset_mismatch_between_stages",
-            "synchronizer_cycle",
-        }
-        if any(issue in fatal for issue in issues):
-            status = "ERROR"
-        elif issues:
-            status = "WARN"
-        else:
-            status = "SAFE"
-        return SynchronizerFinding(
-            crossing=crossing,
-            status=status,
-            classification="nff_synchronizer",
-            stages=tuple(stages),
-            issues=tuple(dict.fromkeys(issues)),
-        )
-
-    @staticmethod
     def _crossing_group_key(crossing: Crossing) -> tuple[str, str, str, str]:
         return (
             crossing.source.name,
             crossing.destination.name,
             crossing.source.clock_domain or "",
             crossing.destination.clock_domain or "",
-        )
-
-    @staticmethod
-    def classify_synchronizers(
-        ir: DesignIR,
-        analysis: DomainAnalysis,
-    ) -> tuple[SynchronizerFinding, ...]:
-        """Recognize only scalar N-FF synchronizers and check chain integrity."""
-    
-        widths: dict[tuple[str, str, str, str], int] = {}
-        for crossing in analysis.clock_crossings:
-            key = CdcFlow._crossing_group_key(crossing)
-            widths[key] = widths.get(key, 0) + 1
-    
-        findings = []
-        for crossing in analysis.clock_crossings:
-            if widths[CdcFlow._crossing_group_key(crossing)] != 1:
-                continue
-            finding = CdcFlow._classify_synchronizer_crossing(ir, analysis, crossing)
-            if finding is not None:
-                findings.append(finding)
-        return tuple(
-            sorted(
-                findings,
-                key=lambda item: (
-                    CdcFlow._endpoint_key(item.crossing.source),
-                    CdcFlow._endpoint_key(item.crossing.destination),
-                ),
-            )
         )
 
     @staticmethod
@@ -1043,7 +1179,7 @@ class CdcFlow:
     @staticmethod
     def _control_source_endpoints(ir: DesignIR, seq: SequentialElement) -> tuple[Endpoint, ...]:
         """Return sequential endpoints driving a destination register enable."""
-    
+
         cell = ir.module.get("cells", {}).get(seq.name, {})
         enable_bits = tuple(cell.get("connections", {}).get("EN", ()))
         if not enable_bits:
@@ -1101,170 +1237,136 @@ class CdcFlow:
                 return finding
         return None
 
-    @staticmethod
-    def _setup_and_glitch_findings(ir: DesignIR, analysis: DomainAnalysis) -> tuple[tuple[DomainFinding, ...], tuple[DomainFinding, ...]]:
-        setup: list[DomainFinding] = []
-        glitch: list[DomainFinding] = []
-        declared_clocks = {domain.signal for domain in ir.clocks}
-        declared_resets = {domain.reset for domain in ir.clocks}
-        clock_bits = set(CdcFlow._domain_bit_map(ir.module, ClockConfig(ir.clocks)))
-        reset_bits = CdcFlow._declared_port_bits(ir, declared_resets)
-        domain_by_name = {domain.name: domain for domain in ir.clocks}
-    
-        for seq in ir.sequential:
-            if seq.clock_domain is None:
-                setup.append(DomainFinding(
-                    "setup", "ERROR", "unassigned_clock_domain",
-                    issues=(f"sequential={seq.name}",),
-                    evidence=(seq.source or "-",),
-                ))
-            elif seq.reset_signal:
-                domain = domain_by_name[seq.clock_domain]
-                if seq.reset_signal == domain.reset and seq.reset_polarity not in {None, domain.reset_polarity}:
-                    setup.append(DomainFinding(
-                        "setup", "ERROR", "reset_polarity_mismatch",
-                        issues=(f"declared={domain.reset_polarity}", f"observed={seq.reset_polarity}"),
-                        evidence=(seq.name,),
-                    ))
-    
-            if seq.clock_bit not in clock_bits:
-                for endpoint, path in CdcFlow._input_paths(ir, seq.clock_bit):
-                    if endpoint.name in declared_clocks and path:
-                        glitch.append(DomainFinding(
-                            "glitch", "ERROR", "combinational_clock_path",
-                            issues=("potentially_glitching_clock_logic",),
-                            evidence=(f"clock={endpoint.name}", f"sequential={seq.name}", f"path={'/'.join(path)}"),
-                        ))
-                        break
-    
-            reset_bit = seq.async_reset_bit if seq.async_reset_bit is not None else seq.sync_reset_bit
-            if reset_bit is not None and reset_bit not in reset_bits:
-                for endpoint, path in CdcFlow._input_paths(ir, reset_bit):
-                    if endpoint.name in declared_resets and path:
-                        glitch.append(DomainFinding(
-                            "glitch", "ERROR", "combinational_reset_path",
-                            issues=("potentially_glitching_reset_logic",),
-                            evidence=(f"reset={endpoint.name}", f"sequential={seq.name}", f"path={'/'.join(path)}"),
-                        ))
-                        break
-    
-        unknown_pairs = sorted({
-            (item.source.clock_domain or "?", item.destination.clock_domain or "?")
-            for item in analysis.clock_crossings if item.relationship == "unknown"
-        })
-        for source, destination in unknown_pairs:
-            setup.append(DomainFinding(
-                "setup", "WARN", "undeclared_clock_relationship",
-                issues=(f"{source}->{destination}",),
-            ))
-    
-        reset_families = CdcFlow._reset_family_map(ir, analysis.dependencies)
-        families_by_clock: dict[str, set[str]] = {}
-        leaves_by_clock_family: dict[tuple[str, str], set[str]] = {}
-        for seq in ir.sequential:
-            if not seq.clock_domain or not seq.reset_signal:
-                continue
-            family = reset_families.get(seq.name, seq.reset_signal)
-            families_by_clock.setdefault(seq.clock_domain, set()).add(family)
-            leaves_by_clock_family.setdefault((seq.clock_domain, family), set()).add(seq.reset_signal)
-        for clock, families in sorted(families_by_clock.items()):
-            if len(families) > 1:
-                setup.append(DomainFinding(
-                    "setup", "INFO", "multiple_reset_domains_on_clock",
-                    issues=(f"clock_domain={clock}",),
-                    evidence=tuple(sorted(families)),
-                ))
-            for family in sorted(families):
-                leaves = leaves_by_clock_family.get((clock, family), set())
-                if len(leaves) > 1:
-                    setup.append(DomainFinding(
-                        "setup", "INFO", "distributed_reset_family",
-                        issues=(f"clock_domain={clock}", f"reset_family={family}"),
-                        evidence=tuple(sorted(leaves)),
-                        primary=False,
-                    ))
-        return tuple(setup), tuple(glitch)
+    # CDC checks.
 
     @staticmethod
-    def _reset_synchronizer_findings(ir: DesignIR, analysis: DomainAnalysis) -> tuple[DomainFinding, ...]:
-        """Recognize async-assert/synchronous-release reset synchronizer chains."""
-    
-        findings: list[DomainFinding] = []
-        seq_by_name = {seq.name: seq for seq in ir.sequential}
-        for first in ir.sequential:
-            if first.async_reset_bit is None or len(first.data_bits) != 1 or len(first.q_bits) != 1:
-                continue
-            deasserted = "1" if first.reset_polarity == "low" else "0"
-            if first.data_bits[0] != deasserted:
-                continue
-            first_ep = Endpoint("seq", first.name, 0, first.clock_domain, first.reset_signal)
-            direct = tuple(
-                dep for dep in CdcFlow._same_domain_successors(first_ep, analysis.dependencies)
-                if not dep.path
-            )
-            if len(direct) != 1:
-                continue
-            stages = [first_ep]
-            current = direct[0].destination
-            current_seq = seq_by_name.get(current.name)
-            if current_seq is None or current_seq.async_reset_bit != first.async_reset_bit:
-                continue
-            stages.append(current)
-            while True:
-                dep = tuple(
-                    item for item in CdcFlow._same_domain_successors(current, analysis.dependencies)
-                    if not item.path
-                )
-                if len(dep) != 1:
-                    break
-                nxt = dep[0].destination
-                nxt_seq = seq_by_name.get(nxt.name)
-                if nxt_seq is None or nxt_seq.async_reset_bit != first.async_reset_bit:
-                    break
-                stages.append(nxt)
-                current = nxt
-            final_seq = seq_by_name[current.name]
-            final_q = CdcFlow._seq_q_bit(final_seq, current.bit_index)
-            if final_q is None:
-                continue
-            reset_users = []
-            for name, cell in ir.module.get("cells", {}).items():
-                for port in ("ARST", "SRST"):
-                    if final_q in cell.get("connections", {}).get(port, ()):
-                        reset_users.append(name)
-            if not reset_users:
-                continue
-            findings.append(DomainFinding(
-                "rdc", "SAFE", "reset_synchronizer",
-                issues=(),
-                evidence=(
-                    f"clock_domain={first.clock_domain}",
-                    f"reset={first.reset_signal}",
-                    f"stages={len(stages)}",
-                    f"consumers={len(reset_users)}",
-                ),
-                primary=False,
-            ))
-        return tuple(findings)
-
-    @staticmethod
-    def _classify_primary_cdc(
+    def _classify_synchronizer_crossing(
         ir: DesignIR,
-        analysis: DomainAnalysis,
+        analysis: CrossingAnalysis,
+        crossing: Crossing,
+    ) -> SynchronizerFinding | None:
+        """Classify one bit crossing when it structurally resembles an N-FF chain."""
+
+        if crossing.relationship not in {"async", "unknown"}:
+            return None
+        seq_by_name = {item.name: item for item in ir.sequential}
+        first = crossing.destination
+        first_seq = seq_by_name.get(first.name)
+        if first_seq is None:
+            return None
+
+        successors = CdcFlow._same_domain_successors(first, analysis.dependencies)
+        if not successors:
+            return None
+
+        direct = tuple(item for item in successors if not item.path)
+        if not direct:
+            candidate = min(
+                successors,
+                key=lambda item: (len(item.path), item.path, CdcFlow._endpoint_key(item.destination)),
+            )
+            return SynchronizerFinding(
+                crossing=crossing,
+                status="ERROR",
+                classification="nff_synchronizer",
+                stages=(first, candidate.destination),
+                issues=("combinational_between_stages",),
+            )
+
+        next_dep = min(direct, key=lambda item: CdcFlow._endpoint_key(item.destination))
+        issues: list[str] = []
+        if crossing.path:
+            issues.append("combinational_before_first_stage")
+        if crossing.relationship == "unknown":
+            issues.append("undeclared_clock_relationship")
+
+        q_bit = CdcFlow._seq_q_bit(first_seq, first.bit_index)
+        next_seq = seq_by_name.get(next_dep.destination.name)
+        if q_bit is None or next_seq is None:
+            return None
+        data_port = _SEQ_PORTS.get(next_seq.cell_type, ("", "D", None, None))[1]
+        allowed = ("cell", next_seq.name, data_port)
+        extra_uses = tuple(use for use in CdcFlow._bit_consumers(ir, q_bit) if use != allowed)
+        if len(direct) != 1 or extra_uses:
+            issues.append("first_stage_fanout")
+        if (
+            first_seq.reset_signal != next_seq.reset_signal
+            or first_seq.reset_polarity != next_seq.reset_polarity
+        ):
+            issues.append("reset_mismatch_between_stages")
+
+        # Two clean destination stages identify a structural synchronizer.
+        # Do not absorb downstream functional registers into that chain.
+        stages = [first, next_dep.destination]
+
+        fatal = {
+            "combinational_before_first_stage",
+            "combinational_between_stages",
+            "first_stage_fanout",
+            "reset_mismatch_between_stages",
+            "synchronizer_cycle",
+        }
+        if any(issue in fatal for issue in issues):
+            status = "ERROR"
+        elif issues:
+            status = "WARN"
+        else:
+            status = "SAFE"
+        return SynchronizerFinding(
+            crossing=crossing,
+            status=status,
+            classification="nff_synchronizer",
+            stages=tuple(stages),
+            issues=tuple(dict.fromkeys(issues)),
+        )
+
+    @staticmethod
+    def classify_synchronizers(
+        ir: DesignIR,
+        analysis: CrossingAnalysis,
+    ) -> tuple[SynchronizerFinding, ...]:
+        """Recognize only scalar N-FF synchronizers and check chain integrity."""
+
+        widths: dict[tuple[str, str, str, str], int] = {}
+        for crossing in analysis.clock_crossings:
+            key = CdcFlow._crossing_group_key(crossing)
+            widths[key] = widths.get(key, 0) + 1
+
+        findings = []
+        for crossing in analysis.clock_crossings:
+            if widths[CdcFlow._crossing_group_key(crossing)] != 1:
+                continue
+            finding = CdcFlow._classify_synchronizer_crossing(ir, analysis, crossing)
+            if finding is not None:
+                findings.append(finding)
+        return tuple(
+            sorted(
+                findings,
+                key=lambda item: (
+                    CdcFlow._endpoint_key(item.crossing.source),
+                    CdcFlow._endpoint_key(item.crossing.destination),
+                ),
+            )
+        )
+
+    @staticmethod
+    def _check_cdc_crossings(
+        ir: DesignIR,
+        analysis: CrossingAnalysis,
     ) -> tuple[
         list[DomainFinding],
         list[DomainFinding],
         dict[tuple[Endpoint, Endpoint], SynchronizerFinding | None],
     ]:
         """Classify scalar and multibit clock-domain crossings."""
-    
+
         seq_by_name = {item.name: item for item in ir.sequential}
         groups = CdcFlow._crossing_groups(analysis.clock_crossings)
         all_sync_candidates = {
             (crossing.source, crossing.destination): CdcFlow._classify_synchronizer_crossing(ir, analysis, crossing)
             for crossing in analysis.clock_crossings
         }
-    
+
         single_syncs = [
             finding for group in groups if len(group) == 1
             for finding in [all_sync_candidates[(group[0].source, group[0].destination)]]
@@ -1275,7 +1377,7 @@ class CdcFlow:
             for finding in single_syncs
             if finding.status in {"SAFE", "WARN"}
         }
-    
+
         cdc: list[DomainFinding] = []
         multibit_findings: list[DomainFinding] = []
         for group in groups:
@@ -1300,7 +1402,7 @@ class CdcFlow:
                     tuple(f"stage={stage.name}[{stage.bit_index}]" for stage in sync.stages),
                 ))
                 continue
-    
+
             dest = seq_by_name.get(group[0].destination.name)
             controls = CdcFlow._control_source_endpoints(ir, dest) if dest is not None else ()
             qualified = tuple(
@@ -1323,7 +1425,7 @@ class CdcFlow:
                 cdc.append(finding)
                 multibit_findings.append(finding)
                 continue
-    
+
             bit_syncs = [all_sync_candidates[(item.source, item.destination)] for item in group]
             if all(item is not None for item in bit_syncs):
                 typed = [item for item in bit_syncs if item is not None]
@@ -1342,7 +1444,7 @@ class CdcFlow:
                 cdc.append(finding)
                 multibit_findings.append(finding)
                 continue
-    
+
             finding = DomainFinding(
                 "cdc", "ERROR", "unsynchronized_multibit", group,
                 issues=("no_recognized_coherency_mechanism",),
@@ -1350,16 +1452,16 @@ class CdcFlow:
             )
             cdc.append(finding)
             multibit_findings.append(finding)
-    
+
         return cdc, multibit_findings, all_sync_candidates
 
     @staticmethod
     def _check_async_fifo_candidates(
-        cdc: list[DomainFinding],
         multibit_findings: Sequence[DomainFinding],
-    ) -> None:
-        """Append paired Gray-style bus candidates for asynchronous FIFOs."""
-    
+    ) -> tuple[DomainFinding, ...]:
+        """Return paired Gray-style bus candidates for asynchronous FIFOs."""
+
+        findings: list[DomainFinding] = []
         for index, left in enumerate(multibit_findings):
             if left.classification != "multibit_nff_bus":
                 continue
@@ -1372,7 +1474,7 @@ class CdcFlow:
                     a.source.clock_domain == b.destination.clock_domain
                     and a.destination.clock_domain == b.source.clock_domain
                 ):
-                    cdc.append(DomainFinding(
+                    findings.append(DomainFinding(
                         "cdc", "REVIEW", "async_fifo_candidate",
                         left.crossings + right.crossings,
                         obligations=(
@@ -1387,6 +1489,7 @@ class CdcFlow:
                         ),
                         primary=False,
                     ))
+        return tuple(findings)
 
     @staticmethod
     def _clean_scalar_synchronizers(
@@ -1394,7 +1497,7 @@ class CdcFlow:
         all_sync_candidates: Mapping[tuple[Endpoint, Endpoint], SynchronizerFinding | None],
     ) -> list[tuple[DomainFinding, SynchronizerFinding]]:
         """Return primary scalar synchronizers safe enough for protocol checks."""
-    
+
         return [
             (finding, sync)
             for finding in cdc
@@ -1407,12 +1510,12 @@ class CdcFlow:
 
     @staticmethod
     def _check_closed_loop_handshakes(
-        cdc: list[DomainFinding],
-        analysis: DomainAnalysis,
+        analysis: CrossingAnalysis,
         clean_scalar: Sequence[tuple[DomainFinding, SynchronizerFinding]],
-    ) -> None:
-        """Append causally connected request/acknowledge handshake candidates."""
-    
+    ) -> tuple[DomainFinding, ...]:
+        """Return causally connected request/acknowledge handshake candidates."""
+
+        findings: list[DomainFinding] = []
         dep_pairs = {(dep.source, dep.destination) for dep in analysis.dependencies}
         for index, (left, left_sync) in enumerate(clean_scalar):
             a = left.crossings[0]
@@ -1427,22 +1530,23 @@ class CdcFlow:
                     (left_sync.stages[-1], b.source) in dep_pairs
                     and (right_sync.stages[-1], a.source) in dep_pairs
                 ):
-                    cdc.append(DomainFinding(
+                    findings.append(DomainFinding(
                         "cdc", "REVIEW", "closed_loop_handshake",
                         (a, b),
                         obligations=("prove_request_ack_protocol_and_liveness",),
                         evidence=(f"domains={a.source.clock_domain}<->{a.destination.clock_domain}",),
                         primary=False,
                     ))
+        return tuple(findings)
 
     @staticmethod
     def _check_synchronized_reconvergence(
-        cdc: list[DomainFinding],
-        analysis: DomainAnalysis,
+        analysis: CrossingAnalysis,
         clean_scalar: Sequence[tuple[DomainFinding, SynchronizerFinding]],
-    ) -> None:
-        """Append coherency hazards after independent scalar synchronizers reconverge."""
-    
+    ) -> tuple[DomainFinding, ...]:
+        """Return coherency hazards after independent scalar synchronizers reconverge."""
+
+        findings: list[DomainFinding] = []
         reconv: dict[tuple[Endpoint, str | None], list[tuple[DomainFinding, SynchronizerFinding]]] = {}
         for finding, sync in clean_scalar:
             origin = finding.crossings[0].source.clock_domain
@@ -1454,7 +1558,7 @@ class CdcFlow:
             unique = {(item[0].crossings[0].source.name, item[0].crossings[0].source.bit_index) for item in items}
             if len(unique) < 2:
                 continue
-            cdc.append(DomainFinding(
+            findings.append(DomainFinding(
                 "cdc", "WARN", "synchronized_reconvergence",
                 tuple(item[0].crossings[0] for item in items),
                 issues=("independently_synchronized_signals_reconverge",),
@@ -1462,101 +1566,12 @@ class CdcFlow:
                 evidence=(f"destination={destination.name}[{destination.bit_index}]", f"source_domain={origin}"),
                 primary=False,
             ))
+        return tuple(findings)
 
     @staticmethod
-    def _classify_reset_domain_crossings(
-        analysis: DomainAnalysis,
-        cdc: Sequence[DomainFinding],
-    ) -> list[DomainFinding]:
-        """Classify reset-domain crossings against recognized CDC protection."""
-    
-        rdc: list[DomainFinding] = []
-        for group in CdcFlow._crossing_groups(analysis.reset_crossings):
-            crossing = group[0]
-            cdc_finding = CdcFlow._finding_for_crossing(cdc, crossing)
-            if cdc_finding and cdc_finding.classification == "nff_synchronizer" and cdc_finding.status in {"SAFE", "WARN"}:
-                rdc.append(DomainFinding(
-                    "rdc", "SAFE", "rdc_via_data_synchronizer", group,
-                ))
-            elif cdc_finding and cdc_finding.classification == "qualified_multibit":
-                rdc.append(DomainFinding(
-                    "rdc", "REVIEW", "rdc_control_candidate", group,
-                    obligations=("prove_control_blocks_source_reset_effect",),
-                    evidence=(f"width={len(group)}",),
-                ))
-            elif cdc_finding and cdc_finding.classification == "multibit_nff_bus":
-                rdc.append(DomainFinding(
-                    "rdc", "REVIEW", "rdc_via_multibit_protocol", group,
-                    obligations=("prove_protocol_safe_across_reset_events",),
-                    evidence=(f"width={len(group)}",),
-                ))
-            else:
-                rdc.append(DomainFinding(
-                    "rdc", "ERROR", "uncontrolled_rdc", group,
-                    issues=("different_reset_domains_without_recognized_protection",),
-                    evidence=(f"width={len(group)}",),
-                ))
-        return rdc
-
-    @staticmethod
-    def _check_async_reset_release(
-        rdc: list[DomainFinding],
-        ir: DesignIR,
-        analysis: DomainAnalysis,
-        reset_sync: Sequence[DomainFinding],
-    ) -> None:
-        """Append review obligations for direct asynchronous reset release."""
-    
-        declared_reset_bits = {
-            domain.name: CdcFlow._declared_port_bits(ir, {domain.reset}) for domain in ir.clocks
-        }
-        protected_domains = {
-            item.split("=", 1)[1]
-            for finding in reset_sync
-            for item in finding.evidence
-            if item.startswith("clock_domain=")
-        }
-        for domain in ir.clocks:
-            direct_async = any(
-                seq.clock_domain == domain.name
-                and seq.async_reset_bit in declared_reset_bits[domain.name]
-                for seq in ir.sequential
-            )
-            if direct_async and domain.name not in protected_domains:
-                rdc.append(DomainFinding(
-                    "rdc", "REVIEW", "async_reset_release", (),
-                    obligations=("prove_synchronous_reset_deassertion_or_safe_reset_sequence",),
-                    evidence=(f"clock_domain={domain.name}", f"reset={domain.reset}"),
-                    primary=False,
-                ))
-
-    @staticmethod
-    def _check_reset_sequence(
-        rdc: list[DomainFinding],
-        ir: DesignIR,
-        analysis: DomainAnalysis,
-    ) -> None:
-        """Request reset sequencing only when an interacting RDC is not already SAFE."""
-    
-        unsafe = any(
-            finding.primary and finding.crossings and finding.status in {"ERROR", "WARN", "REVIEW"}
-            for finding in rdc
-        )
-        if (
-            unsafe
-            and len(set(CdcFlow._reset_family_map(ir, analysis.dependencies).values())) > 1
-            and analysis.reset_crossings
-        ):
-            rdc.append(DomainFinding(
-                "rdc", "REVIEW", "reset_sequence_or_control_required", (),
-                obligations=("specify_reset_assertion_sequence_or_rdc_blocking_control",),
-                primary=False,
-            ))
-
-    @staticmethod
-    def _cdc_contract_findings(ir: DesignIR) -> tuple[list[DomainFinding], list[DomainFinding]]:
+    def _check_cdc_contracts(ir: DesignIR) -> tuple[list[DomainFinding], list[DomainFinding]]:
         """Validate explicit trusted CDC boundaries without naming implementation modules."""
-    
+
         cdc: list[DomainFinding] = []
         setup: list[DomainFinding] = []
         clocks = ClockConfig(ir.clocks)
@@ -1632,110 +1647,282 @@ class CdcFlow:
             ))
         return cdc, setup
 
-    @staticmethod
-    def classify_cdc_rdc(ir: DesignIR, analysis: DomainAnalysis) -> ComprehensiveAnalysis:
-        """Run the ordered structural CDC/RDC qualification checks."""
-    
-        # CDC_CHECK_ORDER[0]: scalar and multibit crossing classification.
-        cdc, multibit_findings, all_sync_candidates = CdcFlow._classify_primary_cdc(ir, analysis)
-    
-        # CDC_CHECK_ORDER[1]: paired bitwise synchronizers that resemble async FIFOs.
-        CdcFlow._check_async_fifo_candidates(cdc, multibit_findings)
-    
-        clean_scalar = CdcFlow._clean_scalar_synchronizers(cdc, all_sync_candidates)
-    
-        # CDC_CHECK_ORDER[2]: causal request/acknowledge loops.
-        CdcFlow._check_closed_loop_handshakes(cdc, analysis, clean_scalar)
-    
-        # CDC_CHECK_ORDER[3]: independently synchronized controls/data that reconverge.
-        CdcFlow._check_synchronized_reconvergence(cdc, analysis, clean_scalar)
-    
-        contract_cdc, contract_setup = CdcFlow._cdc_contract_findings(ir)
-        cdc.extend(contract_cdc)
-    
-        # SETUP_GLITCH_CHECK_ORDER: environment/domain setup and combinational hazards.
-        setup, glitch = CdcFlow._setup_and_glitch_findings(ir, analysis)
-        setup = (*setup, *contract_setup)
-    
-        # RDC_CHECK_ORDER[0]: reset-domain crossings and their recognized protection.
-        rdc = CdcFlow._classify_reset_domain_crossings(analysis, cdc)
-    
-        # RDC_CHECK_ORDER[1]: async-assert/synchronous-release reset synchronizers.
-        reset_sync = CdcFlow._reset_synchronizer_findings(ir, analysis)
-        rdc.extend(reset_sync)
-    
-        # RDC_CHECK_ORDER[2]: direct asynchronous reset release obligations.
-        CdcFlow._check_async_reset_release(rdc, ir, analysis, reset_sync)
-    
-        # RDC_CHECK_ORDER[3]: sequencing/control obligations across interacting resets.
-        CdcFlow._check_reset_sequence(rdc, ir, analysis)
-    
-        return ComprehensiveAnalysis(tuple(cdc), tuple(rdc), setup, glitch)
+    # RDC checks.
 
     @staticmethod
-    def _read_slang_command(top: str, filelists: Sequence[Path], repo_root: Path) -> str:
-        """Render the canonical pre-technology Slang/Yosys frontend."""
-    
-        include_dirs = (
-            repo_root / "hw" / "ips" / "pkgs",
-            repo_root / "hw" / "ips" / "prim",
-            repo_root / "hw" / "ips" / "prim_opentitan",
-            repo_root / "hw" / "ips" / "tlul",
+    def _check_reset_crossings(
+        analysis: CrossingAnalysis,
+        cdc: Sequence[DomainFinding],
+    ) -> list[DomainFinding]:
+        """Classify reset-domain crossings against recognized CDC protection."""
+
+        rdc: list[DomainFinding] = []
+        for group in CdcFlow._crossing_groups(analysis.reset_crossings):
+            crossing = group[0]
+            cdc_finding = CdcFlow._finding_for_crossing(cdc, crossing)
+            if cdc_finding and cdc_finding.classification == "nff_synchronizer" and cdc_finding.status in {"SAFE", "WARN"}:
+                rdc.append(DomainFinding(
+                    "rdc", "SAFE", "rdc_via_data_synchronizer", group,
+                ))
+            elif cdc_finding and cdc_finding.classification == "qualified_multibit":
+                rdc.append(DomainFinding(
+                    "rdc", "REVIEW", "rdc_control_candidate", group,
+                    obligations=("prove_control_blocks_source_reset_effect",),
+                    evidence=(f"width={len(group)}",),
+                ))
+            elif cdc_finding and cdc_finding.classification == "multibit_nff_bus":
+                rdc.append(DomainFinding(
+                    "rdc", "REVIEW", "rdc_via_multibit_protocol", group,
+                    obligations=("prove_protocol_safe_across_reset_events",),
+                    evidence=(f"width={len(group)}",),
+                ))
+            else:
+                rdc.append(DomainFinding(
+                    "rdc", "ERROR", "uncontrolled_rdc", group,
+                    issues=("different_reset_domains_without_recognized_protection",),
+                    evidence=(f"width={len(group)}",),
+                ))
+        return rdc
+
+    @staticmethod
+    def _check_reset_synchronizers(ir: DesignIR, analysis: CrossingAnalysis) -> tuple[DomainFinding, ...]:
+        """Recognize async-assert/synchronous-release reset synchronizer chains."""
+
+        findings: list[DomainFinding] = []
+        seq_by_name = {seq.name: seq for seq in ir.sequential}
+        for first in ir.sequential:
+            if first.async_reset_bit is None or len(first.data_bits) != 1 or len(first.q_bits) != 1:
+                continue
+            deasserted = "1" if first.reset_polarity == "low" else "0"
+            if first.data_bits[0] != deasserted:
+                continue
+            first_ep = Endpoint("seq", first.name, 0, first.clock_domain, first.reset_signal)
+            direct = tuple(
+                dep for dep in CdcFlow._same_domain_successors(first_ep, analysis.dependencies)
+                if not dep.path
+            )
+            if len(direct) != 1:
+                continue
+            stages = [first_ep]
+            current = direct[0].destination
+            current_seq = seq_by_name.get(current.name)
+            if current_seq is None or current_seq.async_reset_bit != first.async_reset_bit:
+                continue
+            stages.append(current)
+            while True:
+                dep = tuple(
+                    item for item in CdcFlow._same_domain_successors(current, analysis.dependencies)
+                    if not item.path
+                )
+                if len(dep) != 1:
+                    break
+                nxt = dep[0].destination
+                nxt_seq = seq_by_name.get(nxt.name)
+                if nxt_seq is None or nxt_seq.async_reset_bit != first.async_reset_bit:
+                    break
+                stages.append(nxt)
+                current = nxt
+            final_seq = seq_by_name[current.name]
+            final_q = CdcFlow._seq_q_bit(final_seq, current.bit_index)
+            if final_q is None:
+                continue
+            reset_users = []
+            for name, cell in ir.module.get("cells", {}).items():
+                for port in ("ARST", "SRST"):
+                    if final_q in cell.get("connections", {}).get(port, ()):
+                        reset_users.append(name)
+            if not reset_users:
+                continue
+            findings.append(DomainFinding(
+                "rdc", "SAFE", "reset_synchronizer",
+                issues=(),
+                evidence=(
+                    f"clock_domain={first.clock_domain}",
+                    f"reset={first.reset_signal}",
+                    f"stages={len(stages)}",
+                    f"consumers={len(reset_users)}",
+                ),
+                primary=False,
+            ))
+        return tuple(findings)
+
+    @staticmethod
+    def _check_async_reset_release(
+        ir: DesignIR,
+        reset_sync: Sequence[DomainFinding],
+    ) -> tuple[DomainFinding, ...]:
+        """Return review obligations for direct asynchronous reset release."""
+
+        findings: list[DomainFinding] = []
+        declared_reset_bits = {
+            domain.name: CdcFlow._declared_port_bits(ir, {domain.reset}) for domain in ir.clocks
+        }
+        protected_domains = {
+            item.split("=", 1)[1]
+            for finding in reset_sync
+            for item in finding.evidence
+            if item.startswith("clock_domain=")
+        }
+        for domain in ir.clocks:
+            direct_async = any(
+                seq.clock_domain == domain.name
+                and seq.async_reset_bit in declared_reset_bits[domain.name]
+                for seq in ir.sequential
+            )
+            if direct_async and domain.name not in protected_domains:
+                findings.append(DomainFinding(
+                    "rdc", "REVIEW", "async_reset_release", (),
+                    obligations=("prove_synchronous_reset_deassertion_or_safe_reset_sequence",),
+                    evidence=(f"clock_domain={domain.name}", f"reset={domain.reset}"),
+                    primary=False,
+                ))
+        return tuple(findings)
+
+    @staticmethod
+    def _check_reset_sequence(
+        rdc: Sequence[DomainFinding],
+        ir: DesignIR,
+        analysis: CrossingAnalysis,
+    ) -> tuple[DomainFinding, ...]:
+        """Return a reset-sequencing obligation when interacting RDCs remain unsafe."""
+
+        unsafe = any(
+            finding.primary and finding.crossings and finding.status in {"ERROR", "WARN", "REVIEW"}
+            for finding in rdc
         )
-        options = [
-            *(f"-I {path}" for path in include_dirs),
-            "-D SYNTHESIS",
-            "-D FLEXSOC_CDC_ANALYSIS",
-            # read_slang flattens hierarchy during frontend elaboration by default.
-            # CDC contracts are instance-level intent, so preserve hierarchy until
-            # Yosys can mark only contracted boundaries before the explicit flatten.
-            "--keep-hierarchy",
-            "--ignore-assertions",
-        ]
-        options.extend(f"-f {path}" for path in filelists)
-        options.append(f"--top {top}")
-        return "read_slang " + " ".join(options)
+        if not (
+            unsafe
+            and len(set(CdcFlow._reset_family_map(ir, analysis.dependencies).values())) > 1
+            and analysis.reset_crossings
+        ):
+            return ()
+        return (DomainFinding(
+            "rdc", "REVIEW", "reset_sequence_or_control_required", (),
+            obligations=("specify_reset_assertion_sequence_or_rdc_blocking_control",),
+            primary=False,
+        ),)
+
+    # Clock/reset setup and glitch checks.
 
     @staticmethod
-    def render_extract_script(
-        *,
-        top: str,
-        filelists: Sequence[Path],
-        repo_root: Path,
-        design_json: Path,
-    ) -> str:
-        """Return a flattened, technology-neutral structural extraction script."""
-    
-        lines = [
-            CdcFlow._read_slang_command(top, filelists, repo_root),
-            f"hierarchy -check -top {top}",
-            "proc",
-            "opt",
-            # Contract cells are trusted CDC boundaries. Set keep_hierarchy on the
-            # selected cell objects explicitly; all other hierarchy is flattened.
-            "setattr -set keep_hierarchy 1 a:flexsoc_cdc_contract",
-            "flatten",
-            "opt_clean",
-            f"write_json {design_json}",
-            "",
-        ]
-        return "\n".join(lines)
+    def _check_setup(ir: DesignIR, analysis: CrossingAnalysis) -> tuple[DomainFinding, ...]:
+        """Check domain assignment, clock relationships, reset polarity and reset families."""
+
+        findings: list[DomainFinding] = []
+        domain_by_name = {domain.name: domain for domain in ir.clocks}
+        for seq in ir.sequential:
+            if seq.clock_domain is None:
+                findings.append(DomainFinding(
+                    "setup", "ERROR", "unassigned_clock_domain",
+                    issues=(f"sequential={seq.name}",),
+                    evidence=(seq.source or "-",),
+                ))
+            elif seq.reset_signal:
+                domain = domain_by_name[seq.clock_domain]
+                if (
+                    seq.reset_signal == domain.reset
+                    and seq.reset_polarity not in {None, domain.reset_polarity}
+                ):
+                    findings.append(DomainFinding(
+                        "setup", "ERROR", "reset_polarity_mismatch",
+                        issues=(
+                            f"declared={domain.reset_polarity}",
+                            f"observed={seq.reset_polarity}",
+                        ),
+                        evidence=(seq.name,),
+                    ))
+
+        unknown_pairs = sorted({
+            (item.source.clock_domain or "?", item.destination.clock_domain or "?")
+            for item in analysis.clock_crossings
+            if item.relationship == "unknown"
+        })
+        for source, destination in unknown_pairs:
+            findings.append(DomainFinding(
+                "setup", "WARN", "undeclared_clock_relationship",
+                issues=(f"{source}->{destination}",),
+            ))
+
+        reset_families = CdcFlow._reset_family_map(ir, analysis.dependencies)
+        families_by_clock: dict[str, set[str]] = {}
+        leaves_by_clock_family: dict[tuple[str, str], set[str]] = {}
+        for seq in ir.sequential:
+            if not seq.clock_domain or not seq.reset_signal:
+                continue
+            family = reset_families.get(seq.name, seq.reset_signal)
+            families_by_clock.setdefault(seq.clock_domain, set()).add(family)
+            leaves_by_clock_family.setdefault((seq.clock_domain, family), set()).add(
+                seq.reset_signal
+            )
+        for clock, families in sorted(families_by_clock.items()):
+            if len(families) > 1:
+                findings.append(DomainFinding(
+                    "setup", "INFO", "multiple_reset_domains_on_clock",
+                    issues=(f"clock_domain={clock}",),
+                    evidence=tuple(sorted(families)),
+                ))
+            for family in sorted(families):
+                leaves = leaves_by_clock_family.get((clock, family), set())
+                if len(leaves) > 1:
+                    findings.append(DomainFinding(
+                        "setup", "INFO", "distributed_reset_family",
+                        issues=(f"clock_domain={clock}", f"reset_family={family}"),
+                        evidence=tuple(sorted(leaves)),
+                        primary=False,
+                    ))
+        return tuple(findings)
+
+    @staticmethod
+    def _check_glitches(ir: DesignIR) -> tuple[DomainFinding, ...]:
+        """Check for combinational logic on declared clock and reset paths."""
+
+        findings: list[DomainFinding] = []
+        declared_clocks = {domain.signal for domain in ir.clocks}
+        declared_resets = {domain.reset for domain in ir.clocks}
+        clock_bits = set(CdcFlow._domain_bit_map(ir.module, ClockConfig(ir.clocks)))
+        reset_bits = CdcFlow._declared_port_bits(ir, declared_resets)
+
+        for seq in ir.sequential:
+            if seq.clock_bit not in clock_bits:
+                for endpoint, path in CdcFlow._input_paths(ir, seq.clock_bit):
+                    if endpoint.name in declared_clocks and path:
+                        findings.append(DomainFinding(
+                            "glitch", "ERROR", "combinational_clock_path",
+                            issues=("potentially_glitching_clock_logic",),
+                            evidence=(
+                                f"clock={endpoint.name}",
+                                f"sequential={seq.name}",
+                                f"path={'/'.join(path)}",
+                            ),
+                        ))
+                        break
+
+            reset_bit = (
+                seq.async_reset_bit
+                if seq.async_reset_bit is not None
+                else seq.sync_reset_bit
+            )
+            if reset_bit is not None and reset_bit not in reset_bits:
+                for endpoint, path in CdcFlow._input_paths(ir, reset_bit):
+                    if endpoint.name in declared_resets and path:
+                        findings.append(DomainFinding(
+                            "glitch", "ERROR", "combinational_reset_path",
+                            issues=("potentially_glitching_reset_logic",),
+                            evidence=(
+                                f"reset={endpoint.name}",
+                                f"sequential={seq.name}",
+                                f"path={'/'.join(path)}",
+                            ),
+                        ))
+                        break
+        return tuple(findings)
+
+    # Canonical summary/report generation.
 
     @staticmethod
     def _write_json(path: Path, payload: Mapping[str, Any] | list[Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-    @staticmethod
-    def _clock_values(args: Any) -> ClockConfig:
-        return ClockConfig.from_values(
-            {
-                "N_CLOCKS": args.n_clocks,
-                "CLOCK_DOMAINS": args.clock_domains,
-                "CLOCK_RELATIONSHIPS": args.clock_relationships,
-                "CLK_PERIOD": args.clk_period,
-            }
-        )
 
     @staticmethod
     def _crossing_dict(crossing: Any) -> dict[str, Any]:
@@ -1827,7 +2014,7 @@ class CdcFlow:
         return dict(sorted(Counter(item.classification for item in findings).items()))
 
     @staticmethod
-    def _overall_status(result: ComprehensiveAnalysis) -> str:
+    def _overall_status(result: CdcRdcResults) -> str:
         findings = (*result.cdc, *result.rdc, *result.setup, *result.glitch)
         if any(item.status == "ERROR" for item in findings):
             return "fail"
@@ -1836,7 +2023,7 @@ class CdcFlow:
         return "pass"
 
     @staticmethod
-    def _summary(ir: DesignIR, analysis: DomainAnalysis, result: ComprehensiveAnalysis) -> dict[str, Any]:
+    def _summary(ir: DesignIR, analysis: CrossingAnalysis, result: CdcRdcResults) -> dict[str, Any]:
         reset_names = {item.reset_signal for item in ir.sequential if item.reset_signal}
         reset_family_roots = sorted(set(CdcFlow._reset_family_map(ir, analysis.dependencies).values()))
         cdc_counts = CdcFlow._status_counts(result.cdc)
@@ -1844,7 +2031,6 @@ class CdcFlow:
         setup_counts = CdcFlow._status_counts(result.setup)
         glitch_counts = CdcFlow._status_counts(result.glitch)
         return {
-            "schema": "flexsoc.cdc_rdc_summary.v2",
             "top": ir.top,
             "status": CdcFlow._overall_status(result),
             "clock_domains": len(ir.clocks),
@@ -1853,6 +2039,7 @@ class CdcFlow:
             "reset_family_roots": reset_family_roots,
             "sequential_elements": len(ir.sequential),
             "dependencies": len(analysis.dependencies),
+            "checks": {scope: list(names) for scope, names in CdcFlow.CHECKS.items()},
             "cdc": {
                 "raw_crossings": len(analysis.clock_crossings),
                 **cdc_counts,
@@ -1912,14 +2099,14 @@ class CdcFlow:
     @staticmethod
     def write_reports(
         ir: DesignIR,
-        analysis: DomainAnalysis,
+        analysis: CrossingAnalysis,
         *,
         analysis_dir: Path,
         log_dir: Path,
-        result: ComprehensiveAnalysis | None = None,
+        result: CdcRdcResults | None = None,
     ) -> dict[str, Any]:
         """Write one complete machine analysis and one human-readable report."""
-    
+
         analysis_dir.mkdir(parents=True, exist_ok=True)
         log_dir.mkdir(parents=True, exist_ok=True)
         classified = result if result is not None else CdcFlow.classify_cdc_rdc(ir, analysis)
@@ -1940,7 +2127,7 @@ class CdcFlow:
         ]
         summary = {
             **summary,
-            "schema": "flexsoc.cdc_rdc.v3",
+            "schema": "flexsoc.cdc_rdc.v4",
             "cdc": {
                 **summary["cdc"],
                 "findings": cdc_records,
@@ -1955,7 +2142,7 @@ class CdcFlow:
             "glitch": {**summary["glitch"], "findings": glitch_records},
             "obligations": obligations,
         }
-    
+
         summary_path = analysis_dir / "summary.json"
         report_path = analysis_dir / "cdc_rdc.rpt"
         CdcFlow._write_json(summary_path, summary)
@@ -1982,7 +2169,7 @@ class CdcFlow:
             *(CdcFlow._finding_line(record) for record in glitch_records),
         ]
         report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    
+
         # Clean outputs from the older split-report contract when rerunning an existing workspace.
         for name in (
             "inventory.json", "cdc.json", "rdc.json", "setup.json",
@@ -1992,6 +2179,8 @@ class CdcFlow:
         for name in ("cdc.log", "rdc.log", "cdc_rdc.log"):
             (log_dir / name).unlink(missing_ok=True)
         return summary
+
+    # Read-only debug triage from canonical artifacts.
 
     @staticmethod
     def _load_json(path: Path) -> dict[str, Any]:
@@ -2085,7 +2274,7 @@ class CdcFlow:
         diagnoses: list[dict[str, str]] = []
         setup_classes = scopes["setup"]["classes"]
         glitch_classes = scopes["glitch"]["classes"]
-    
+
         source_total = sum(source_contracts.values())
         design_total = sum(design_contracts.values())
         if source_total and not design_total:
@@ -2109,14 +2298,14 @@ class CdcFlow:
                 "severity": "WARN",
                 "message": "Contracts currently survive, but extraction does not explicitly protect contracted cells before flattening.",
             })
-    
+
         if setup_classes.get("unassigned_clock_domain") or glitch_classes.get("combinational_clock_path"):
             diagnoses.append({
                 "code": "clock_domain_mapping_incomplete",
                 "severity": "ERROR",
                 "message": "Sequential state is clocked through a network that the structural IR has not assigned to a declared domain.",
             })
-    
+
         # Once extraction/domain setup is known broken, detailed CDC/RDC classifications
         # are downstream symptoms. Keep them in JSON, but do not promote each family to
         # another root-cause diagnosis.
@@ -2137,7 +2326,7 @@ class CdcFlow:
                     "severity": "ERROR",
                     "message": "RDC structural errors remain after extraction and reset-domain setup are closed.",
                 })
-    
+
         non_error_review = sum(
             int(scopes[name]["warnings"]) + int(scopes[name]["review"])
             for name in ("setup", "glitch", "cdc", "rdc")
@@ -2167,7 +2356,7 @@ class CdcFlow:
                 "severity": "REVIEW",
                 "message": "No structural ERROR remains, but WARN/REVIEW findings still require design-intent confirmation or evidence.",
             })
-    
+
         obligations = summary.get("obligations", []) or []
         if not any(item["severity"] == "ERROR" for item in diagnoses) and obligations:
             diagnoses.append({
@@ -2175,7 +2364,7 @@ class CdcFlow:
                 "severity": "REVIEW",
                 "message": "Structural classification is not fully closed because verification obligations remain open.",
             })
-    
+
         if str(summary.get("status", "")).lower() == "pass" and not diagnoses:
             diagnoses.append({
                 "code": "closed",
@@ -2251,13 +2440,13 @@ class CdcFlow:
         rtl_dir: Path,
     ) -> dict[str, Any]:
         """Return a compact diagnosis from existing canonical CDC/RDC artifacts only."""
-    
+
         summary = CdcFlow._load_json(summary_path)
         design = CdcFlow._load_json(design_json)
         top = str(summary.get("top") or "")
         if not top:
             raise ValueError(f"CDC/RDC summary has no top: {summary_path}")
-    
+
         source_contracts = CdcFlow._source_contracts(rtl_dir)
         design_contracts = CdcFlow._design_contracts(design, top)
         extract_text = extract_script.read_text(encoding="utf-8", errors="replace") if extract_script.is_file() else ""
@@ -2323,6 +2512,114 @@ class CdcFlow:
             },
         }
 
+    # Debug presentation.
+
+    @staticmethod
+    def _render_debug(console: Console, payload: Mapping[str, Any]) -> None:
+        """Render root-cause diagnostics as compact tables after canonical show evidence."""
+
+        triage = payload.get("triage", {}) if isinstance(payload.get("triage"), Mapping) else {}
+        console.print(
+            f"[bold bright_cyan]Diagnosis[/bold bright_cyan]  "
+            f"[grey70]phase[/grey70] [white]{triage.get('phase', '-')}[/white]  "
+            f"[grey70]state[/grey70] [white]{triage.get('state', '-')}[/white]"
+        )
+        console.print(f"[grey70]next[/grey70] {triage.get('next_action', '-')}")
+
+        contracts = payload.get("contracts", {}) if isinstance(payload.get("contracts"), Mapping) else {}
+        contract_table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+        contract_table.add_column("Contract evidence", style="bright_cyan")
+        contract_table.add_column("State", style="white")
+        for label, value in (
+            ("source", contracts.get("source", {})),
+            ("structural", contracts.get("structural_design", {})),
+            ("frontend hierarchy", "preserved" if contracts.get("frontend_hierarchy_preserved") else "flattened"),
+            ("selective guard", "present" if contracts.get("selective_contract_guard") else "missing"),
+            ("extract guard", contracts.get("extract_guard_state", "missing")),
+        ):
+            if isinstance(value, Mapping):
+                text = ", ".join(f"{name}×{count}" for name, count in value.items()) or "none"
+            else:
+                text = str(value)
+            contract_table.add_row(label, text)
+        console.print(contract_table)
+
+        diagnoses = [item for item in payload.get("diagnoses", ()) if isinstance(item, Mapping)]
+        if diagnoses:
+            table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+            table.add_column("Severity")
+            table.add_column("Code", style="bright_cyan")
+            table.add_column("Meaning", style="white", overflow="fold")
+            for item in diagnoses:
+                table.add_row(
+                    str(item.get("severity", "INFO")),
+                    str(item.get("code", "-")),
+                    str(item.get("message", "")),
+                )
+            console.print(table)
+
+        scopes = payload.get("scopes", {}) if isinstance(payload.get("scopes"), Mapping) else {}
+        deferred = str(triage.get("downstream", "active")) == "deferred"
+        active_scopes = ("setup", "glitch") if deferred else ("setup", "glitch", "cdc", "rdc")
+        samples: list[tuple[str, Mapping[str, Any]]] = []
+        for scope in active_scopes:
+            item = scopes.get(scope, {}) if isinstance(scopes.get(scope), Mapping) else {}
+            samples.extend(
+                (scope, finding)
+                for finding in item.get("samples", ())
+                if isinstance(finding, Mapping)
+            )
+        if samples:
+            table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+            table.add_column("Scope", style="bright_cyan")
+            table.add_column("ID")
+            table.add_column("State")
+            table.add_column("Class", style="white")
+            table.add_column("Evidence", style="grey70", overflow="fold")
+            for scope, finding in samples:
+                evidence = list(finding.get("issues") or ()) + list(finding.get("evidence") or ())
+                table.add_row(
+                    scope.upper(),
+                    str(finding.get("id") or "-"),
+                    str(finding.get("status") or "-"),
+                    str(finding.get("classification") or "-"),
+                    str(evidence[0] if evidence else "-"),
+                )
+            console.print(table)
+        if deferred:
+            console.print(
+                "[orange1]CDC/RDC protocol findings are downstream symptoms until "
+                "extraction/clock setup closes.[/orange1]"
+            )
+
+        obligations = [item for item in payload.get("obligations", ()) if isinstance(item, Mapping)]
+        if obligations:
+            grouped: Counter[tuple[str, str, tuple[str, ...]]] = Counter(
+                (
+                    str(item.get("scope") or "-"),
+                    str(item.get("classification") or "-"),
+                    tuple(str(value) for value in (item.get("obligations") or ())),
+                )
+                for item in obligations
+            )
+            table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+            table.add_column("Count", justify="right")
+            table.add_column("Scope", style="bright_cyan")
+            table.add_column("Class", style="white")
+            table.add_column("Checks", style="grey70", overflow="fold")
+            for (scope, classification, checks), count in sorted(grouped.items()):
+                table.add_row(str(count), scope, classification, ", ".join(checks) or "-")
+            console.print(table)
+
+        artifacts = payload.get("artifacts", {}) if isinstance(payload.get("artifacts"), Mapping) else {}
+        console.print(
+            "[grey70]Artifacts[/grey70] "
+            f"{artifacts.get('summary', '-')} · {artifacts.get('design_json', '-')} · "
+            f"{artifacts.get('extract_script', '-')}"
+        )
+
+    # Runtime presentation helpers.
+
     @staticmethod
     def _timed(label: str, action: Callable[[], _T], heartbeat: float, detail: str = "") -> tuple[_T, float]:
         started = time.perf_counter()
@@ -2333,223 +2630,43 @@ class CdcFlow:
     @staticmethod
     def _live() -> bool:
         """Return whether the public CLI requested the live transcript."""
-    
+
         return os.environ.get("FLEXSOC_LIVE", "0").strip().lower() in {"1", "true", "yes", "on"}
 
     @staticmethod
     def _detail(live: bool, label: str, text: str) -> None:
         """Render analyzer detail only for ``fx ... --live``."""
-    
+
         if live:
             Terminal.print_label(label, text)
 
-    @staticmethod
-    def run_analysis(
-        args: Any, *, runner=None, inputs: Sequence[Path] = (), on: str = "local"
-    ) -> int:
-        """Run structural CDC/RDC, setup, glitch, and protocol-candidate checks."""
-    
-        live = CdcFlow._live()
-        heartbeat = args.heartbeat if live else 0.0
-        script = Path(args.script).resolve()
-        design_json = Path(args.design_json).resolve()
-        analysis_dir = Path(args.analysis_dir).resolve()
-        log_dir = Path(args.log_dir).resolve()
-        extract_log = log_dir / "extract.log"
-        if not script.is_file():
-            raise FileNotFoundError(f"missing CDC/RDC extraction script: {script}; run `fx cdc_rdc --setup`")
-        log_dir.mkdir(parents=True, exist_ok=True)
-        analysis_dir.mkdir(parents=True, exist_ok=True)
-    
-        CdcFlow._detail(live, "extract", f"top={args.top} · script={script}")
-    
-        def extract():
-            command = (args.yosys, "-ql", str(extract_log), str(script))
-            from flexsoc.backend.core import CommandRequest, ToolRunner
-    
-            active_runner = runner or ToolRunner(project_root=script.parent)
-            driver_log = log_dir / "extract_driver.log"
-            request = CommandRequest(
-                command, script.parent, {}, driver_log,
-                inputs=tuple(dict.fromkeys((script, *(path.resolve() for path in inputs)))),
-                outputs=(design_json, extract_log),
-            )
-            return active_runner.run(request, on=on)
-    
-        proc, extract_dt = CdcFlow._timed("extract", extract, heartbeat, f"log={extract_log}")
-        if proc.returncode:
-            Terminal.print_status_label("extract", "fail", f"rc={proc.returncode} · log={extract_log}")
-            return proc.returncode
-        if not design_json.is_file():
-            raise FileNotFoundError(f"Yosys did not produce structural JSON: {design_json}")
-        CdcFlow._detail(live, "extract", f"done {extract_dt:.3f}s · design={design_json}")
-    
-        data, json_dt = CdcFlow._timed(
-            "json",
-            lambda: json.loads(design_json.read_text(encoding="utf-8")),
-            heartbeat,
-            f"file={design_json}",
-        )
-        module = data.get("modules", {}).get(args.top, {})
-        cells = module.get("cells", {})
-        CdcFlow._detail(
-            live,
-            "design",
-            f"cells={len(cells)} netnames={len(module.get('netnames', {}))} "
-            f"ports={len(module.get('ports', {}))} · json={json_dt:.3f}s",
-        )
-        if live:
-            for cell_type, count in Counter(str(cell.get("type", "")) for cell in cells.values()).most_common(20):
-                Terminal.print_label("debug", f"cell_type={cell_type} count={count}")
-    
-        clocks = CdcFlow._clock_values(args)
-        ir, ir_dt = CdcFlow._timed(
-            "ir",
-            lambda: CdcFlow.load_yosys_json(data, args.top, clocks),
-            heartbeat,
-        )
-        reset_names = {item.reset_signal for item in ir.sequential if item.reset_signal}
-        CdcFlow._detail(
-            live,
-            "domains",
-            f"clocks={len(ir.clocks)} resets={len(reset_names)} sequential={len(ir.sequential)} "
-            f"· ir={ir_dt:.3f}s",
-        )
-        if live:
-            for domain in ir.clocks:
-                count = sum(1 for item in ir.sequential if item.clock_domain == domain.name)
-                Terminal.print_label(
-                    "domain",
-                    f"{domain.name} clock={domain.signal} reset={domain.reset} "
-                    f"period={domain.period_ns:g}ns sequential={count}",
-                )
-    
-        analysis, graph_dt = CdcFlow._timed(
-            "graph",
-            lambda: CdcFlow.analyze_domains(ir, clocks),
-            heartbeat,
-            f"sequential={len(ir.sequential)}",
-        )
-        CdcFlow._detail(live, "graph", f"dependencies={len(analysis.dependencies)} · {graph_dt:.3f}s")
-    
-        result, classify_dt = CdcFlow._timed(
-            "classify",
-            lambda: CdcFlow.classify_cdc_rdc(ir, analysis),
-            heartbeat,
-            f"cdc={len(analysis.clock_crossings)} rdc={len(analysis.reset_crossings)}",
-        )
-        cdc_counts = CdcFlow._status_counts(result.cdc)
-        rdc_counts = CdcFlow._status_counts(result.rdc)
-        setup_counts = CdcFlow._status_counts(result.setup)
-        glitch_counts = CdcFlow._status_counts(result.glitch)
-        cdc_pairs = CdcFlow._pair_counts(analysis.clock_crossings)
-        rdc_pairs = CdcFlow._pair_counts(analysis.reset_crossings, reset=True)
-        CdcFlow._detail(
-            live,
-            "CDC",
-            f"raw={len(analysis.clock_crossings)} safe={cdc_counts['safe']} "
-            f"review={cdc_counts['review']} warn={cdc_counts['warnings']} "
-            f"error={cdc_counts['errors']} · classify={classify_dt:.3f}s",
-        )
-        if live:
-            for name, count in CdcFlow._class_counts(result.cdc).items():
-                Terminal.print_label("CDC", f"check={name} findings={count}")
-            for pair in cdc_pairs:
-                Terminal.print_label(
-                    "CDC",
-                    f"{pair['source']} -> {pair['destination']} "
-                    f"{pair['relationship']} raw={pair['count']}",
-                )
-        CdcFlow._detail(
-            live,
-            "RDC",
-            f"raw={len(analysis.reset_crossings)} safe={rdc_counts['safe']} "
-            f"review={rdc_counts['review']} warn={rdc_counts['warnings']} "
-            f"error={rdc_counts['errors']}",
-        )
-        if live:
-            for name, count in CdcFlow._class_counts(result.rdc).items():
-                Terminal.print_label("RDC", f"check={name} findings={count}")
-            for pair in rdc_pairs:
-                Terminal.print_label("RDC", f"{pair['source']} -> {pair['destination']} raw={pair['count']}")
-        CdcFlow._detail(
-            live,
-            "setup",
-            f"review={setup_counts['review']} warn={setup_counts['warnings']} error={setup_counts['errors']}",
-        )
-        CdcFlow._detail(
-            live,
-            "glitch",
-            f"review={glitch_counts['review']} warn={glitch_counts['warnings']} error={glitch_counts['errors']}",
-        )
-        if live:
-            for scope, findings in (
-                ("CDC", result.cdc),
-                ("RDC", result.rdc),
-                ("SETUP", result.setup),
-                ("GLITCH", result.glitch),
-            ):
-                for index, finding in enumerate(findings, 1):
-                    crossing = finding.crossings[0] if finding.crossings else None
-                    route = ""
-                    if crossing is not None:
-                        route = (
-                            f" {crossing.source.name}[{crossing.source.bit_index}] -> "
-                            f"{crossing.destination.name}[{crossing.destination.bit_index}]"
-                        )
-                    Terminal.print_status_label(
-                        scope,
-                        finding.status,
-                        f"{scope}-{index:04d} {finding.classification}{route} "
-                        f"issues={','.join(finding.issues) or '-'} "
-                        f"obligations={','.join(finding.obligations) or '-'}",
-                    )
-    
-        summary = CdcFlow.write_reports(
-            ir,
-            analysis,
-            analysis_dir=analysis_dir,
-            log_dir=log_dir,
-            result=result,
-        )
-        Terminal.print_status_label(
-            "cdc_rdc",
-            summary["status"],
-            f"clocks={summary['clock_domains']} reset_families={summary.get('reset_families', summary['reset_domains'])} "
-            f"reset_signals={summary['reset_domains']} sequential={summary['sequential_elements']} · "
-            f"CDC raw={summary['cdc']['raw_crossings']} safe={summary['cdc']['safe']} "
-            f"review={summary['cdc']['review']} warn={summary['cdc']['warnings']} "
-            f"error={summary['cdc']['errors']} · "
-            f"RDC raw={summary['rdc']['raw_crossings']} safe={summary['rdc']['safe']} "
-            f"review={summary['rdc']['review']} warn={summary['rdc']['warnings']} "
-            f"error={summary['rdc']['errors']} · "
-            f"obligations={summary['verification_obligations']}",
-        )
-        Terminal.print_label("report", str(analysis_dir / "cdc_rdc.rpt"))
-        Terminal.print_label("summary", str(analysis_dir / "summary.json"))
-        return 2 if args.strict and summary["status"] == "fail" else 0
 
-    @staticmethod
-    def setup_analysis(args: Any) -> int:
-        """Write the deterministic pre-technology Yosys extraction script."""
-    
-        script = Path(args.script).resolve()
-        design_json = Path(args.design_json).resolve()
-        repo_root = Path(args.repo_root).resolve()
-        filelists = tuple(Path(path).resolve() for path in args.filelist)
-        missing = [path for path in filelists if not path.is_file()]
-        if missing:
-            raise FileNotFoundError("missing RTL filelist(s): " + ", ".join(str(path) for path in missing))
-        script.parent.mkdir(parents=True, exist_ok=True)
-        design_json.parent.mkdir(parents=True, exist_ok=True)
-        text = CdcFlow.render_extract_script(
-            top=args.top,
-            filelists=filelists,
-            repo_root=repo_root,
-            design_json=design_json,
-        )
-        script.write_text(text, encoding="utf-8")
-        if CdcFlow._live():
-            Terminal.print_script(script, details={"state": "generated"})
-        return 0
+# Runtime progress support
 
+class _Heartbeat:
+    """Emit lightweight progress while a normally quiet phase is running."""
+
+    def __init__(self, label: str, seconds: float, detail: str = "") -> None:
+        self.label = label
+        self.seconds = max(0.0, seconds)
+        self.detail = detail
+        self.started = time.perf_counter()
+        self.stop = threading.Event()
+        self.thread: threading.Thread | None = None
+
+    def __enter__(self) -> "_Heartbeat":
+        if self.seconds > 0:
+            self.thread = threading.Thread(target=self._loop, daemon=True)
+            self.thread.start()
+        return self
+
+    def _loop(self) -> None:
+        while not self.stop.wait(self.seconds):
+            elapsed = time.perf_counter() - self.started
+            suffix = f" · {self.detail}" if self.detail else ""
+            print(f"[{self.label}] working {elapsed:.1f}s{suffix}", flush=True)
+
+    def __exit__(self, *_: object) -> None:
+        self.stop.set()
+        if self.thread is not None:
+            self.thread.join(timeout=0.2)

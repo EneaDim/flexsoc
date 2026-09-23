@@ -11,6 +11,7 @@ from .func.coverage import CoverageFlow
 from .func.functional import FunctionalFlow
 from .lint.cdc import CdcFlow
 from .lint.lint import Lint
+from .lint.slang_hier import SlangHierarchy
 from .tb.cocotb import CocotbConfig
 from .tb.sv import TestbenchConfig
 from .tb.testbench import Testbench
@@ -28,15 +29,17 @@ class DvFlow:
     cdc: CdcFlow = field(init=False)
     formal: FormalFlow = field(init=False)
     lint: Lint = field(init=False)
+    hierarchy: SlangHierarchy = field(init=False)
 
     def __post_init__(self) -> None:
         self.runner = self.runner or ToolRunner(project_root=self.context.project_root)
         self.tb = Testbench()
         self.functional = FunctionalFlow(self.runner)
         self.coverage = CoverageFlow(self.runner)
-        self.cdc = CdcFlow(self.runner)
+        self.cdc = CdcFlow(self.context, self.runner)
         self.formal = FormalFlow(self.runner)
         self.lint = Lint(self.context, self.runner)
+        self.hierarchy = SlangHierarchy(self.context, self.runner)
 
     def run_target(self, target: Target, *, inputs=(), on: str = "local"):
         """Execute one registered target through the owning DV component."""
@@ -44,24 +47,16 @@ class DvFlow:
         action = target.action or ""
         if action in {"tests_generate", "test_generate", "tests_list"}:
             return self._run_test_target(action, on=on)
-        if action in {"tb_setup", "cocotb_setup", "coverage", "coverage_detail"} or action.startswith("functional_"):
+        if action in {"tb_setup", "cocotb_setup", "coverage"} or action.startswith("functional_"):
             return self._run_functional_target(action, on=on)
         if action == "lint":
             return self.lint.run(on=on)
-        if action == "lint_slang":
-            return self.lint.run_slang(on=on)
-        if action == "lint_verilator":
-            return self.lint.run_verilator(on=on)
+        if action == "slang_hier":
+            return self.hierarchy.run(on=on)
         if action == "cdc_setup":
-            paths = self.context.paths
-            analysis = paths.cdc_rdc
-            return self.cdc.setup(
-                top=paths.top, script=analysis / "extract.ys",
-                design_json=analysis / "design.json", repo_root=self.context.project_root,
-                filelists=(paths.rtl_common, paths.rtl_ip),
-            )
+            return self.cdc.setup()
         if action == "cdc":
-            return self.cdc.run_from_context(self.context, inputs=inputs, on=on)
+            return self.cdc.run(inputs=inputs, on=on)
         if action.startswith("formal"):
             return self.formal.run_target(target, self.context, inputs=inputs, on=on)
         raise ValueError(f"unsupported DV action: {action!r}")
@@ -137,12 +132,12 @@ class DvFlow:
                 rtl_sources=self._rtl_sources(), compiler=values.get("COMPILER", "verilator"),
                 backends=backends, seed=int(values.get("SEED", "1")),
                 reset_settle_cycles=int(values.get("RESET_SETTLE_CYCLES", "8")),
-                log_dir=paths.logs / "dv" / "functional", on=on,
+                log_dir=paths.logs / "dv" / "functional",
+                summary_path=paths.functional / "regression" / "summary.json",
+                run_root=paths.run, on=on,
             )
-        if action in {"coverage", "coverage_detail"}:
-            return self.coverage.run_from_context(
-                self.context, detail=action == "coverage_detail", on=on,
-            )
+        if action == "coverage":
+            return self.coverage.run_from_context(self.context, on=on)
         raise ValueError(f"unsupported functional DV action: {action!r}")
 
     @staticmethod
@@ -183,11 +178,21 @@ class DvFlow:
         )
         return sv, cocotb
 
-    def debug_target(self, target: Target, *, output: str | None = None) -> int:
+    def debug_target(self, target: Target, *, output: str | None = None) -> object:
         """List the concrete functional-DV artifacts produced by one target."""
 
         if target.debug == "lint":
             return self.lint.debug(output=output)
+        if target.debug == "slang_hier":
+            return self.hierarchy.debug(output=output)
+        if target.debug == "cdc_rdc":
+            return self.cdc.debug(output=output)
+        if target.debug == "regression":
+            return self.functional.show_regression(self.context, debug=True, output=output)
+        if target.debug == "coverage":
+            return self.coverage.show(self.context, debug=True, output=output)
+        if target.debug == "formal":
+            return self.formal.show(self.context, debug=True, output=output)
 
         paths = self.context.paths
         roots = (

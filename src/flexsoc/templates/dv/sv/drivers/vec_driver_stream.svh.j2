@@ -13,8 +13,16 @@ task automatic run_inputs(input string path);
   integer code;
   integer step;
   integer cycles;
-<<% if packed %>>  tb_token_t token;
-  tb_token_t reg_name;
+<<% if packed %>>  tb_token_t step_raw;
+  tb_token_t token;
+  tb_token_t arg0;
+  tb_token_t arg1;
+  tb_token_t arg2;
+  tb_token_t spare0;
+  tb_token_t spare1;
+  tb_token_t spare2;
+  tb_token_t spare3;
+  logic [32:0] parsed;
 <<% else %>>  string token;
   string reg_name;
 <<% endif %>>  string reset_selector;
@@ -34,56 +42,101 @@ task automatic run_inputs(input string path);
 <<% if packed %>><<% else %>>    line = "";
 <<% endif %>>    line_buf = '0;
 <<% if packed %>>    code = $fgets(line_buf, fd);
-    code = $sscanf(line_buf, "%d %s", step, token);
+    tb_tokenize9(line_buf, code, step_raw, token, arg0, arg1, arg2, spare0, spare1, spare2, spare3);
+    if (code < 2 || tb_token_comment(step_raw) || tb_token_comment(token)) disable tb_stream_input_line;
+    parsed = tb_parse_u32(step_raw);
+    if (!parsed[32]) disable tb_stream_input_line;
+    step = int'(parsed[31:0]);
 <<% else %>>    void'($fgets(line_buf, fd));
     line = $sformatf("%0s", line_buf);
     if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_stream_input_line;
     code = $sscanf(line, "%d %s", step, token);
-<<% endif %>>    if (code != 2) disable tb_stream_input_line;
+    if (code != 2) disable tb_stream_input_line;
+<<% endif %>>
     if (token == "@wait_output" || token == "wait_output") begin
       wait_output_completion();
     end else if (token == "@write" || token == "write") begin
-<<% if packed %>>      code = $sscanf(line_buf, "%d %s %s %h", step, token, reg_name, value);
-<<% else %>>      code = $sscanf(line, "%d %s %s %h", step, token, reg_name, value);
-<<% endif %>>      if (code == 4) begin
+<<% if packed %>>      if (code >= 4) begin
+        parsed = tb_parse_u32(arg1);
+        if (!parsed[32]) disable tb_stream_input_line;
+        value = parsed[31:0];
         mask = 32'hffff_ffff;
-<<% if packed %>>        if ($sscanf(line_buf, "%d %s %s %h %h", step, token, reg_name, value, mask) != 5)
-<<% else %>>        if ($sscanf(line, "%d %s %s %h %h", step, token, reg_name, value, mask) != 5)
-<<% endif %>>          mask = 32'hffff_ffff;
+        if (code >= 5) begin
+          parsed = tb_parse_u32(arg2);
+          if (parsed[32]) mask = parsed[31:0];
+        end
+        apply_reg_masked(arg0, value, mask);
+        repeat (8) <<: settle_cycle :>>;
+      end
+<<% else %>>      code = $sscanf(line, "%d %s %s %h", step, token, reg_name, value);
+      if (code == 4) begin
+        mask = 32'hffff_ffff;
+        if ($sscanf(line, "%d %s %s %h %h", step, token, reg_name, value, mask) != 5)
+          mask = 32'hffff_ffff;
         apply_reg_masked(reg_name, value, mask);
         repeat (8) <<: settle_cycle :>>;
       end
+<<% endif %>>
     end else if (token == "@read" || token == "read") begin
-<<% if packed %>>      code = $sscanf(line_buf, "%d %s %s %h", step, token, reg_name, value);
-<<% else %>>      code = $sscanf(line, "%d %s %s %h", step, token, reg_name, value);
-<<% endif %>>      if (code == 4) begin
+<<% if packed %>>      if (code >= 4) begin
+        parsed = tb_parse_u32(arg1);
+        if (!parsed[32]) disable tb_stream_input_line;
+        value = parsed[31:0];
         mask = 32'hffff_ffff;
-<<% if packed %>>        if ($sscanf(line_buf, "%d %s %s %h %h", step, token, reg_name, value, mask) != 5)
-<<% else %>>        if ($sscanf(line, "%d %s %s %h %h", step, token, reg_name, value, mask) != 5)
-<<% endif %>>          mask = 32'hffff_ffff;
+        if (code >= 5) begin
+          parsed = tb_parse_u32(arg2);
+          if (parsed[32]) mask = parsed[31:0];
+        end
+        expect_reg(arg0, value, mask);
+      end
+<<% else %>>      code = $sscanf(line, "%d %s %s %h", step, token, reg_name, value);
+      if (code == 4) begin
+        mask = 32'hffff_ffff;
+        if ($sscanf(line, "%d %s %s %h %h", step, token, reg_name, value, mask) != 5)
+          mask = 32'hffff_ffff;
         expect_reg(reg_name, value, mask);
       end
+<<% endif %>>
     end else if (token == "@reset" || token == "reset") begin
       reset_selector = "all";
-<<% if packed %>>      code = $sscanf(line_buf, "%d %s %s %d", step, token, reset_selector, cycles);
-<<% else %>>      code = $sscanf(line, "%d %s %s %d", step, token, reset_selector, cycles);
-<<% endif %>>      if (code == 3) begin
-<<% if packed %>>        code = $sscanf(line_buf, "%d %s %d", step, token, cycles);
-<<% else %>>        code = $sscanf(line, "%d %s %d", step, token, cycles);
-<<% endif %>>        reset_selector = "all";
+<<% if packed %>>      if (code == 3) begin
+        parsed = tb_parse_u32(arg0);
+        if (!parsed[32]) disable tb_stream_input_line;
+        cycles = int'(parsed[31:0]);
+      end else if (code >= 4) begin
+        reset_selector = $sformatf("%0s", arg0);
+        parsed = tb_parse_u32(arg1);
+        if (!parsed[32]) disable tb_stream_input_line;
+        cycles = int'(parsed[31:0]);
       end
-      if (code == 3 || code == 4) reset_dut(reset_selector, cycles);
+<<% else %>>      code = $sscanf(line, "%d %s %s %d", step, token, reset_selector, cycles);
+      if (code == 3) begin
+        code = $sscanf(line, "%d %s %d", step, token, cycles);
+        reset_selector = "all";
+      end
+<<% endif %>>      if (code == 3 || code >= 4) reset_dut(reset_selector, cycles);
       else begin
         $display("[TB][ERROR] @reset format: cycle @reset [domain|reset] cycles");
         errors++;
       end
     end else begin
-<<% if packed %>>      code = $sscanf(line_buf, "%d %s %h", step, token, value);
+<<% if packed %>>      if (code < 3) disable tb_stream_input_line;
+      parsed = tb_parse_u32(arg0);
+      if (!parsed[32]) disable tb_stream_input_line;
+      value = parsed[31:0];
 <<% else %>>      code = $sscanf(line, "%d %s %h", step, token, value);
-<<% endif %>>      if (code != 3) disable tb_stream_input_line;
-<<: drive_cases :>>
+      if (code != 3) disable tb_stream_input_line;
+<<% endif %>><<: drive_cases :>>
     end
   end
   $fclose(fd);
   end
+endtask
+
+task automatic run_vectors(input string input_path, input string output_path);
+  load_expected(output_path);
+  fork
+    run_inputs(input_path);
+    check_outputs();
+  join
 endtask

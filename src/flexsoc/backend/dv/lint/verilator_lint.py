@@ -54,20 +54,17 @@ class VerilatorLint:
         Terminal.print_label("lint", f"tool=verilator · profile={profile}")
         Terminal.print_path_label("diagnostics", sarif)
         Terminal.print_path_label("log", log)
+        command = self._command(profile, sarif)
         result = self.runner.run(
-            CommandRequest(self._command(profile, sarif), self.context.project_root, {}, log),
+            CommandRequest(
+                command, self.context.project_root, {}, log, outputs=(sarif,),
+            ),
             on=on,
         )
 
         diagnostics = self._diagnostics(sarif)
         complete = diagnostics is not None
-        if diagnostics is None:
-            diagnostics = [{
-                "tool": "verilator", "priority": "P0", "severity": "error",
-                "code": "TOOL-EXECUTION",
-                "message": f"verilator exited with status {result.returncode}",
-                "file": "", "line": 0, "column": 0,
-            }]
+        diagnostics = diagnostics or []
         counts = {priority: 0 for priority in ("P0", "P1", "P2", "P3")}
         for item in diagnostics:
             counts[item["priority"]] += 1
@@ -76,8 +73,11 @@ class VerilatorLint:
             "schema": "flexsoc.lint.tool.v1", "top": paths.top, "tool": "verilator",
             "profile": profile, "status": "PASS" if complete else "FAILED",
             "returncode": result.returncode, "counts": counts, "total": len(diagnostics),
-            "diagnostics": diagnostics,
-            "artifacts": {"diagnostics": str(sarif), "log": str(log)},
+            "command": list(command), "diagnostics": diagnostics,
+            "artifacts": {
+                "diagnostics": "dv/lint/verilator/verilator.sarif",
+                "log": "logs/dv/lint/verilator/verilator.log",
+            },
         }
         (analysis / "summary.json").write_text(
             json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
