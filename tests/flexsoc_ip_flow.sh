@@ -238,13 +238,12 @@ flexsoc_ip_flow() {
     fx lint \
         --workdir "$WS" || return 1
 
-    fx slang_hier \
-        --set "SLANG_ROOT=$RUN/rtl" \
-        --set "SLANG_TOP_FILE=$RUN/rtl/$IP.sv" \
-        --set "SLANG_SEARCH_ARGS=" \
+    fx lint \
+        --summary \
         --workdir "$WS" || return 1
 
-    fx slang_ast \
+
+    fx slang_hier \
         --set "SLANG_ROOT=$RUN/rtl" \
         --set "SLANG_TOP_FILE=$RUN/rtl/$IP.sv" \
         --set "SLANG_SEARCH_ARGS=" \
@@ -256,6 +255,10 @@ flexsoc_ip_flow() {
         --workdir "$WS" || return 1
 
     fx cdc_rdc \
+        --workdir "$WS" || return 1
+
+    fx cdc_rdc \
+        --summary \
         --workdir "$WS" || return 1
 
     echo
@@ -311,12 +314,13 @@ flexsoc_ip_flow() {
 
     fx regression \
         --workdir "$WS" || return 1
+    fx regression --summary --workdir "$WS" || return 1
+    fx regression --show --workdir "$WS" || return 1
+    fx regression --debug --workdir "$WS" || return 1
 
     fx coverage \
         --workdir "$WS" || return 1
-
-    fx coverage_detail \
-        --workdir "$WS" || return 1
+    fx coverage --summary --workdir "$WS" || return 1
 
     echo
     echo "=== FORMAL SETUP: PRESERVE AUTHORED COLLATERAL ==="
@@ -337,6 +341,9 @@ flexsoc_ip_flow() {
     fx formal_prove --workdir "$WS" || return 1
     fx formal_csr_cover --workdir "$WS" || return 1
     fx formal_cover --workdir "$WS" || return 1
+    fx formal --summary --workdir "$WS" || return 1
+    fx formal --show --workdir "$WS" || return 1
+    fx formal --debug --workdir "$WS" || return 1
 
     echo
     echo "================================================================"
@@ -389,6 +396,15 @@ flexsoc_ip_flow() {
         fx syn \
             --workdir "$WS" || return 1
 
+        fx syn --summary \
+            --workdir "$WS" || return 1
+
+        fx syn --show \
+            --workdir "$WS" || return 1
+
+        fx syn --debug \
+            --workdir "$WS" || return 1
+
         echo "=== POST-SYN SIGNOFF / $PDK ==="
 
         fx signoff \
@@ -401,9 +417,15 @@ flexsoc_ip_flow() {
 
         fx sta \
             --workdir "$WS" || return 1
+        fx sta --summary --workdir "$WS" || return 1
+        fx sta --show --workdir "$WS" || return 1
+        fx sta --debug --workdir "$WS" || return 1
 
         fx power_estimate \
             --workdir "$WS" || return 1
+        fx power_estimate --summary --workdir "$WS" || return 1
+        fx power_estimate --show --workdir "$WS" || return 1
+        fx power_estimate --debug --workdir "$WS" || return 1
 
         echo
         echo "=== POST-SYN GLS: 3 TESTS x FF/TT/SS = 9 RUNS ==="
@@ -414,6 +436,9 @@ flexsoc_ip_flow() {
             --set TEST_NAMES="$GLS_TESTS" \
             --set SDF_STRICT=1 \
             --workdir "$WS" || return 1
+        fx sim_post_syn_all --summary --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
+        fx sim_post_syn_all --show --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
+        fx sim_post_syn_all --debug --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
 
         echo
         echo "=== POST-SYN POWER / FUSION: SAME 3 x 3 MATRIX ==="
@@ -423,12 +448,18 @@ flexsoc_ip_flow() {
             --set POWER_GLS_BACKENDS="$GLS_BACKEND" \
             --set POWER_TIMING_MODES="$GLS_TIMING_MODES" \
             --workdir "$WS" || return 1
+        fx power_analysis_all --summary --workdir "$WS" || return 1
+        fx power_analysis_all --show --workdir "$WS" || return 1
+        fx power_analysis_all --debug --workdir "$WS" || return 1
 
         fx fusion_analysis_all \
             --set POWER_TEST_NAMES="$GLS_TESTS" \
             --set POWER_GLS_BACKENDS="$GLS_BACKEND" \
             --set POWER_TIMING_MODES="$GLS_TIMING_MODES" \
             --workdir "$WS" || return 1
+        fx fusion_analysis_all --summary --workdir "$WS" || return 1
+        fx fusion_analysis_all --show --workdir "$WS" || return 1
+        fx fusion_analysis_all --debug --workdir "$WS" || return 1
 
         echo
         echo "=== PNR / $PDK ==="
@@ -440,6 +471,9 @@ flexsoc_ip_flow() {
 
         fx pnr \
             --workdir "$WS" || return 1
+        fx pnr --summary --workdir "$WS" || return 1
+        fx pnr --show --workdir "$WS" || return 1
+        fx pnr --debug --workdir "$WS" || return 1
 
         echo
         echo "=== PHYSICAL SIGNOFF / $PDK ==="
@@ -455,6 +489,12 @@ flexsoc_ip_flow() {
             echo "[REVIEW] physical signoff != STA PASS"
         fi
 
+        if [ -f "$RUN/signoff/$PDK/post_impl/physical/summary.json" ]; then
+            fx physical_signoff --summary --workdir "$WS" || return 1
+            fx physical_signoff --show --workdir "$WS" || return 1
+            fx physical_signoff --debug --workdir "$WS" || return 1
+        fi
+
         echo
         echo "=== POST-IMPLEMENTATION SIGNOFF / $PDK ==="
 
@@ -468,6 +508,9 @@ flexsoc_ip_flow() {
 
         fx sta_post_impl \
             --workdir "$WS" || return 1
+        fx sta_post_impl --summary --workdir "$WS" || return 1
+        fx sta_post_impl --show --workdir "$WS" || return 1
+        fx sta_post_impl --debug --workdir "$WS" || return 1
 
         echo
         echo "=== POST-IMPLEMENTATION GLS: 3 TESTS x FF/TT/SS = 9 RUNS ==="
@@ -478,9 +521,15 @@ flexsoc_ip_flow() {
             --set TEST_NAMES="$GLS_TESTS" \
             --set SDF_STRICT=1 \
             --workdir "$WS" || return 1
+        fx sim_post_impl_all --summary --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
+        fx sim_post_impl_all --show --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
+        fx sim_post_impl_all --debug --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
 
         fx power_estimate_post_impl \
             --workdir "$WS" || return 1
+        fx power_estimate_post_impl --summary --workdir "$WS" || return 1
+        fx power_estimate_post_impl --show --workdir "$WS" || return 1
+        fx power_estimate_post_impl --debug --workdir "$WS" || return 1
 
         echo
         echo "=== POST-IMPLEMENTATION POWER / FUSION: SAME 3 x 3 MATRIX ==="
@@ -490,12 +539,18 @@ flexsoc_ip_flow() {
             --set POWER_GLS_BACKENDS="$GLS_BACKEND" \
             --set POWER_TIMING_MODES="$GLS_TIMING_MODES" \
             --workdir "$WS" || return 1
+        fx power_analysis_post_impl_all --summary --workdir "$WS" || return 1
+        fx power_analysis_post_impl_all --show --workdir "$WS" || return 1
+        fx power_analysis_post_impl_all --debug --workdir "$WS" || return 1
 
         fx fusion_analysis_post_impl_all \
             --set POWER_TEST_NAMES="$GLS_TESTS" \
             --set POWER_GLS_BACKENDS="$GLS_BACKEND" \
             --set POWER_TIMING_MODES="$GLS_TIMING_MODES" \
             --workdir "$WS" || return 1
+        fx fusion_analysis_post_impl_all --summary --workdir "$WS" || return 1
+        fx fusion_analysis_post_impl_all --show --workdir "$WS" || return 1
+        fx fusion_analysis_post_impl_all --debug --workdir "$WS" || return 1
 
         echo
         echo "=== REPORTING / QUALIFICATION / $PDK ==="

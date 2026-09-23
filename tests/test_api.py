@@ -275,14 +275,17 @@ def test_pdk_switch_keeps_shared_run_artifacts_and_reselects_technology_paths(
 def test_commands_route_direct_backend_targets(tmp_path: Path) -> None:
     fx = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work", TOP="base")
 
-    lint, ast_cmd = fx.override(top="cordic").commands(
-        "lint", "slang_ast", RUN_ID="r1", LINT_PROFILE="critical", UNUSED="ignored"
+    lint, hierarchy = fx.override(top="cordic").commands(
+        "lint", "slang_hier", RUN_ID="r1", LINT_PROFILE="critical", UNUSED="ignored"
     )
-    assert [lint.target, ast_cmd.target] == ["lint", "slang_ast"]
+    assert [lint.target, hierarchy.target] == ["lint", "slang_hier"]
     assert lint.argv[:2] == ("fx", "lint")
     assert "LINT_PROFILE=critical" in lint.argv
     assert "RUN_ID=r1" in lint.argv
     assert not any("UNUSED=" in arg for arg in lint.argv)
+    assert not any("LINT_PROFILE=" in arg for arg in hierarchy.argv)
+    assert "slang_ast" not in TARGETS
+    assert "slang_ast" not in BACKEND_TARGETS
     assert "make" not in lint.argv
     assert "flexsoc.backend.setup_" not in lint.shell_line()
 
@@ -376,9 +379,14 @@ def test_backend_target_registry_owns_dv_syn_impl_lifecycle() -> None:
     assert BACKEND_TARGETS["tests_gen"].domain == "dv"
     assert BACKEND_TARGETS["test_gen"].action == "test_generate"
 
+    assert BACKEND_TARGETS["slang_hier"].domain == "dv"
+    assert BACKEND_TARGETS["slang_hier"].setup == ()
+    assert BACKEND_TARGETS["slang_hier"].show == "slang_hier"
+
     assert BACKEND_TARGETS["cdc_rdc"].domain == "dv"
     assert BACKEND_TARGETS["cdc_rdc"].setup == ("cdc_rdc.setup",)
     assert BACKEND_TARGETS["cdc_rdc"].show == "cdc_rdc"
+    assert BACKEND_TARGETS["cdc_rdc"].debug == "cdc_rdc"
 
     assert BACKEND_TARGETS["formal"].domain == "dv"
     assert BACKEND_TARGETS["formal"].setup == (
@@ -393,7 +401,9 @@ def test_backend_target_registry_owns_dv_syn_impl_lifecycle() -> None:
     assert BACKEND_TARGETS["cocotb"].setup == ("cocotb.setup",)
     assert BACKEND_TARGETS["regression"].setup == ("tb.setup", "cocotb.setup")
     assert BACKEND_TARGETS["regression"].show == "regression"
-    assert BACKEND_TARGETS["coverage_detail"].show == "coverage"
+    assert BACKEND_TARGETS["coverage"].show == "coverage"
+    assert "coverage_detail" not in BACKEND_TARGETS
+    assert BACKEND_TARGETS["formal"].debug == "formal"
 
     assert BACKEND_TARGETS["syn"].domain == "syn"
     assert BACKEND_TARGETS["syn"].setup == ("syn.setup",)
@@ -650,6 +660,218 @@ def test_reset_distribution_preservation_supports_aldff_without_matching_functio
     assert "keep" not in out_cells["unrelated"]["attributes"]
 
 
+def test_synthesis_run_writes_canonical_summary_and_reporting_consumes_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    liberty = tmp_path / "cells.lib"
+    liberty.write_text("library(test) {}\n", encoding="utf-8")
+    client = FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **DEFAULT_SETTINGS,
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev", "PDK": "sky130",
+        "LIB_SYN": str(liberty), "LIBS": str(liberty), "TARGET_OPT": "delay1",
+    }
+    flow = _target_session(client, values).backend.syn
+    paths = flow.context.paths
+    log_dir = paths.logs / "synthesis" / paths.pdk
+    log_dir.mkdir(parents=True, exist_ok=True)
+    paths.syn.mkdir(parents=True, exist_ok=True)
+    main_log = log_dir / "demo_synth_opt_delay1.log"
+    main_log.write_text(
+        "=== demo ===\n"
+        "  10 - wires\n"
+        "  20 - wire bits\n"
+        "  3 - ports\n"
+        "  4 - port bits\n"
+        "  42 0.0 cells\n"
+        "  Chip area for module demo: 12.5\n"
+        "  of which used for sequential elements: 4.0 (32.0%)\n",
+        encoding="utf-8",
+    )
+    main_log.with_suffix(".warnings").write_text("warning one\nwarning two\n", encoding="utf-8")
+    main_log.with_suffix(".errors").write_text("", encoding="utf-8")
+    (paths.syn / "demo_synth.v").write_text("module demo; endmodule\n", encoding="utf-8")
+    (paths.syn / "demo_synth.json").write_text("{}\n", encoding="utf-8")
+    (paths.syn / "synth_sv.ys").write_text("stat\n", encoding="utf-8")
+
+    monkeypatch.setattr(syn_module.Syn, "run_asic", lambda self, **kwargs: 0)
+    assert flow.run(BACKEND_TARGETS["syn"]) == 0
+
+    summary_path = paths.syn / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["schema"] == "flexsoc.synthesis.v1"
+    assert summary["status"] == "PASS"
+    assert summary["profile"] == "delay1"
+    assert summary["metrics"]["cells"] == 42
+    assert summary["metrics"]["area"] == 12.5
+    assert summary["metrics"]["warnings"] == 2
+    assert summary["artifacts"]["netlist"].endswith("syn/sky130/demo_synth.v")
+
+    collected = Reporting.collect_synthesis("demo", paths.run, "sky130")
+    assert collected is not None
+    assert collected["status"] == "pass"
+    assert collected["cells"] == 42
+    assert collected["evidence"].endswith("syn/sky130/summary.json")
+
+
+def test_implementation_run_writes_canonical_summary_and_reporting_consumes_it(
+    tmp_path: Path,
+) -> None:
+    from flexsoc.backend.core import BackendContext
+    from flexsoc.backend.impl import ImplementationFlow
+
+    project = tmp_path / "project"
+    project.mkdir()
+    workspace = tmp_path / "workspace"
+    context = BackendContext(
+        project,
+        workspace,
+        {
+            "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
+            "PDK": "sky130", "ORS_TECH": "sky130hd",
+        },
+    )
+    workdir = context.paths.impl
+    makefile = tmp_path / "orfs" / "flow" / "Makefile"
+    makefile.parent.mkdir(parents=True)
+    makefile.write_text("all:\n", encoding="utf-8")
+    netlist = tmp_path / "demo.v"
+    sdc = tmp_path / "demo.sdc"
+    netlist.write_text("module demo; endmodule\n", encoding="utf-8")
+    sdc.write_text("create_clock -period 10 [get_ports clk]\n", encoding="utf-8")
+    config = ImplementationFlow.write_config("demo", workdir, "sky130hd", netlist, sdc)
+
+    class Runner:
+        def run(self, request, *, on="local"):
+            del on
+            if request.line_callback:
+                request.line_callback("Running stage 1_import")
+                request.line_callback("Running stage 5_route")
+                request.line_callback("write_spef")
+                request.line_callback("Running stage 6_finish")
+            final = workdir / "results" / "sky130hd" / "demo" / "base"
+            final.mkdir(parents=True, exist_ok=True)
+            for name in ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds"):
+                (final / name).write_text(name + "\n", encoding="utf-8")
+            return type("Result", (), {"returncode": 0})()
+
+    flow = ImplementationFlow(context, Runner())
+    log = context.layout.pnr_log_dir / "demo_pnr.log"
+    assert flow.run(makefile=makefile, config=config, workdir=workdir, log=log) == 0
+
+    summary_path = workdir / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["schema"] == "flexsoc.implementation.v1"
+    assert summary["status"] == "PASS"
+    assert summary["returncode"] == 0
+    assert summary["tool_returncode"] == 0
+    assert summary["platform"] == "sky130hd"
+    assert summary["phases"] == ["import", "routing", "extraction", "finish"]
+    assert set(summary["artifacts"]) == {"netlist", "sdc", "spef", "odb", "gds"}
+
+    collected = Reporting.collect_implementation("demo", context.paths.run, "sky130")
+    assert collected is not None
+    assert collected["status"] == "pass"
+    assert collected["platform"] == "sky130hd"
+    assert collected["evidence"] == "impl/sky130/summary.json"
+
+
+def test_implementation_missing_final_artifacts_is_failed_even_when_orfs_returns_zero(
+    tmp_path: Path,
+) -> None:
+    from flexsoc.backend.core import BackendContext
+    from flexsoc.backend.impl import ImplementationFlow
+
+    project = tmp_path / "project"
+    project.mkdir()
+    workspace = tmp_path / "workspace"
+    context = BackendContext(
+        project, workspace,
+        {
+            "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
+            "PDK": "sky130", "ORS_TECH": "sky130hd",
+        },
+    )
+    workdir = context.paths.impl
+    makefile = tmp_path / "orfs" / "flow" / "Makefile"
+    makefile.parent.mkdir(parents=True)
+    makefile.write_text("all:\n", encoding="utf-8")
+    netlist = tmp_path / "demo.v"
+    sdc = tmp_path / "demo.sdc"
+    netlist.write_text("module demo; endmodule\n", encoding="utf-8")
+    sdc.write_text("create_clock -period 10 [get_ports clk]\n", encoding="utf-8")
+    config = ImplementationFlow.write_config("demo", workdir, "sky130hd", netlist, sdc)
+
+    class Runner:
+        def run(self, request, *, on="local"):
+            del request, on
+            return type("Result", (), {"returncode": 0})()
+
+    flow = ImplementationFlow(context, Runner())
+    rc = flow.run(
+        makefile=makefile, config=config, workdir=workdir,
+        log=context.layout.pnr_log_dir / "demo_pnr.log",
+    )
+
+    summary = json.loads((workdir / "summary.json").read_text(encoding="utf-8"))
+    assert rc == 1
+    assert summary["status"] == "FAILED"
+    assert summary["returncode"] == 1
+    assert summary["tool_returncode"] == 0
+    assert summary["artifacts"] == {}
+
+
+def test_cli_pnr_summary_show_and_debug_read_only(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    workspace = tmp_path / "workspace"
+    root = workspace / "runs" / "demo" / "dev"
+    impl = root / "impl" / "sky130"
+    impl.mkdir(parents=True)
+    (impl / "summary.json").write_text(
+        json.dumps({
+            "schema": "flexsoc.implementation.v1",
+            "top": "demo",
+            "pdk": "sky130",
+            "platform": "sky130hd",
+            "status": "PASS",
+            "returncode": 0,
+            "phases": ["import", "floorplan", "placement", "CTS", "routing", "extraction", "finish"],
+            "artifacts": {
+                "netlist": "impl/sky130/results/sky130hd/demo/base/6_final.v",
+                "sdc": "impl/sky130/results/sky130hd/demo/base/6_final.sdc",
+                "spef": "impl/sky130/results/sky130hd/demo/base/6_final.spef",
+                "odb": "impl/sky130/results/sky130hd/demo/base/6_final.odb",
+                "gds": "impl/sky130/results/sky130hd/demo/base/6_final.gds",
+            },
+            "command": ["make", "all"],
+            "log": "logs/pnr/sky130/demo_pnr.log",
+        }) + "\n",
+        encoding="utf-8",
+    )
+    common = [
+        "--project-root", str(project), "--workdir", str(workspace),
+        "--set", "TOP=demo", "--set", "RUN_TOP=demo", "--set", "RUN_ID=dev",
+        "--set", "PDK=sky130", "--set", "ORS_TECH=sky130hd",
+    ]
+
+    assert app(["pnr", "--summary", *common]) == 0
+    summary = capsys.readouterr().out
+    assert "Implementation" in summary and "PASS" in summary and "Artifacts" in summary
+
+    assert app(["pnr", "--show", *common]) == 0
+    shown = capsys.readouterr().out
+    assert "routing" in shown and "6_final.gds" in shown
+
+    assert app(["pnr", "--debug", *common]) == 0
+    debug = capsys.readouterr().out
+    assert "Diagnostics" in debug and "make all" in debug and "demo_pnr.log" in debug
+
+
 def test_synthesis_defaults_to_delay1_and_finishes_for_physical_implementation(tmp_path: Path) -> None:
     liberty = tmp_path / "cells.lib"
     liberty.write_text("library(test) {}\n", encoding="utf-8")
@@ -858,7 +1080,7 @@ def test_setup_creates_canonical_csr_and_dv_layout(tmp_path: Path) -> None:
 
     run = tmp_path / "work" / "runs" / "demo" / "api"
     for relative in (
-        "csr", "dv/slang_hier", "dv/slang_ast", "dv/lint/slang",
+        "csr", "dv/slang_hier", "dv/lint/slang",
         "dv/lint/verilator", "dv/cdc_rdc",
     ):
         assert (run / relative).is_dir(), relative
@@ -961,34 +1183,133 @@ def test_terminal_rendering_uses_one_semantic_palette() -> None:
     assert "\x1b[92m✓\x1b[0m \x1b[38;5;208msta\x1b[0m: \x1b[92mdone\x1b[0m" in text
 
 
-def test_regression_metrics_include_per_test_backend_matrix(tmp_path: Path) -> None:
+def test_regression_metrics_use_canonical_summary_matrix(tmp_path: Path) -> None:
     from flexsoc.backend.release.reporting import Reporting
 
     run = tmp_path / "run"
-    tests = run / "dv" / "functional" / "tests"
-    for name in ("smoke", "corners"):
-        (tests / name).mkdir(parents=True, exist_ok=True)
-    logs = run / "logs" / "dv" / "functional" / "regression"
-    for backend, prefix in (("sv", "demo_sv_sim_"), ("cocotb", "demo_cocotb_")):
-        for name in ("smoke", "corners"):
-            path = logs / backend / f"{prefix}{name}.log"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("ok\n", encoding="utf-8")
-    command = run / "logs" / "commands" / "regression.log"
-    command.parent.mkdir(parents=True, exist_ok=True)
-    command.write_text(
-        "[regression] PASS · backend=sv · compiler=iverilog · test=smoke\n"
-        "[regression] PASS · backend=cocotb · simulator=icarus · test=smoke\n"
-        "[regression] PASS · backend=sv · compiler=iverilog · test=corners\n"
-        "[regression] FAIL · backend=cocotb · simulator=icarus · test=corners\n",
-        encoding="utf-8",
-    )
+    summary = run / "dv" / "functional" / "regression" / "summary.json"
+    summary.parent.mkdir(parents=True)
+    summary.write_text(json.dumps({
+        "schema": "flexsoc.regression.v1",
+        "stage": "regression",
+        "status": "FAILED",
+        "tests": ["smoke", "corners"],
+        "test_count": 2,
+        "backend_counts": {
+            "sv": {"passed": 2, "failed": 0, "not_run": 0, "total": 2},
+            "cocotb": {"passed": 1, "failed": 1, "not_run": 0, "total": 2},
+        },
+        "matrix": {
+            "smoke": {
+                "sv": {"status": "PASS", "log": "logs/sv/smoke.log"},
+                "cocotb": {"status": "PASS", "log": "logs/cocotb/smoke.log"},
+            },
+            "corners": {
+                "sv": {"status": "PASS", "log": "logs/sv/corners.log"},
+                "cocotb": {"status": "FAILED", "log": "logs/cocotb/corners.log"},
+            },
+        },
+    }) + "\n", encoding="utf-8")
+
     result = Reporting.collect_regression("demo", run)
+
     assert result is not None
+    assert result["status"] == "fail"
     assert result["matrix"] == {
         "corners": {"sv": "pass", "cocotb": "fail"},
         "smoke": {"sv": "pass", "cocotb": "pass"},
     }
+
+def test_regression_run_writes_canonical_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from flexsoc.backend.dv.func.functional import FunctionalFlow
+
+    tests = tmp_path / "tests"
+    for name in ("smoke", "corners"):
+        (tests / name).mkdir(parents=True)
+
+    monkeypatch.setattr(
+        FunctionalFlow, "run_compile_systemverilog",
+        lambda self, **kwargs: SimpleNamespace(returncode=0),
+    )
+    monkeypatch.setattr(
+        FunctionalFlow, "run_systemverilog",
+        lambda self, **kwargs: SimpleNamespace(returncode=0),
+    )
+    monkeypatch.setattr(
+        FunctionalFlow, "run_cocotb",
+        lambda self, **kwargs: SimpleNamespace(returncode=0),
+    )
+
+    run = tmp_path / "run"
+    summary = run / "dv" / "functional" / "regression" / "summary.json"
+    FunctionalFlow().run_regression(
+        top="demo", test_root=tests, tb_dir=tmp_path / "tb", sim_dir=tmp_path / "sim",
+        common_filelist=tmp_path / "common.f", ip_filelist=tmp_path / "ip.f",
+        rtl_sources=(), backends=("sv", "cocotb"),
+        log_dir=run / "logs" / "dv" / "functional" / "regression",
+        summary_path=summary, run_root=run,
+    )
+
+    data = json.loads(summary.read_text(encoding="utf-8"))
+    assert data["status"] == "PASS"
+    assert data["counts"] == {"passed": 4, "failed": 0, "not_run": 0, "total": 4}
+    assert data["matrix"]["smoke"]["sv"]["status"] == "PASS"
+    assert data["matrix"]["corners"]["cocotb"]["status"] == "PASS"
+
+
+def test_coverage_run_stores_uncovered_points_for_show(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    from types import SimpleNamespace
+
+    from flexsoc.backend.dv.func.coverage import CoverageFlow, CoveragePoint
+
+    coverage = tmp_path / "run" / "dv" / "functional" / "coverage"
+    merged = coverage / "merged.dat"
+    merged.parent.mkdir(parents=True)
+    merged.write_text("coverage\n", encoding="utf-8")
+    annotated = coverage / "annotated"
+    annotated.mkdir()
+    rtl_ip = tmp_path / "ip.f"
+    rtl_common = tmp_path / "common.f"
+    rtl_ip.write_text("/rtl/demo.sv\n", encoding="utf-8")
+    rtl_common.write_text("/rtl/common.sv\n", encoding="utf-8")
+
+    monkeypatch.setattr(CoverageFlow, "collect", lambda self, *args, **kwargs: merged)
+    monkeypatch.setattr(CoverageFlow, "annotate", lambda self, *args, **kwargs: annotated)
+    monkeypatch.setattr(
+        CoverageFlow, "annotated_points",
+        staticmethod(lambda _root: [
+            CoveragePoint("demo.sv", 12, "line", 0, "if branch"),
+            CoveragePoint("common.sv", 4, "toggle", 2, "signal"),
+        ]),
+    )
+    paths = SimpleNamespace(
+        coverage=coverage, rtl_ip=rtl_ip, rtl_common=rtl_common, top="demo",
+    )
+    context = SimpleNamespace(
+        paths=paths, values={"VERILATOR_COVERAGE": "verilator_coverage", "COVERAGE_SHOW_LIMIT": "0"},
+        project_root=tmp_path,
+    )
+
+    result = CoverageFlow().run_from_context(context)
+    assert result["status"] == "PASS"
+    assert result["uncovered"] == [
+        {"line": 12, "type": "line", "hits": 0, "detail": "if branch", "file": "demo.sv"}
+    ]
+
+    assert CoverageFlow().show(context, summary=True) == 0
+    summary_output = capsys.readouterr().out
+    assert "Coverage" in summary_output and "uncovered=1" in summary_output
+    assert "if branch" not in summary_output
+
+    assert CoverageFlow().show(context) == 0
+    shown = capsys.readouterr().out
+    assert "if branch" in shown and "demo.sv" in shown
 
 
 def test_check_status_contract_keeps_technical_and_provenance_independent() -> None:
@@ -1200,6 +1521,20 @@ def test_sdf_gls_enables_icarus_interconnect_for_all_timing_stages(
     assert "COMPILE_ARGS += -ginterconnect" in block
 
 
+def test_gls_failure_diagnostics_prefers_testbench_failures(tmp_path: Path) -> None:
+    log = tmp_path / "gls.log"
+    log.write_text(
+        "SDF WARNING: demo.sdf:10: TIMINGCHECK not supported.\n"
+        "[TB][FAIL] dsp_result_o[0] got=0x00000000 exp=0x0000000c\n"
+        "[TB][ERROR] observed 0/3 expected outputs\n",
+        encoding="utf-8",
+    )
+    assert GateLevelSimulation._failure_diagnostics(log) == [
+        "[TB][FAIL] dsp_result_o[0] got=0x00000000 exp=0x0000000c",
+        "[TB][ERROR] observed 0/3 expected outputs",
+    ]
+
+
 def test_icarus_sdf_strict_ignores_only_unsupported_timingchecks() -> None:
     summary = GateLevelSimulation.sdf_annotation_summary(
         "[TB] sdf = /tmp/demo.sdf scope=u_demo mode=TYPICAL\n"
@@ -1228,7 +1563,7 @@ def test_post_impl_gls_metrics_require_interconnect_delays(tmp_path: Path) -> No
         json.dumps({**common, "interconnect_delays": "disabled"}) + "\n",
         encoding="utf-8",
     )
-    gls = Reporting.collect_post_syn_gls("demo", run, "sky130", "post_route")
+    gls = Reporting.collect_post_syn_gls("demo", run, "sky130", "post_impl")
     assert gls is not None and gls["status"] == "fail"
     assert "interconnect delays are not enabled" in gls["failures"][0]["reason"]
 
@@ -1236,7 +1571,7 @@ def test_post_impl_gls_metrics_require_interconnect_delays(tmp_path: Path) -> No
         json.dumps({**common, "interconnect_delays": "enabled"}) + "\n",
         encoding="utf-8",
     )
-    gls = Reporting.collect_post_syn_gls("demo", run, "sky130", "post_route")
+    gls = Reporting.collect_post_syn_gls("demo", run, "sky130", "post_impl")
     assert gls is not None and gls["status"] == "pass"
     assert gls["interconnect_delays"] == "enabled"
     summary = Reporting.signoff_summary({"post_impl": {"gls": gls}})
@@ -1903,7 +2238,8 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     rdl = run / "csr" / "systemrdl"
     rdl.mkdir(parents=True)
     (rdl / f"{top}.rdl").write_text("addrmap demo {};\n", encoding="utf-8")
-    library = tmp_path / "library"
+    project_root = tmp_path / "release_project"
+    library = project_root / "hw" / "ips"
     spec_root = _write_minimal_ip_spec(run, top)
     stale_impl = library / top / "interfaces" / "tlul" / "impl" / pdk
     stale_impl.mkdir(parents=True)
@@ -1918,7 +2254,7 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     sibling.mkdir(parents=True)
     (sibling / "sentinel.txt").write_text("keep sibling profile\n", encoding="utf-8")
 
-    flow = PackageFlow(tmp_path, {})
+    flow = PackageFlow(project_root, {})
     saved = flow.save(
         ip_name=top,
         reg_interface="tlul",
@@ -2013,6 +2349,25 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     final.mkdir(parents=True)
     for name in ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds"):
         (final / name).write_text(f"{name}\n", encoding="utf-8")
+    (implementation / "summary.json").write_text(
+        json.dumps({
+            "schema": "flexsoc.implementation.v1",
+            "top": top,
+            "pdk": pdk,
+            "platform": "sky130hd",
+            "status": "PASS",
+            "returncode": 0,
+            "phases": ["import", "floorplan", "placement", "CTS", "routing", "extraction", "finish"],
+            "artifacts": {
+                kind: f"impl/{pdk}/results/sky130hd/{top}/base/{name}"
+                for kind, name in {
+                    "netlist": "6_final.v", "sdc": "6_final.sdc", "spef": "6_final.spef",
+                    "odb": "6_final.odb", "gds": "6_final.gds",
+                }.items()
+            },
+        }) + "\n",
+        encoding="utf-8",
+    )
     post_impl = signoff / "post_impl"
     for relative in canonical_tcl:
         path = post_impl / relative
@@ -2050,6 +2405,7 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
         force=True,
     )
     assert (saved / "impl" / pdk / "config.mk").is_file()
+    assert (saved / "impl" / pdk / "summary.json").is_file()
     assert not (saved / "impl" / pdk / "logs").exists()
     assert not (saved / "impl" / pdk / "reports").exists()
     saved_final = saved / "impl" / pdk / "results" / "sky130hd" / top / "base"
@@ -2091,6 +2447,51 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
         for path in saved_signoff.rglob("*.tcl")
     }
     assert saved_tcl == set(canonical_tcl)
+
+    empty_workspace = tmp_path / "loaded_workspace"
+    assert not empty_workspace.exists()
+    loaded = flow.load(
+        ip_name=top,
+        reg_interface="tlul",
+        run_top=top,
+        run_id="loaded",
+        workspace=empty_workspace,
+    )
+    assert loaded == empty_workspace / "runs" / top / "loaded"
+    assert (loaded / "meta" / "contract.json").is_file()
+    assert (loaded / "syn" / pdk / f"{top}_synth.v").is_file()
+    assert (loaded / "impl" / pdk / "summary.json").is_file()
+    assert (loaded / "signoff" / pdk / "sta" / "summary.json").is_file()
+    assert (loaded / "signoff" / pdk / "post_impl" / "physical" / "summary.json").is_file()
+    qualification_module.QualificationFlow.validate_release_package(saved)
+
+
+def test_release_consumers_require_canonical_summary_evidence(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    sta_report = run / "signoff" / "sky130" / "sta" / "ss" / "setup" / "timing.rpt"
+    sta_report.parent.mkdir(parents=True)
+    sta_report.write_text("wns 0.2\n", encoding="utf-8")
+    power_report = run / "signoff" / "sky130" / "power" / "estimate" / "ss" / "power.rpt"
+    power_report.parent.mkdir(parents=True)
+    power_report.write_text("Total 0.1 0.2 0.3 0.6\n", encoding="utf-8")
+    impl = run / "impl" / "sky130" / "results" / "sky130hd" / "demo" / "base"
+    impl.mkdir(parents=True)
+    for name in ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds"):
+        (impl / name).write_text(name + "\n", encoding="utf-8")
+
+    assert Reporting.collect_sta("demo", run, "sky130") is None
+    assert Reporting.collect_power_estimate("demo", run, "sky130") is None
+    assert Reporting.collect_implementation("demo", run, "sky130") is None
+
+
+def test_release_contract_rejects_legacy_contract_layout(tmp_path: Path) -> None:
+    interface = tmp_path / "hw" / "ips" / "demo" / "interfaces" / "tlul"
+    legacy = interface / "contract"
+    legacy.mkdir(parents=True)
+    (legacy / "contract.json").write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="meta/contract.json"):
+        qualification_module.QualificationFlow.validate_contract_snapshot(interface)
 
 
 # ---------------------------------------------------------------------------
@@ -2173,12 +2574,97 @@ def test_cli_dedicated_help_aliases_and_signoff_selectors(
     assert "fx syn --setup --force" in syn_help
     assert "fx syn --set TARGET_OPT=delay1" in syn_help
     assert "Setup phase" in syn_help and "STALE" in syn_help
+    assert "Yosys" in syn_help and "OpenROAD repair" in syn_help
+    assert "summary.json" in syn_help and "--summary" in syn_help and "--debug" in syn_help
+
+    assert app(["eqy", "--help"]) == 0
+    eqy_help = capsys.readouterr().out
+    assert "partitions" in eqy_help and "REVIEW" in eqy_help
+    assert "--summary" in eqy_help and "--show" in eqy_help and "--debug" in eqy_help
+    assert "never launches probes or viewers" in eqy_help
+
+    assert app(["pnr", "--help"]) == 0
+    pnr_help = capsys.readouterr().out
+    assert "ORFS/OpenROAD" in pnr_help
+    assert all(name in pnr_help for name in ("netlist", "SDC", "SPEF", "ODB", "GDS"))
+    assert "--summary" in pnr_help and "--show" in pnr_help and "--debug" in pnr_help
+    assert all(word in pnr_help for word in ("never", "reruns", "OpenROAD"))
 
     assert app(["signoff", "--help"]) == 0
     signoff_help = capsys.readouterr().out
     assert "fx signoff --setup" in signoff_help and "fx signoff" in signoff_help
+
+    assert app(["sta", "--help"]) == 0
+    sta_help = capsys.readouterr().out
+    assert "post_syn" in sta_help and "post_impl" in sta_help
+    assert "ideal" in sta_help and "propagated" in sta_help and "SPEF" in sta_help
+    assert "--summary" in sta_help and "--show" in sta_help and "--debug" in sta_help
+
+    assert app(["sta_post_impl", "--help"]) == 0
+    sta_impl_help = capsys.readouterr().out
+    assert "post_impl" in sta_impl_help and "SPEF" in sta_impl_help
+
+    assert app(["power_analysis", "--help"]) == 0
+    power_help = capsys.readouterr().out
+    assert "SDF-backed" in power_help and "internal" in power_help and "switching" in power_help
+
+    assert app(["sim_post_syn_all", "--help"]) == 0
+    gls_help = capsys.readouterr().out
+    assert "min / typ / max" in gls_help and "functional GLS sampling" in gls_help
+
+    assert app(["physical_signoff", "--help"]) == 0
+    physical_help = capsys.readouterr().out
+    for check in ("route_drc", "antenna", "gds_drc", "lvs", "ir_drop"):
+        assert check in physical_help
+    assert "separate evidence from STA" in physical_help
     assert app(["model", "--help"]) == 0
-    assert "fx model --setup" in capsys.readouterr().out
+    model_help = capsys.readouterr().out
+    assert "fx model --setup" in model_help
+    assert "Lifecycle" in model_help and "setup-only target" in model_help
+
+    assert app(["lint", "--help"]) == 0
+    lint_help = capsys.readouterr().out
+    assert "One full SystemVerilog elaboration" in lint_help
+    assert "One independent --lint-only" in lint_help
+    assert "Exactly one Slang run and one Verilator run" in lint_help
+    assert "P0" in lint_help and "--tool" in lint_help
+    assert "fx lint --summary" in lint_help and "fx lint --show" in lint_help
+
+    assert app(["slang_hier", "--help"]) == 0
+    hierarchy_help = capsys.readouterr().out
+    assert "one elaboration" in hierarchy_help and "ast.json" in hierarchy_help
+    assert "LINT_PROFILE" not in hierarchy_help and "SLANG_WAIVER_FILE" not in hierarchy_help
+    assert "hierarchy.txt" in hierarchy_help and "ast.json" in hierarchy_help
+    assert "non-gating" in hierarchy_help
+
+    assert app(["cdc_rdc", "--help"]) == 0
+    cdc_help = capsys.readouterr().out
+    assert "Lifecycle setup vs analysis setup checks" in cdc_help
+    assert "clock_crossings" in cdc_help and "synchronized_reconvergence" in cdc_help
+    assert "reset_synchronizers" in cdc_help and "reset_sequence" in cdc_help
+    assert "domain_assignment" in cdc_help and "reset_families" in cdc_help
+    assert "Glitch checks" in cdc_help
+    assert "clock path" in cdc_help and "reset path" in cdc_help
+
+    assert app(["regression", "--help"]) == 0
+    regression_help = capsys.readouterr().out
+    assert "test × backend" in regression_help
+    assert "REGRESSION_BACKENDS" in regression_help
+    assert "NOT_RUN" in regression_help and "summary.json" in regression_help
+    assert "fx regression --summary" in regression_help
+
+    assert app(["coverage", "--help"]) == 0
+    coverage_help = capsys.readouterr().out
+    assert "verilator_coverage" in coverage_help
+    assert "COVERAGE_SHOW_LIMIT" in coverage_help
+    assert "uncovered points" in coverage_help
+    assert "coverage_detail" not in coverage_help
+
+    assert app(["formal", "--help"]) == 0
+    formal_help = capsys.readouterr().out
+    assert "BMC" in formal_help and "PROVE" in formal_help and "COVER" in formal_help
+    assert "six native SBY outcomes" in formal_help
+    assert "fx formal --summary" in formal_help and "fx formal --debug" in formal_help
 
 
 def test_cli_settings_persist_reset_unset_and_derive_paths(
@@ -2404,7 +2890,7 @@ def test_doctor_opensta_31_and_versionless_btorsim(
     )
 
 
-def test_cli_dispatches_doctor_eqy_debug_and_shell(
+def test_cli_dispatches_doctor_and_shell_without_legacy_eqy_debug(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     calls: list[tuple[str, object]] = []
@@ -2418,26 +2904,17 @@ def test_cli_dispatches_doctor_eqy_debug_and_shell(
     )
     monkeypatch.setattr(
         cli_module.app,
-        "_eqy_debug",
-        lambda root, workdir, args, sets, as_json=False, runner=None, on="local": calls.append(
-            ("eqy_debug", (root, workdir, args, sets, as_json))
-        ) or 5,
-    )
-    monkeypatch.setattr(
-        cli_module.app,
         "_shell",
         lambda root, workdir: calls.append(("shell", (root, workdir))) or 6,
     )
 
     assert app(["doctor", "--json", "--project-root", str(tmp_path)]) == 4
     assert app([
-        "eqy_debug", "partition.0", "--wave", "--set", "EQY_RESET_CYCLES=2",
-        "--project-root", str(tmp_path),
-    ]) == 5
-    assert app([
         "shell", "--project-root", str(tmp_path), "--workdir", str(tmp_path / "work")
     ]) == 6
-    assert [name for name, _ in calls] == ["doctor", "eqy_debug", "shell"]
+    assert [name for name, _ in calls] == ["doctor", "shell"]
+    assert "eqy_debug" not in cli_module.PSEUDO_COMMANDS
+    assert not hasattr(cli_module.app, "_eqy_debug")
 
 
 
@@ -2465,12 +2942,21 @@ def test_show_catalog_loads_canonical_json_and_sections(tmp_path: Path) -> None:
         json.dumps({"equivalence": {"status": "missing"}, "regression": {"status": "pass"}}),
         encoding="utf-8",
     )
+    eqy = run / "signoff" / "sky130" / "equivalence" / "rtl_vs_syn"
+    eqy.mkdir(parents=True)
+    (eqy / "summary.json").write_text(
+        json.dumps({
+            "schema": "flexsoc.eqy.v1", "status": "REVIEW",
+            "result": {"status": "REVIEW", "counts": {}, "total": 0},
+        }),
+        encoding="utf-8",
+    )
 
     available = {item["key"]: item["available"] for item in ShowRenderer.keys(run, top="demo", pdk="sky130")}
     assert available["qualification"] is True
     assert available["gls_post_syn"] is False
     assert ShowRenderer.load(run, top="demo", pdk="sky130", key="evidence").data["eqy"] == "MISSING"
-    assert ShowRenderer.load(run, top="demo", pdk="sky130", key="eqy").data["status"] == "missing"
+    assert ShowRenderer.load(run, top="demo", pdk="sky130", key="eqy").data["status"] == "REVIEW"
     rows = ShowRenderer.issues(run, top="demo", pdk="sky130")
     assert {row["key"] for row in rows} == {"eqy", "physical_signoff"}
 
@@ -2673,10 +3159,17 @@ def test_cli_execution_output_modes(
     assert capsys.readouterr().out == ""
     assert seen[-1]["live"] is True and seen[-1]["LIVE"] == "1"
 
+    sta_summary = tmp_path / "workspace/runs/test/default/signoff/sky130/sta/summary.json"
+    sta_summary.parent.mkdir(parents=True, exist_ok=True)
+    sta_summary.write_text(json.dumps({
+        "status": "pass", "stage": "post_syn", "pdk": "sky130",
+        "qor": {"scenario_count": 0, "worst_wns": None, "worst_tns": None, "violating_paths": 0, "unconstrained_paths": 0},
+        "scenarios": [],
+    }), encoding="utf-8")
     out = tmp_path / "debug"
     assert app(["sta", "--debug", "-o", str(out), "--project-root", str(tmp_path)]) == 0
     assert capsys.readouterr().out == ""
-    assert seen[-1]["DEBUG"] == "1" and seen[-1]["DEBUG_OUTPUT"] == str(out)
+    assert out.is_file() and "Post-synthesis STA" in out.read_text(encoding="utf-8")
 
     log = tmp_path / "workspace/runs/test/default/logs/commands/hjson.log"
     log.parent.mkdir(parents=True)
@@ -2684,6 +3177,60 @@ def test_cli_execution_output_modes(
     assert app(["hjson", "--debug", "--project-root", str(tmp_path)]) == 0
     debug_output = capsys.readouterr().out
     assert "[log]" in debug_output and str(log) in debug_output and "generated hjson" in debug_output
+
+
+def test_cli_signoff_views_use_canonical_stage_summaries(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace = tmp_path / "workspace"
+    run = workspace / "runs/test/default"
+    layout = PDKRunLayout.from_run(run, pdk="sky130", top="test")
+
+    for stage in ("post_syn", "post_impl"):
+        path = layout.signoff_stage_root(stage) / "sta/summary.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "status": "pass", "stage": stage, "pdk": "sky130",
+            "qor": {
+                "scenario_count": 1, "worst_wns": 0.1, "worst_tns": 0.0,
+                "violating_paths": 0, "unconstrained_paths": 0,
+            },
+            "scenarios": [{
+                "corner": "tt", "mode": "setup", "status": "pass",
+                "wns": 0.1, "tns": 0.0, "violating_paths": 0,
+                "unconstrained_paths": 0, "clocks": [],
+            }],
+        }), encoding="utf-8")
+
+    physical = layout.signoff_stage_root("post_impl") / "physical/summary.json"
+    physical.parent.mkdir(parents=True, exist_ok=True)
+    physical.write_text(json.dumps({
+        "status": "review",
+        "checks": {
+            "route_drc": {"status": "pass", "report": "route.rpt"},
+            "antenna": {"status": "pass", "report": "antenna.log"},
+            "gds_drc": {"status": "unsupported", "report": "drc.lyrdb"},
+            "lvs": {"status": "pass", "report": "lvs.lvsdb"},
+            "ir_drop": {"status": "unsupported", "reports": []},
+        },
+    }), encoding="utf-8")
+
+    base = ["--workdir", str(workspace), "--project-root", str(tmp_path)]
+    assert app(["sta", "--summary", *base]) == 0
+    summary = capsys.readouterr().out
+    assert "sta" in summary and "post_syn" in summary and "worst_wns=0.1" in summary
+
+    assert app(["sta_post_impl", "--show", *base]) == 0
+    shown = capsys.readouterr().out
+    assert "Post-implementation STA" in shown and "post_impl" in shown
+
+    assert app(["sta_post_impl", "--debug", *base]) == 0
+    debug = capsys.readouterr().out
+    assert "Post-implementation STA" in debug and "no matching artifacts found" in debug
+
+    assert app(["physical_signoff", "--show", *base]) == 0
+    physical_show = capsys.readouterr().out
+    assert "Physical sign-off" in physical_show and "route_drc" in physical_show and "ir_drop" in physical_show
 
 
 def test_signoff_debug_reads_filtered_artifacts_without_tools(
@@ -2726,23 +3273,40 @@ def test_signoff_debug_reads_filtered_artifacts_without_tools(
         "annotation": {"errors": ["SDF ERROR"], "warnings": [], "markers": []},
     }), encoding="utf-8")
 
+    sta_summary = layout.signoff_stage_root("post_syn") / "sta/summary.json"
+    sta_summary.write_text(json.dumps({
+        "status": "fail", "stage": "post_syn", "pdk": "sky130",
+        "qor": {"scenario_count": 1, "worst_wns": -0.125, "worst_tns": -0.250, "violating_paths": 1, "unconstrained_paths": 2},
+        "scenarios": [{"corner": "ss", "mode": "setup", "status": "fail", "wns": -0.125, "tns": -0.250, "violating_paths": 1, "unconstrained_paths": 2, "clocks": []}],
+    }), encoding="utf-8")
+    (layout.signoff_stage_root("post_syn") / "power/estimate/summary.json").write_text(json.dumps({
+        "analysis": "power_estimate", "status": "pass", "activity": 0.1, "duty": 0.5,
+        "corners": {"ss": {"internal_w": 0.0, "switching_w": 0.001, "dynamic_w": 0.001, "leakage_w": 0.0, "total_w": 0.001}},
+    }), encoding="utf-8")
+    (layout.signoff_stage_root("post_syn") / "fusion/summary.json").write_text(json.dumps({
+        "status": "fail", "passed": 0, "failed": 1, "total": 1, "reports": [],
+    }), encoding="utf-8")
+    (layout.post_syn_sim_dir / "summary_sv.json").write_text(json.dumps({
+        "status": "fail", "tests": ["smoke"], "scenarios": ["tt"], "passed": 0, "failed": 1, "total": 1,
+        "reports": [{"test_name": "smoke", "scenario": "tt", "status": "fail"}],
+    }), encoding="utf-8")
+
     flow = SignoffFlow(tmp_path, values, SignoffStage.POST_SYN)
-    output = tmp_path / "debug-output"
-    assert flow.debug_sta(output=str(output)) == 0
-    assert flow.debug_power() == 0
-    assert flow.debug_fusion() == 0
-    assert flow.debug_gls() == 0
-    text = capsys.readouterr().out
-    assert "WNS (ns)" in text and "TNS (ns)" in text and "-0.250000" in text
+    output = tmp_path / "sta_debug.txt"
+    assert flow.debug(BACKEND_TARGETS["sta"], output=str(output)) == 0
+    assert flow.debug(BACKEND_TARGETS["power_estimate"]) == 0
+    assert flow.debug(BACKEND_TARGETS["fusion_analysis_all"]) == 0
+    assert flow.debug(BACKEND_TARGETS["sim_post_syn_all"]) == 0
+    text = capsys.readouterr().out + output.read_text(encoding="utf-8")
+    assert "WNS" in text and "TNS" in text and "-0.250000" in text
     assert "unconstrained_endpoints=2" in text
     assert "removal checks=1" in text and "in → reg (removal check" in text
     assert "total_power=0.001" in text
     assert "Group                                  Slack" not in text
     assert "fusion_analysis" in text and "surfer " in text and "SDF ERROR" in text
     assert "NOISE" not in text
-    saved = output / "sta_debug.txt"
-    assert saved.is_file() and "unconstrained_endpoints=2" in saved.read_text(encoding="utf-8")
-    assert "STA debug" in text and "Corner" in text and "Unconstr" in text
+    assert output.is_file() and "unconstrained_endpoints=2" in output.read_text(encoding="utf-8")
+    assert "Post-synthesis STA" in text and "Corner" in text and "Diagnostics" in text
 
 
 def test_show_renderer_renders_sta_gls_and_power_without_raw_report_parsing() -> None:
@@ -4036,9 +4600,19 @@ def test_manifest_lists_only_existing_artifact_directories(
     run = tmp_path / "runs" / "demo" / "dev"
     syn = run / "syn" / "sky130"
     syn.mkdir(parents=True)
-    routed = run / "signoff/sky130/post_impl/sta/tt/setup/timing.rpt"
+    routed = run / "signoff/sky130/post_impl/sta/summary.json"
     routed.parent.mkdir(parents=True)
-    routed.write_text("wns max 0.100\ntns max 0.000\n", encoding="utf-8")
+    routed.write_text(
+        json.dumps({
+            "status": "pass",
+            "scenarios": [{
+                "corner": "tt", "mode": "setup", "status": "pass",
+                "wns": 0.100, "tns": 0.0,
+                "violating_paths": 0, "unconstrained_paths": 0,
+            }],
+        }) + "\n",
+        encoding="utf-8",
+    )
     monkeypatch.setenv("FLEXSOC_PDK", "sky130")
     monkeypatch.setenv("FLEXSOC_RUN_ROOT", str(run))
 
@@ -4113,36 +4687,48 @@ def test_status_word_prefers_persisted_tool_result(tmp_path: Path) -> None:
     assert Reporting.status_word(status, log) == "pass"
 
 
-def test_formal_stage_collects_status_elapsed_and_trace(tmp_path: Path) -> None:
+def test_formal_summary_normalizes_native_sby_status_and_trace(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    from flexsoc.backend.dv.formal.formal import FormalFlow
+
     run = tmp_path / "run"
-    workdir = run / "dv/formal/runs/properties/prove/demo_prove"
-    log = run / "logs/dv/formal/properties/demo_prove.log"
-    workdir.mkdir(parents=True)
-    log.parent.mkdir(parents=True)
-    (workdir / "status").write_text("PASS\n", encoding="utf-8")
-    (workdir / "trace0.vcd").write_text("trace\n", encoding="utf-8")
-    log.write_text("Elapsed clock time [00:00:09] (9)\n", encoding="utf-8")
-
-    data = Reporting.formal_stage(run, workdir, log)
-
-    assert data == {
-        "status": "pass",
-        "workdir": "dv/formal/runs/properties/prove/demo_prove",
-        "log": "logs/dv/formal/properties/demo_prove.log",
-        "trace_count": 1,
-        "elapsed_s": 9,
-        "traces": ["dv/formal/runs/properties/prove/demo_prove/trace0.vcd"],
-    }
-
-
-def test_collect_formal_reports_all_six_stages(tmp_path: Path) -> None:
-    run = tmp_path / "run"
-    top = "demo"
+    paths = SimpleNamespace(
+        run=run, top="demo", formal=run / "dv" / "formal", logs=run / "logs",
+    )
     for suite in ("csr", "properties"):
         for stage in ("bmc", "prove", "cover"):
-            _write_formal_stage(run, top, suite, stage)
+            _write_formal_stage(run, "demo", suite, stage)
 
-    data = Reporting.collect_formal(top, run)
+    data = FormalFlow()._write_summary(SimpleNamespace(paths=paths))
+
+    assert data["status"] == "PASS"
+    assert data["counts"] == {
+        "passed": 6, "failed": 0, "unknown": 0, "observed": 6, "total": 6,
+    }
+    assert data["elapsed_s"] == 18
+    assert data["trace_count"] == 6
+    assert data["matrix"]["properties"]["prove"]["status"] == "PASS"
+    assert data["matrix"]["properties"]["prove"]["traces"] == [
+        "dv/formal/runs/properties/prove/demo_prove/trace0.vcd"
+    ]
+
+
+def test_collect_formal_reads_canonical_summary(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    from flexsoc.backend.dv.formal.formal import FormalFlow
+
+    run = tmp_path / "run"
+    paths = SimpleNamespace(
+        run=run, top="demo", formal=run / "dv" / "formal", logs=run / "logs",
+    )
+    for suite in ("csr", "properties"):
+        for stage in ("bmc", "prove", "cover"):
+            _write_formal_stage(run, "demo", suite, stage)
+    FormalFlow()._write_summary(SimpleNamespace(paths=paths))
+
+    data = Reporting.collect_formal("demo", run)
 
     assert data is not None
     assert data["status"] == "pass"
@@ -4153,12 +4739,92 @@ def test_collect_formal_reports_all_six_stages(tmp_path: Path) -> None:
         "elapsed_s": 18,
         "traces": 6,
         "stages": {
-            "bmc": {"passed": 2, "total": 2},
-            "prove": {"passed": 2, "total": 2},
-            "cover": {"passed": 2, "total": 2},
+            "bmc": {"passed": 2, "failed": 0, "unknown": 0, "total": 2},
+            "prove": {"passed": 2, "failed": 0, "unknown": 0, "total": 2},
+            "cover": {"passed": 2, "failed": 0, "unknown": 0, "total": 2},
         },
     }
 
+
+def test_sta_stage_policy_defaults_and_post_syn_hold_is_advisory(tmp_path: Path) -> None:
+    liberties = {corner: tmp_path / f"demo__{corner}.lib" for corner in ("ss", "tt", "ff")}
+    assert StaAnalysis.timing_modes({}, "post_syn") == ("setup",)
+    assert StaAnalysis.timing_modes({}, "post_impl") == ("setup", "hold")
+    assert StaAnalysis.timing_modes({"STA_MODES": "setup hold"}, "post_syn") == ("setup", "hold")
+    assert len(StaAnalysis.timing_scenarios({}, liberties, "post_syn")) == 3
+    assert len(StaAnalysis.timing_scenarios({}, liberties, "post_impl")) == 6
+    assert "STA_MODES" in TARGETS["sta"][2]
+
+    report = tmp_path / "timing.rpt"
+    report.write_text(
+        "wns min -0.490000\n"
+        "tns min -1.960000\n"
+        "=== Clock QoR ===\n"
+        "core period_min = 1.000 fmax = 1000.000\n"
+        "=== Constraint validation ===\n"
+        "=== Violating paths ===\n"
+        "Startpoint: rst_ni\n"
+        "Endpoint: u_ff (removal check against rising-edge clock core)\n"
+        "Path Group: asynchronous\n"
+        "Path Type: min\n"
+        "-0.490000 slack (VIOLATED)\n"
+        "=== Near-critical paths ===\n",
+        encoding="utf-8",
+    )
+    hold = StaAnalysis._sta_scenario_summary(_context(tmp_path, analysis="sta", mode="hold"), report)
+    assert hold["status"] == "warn"
+    assert hold["timing_role"] == "advisory"
+    assert hold["violation_types"] == {"data": 0, "recovery": 0, "removal": 1}
+
+    post_impl = StaAnalysis._sta_scenario_summary(
+        replace(_context(tmp_path, analysis="sta", mode="hold"), stage="post_impl"), report
+    )
+    assert post_impl["status"] == "fail"
+    assert post_impl["timing_role"] == "gating"
+
+
+def test_post_syn_sta_qor_separates_release_and_advisory_timing(tmp_path: Path) -> None:
+    report = tmp_path / "timing.rpt"
+    report.write_text("timing evidence\n", encoding="utf-8")
+    sdc = tmp_path / "demo.sdc"
+    sdc.write_text("create_clock -period 10 [get_ports clk]\n", encoding="utf-8")
+    scenarios = (
+        {
+            "id": "setup_tt", "corner": "tt", "mode": "setup", "stage": "post_syn",
+            "wns": 0.100, "tns": 0.0, "violating_paths": 0,
+            "violation_types": {"data": 0, "recovery": 0, "removal": 0},
+            "unconstrained_paths": 0, "clocks": [], "timing_role": "gating",
+            "status": "pass", "detail_report": str(report), "liberty": "tt.lib", "spef": None,
+        },
+        {
+            "id": "hold_tt", "corner": "tt", "mode": "hold", "stage": "post_syn",
+            "wns": -0.490, "tns": -1.960, "violating_paths": 4,
+            "violation_types": {"data": 0, "recovery": 0, "removal": 4},
+            "unconstrained_paths": 0, "clocks": [], "timing_role": "advisory",
+            "status": "warn", "detail_report": str(report), "liberty": "tt.lib", "spef": None,
+        },
+    )
+    _, summary_path = StaAnalysis._write_sta_qor(
+        tmp_path, top="demo", pdk="sky130", stage="post_syn", sdc=sdc,
+        scenarios=scenarios, failures=(),
+    )
+    data = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert data["status"] == "pass"
+    assert data["policy"] == {
+        "clock_network": "ideal", "interconnect": "none", "setup": "gating",
+        "hold": "advisory", "recovery_removal": "advisory",
+    }
+    assert data["qor"]["worst_wns"] == pytest.approx(0.1)
+    assert data["qor"]["violating_paths"] == 0
+    assert data["qor"]["advisory_worst_wns"] == pytest.approx(-0.49)
+    assert data["qor"]["advisory_violating_paths"] == 4
+
+
+def test_reporting_sta_status_uses_canonical_scenario_outcomes() -> None:
+    assert Reporting._sta_status({"tt": {"setup": {"status": "pass"}, "hold": {"status": "warn"}}}) == "pass"
+    assert Reporting._sta_status({"tt": {"setup": {"status": "fail"}}}) == "fail"
+    assert Reporting._sta_status({"tt": {"setup": {"status": "unknown"}}}) == "incomplete"
+    assert Reporting._sta_status(None) == "missing"
 
 def _context(tmp_path: Path, *, analysis: str, mode: str = "setup") -> SignoffContext:
     liberty = tmp_path / "demo__tt.lib"
@@ -4226,7 +4892,7 @@ def test_sdf_writer_uses_pinned_opensta_command_contract(tmp_path: Path) -> None
     assert "proc flexsoc_strip_sdf_interconnect_cell {path}" in script
     assert 'if {$stage eq "post_syn"} {' in script
     assert "flexsoc_strip_sdf_interconnect_cell $sdf_file" in script
-    assert "sdf_interconnect=retained stage=post_route" in script
+    assert "sdf_interconnect=retained stage=post_impl" in script
     assert "VOLTAGE" in script and "PROCESS" in script and "TEMPERATURE" in script
     assert "demo_tt.sdf" in script
     assert "units.rpt" not in script
@@ -5825,7 +6491,7 @@ def test_common_header_and_runtime_validation_are_complete(tmp_path: Path) -> No
     assert "report_units" in script
 
 
-def test_post_route_context_uses_pnr_netlist_spef_and_propagated_clocks(tmp_path: Path) -> None:
+def test_post_impl_context_uses_pnr_netlist_spef_and_propagated_clocks(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     run = workspace / "runs/demo/dev"
     results = run / "impl/sky130/results/demo/base"
@@ -5847,7 +6513,7 @@ def test_post_route_context_uses_pnr_netlist_spef_and_propagated_clocks(tmp_path
             "RUN_ID": "dev",
             "TOP": "demo",
             "PDK": "sky130",
-            "SIGNOFF_STAGE": "post_route",
+            "SIGNOFF_STAGE": "post_impl",
             "LIBS": str(liberty),
             },
     )
@@ -5863,7 +6529,7 @@ def test_post_route_context_uses_pnr_netlist_spef_and_propagated_clocks(tmp_path
     assert 'clock_network=propagated' in sta
     assert 'interconnect=spef' in sta
     assert "Worst routed paths" in sta
-    assert "Stage    : post_route" in sta
+    assert "Stage    : post_impl" in sta
     assert all("/post_impl/" in str(path) for path in paths)
 
 
@@ -5946,7 +6612,7 @@ def test_sta_qor_is_one_canonical_report_plus_json(tmp_path: Path) -> None:
     )
     hold_ctx = replace(ctx, mode="hold")
     assert StaAnalysis._sta_scenario_summary(hold_ctx, hold)["status"] == "warn"
-    assert StaAnalysis._sta_scenario_summary(replace(hold_ctx, stage="post_route"), hold)["status"] == "fail"
+    assert StaAnalysis._sta_scenario_summary(replace(hold_ctx, stage="post_impl"), hold)["status"] == "fail"
 
 
 def test_ip_and_experimental_composite_targets_are_not_public() -> None:
@@ -5964,21 +6630,33 @@ def test_ip_and_experimental_composite_targets_are_not_public() -> None:
     assert BACKEND_TARGETS["deps"].domain == "toolchain"
 
 
-def test_metrics_read_unified_timing_and_power_reports(tmp_path: Path) -> None:
+def test_metrics_read_canonical_timing_and_power_summaries(tmp_path: Path) -> None:
     run = tmp_path / "run"
-    timing = run / "signoff/sky130/sta/ss/setup/timing.rpt"
-    timing.parent.mkdir(parents=True)
-    timing.write_text(
-        "=== Worst routed paths ===\n-0.125 slack (VIOLATED)\n"
-        "=== Constraint validation ===\nWarning: There is 1 unconstrained endpoint.\n"
-        "=== Violating paths ===\n-0.125 slack (VIOLATED)\n-0.050 slack (VIOLATED)\n"
-        "=== Near-critical paths ===\n",
+    sta_summary = run / "signoff/sky130/sta/summary.json"
+    sta_summary.parent.mkdir(parents=True)
+    sta_summary.write_text(
+        json.dumps({
+            "status": "fail",
+            "scenarios": [{
+                "corner": "ss", "mode": "setup", "status": "fail",
+                "wns": -0.125, "violating_paths": 2, "unconstrained_paths": 1,
+            }],
+        }) + "\n",
         encoding="utf-8",
     )
-    power = run / "signoff/sky130/power/estimate/ss/power.rpt"
-    power.parent.mkdir(parents=True)
-    power.write_text(
-        "activity=0.1\nduty=0.5\nTotal 1.0 2.0 0.25 3.25\n",
+    power_summary = run / "signoff/sky130/power/estimate/summary.json"
+    power_summary.parent.mkdir(parents=True)
+    power_summary.write_text(
+        json.dumps({
+            "status": "pass", "activity": 0.1, "duty": 0.5,
+            "activity_source": "input_assumption",
+            "corners": {
+                "ss": {
+                    "internal_w": 1.0, "switching_w": 2.0, "dynamic_w": 3.0,
+                    "leakage_w": 0.25, "total_w": 3.25,
+                }
+            },
+        }) + "\n",
         encoding="utf-8",
     )
 
@@ -5988,29 +6666,50 @@ def test_metrics_read_unified_timing_and_power_reports(tmp_path: Path) -> None:
     assert "tns" not in sta["ss"]["setup"]
     assert sta["ss"]["setup"]["reported_violating_paths"] == 2
     assert sta["ss"]["setup"]["reported_unconstrained_paths"] == 1
-    assert sta["ss"]["setup"]["report"].endswith("timing.rpt")
+    assert sta["ss"]["setup"]["report"].endswith("sta/sta.rpt")
 
     estimate = Reporting.collect_power_estimate("demo", run, "sky130")
     assert estimate is not None
     assert estimate["activity"] == 0.1
     assert estimate["duty"] == 0.5
     assert estimate["corners"]["ss"]["dynamic_w"] == 3.0
-    assert estimate["corners"]["ss"]["report"].endswith("power.rpt")
+    assert estimate["corners"]["ss"]["total_w"] == 3.25
 
-    routed_timing = run / "signoff/sky130/post_impl/sta/tt/hold/timing.rpt"
-    routed_timing.parent.mkdir(parents=True)
-    routed_timing.write_text("wns min 0.075\ntns min 0.000\n", encoding="utf-8")
-    routed_power = run / "signoff/sky130/post_impl/power/estimate/tt/power.rpt"
-    routed_power.parent.mkdir(parents=True)
-    routed_power.write_text("activity=0.2\nduty=0.5\nTotal 2.0 1.0 0.1 3.1\n", encoding="utf-8")
-
+    routed_sta_summary = run / "signoff/sky130/post_impl/sta/summary.json"
+    routed_sta_summary.parent.mkdir(parents=True)
+    routed_sta_summary.write_text(
+        json.dumps({
+            "status": "pass",
+            "scenarios": [{
+                "corner": "tt", "mode": "hold", "status": "pass",
+                "wns": 0.075, "tns": 0.0,
+                "violating_paths": 0, "unconstrained_paths": 0,
+            }],
+        }) + "\n",
+        encoding="utf-8",
+    )
+    routed_power_summary = run / "signoff/sky130/post_impl/power/estimate/summary.json"
+    routed_power_summary.parent.mkdir(parents=True)
+    routed_power_summary.write_text(
+        json.dumps({
+            "status": "pass", "activity": 0.2, "duty": 0.5,
+            "activity_source": "input_assumption",
+            "corners": {
+                "tt": {
+                    "internal_w": 2.0, "switching_w": 1.0, "dynamic_w": 3.0,
+                    "leakage_w": 0.1, "total_w": 3.1,
+                }
+            },
+        }) + "\n",
+        encoding="utf-8",
+    )
     fusion = run / "signoff/sky130/post_impl/fusion/summary.json"
     fusion.parent.mkdir(parents=True)
     fusion.write_text('{"status":"pass","passed":2,"total":2,"reports":[]}\n', encoding="utf-8")
 
-    routed_sta = Reporting.collect_sta("demo", run, "sky130", "post_route")
-    routed_estimate = Reporting.collect_power_estimate("demo", run, "sky130", "post_route")
-    routed_fusion = Reporting.collect_fusion_analysis("demo", run, "sky130", "post_route")
+    routed_sta = Reporting.collect_sta("demo", run, "sky130", "post_impl")
+    routed_estimate = Reporting.collect_power_estimate("demo", run, "sky130", "post_impl")
+    routed_fusion = Reporting.collect_fusion_analysis("demo", run, "sky130", "post_impl")
     assert routed_sta is not None and routed_sta["tt"]["hold"]["wns"] == 0.075
     assert routed_estimate is not None and routed_estimate["corners"]["tt"]["total_w"] == 3.1
     assert routed_fusion is not None and routed_fusion["status"] == "pass"
@@ -6021,6 +6720,7 @@ def test_metrics_read_unified_timing_and_power_reports(tmp_path: Path) -> None:
     assert metrics["signoff"]["post_impl"]["sta"]["interconnect"] == "spef"
     assert metrics["signoff"]["post_impl"]["fusion"]["status"] == "pass"
     assert "post_impl_fusion" in metrics["closure"]["order"]
+
 
 def test_power_summary_gets_explicit_dynamic_definition(tmp_path: Path) -> None:
     report = tmp_path / "power.rpt"
@@ -6396,6 +7096,37 @@ def test_ssh_rsync_dereferences_input_symlink_at_declared_path(
     assert rsync[-2:] == [str(binding), "eda:/remote/eqy/rtl_common.f"]
 
 
+def test_ssh_syncs_declared_outputs_after_nonzero_tool_exit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flexsoc.backend.core import CommandRequest, ExecutionTarget
+    from flexsoc.backend.core.runtime.execution import SshExecutor
+
+    synced = []
+
+    class Result:
+        returncode = 2
+
+    monkeypatch.setattr(SshExecutor, "_sync_inputs", lambda self, request: None)
+    monkeypatch.setattr(
+        SshExecutor, "_sync_outputs", lambda self, request: synced.append(request)
+    )
+    monkeypatch.setattr(subprocess, "run", lambda argv, **kwargs: Result())
+    executor = SshExecutor(
+        ExecutionTarget(name="remote", kind="ssh", host="eda", work_root="/remote", sync="rsync"),
+        project_root=tmp_path,
+    )
+    output = tmp_path / "evidence.json"
+    request = CommandRequest(
+        ("lint-tool",), tmp_path, {}, tmp_path / "lint.log", outputs=(output,)
+    )
+
+    result = executor.run(request)
+
+    assert result.returncode == 2
+    assert synced == [request]
+
+
 def test_pnr_request_declares_config_inputs_and_result_trees(tmp_path: Path) -> None:
     from flexsoc.backend.impl import ImplementationFlow
 
@@ -6423,6 +7154,11 @@ def test_pnr_request_declares_config_inputs_and_result_trees(tmp_path: Path) -> 
         makefile=makefile, config=config, workdir=workdir, log=tmp_path / "pnr.log"
     )
     assert rc == 1
+    summary = json.loads((workdir / "summary.json").read_text(encoding="utf-8"))
+    assert summary["status"] == "FAILED"
+    assert summary["returncode"] == 1
+    assert summary["tool_returncode"] == 1
+    assert summary["artifacts"] == {}
     assert runner.request.inputs == (makefile.resolve(), config.resolve(), netlist.resolve(), sdc.resolve())
     assert runner.request.outputs == (workdir / "results", workdir / "reports", workdir / "logs")
     assert "HOLD_SLACK_MARGIN=0.1" in runner.request.argv
@@ -6546,7 +7282,7 @@ def test_signoff_command_inputs_include_all_resolved_artifacts(tmp_path: Path) -
     for path in files.values():
         path.write_text("x\n", encoding="utf-8")
     ctx = SignoffContext(
-        analysis="sta", design="demo", variant="dev", pdk="sky130", stage="post_route",
+        analysis="sta", design="demo", variant="dev", pdk="sky130", stage="post_impl",
         corner="ss", mode="setup", workload="", top="demo", liberty=files["std.lib"],
         macro_liberties=(files["macro.lib"],), netlist=files["demo.v"], sdc=files["demo.sdc"],
         report_dir=tmp_path / "reports", spef=files["demo.spef"],
@@ -6767,6 +7503,44 @@ def test_eqy_run_uses_tool_runner_and_declares_result_directory(tmp_path: Path) 
     assert runner.request.inputs == (config.resolve(), input_file.resolve())
     assert runner.request.outputs == (result_dir.resolve(),)
     assert not result_dir.exists()
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert summary["status"] == "FAILED"
+    assert summary["execution"]["exit_code"] == 7
+    assert summary["result"]["status"] == "REVIEW"
+
+
+def test_eqy_run_writes_partition_summary_and_reporting_consumes_it(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    from flexsoc.backend.syn.eqy import Eqy
+
+    class Runner:
+        def run(self, request, *, on="local"):
+            result_dir = request.outputs[0]
+            nested = result_dir / "strategies" / "partition0" / "strategy0" / "partition0"
+            nested.mkdir(parents=True, exist_ok=True)
+            (nested / "status").write_text("PASS\n", encoding="utf-8")
+            return SimpleNamespace(returncode=0, duration_s=1.25)
+
+    root = tmp_path / "runs" / "demo" / "dev"
+    eqy_root = root / "signoff" / "sky130" / "equivalence" / "rtl_vs_syn"
+    eqy_root.mkdir(parents=True)
+    config = eqy_root / "demo_rtl_vs_syn.eqy"
+    config.write_text("[gold]\n", encoding="utf-8")
+    log = eqy_root / "demo_rtl_vs_syn.log"
+
+    assert Eqy(Runner()).run(config=config, log=log) == 0
+    summary = json.loads((eqy_root / "summary.json").read_text(encoding="utf-8"))
+    assert summary["schema"] == "flexsoc.eqy.v1"
+    assert summary["status"] == "PASS"
+    assert summary["result"]["counts"]["PASS"] == 1
+    assert summary["partitions"][0]["partition"] == "partition0"
+    assert summary["partitions"][0]["strategies"][0]["status"] == "PASS"
+
+    collected = Reporting.collect_equivalence("demo", root, "sky130")
+    assert collected is not None
+    assert collected["status"] == "pass"
+    assert collected["partitions"]["proven"] == 1
+    assert collected["partitions"]["percent"] == 100.0
 
 
 def test_scaffold_e2e_materializes_eqy_without_running_runtime_target() -> None:
@@ -7125,7 +7899,7 @@ def test_post_impl_signoff_maps_lifecycle_stage_to_post_impl_gls(tmp_path: Path)
     assert post_syn.stage is SignoffStage.POST_SYN
     assert post_syn.gls.stage == "post_syn"
     assert post_impl.stage is SignoffStage.POST_IMPL
-    assert post_impl.stage.value == "post_route"
+    assert post_impl.stage.value == "post_impl"
     assert post_impl.gls.stage == "post_impl"
 
 
@@ -7144,7 +7918,10 @@ def test_stage_contract_graph_is_single_source_and_acyclic() -> None:
     assert contracts["sta_post_impl"].scope == "pdk"
     assert contracts["syn"].tools == ("YOSYS", "OPENROAD", "ORFS")
     assert contracts["physical_signoff"].tools == ("ORFS", "OPENROAD", "KLAYOUT")
-    assert contracts["eqy"].evidence == ("signoff/{pdk}/equivalence/{top}_rtl_vs_syn",)
+    assert contracts["eqy"].evidence == (
+        "signoff/{pdk}/equivalence/rtl_vs_syn/summary.json",
+        "signoff/{pdk}/equivalence/rtl_vs_syn/{top}_rtl_vs_syn",
+    )
     assert contracts["sdc.setup"].scope == "run"
     assert "SDC_IO_DELAY_PCT" in contracts["sdc.setup"].config
     assert "REG_ITF" not in contracts["sdc.setup"].config
@@ -7155,6 +7932,7 @@ def test_stage_contract_graph_is_single_source_and_acyclic() -> None:
     assert contracts["power_analysis_post_impl_all"].parents == ("signoff_post_impl.setup", "sim_post_impl_all")
     assert contracts["fusion_analysis_post_impl_all"].parents == ("power_analysis_post_impl_all",)
     assert contracts["pnr"].evidence == (
+        "impl/{pdk}/summary.json",
         "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.v",
         "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.sdc",
         "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.spef",
@@ -7231,7 +8009,8 @@ def test_runtime_contract_evidence_invalidates_downstream_selectively(tmp_path: 
     router.lifecycle.record(
         "syn.setup", inputs_for=router._provenance_inputs, generated=(setup,),
     )
-    netlist, netjson, repair = router._evidence_paths("syn")
+    summary, netlist, netjson, repair = router._evidence_paths("syn")
+    summary.write_text('{"schema":"flexsoc.synthesis.v1","status":"PASS"}\n', encoding="utf-8")
     netlist.write_text("module demo; endmodule\n", encoding="utf-8")
     netjson.write_text("{}\n", encoding="utf-8")
     repair.write_text('{"classification":"openroad_pre_placement_repair"}\n', encoding="utf-8")
@@ -7275,8 +8054,9 @@ def test_tool_contract_invalidation_is_stage_selective(tmp_path: Path) -> None:
     router.paths.rtl_common.write_text("", encoding="utf-8")
     router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
     router.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
-    netlist, netjson, repair = router._evidence_paths("syn")
+    summary, netlist, netjson, repair = router._evidence_paths("syn")
     netlist.parent.mkdir(parents=True, exist_ok=True)
+    summary.write_text('{"schema":"flexsoc.synthesis.v1","status":"PASS"}\n', encoding="utf-8")
     netlist.write_text("module demo; endmodule\n", encoding="utf-8")
     netjson.write_text("{}\n", encoding="utf-8")
     repair.write_text('{"classification":"openroad_pre_placement_repair"}\n', encoding="utf-8")
@@ -7354,7 +8134,7 @@ def test_physical_signoff_inputs_are_canonical_pnr_outputs_not_impl_tree(tmp_pat
     assert set(router._evidence_paths("pnr")).issubset(inputs)
 
 
-def test_pnr_provenance_tracks_only_canonical_final_artifacts(tmp_path: Path) -> None:
+def test_pnr_provenance_tracks_summary_and_canonical_final_artifacts(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
@@ -7367,8 +8147,9 @@ def test_pnr_provenance_tracks_only_canonical_final_artifacts(tmp_path: Path) ->
     router.paths.ensure()
 
     root = router.paths.impl / "results" / "sky130hd" / "demo" / "base"
-    assert router._evidence_paths("pnr") == tuple(
-        root / f"6_final.{suffix}" for suffix in ("v", "sdc", "spef", "odb", "gds")
+    assert router._evidence_paths("pnr") == (
+        router.paths.impl / "summary.json",
+        *(root / f"6_final.{suffix}" for suffix in ("v", "sdc", "spef", "odb", "gds")),
     )
 
 
@@ -7410,7 +8191,9 @@ def test_pdk_switch_keeps_rtl_provenance_and_isolates_technology(tmp_path: Path)
             setup_stage, inputs_for=sky._provenance_inputs, generated=(generated,),
         )
 
-    log_dir, sv_cov, cocotb_cov = sky._evidence_paths("regression")
+    summary, log_dir, sv_cov, cocotb_cov = sky._evidence_paths("regression")
+    summary.parent.mkdir(parents=True, exist_ok=True)
+    summary.write_text("{}\n", encoding="utf-8")
     for path in (log_dir / "sv" / "demo.log", sv_cov / "smoke.dat", cocotb_cov / "smoke.dat"):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("evidence\n", encoding="utf-8")
@@ -7447,7 +8230,9 @@ def test_regression_provenance_ignores_derived_coverage_reports(tmp_path: Path) 
             setup_stage, inputs_for=router._provenance_inputs, generated=(generated,),
         )
 
-    log_dir, sv_cov, cocotb_cov = router._evidence_paths("regression")
+    summary, log_dir, sv_cov, cocotb_cov = router._evidence_paths("regression")
+    summary.parent.mkdir(parents=True, exist_ok=True)
+    summary.write_text("{}\n", encoding="utf-8")
     for path in (log_dir / "sv" / "demo.log", sv_cov / "smoke.dat", cocotb_cov / "smoke.dat"):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("raw regression evidence\n", encoding="utf-8")
@@ -8060,6 +8845,80 @@ def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tm
     assert changed["ip_intent_sha256"] != before
 
 
+
+def test_cdc_flow_exposes_one_visible_lifecycle_and_check_catalog(tmp_path: Path) -> None:
+    from flexsoc.backend.core import BackendContext
+    from flexsoc.backend.dv.lint.cdc import CdcFlow
+
+    context = BackendContext(
+        tmp_path / "project", tmp_path / "work",
+        {"TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"},
+    )
+    flow = CdcFlow(context)
+
+    for method in ("setup", "run", "debug", "show", "classify_cdc_rdc"):
+        assert callable(getattr(flow, method))
+    for legacy in ("setup_analysis", "run_analysis", "run_from_context", "debug_from_context"):
+        assert not hasattr(flow, legacy)
+
+    assert CdcFlow.CHECKS == {
+        "cdc": (
+            "clock_crossings", "async_fifo_candidates", "closed_loop_handshakes",
+            "synchronized_reconvergence", "cdc_contracts",
+        ),
+        "rdc": (
+            "reset_crossings", "reset_synchronizers", "async_reset_release",
+            "reset_sequence",
+        ),
+        "setup": (
+            "domain_assignment", "clock_relationships", "reset_polarity",
+            "reset_families", "cdc_contracts",
+        ),
+        "glitch": ("combinational_clock_paths", "combinational_reset_paths"),
+    }
+
+
+def test_cdc_summary_records_all_checks_and_show_is_read_only(tmp_path: Path) -> None:
+    from flexsoc.backend.core import BackendContext
+    from flexsoc.backend.dv.lint.cdc import CdcFlow, CrossingAnalysis, CdcRdcResults, DesignIR
+
+    project = tmp_path / "project"
+    project.mkdir()
+    context = BackendContext(
+        project, tmp_path / "work",
+        {"TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"},
+    )
+    context.paths.ensure()
+    ir = DesignIR("demo", (), (), (), {"ports": {}, "cells": {}, "netnames": {}})
+    analysis = CrossingAnalysis((), (), ())
+    results = CdcRdcResults((), (), (), ())
+    summary = CdcFlow.write_reports(
+        ir, analysis, analysis_dir=context.paths.cdc_rdc,
+        log_dir=context.paths.logs / "dv" / "cdc_rdc", result=results,
+    )
+
+    assert summary["schema"] == "flexsoc.cdc_rdc.v4"
+    assert summary["checks"] == {scope: list(names) for scope, names in CdcFlow.CHECKS.items()}
+
+    class NoRun:
+        def run(self, request, *, on="local"):
+            raise AssertionError("show must not execute a tool")
+
+    flow = CdcFlow(context, NoRun())
+    output = tmp_path / "summary.txt"
+    assert flow.show(summary=True, output=str(output)) == 0
+    text = output.read_text(encoding="utf-8")
+    assert "CDC/RDC" in text
+    assert "Clock domains" in text
+    assert "Checks executed" not in text
+
+    output = tmp_path / "show.txt"
+    assert flow.show(output=str(output)) == 0
+    text = output.read_text(encoding="utf-8")
+    assert "Checks executed" in text
+    assert "clock_crossings" in text
+    assert "reset_synchronizers" in text
+
 def test_cdc_debug_diagnoses_contract_loss_compactly(tmp_path: Path) -> None:
     from flexsoc.backend.dv.lint.cdc import CdcFlow
 
@@ -8074,7 +8933,7 @@ def test_cdc_debug_diagnoses_contract_loss_compactly(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     summary = {
-        "schema": "flexsoc.cdc_rdc.v3",
+        "schema": "flexsoc.cdc_rdc.v4",
         "top": "demo",
         "status": "fail",
         "clock_domains": 3,
@@ -8140,7 +8999,7 @@ def test_cli_cdc_rdc_debug_reads_existing_artifacts_without_rerun(
         '(* flexsoc_cdc_contract = "clock_gate" *) gate u_gate();\n', encoding="utf-8"
     )
     summary = {
-        "schema": "flexsoc.cdc_rdc.v3", "top": "demo", "status": "fail",
+        "schema": "flexsoc.cdc_rdc.v4", "top": "demo", "status": "fail",
         "clock_domains": 2, "reset_domains": 2, "sequential_elements": 8,
         "setup": {"errors": 1, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": [
             {"id": "SETUP-0001", "status": "ERROR", "classification": "unassigned_clock_domain",
@@ -8161,9 +9020,9 @@ def test_cli_cdc_rdc_debug_reads_existing_artifacts_without_rerun(
 
     assert app(["cdc_rdc", "--debug", *common]) == 0
     rendered = capsys.readouterr().out
-    assert "CDC/RDC debug" in rendered
-    assert "CDC contract survival" in rendered
-    assert "Triage" in rendered
+    assert "CDC/RDC" in rendered
+    assert "Diagnosis" in rendered
+    assert "Contract evidence" in rendered
     assert "contract_lost_in_extraction" in rendered
     assert "unassigned_clock_domain" in rendered
     assert "downstream symptoms" in rendered
@@ -8187,7 +9046,7 @@ def test_cdc_debug_distinguishes_ineffective_guard_and_atomic_obligations(tmp_pa
         '(* flexsoc_cdc_contract = "clock_gate" *) gate u_gate();\n', encoding="utf-8"
     )
     summary = {
-        "schema": "flexsoc.cdc_rdc.v3", "top": "demo", "status": "review",
+        "schema": "flexsoc.cdc_rdc.v4", "top": "demo", "status": "review",
         "clock_domains": 2, "reset_domains": 2, "sequential_elements": 8,
         "setup": {"errors": 0, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": []},
         "glitch": {"errors": 0, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": []},
@@ -8234,7 +9093,7 @@ def test_cdc_debug_triages_synchronized_reconvergence_without_waiving_it(tmp_pat
         "obligations": ["prove_destination_coherency"],
     }
     summary = {
-        "schema": "flexsoc.cdc_rdc.v3", "top": "demo", "status": "review",
+        "schema": "flexsoc.cdc_rdc.v4", "top": "demo", "status": "review",
         "clock_domains": 2, "reset_domains": 2, "sequential_elements": 8,
         "setup": {"errors": 0, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": []},
         "glitch": {"errors": 0, "warnings": 0, "review": 0, "safe": 0, "info": 0, "findings": []},
@@ -8387,9 +9246,9 @@ def test_cdc_safe_synchronizer_rdc_has_no_open_obligation() -> None:
         cdc_module.Endpoint("seq", "dst", 0, "b", "b_rst"),
         "async",
     )
-    analysis = cdc_module.DomainAnalysis((), (), (crossing,))
+    analysis = cdc_module.CrossingAnalysis((), (), (crossing,))
     protected = cdc_module.DomainFinding("cdc", "SAFE", "nff_synchronizer", (crossing,))
-    rdc = cdc_module.CdcFlow._classify_reset_domain_crossings(analysis, (protected,))
+    rdc = cdc_module.CdcFlow._check_reset_crossings(analysis, (protected,))
     assert len(rdc) == 1
     assert rdc[0].status == "SAFE"
     assert rdc[0].obligations == ()
@@ -8425,10 +9284,11 @@ def test_cdc_multiple_resets_on_one_clock_is_informational_without_crossings() -
         ),
         module=module,
     )
-    analysis = cdc_module.DomainAnalysis((), (), ())
-    setup, glitch = cdc_module.CdcFlow._setup_and_glitch_findings(ir, analysis)
+    analysis = cdc_module.CrossingAnalysis((), (), ())
+    setup = cdc_module.CdcFlow._check_setup(ir, analysis)
+    glitch = cdc_module.CdcFlow._check_glitches(ir)
     finding = next(item for item in setup if item.classification == "multiple_reset_domains_on_clock")
-    result = cdc_module.ComprehensiveAnalysis((), (), setup, glitch)
+    result = cdc_module.CdcRdcResults((), (), setup, glitch)
 
     assert finding.status == "INFO"
     assert cdc_module.CdcFlow._overall_status(result) == "pass"
@@ -8482,7 +9342,7 @@ def test_cdc_reset_family_tracks_arbitrary_depth_distribution_tree() -> None:
     assert families["branch_a_deep"] == "rst_ni"
     assert analysis.reset_crossings == ()
 
-    setup, _ = cdc_module.CdcFlow._setup_and_glitch_findings(ir, analysis)
+    setup = cdc_module.CdcFlow._check_setup(ir, analysis)
     distributed = [item for item in setup if item.classification == "distributed_reset_family"]
     assert len(distributed) == 1
     assert distributed[0].status == "INFO"
@@ -8656,7 +9516,7 @@ def test_functional_tb_clock_waveform_comes_from_clock_config() -> None:
         "clks": ["clk_i"], "rsts": ["rst_ni"],
     }
     sv = SystemVerilogTestbench.render_top("demo", clocks, signature, "reg_iface")
-    py = CocotbTestbench.render_test("demo", clocks, signature)
+    py = CocotbTestbench.render_test("demo", clocks)
 
     assert "#0.45;" in sv
     assert "#4.4;" in sv
@@ -8667,6 +9527,10 @@ def test_functional_tb_clock_waveform_comes_from_clock_config() -> None:
     assert "await Timer(initial_low, unit=\"ns\")" in py
     assert "jitter_next_ps = int(jitter_state % (2 * jitter_bound_ps + 1)) - jitter_bound_ps" in py
     assert "cocotb.start_soon(_flexsoc_clock(getattr(dut, 'clk_i'), 10, 0.3, 4.7, 0.15, 100, 3713949822))" in py
+    assert "from drivers.vec_driver import run_vectors" in py
+    assert "await run_vectors(dut, cfg, data_in, data_out)" in py
+    compile(py, "<functional-test>", "exec")
+    compile(CocotbTestbench.render_vec_driver(clocks, signature), "<cycle-vector-driver>", "exec")
 
 
 
@@ -9331,11 +10195,14 @@ def test_multiclock_testbench_derives_domains_streams_and_register_windows() -> 
     assert 'reg_name == "ENABLE"' not in sv
     assert 'reg_name == "GAIN"' not in sv
     assert "send_ingress" in vec and "compute_valid_o" in vec
+    assert "task automatic run_vectors(input string input_path, input string output_path);" in vec
     assert "pending_ingress_clk_i" not in vec
     assert "'ctrl': {'ENABLE': 0}" in cocotb
     assert "'compute': {'GAIN': 4}" in cocotb
     assert "'ingress_valid_i'" in cocotb_vec and "'compute_valid_o'" in cocotb_vec
     assert "for name, stream in INPUT_STREAMS.items()" in cocotb_vec
+    assert "async def run_vectors(dut, cfg, data_in, data_out):" in cocotb_vec
+    compile(cocotb_vec, "<stream-vector-driver>", "exec")
     assert "handle.value = int(pending[signal]) & ((1 << len(handle)) - 1)" in cocotb_vec
     assert "handle.value = int(value) & ((1 << len(handle)) - 1)" in cocotb_vec
     assert not any(token in "\n".join((sv, vec, cocotb, cocotb_vec)) for token in (
@@ -9765,7 +10632,14 @@ def test_lint_tool_diagnostics_do_not_gate_execution_status(
         lint=tmp_path / "lint", logs=tmp_path / "logs", run=tmp_path / "run",
     )
     context = SimpleNamespace(paths=paths, values={}, project_root=tmp_path)
-    runner = SimpleNamespace(run=lambda request, on: SimpleNamespace(returncode=1))
+    requests = []
+
+    class Runner:
+        def run(self, request, *, on="local"):
+            requests.append(request)
+            return SimpleNamespace(returncode=1)
+
+    runner = Runner()
     diagnostic = [{
         "tool": "tool", "priority": "P0", "severity": "error", "code": "TEST",
         "message": "critical evidence", "file": "rtl/demo.sv", "line": 1, "column": 1,
@@ -9776,6 +10650,34 @@ def test_lint_tool_diagnostics_do_not_gate_execution_status(
         _, summary = owner(context, runner).run(profile="everything")
         assert summary["status"] == "PASS"
         assert summary["counts"]["P0"] == 1
+        assert requests[-1].outputs
+
+
+def test_lint_missing_native_evidence_is_failure_not_fake_diagnostic(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from types import SimpleNamespace
+    from flexsoc.backend.dv.lint.slang_lint import SlangLint
+    from flexsoc.backend.dv.lint.verilator_lint import VerilatorLint
+
+    rtl_common = tmp_path / "common.f"
+    rtl_ip = tmp_path / "ip.f"
+    rtl_common.touch()
+    rtl_ip.touch()
+    paths = SimpleNamespace(
+        top="demo", rtl_common=rtl_common, rtl_ip=rtl_ip,
+        lint=tmp_path / "lint", logs=tmp_path / "logs", run=tmp_path / "run",
+    )
+    context = SimpleNamespace(paths=paths, values={}, project_root=tmp_path)
+    runner = SimpleNamespace(run=lambda request, on: SimpleNamespace(returncode=2))
+
+    for owner in (SlangLint, VerilatorLint):
+        monkeypatch.setattr(owner, "_diagnostics", lambda self, path: None)
+        _, summary = owner(context, runner).run(profile="everything")
+        assert summary["status"] == "FAILED"
+        assert summary["total"] == 0
+        assert summary["counts"] == {"P0": 0, "P1": 0, "P2": 0, "P3": 0}
+        assert summary["diagnostics"] == []
 
 
 def test_lint_aggregate_summary_is_release_facing_and_reporting_only(tmp_path: Path) -> None:
@@ -9792,6 +10694,8 @@ def test_lint_aggregate_summary_is_release_facing_and_reporting_only(tmp_path: P
             "schema": "flexsoc.lint.tool.v1", "top": "demo", "tool": tool,
             "profile": "everything", "status": "PASS",
             "returncode": 1, "counts": counts, "total": 1,
+            "command": [tool, "--lint"],
+            "artifacts": {"diagnostics": f"dv/lint/{tool}/native.json"},
             "diagnostics": [{
                 "tool": tool, "priority": priority, "severity": "warning", "code": "TEST",
                 "message": "test", "file": "rtl/demo.sv", "line": 1, "column": 1,
@@ -9805,6 +10709,8 @@ def test_lint_aggregate_summary_is_release_facing_and_reporting_only(tmp_path: P
     assert summary["status"] == "PASS"
     assert summary["counts"] == {"P0": 1, "P1": 1, "P2": 0, "P3": 0}
     assert [item["tool"] for item in summary["diagnostics"]] == ["slang", "verilator"]
+    assert summary["tools"]["slang"]["command"] == ["slang", "--lint"]
+    assert summary["tools"]["slang"]["artifacts"]["diagnostics"] == "dv/lint/slang/native.json"
     assert (lint_root / "summary.json").is_file()
 
 
@@ -9820,8 +10726,16 @@ def test_lint_debug_renders_show_plus_hints(tmp_path: Path) -> None:
         "status": "PASS", "order": ["slang", "verilator"],
         "counts": {"P0": 1, "P1": 1, "P2": 2, "P3": 2}, "total": 6,
         "tools": {
-            "slang": {"status": "PASS", "counts": {"P0": 1, "P1": 1, "P2": 0, "P3": 0}, "total": 2},
-            "verilator": {"status": "PASS", "counts": {"P0": 0, "P1": 0, "P2": 2, "P3": 2}, "total": 4},
+            "slang": {
+                "status": "PASS", "counts": {"P0": 1, "P1": 1, "P2": 0, "P3": 0}, "total": 2,
+                "command": ["slang", "--diag-json"],
+                "artifacts": {"diagnostics": "dv/lint/slang/slang_diag.json"},
+            },
+            "verilator": {
+                "status": "PASS", "counts": {"P0": 0, "P1": 0, "P2": 2, "P3": 2}, "total": 4,
+                "command": ["verilator", "--lint-only"],
+                "artifacts": {"diagnostics": "dv/lint/verilator/verilator.sarif"},
+            },
         },
         "diagnostics": [
             {
@@ -9847,6 +10761,8 @@ def test_lint_debug_renders_show_plus_hints(tmp_path: Path) -> None:
     assert "Hints" in text
     assert "reporting-only" in text
     assert "Functional-risk diagnostics should be fixed or waived explicitly" in text
+    assert "slang --diag-json" in text
+    assert "dv/lint/slang/slang_diag.json" in text
 
 
 def test_cli_lint_show_filters_tool_and_keeps_file_last(
@@ -9905,17 +10821,98 @@ def test_cli_lint_show_filters_tool_and_keeps_file_last(
     assert "use `fx lint --show`" in capsys.readouterr().err
 
 
+def test_cli_regression_coverage_formal_summary_show_debug(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    workspace = tmp_path / "workspace"
+    run = workspace / "runs" / "demo" / "dev"
+
+    regression = run / "dv" / "functional" / "regression"
+    regression.mkdir(parents=True)
+    (regression / "summary.json").write_text(json.dumps({
+        "schema": "flexsoc.regression.v1", "stage": "regression", "status": "PASS",
+        "top": "demo", "compiler": "verilator", "backends": ["sv", "cocotb"],
+        "tests": ["smoke"], "test_count": 1,
+        "counts": {"passed": 2, "failed": 0, "not_run": 0, "total": 2},
+        "backend_counts": {
+            "sv": {"passed": 1, "failed": 0, "not_run": 0, "total": 1},
+            "cocotb": {"passed": 1, "failed": 0, "not_run": 0, "total": 1},
+        },
+        "compile": {"status": "PASS", "log": "logs/dv/functional/regression/sv/demo_sv_compile.log"},
+        "matrix": {"smoke": {
+            "sv": {"status": "PASS", "log": "logs/dv/functional/regression/sv/demo_sv_sim_smoke.log"},
+            "cocotb": {"status": "PASS", "log": "logs/dv/functional/regression/cocotb/demo_cocotb_smoke.log"},
+        }},
+    }) + "\n", encoding="utf-8")
+
+    coverage = run / "dv" / "functional" / "coverage"
+    coverage.mkdir(parents=True)
+    (coverage / "summary.json").write_text(json.dumps({
+        "schema_version": 3, "stage": "coverage", "status": "PASS", "top": "demo",
+        "types": ["line"], "display_columns": ["line", "total"],
+        "scopes": {
+            "design": {"total": {"hit": 9, "total": 10, "percent": 90.0}},
+            "registers": {"total": {"hit": 0, "total": 0, "percent": 0.0}},
+            "common": {"total": {"hit": 1, "total": 1, "percent": 100.0}},
+            "other": {"total": {"hit": 0, "total": 0, "percent": 0.0}},
+            "all": {"total": {"hit": 10, "total": 11, "percent": 90.909}},
+        },
+        "uncovered": [{"line": 42, "type": "line", "hits": 0, "detail": "branch", "file": "rtl/demo.sv"}],
+        "artifacts": {"merged": "dv/functional/coverage/merged.dat", "merge_log": "dv/functional/coverage/merge.log"},
+    }) + "\n", encoding="utf-8")
+
+    formal = run / "dv" / "formal"
+    formal.mkdir(parents=True)
+    def stage(status: str) -> dict[str, object]:
+        return {
+            "status": status, "config": "dv/formal/run.sby", "workdir": "dv/formal/run",
+            "log": "logs/dv/formal/run.log", "traces": [],
+        }
+    (formal / "summary.json").write_text(json.dumps({
+        "schema": "flexsoc.formal.v1", "stage": "formal", "status": "PASS", "top": "demo",
+        "counts": {"passed": 6, "failed": 0, "unknown": 0, "observed": 6, "total": 6},
+        "stage_counts": {
+            "bmc": {"passed": 2, "failed": 0, "unknown": 0, "total": 2},
+            "prove": {"passed": 2, "failed": 0, "unknown": 0, "total": 2},
+            "cover": {"passed": 2, "failed": 0, "unknown": 0, "total": 2},
+        },
+        "matrix": {
+            "csr": {"bmc": stage("PASS"), "prove": stage("PASS"), "cover": stage("PASS")},
+            "properties": {"bmc": stage("PASS"), "prove": stage("PASS"), "cover": stage("PASS")},
+        },
+    }) + "\n", encoding="utf-8")
+
+    common = [
+        "--project-root", str(tmp_path), "--workdir", str(workspace),
+        "--set", "TOP=demo", "--set", "RUN_TOP=demo", "--set", "RUN_ID=dev",
+    ]
+    for target, summary_token, show_token, debug_token in (
+        ("regression", "subruns=2", "smoke", "Diagnostics"),
+        ("coverage", "design=90.00%", "rtl/demo.sv", "Artifacts"),
+        ("formal", "pass=6/6", "properties", "Artifacts"),
+    ):
+        assert app([target, "--summary", *common]) == 0
+        assert summary_token in capsys.readouterr().out
+        assert app([target, "--show", *common]) == 0
+        assert show_token in capsys.readouterr().out
+        assert app([target, "--debug", *common]) == 0
+        assert debug_token in capsys.readouterr().out
+
+
+def test_coverage_legacy_target_is_removed() -> None:
+    assert "coverage_detail" not in TARGETS
+    assert "coverage_detail" not in BACKEND_TARGETS
+    assert "COVERAGE_DETAIL_LIMIT" not in api_module.SIM
+
+
 def test_lint_catalog_has_only_canonical_public_targets() -> None:
     assert BACKEND_TARGETS["lint"].action == "lint"
     assert BACKEND_TARGETS["lint"].sequence == ()
     assert BACKEND_TARGETS["lint"].debug == "lint"
     assert BACKEND_TARGETS["lint"].show == "lint"
-    assert BACKEND_TARGETS["lint_slang"].debug is None
-    assert BACKEND_TARGETS["lint_slang"].show is None
-    assert BACKEND_TARGETS["lint_verilator"].debug is None
-    assert BACKEND_TARGETS["lint_verilator"].show is None
     for legacy in (
-        "lint_suite", "lint_slang_suite", "lint_verilator_suite", "lint_latch",
+        "lint_slang", "lint_verilator", "lint_suite", "lint_slang_suite",
+        "lint_verilator_suite", "lint_latch",
         "lint_undriven", "lint_width", "lint_unconnected", "lint_unused", "lint_v", "lint_sv",
     ):
         assert legacy not in BACKEND_TARGETS
@@ -9978,9 +10975,9 @@ def test_cycle_vector_driver_avoids_module_scope_path_shadowing() -> None:
     assert "tb_step(input string data_out_path" not in text
 
 
-def test_slang_hierarchy_owns_setup_run_summary_and_show(tmp_path: Path) -> None:
+def test_slang_hierarchy_owns_run_summary_show_and_debug(tmp_path: Path) -> None:
     from flexsoc.backend.core import BackendContext, CommandResult
-    from flexsoc.backend.design.ip.slang_hier import SlangHierarchy
+    from flexsoc.backend.dv.lint.slang_hier import SlangHierarchy
 
     project = tmp_path / "project"
     workdir = tmp_path / "work"
@@ -9998,34 +10995,130 @@ def test_slang_hierarchy_owns_setup_run_summary_and_show(tmp_path: Path) -> None
         def run(self, request, *, on="local"):
             assert on == "grid"
             assert request.stdout is not None
+            assert len(request.outputs) == 2
+            assert request.outputs[1].name == "ast.json"
             request.stdout.parent.mkdir(parents=True, exist_ok=True)
-            request.stdout.write_text("demo\n  u_child: child\n", encoding="utf-8")
+            request.stdout.write_text("demo\tdemo\trtl/demo.sv\ndemo.u_child\tchild\trtl/demo.sv\n", encoding="utf-8")
+            request.outputs[1].write_text('{"design": {"kind": "Root"}}\n', encoding="utf-8")
             request.log.parent.mkdir(parents=True, exist_ok=True)
             request.log.write_text("slang-hier ok\n", encoding="utf-8")
             return CommandResult(0, request.log, 0.25)
 
     flow = SlangHierarchy(context, Runner())
-    script = flow.setup()
-    assert script == context.paths.slang_hier / "run.sh"
-    assert "slang-hier --top demo" in script.read_text(encoding="utf-8")
     assert flow.run(on="grid") == 0
 
     summary = json.loads((context.paths.slang_hier / "summary.json").read_text(encoding="utf-8"))
-    assert summary["schema"] == "flexsoc.slang_hier.v1"
+    assert summary["schema"] == "flexsoc.slang_hier.v3"
     assert summary["stage"] == "slang_hier"
     assert summary["status"] == "PASS"
     assert summary["run"]["exit_code"] == 0
-    assert summary["hierarchy"] == ["demo", "  u_child: child"]
+    assert summary["metrics"]["instances"] == 2
+    assert summary["instances"][1] == {"instance": "demo.u_child", "module": "child", "file": "rtl/demo.sv"}
     assert summary["artifacts"]["hierarchy"] == "dv/slang_hier/hierarchy.txt"
+    assert summary["artifacts"]["ast"] == "dv/slang_hier/ast.json"
+    assert summary["metrics"]["ast_bytes"] > 0
+    assert "--ast-json" in summary["command"]
+    assert "--ast-json-source-info" in summary["command"]
+    assert "script" not in summary["artifacts"]
 
     output = tmp_path / "show.txt"
     assert flow.show(output=str(output)) == 0
     rendered = output.read_text(encoding="utf-8")
-    assert "Slang hierarchy" in rendered
-    assert "u_child: child" in rendered
+    assert "Slang hierarchy / AST" in rendered
+    assert "demo.u_child" in rendered
 
 
-def test_slang_hierarchy_is_a_provenance_owned_stage() -> None:
-    assert BACKEND_TARGETS["slang_hier"].setup == ("slang_hier.setup",)
-    assert lifecycle_module.STAGE_CONTRACTS["slang_hier"].evidence == ("dv/slang_hier/summary.json",)
-    assert "slang_hier.setup" in lifecycle_module.STAGE_CONTRACTS
+def test_slang_hierarchy_is_a_non_gating_utility() -> None:
+    assert BACKEND_TARGETS["slang_hier"].domain == "dv"
+    assert BACKEND_TARGETS["slang_hier"].setup == ()
+    assert "slang_hier" not in lifecycle_module.STAGE_CONTRACTS
+    assert "slang_hier.setup" not in lifecycle_module.STAGE_CONTRACTS
+
+
+def test_slang_hierarchy_session_bypasses_provenance_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = TargetSession(
+        tmp_path, tmp_path / "work",
+        {"TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"},
+    )
+    monkeypatch.setattr(session, "_write_settings_evidence", lambda target: None)
+    monkeypatch.setattr(
+        session, "_require_provenance",
+        lambda target: pytest.fail("slang_hier must not enter provenance gating"),
+    )
+    monkeypatch.setattr(session, "_execute_target", lambda target: 0)
+
+    assert session.execute("slang_hier") == 0
+
+
+def test_slang_hierarchy_records_tool_failure_without_failing_target(tmp_path: Path) -> None:
+    from flexsoc.backend.core import BackendContext, CommandResult
+    from flexsoc.backend.dv.lint.slang_hier import SlangHierarchy
+
+    project = tmp_path / "project"
+    workdir = tmp_path / "work"
+    rtl = project / "rtl"
+    rtl.mkdir(parents=True)
+    top = rtl / "demo.sv"
+    top.write_text("module demo; endmodule\n", encoding="utf-8")
+    context = BackendContext(project, workdir, {
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
+        "SLANG_ROOT": str(rtl), "SLANG_TOP_FILE": str(top),
+    })
+    context.paths.ensure()
+
+    class Runner:
+        def run(self, request, *, on="local"):
+            assert request.stdout is not None
+            request.stdout.parent.mkdir(parents=True, exist_ok=True)
+            request.stdout.write_text("demo\tdemo\trtl/demo.sv\n", encoding="utf-8")
+            request.outputs[1].write_text('{"design": {"kind": "Root"}}\n', encoding="utf-8")
+            request.log.parent.mkdir(parents=True, exist_ok=True)
+            request.log.write_text("slang-hier returned non-zero\n", encoding="utf-8")
+            return CommandResult(2, request.log, 0.1)
+
+    flow = SlangHierarchy(context, Runner())
+    assert flow.run(on="grid") == 0
+    summary = json.loads((context.paths.slang_hier / "summary.json").read_text(encoding="utf-8"))
+    assert summary["status"] == "FAILED"
+    assert summary["run"]["exit_code"] == 2
+    assert summary["metrics"]["instances"] == 1
+
+
+def test_multiclock_icarus_stream_vectors_use_shared_token_parser() -> None:
+    """Icarus GLS uses the packed parser shared with the proven cycle-vector path."""
+
+    clocks = ClockConfig((
+        ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 10.0),
+        ClockDomain("rx", "rx_clk_i", "rx_rst_ni", 8.0),
+        ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 6.0),
+    ))
+    signature = {
+        "ports_in": [
+            ("cfg_clk_i", 1), ("cfg_rst_ni", 1),
+            ("rx_clk_i", 1), ("rx_rst_ni", 1),
+            ("dsp_clk_i", 1), ("dsp_rst_ni", 1),
+            ("rx_sample_i", "[15:0]"), ("rx_coeff_i", "[15:0]"),
+            ("rx_valid_i", 1),
+        ],
+        "ports_out": [
+            ("rx_ready_o", 1), ("dsp_result_o", "[31:0]"),
+            ("dsp_valid_o", 1),
+        ],
+        "clks": ["cfg_clk_i", "rx_clk_i", "dsp_clk_i"],
+        "rsts": ["cfg_rst_ni", "rx_rst_ni", "dsp_rst_ni"],
+    }
+
+    driver = SystemVerilogTestbench.render_vec_driver("demo", clocks, signature, "reg_iface")
+    monitor = SystemVerilogTestbench.render_vec_monitor("demo", clocks, signature, "reg_iface")
+    packed_driver = driver.split("`else\n", 1)[1]
+    packed_monitor = monitor.split("`else\n", 1)[1]
+
+    assert "tb_tokenize9(line_buf" in packed_driver
+    assert "tb_parse_u32(step_raw)" in packed_driver
+    assert "tb_parse_u32(arg0)" in packed_driver
+    assert '$sscanf(line_buf, "%d %s %h"' not in packed_driver
+    assert "tb_tokenize9(line_buf" in packed_monitor
+    assert "tb_parse_u32(value_raw)" in packed_monitor
+    assert '$sscanf(line_buf, "%d %s %h"' not in packed_monitor
