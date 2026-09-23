@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from io import StringIO
+import json
+import re
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
+
+from rich.console import Console
+from rich.table import Table
 
 from flexsoc.backend.core import ClockConfig
 from flexsoc.backend.core.render.templates import templates
@@ -252,7 +258,227 @@ class FormalFlow:
         kwargs = dict(log=log, sby=values.get("SBY", "sby"), inputs=inputs, on=on)
         if mode != "cover":
             kwargs["top"] = paths.top
-        return method(config, **kwargs)
+        try:
+            return method(config, **kwargs)
+        finally:
+            self._write_summary(context)
+
+    def show(
+        self,
+        context,
+        *,
+        summary: bool = False,
+        debug: bool = False,
+        output: str | None = None,
+        as_json: bool = False,
+    ) -> int:
+        """Render aggregate formal evidence without reparsing SBY during presentation."""
+
+        path = context.paths.formal / "summary.json"
+        if not path.is_file():
+            raise FileNotFoundError(f"formal summary not found: {path}; run formal stages first")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        capture = StringIO() if output else None
+        console = Console(file=capture, force_terminal=False) if capture else Console()
+        if as_json:
+            print(json.dumps(data, indent=2, sort_keys=True), file=capture or None)
+        else:
+            status = str(data.get("status", "UNKNOWN"))
+            color = "green" if status == "PASS" else "red" if status == "FAILED" else "orange1"
+            counts = data.get("counts", {}) if isinstance(data.get("counts"), Mapping) else {}
+            console.print(
+                f"[bold]Formal[/bold] [{color}]{status}[/{color}] · "
+                f"pass={counts.get('passed', 0)}/{counts.get('total', 6)} · "
+                f"fail={counts.get('failed', 0)} · unknown={counts.get('unknown', 0)}"
+            )
+            stages = data.get("stage_counts", {}) if isinstance(data.get("stage_counts"), Mapping) else {}
+            table = Table(box=None, show_edge=False, pad_edge=False)
+            table.add_column("Stage", style="bright_cyan")
+            table.add_column("Pass", justify="right")
+            table.add_column("Fail", justify="right")
+            table.add_column("Unknown", justify="right")
+            table.add_column("Total", justify="right")
+            for name in ("bmc", "prove", "cover"):
+                item = stages.get(name, {}) if isinstance(stages, Mapping) else {}
+                table.add_row(
+                    name, str(item.get("passed", 0)), str(item.get("failed", 0)),
+                    str(item.get("unknown", 0)), str(item.get("total", 2)),
+                )
+            console.print(table)
+
+            if not summary:
+                matrix = data.get("matrix", {}) if isinstance(data.get("matrix"), Mapping) else {}
+                table = Table(box=None, show_edge=False, pad_edge=False)
+                table.add_column("Suite", style="bright_cyan")
+                table.add_column("BMC")
+                table.add_column("PROVE")
+                table.add_column("COVER")
+                for suite in ("csr", "properties"):
+                    item = matrix.get(suite, {}) if isinstance(matrix, Mapping) else {}
+                    table.add_row(
+                        suite, *(str(item.get(stage, {}).get("status", "UNKNOWN")) for stage in ("bmc", "prove", "cover"))
+                    )
+                console.print(table)
+
+            if debug:
+                console.print("[bold]Artifacts[/bold]")
+                matrix = data.get("matrix", {}) if isinstance(data.get("matrix"), Mapping) else {}
+                for suite in ("csr", "properties"):
+                    item = matrix.get(suite, {}) if isinstance(matrix, Mapping) else {}
+                    for stage in ("bmc", "prove", "cover"):
+                        evidence = item.get(stage, {}) if isinstance(item, Mapping) else {}
+                        if not isinstance(evidence, Mapping):
+                            continue
+                        console.print(
+                            f"[grey70]{suite}/{stage}[/grey70] {evidence.get('status', 'UNKNOWN')} · "
+                            f"config={evidence.get('config', '-')} · workdir={evidence.get('workdir', '-')} · "
+                            f"log={evidence.get('log', '-')}"
+                        )
+                        for trace in evidence.get("traces", ()):
+                            console.print(f"[grey70]trace[/grey70] {trace}")
+                console.print(f"[grey70]summary[/grey70] {path}")
+
+        if output and capture is not None:
+            destination = Path(output)
+            if not destination.is_absolute():
+                destination = context.project_root / destination
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(capture.getvalue(), encoding="utf-8")
+        return 0
+
+    def _write_summary(self, context) -> dict[str, object]:
+        """Normalize native SBY status/workdirs into the canonical formal summary."""
+
+        paths = context.paths
+        top = paths.top
+        specs = {
+            "csr": {
+                "bmc": (
+                    paths.formal / "runs" / "csr" / "prove" / f"{top}_csr_prove.sby",
+                    paths.formal / "runs" / "csr" / "prove" / f"{top}_csr_bmc",
+                    paths.logs / "dv" / "formal" / "csr" / f"{top}_bmc.log",
+                ),
+                "prove": (
+                    paths.formal / "runs" / "csr" / "prove" / f"{top}_csr_prove.sby",
+                    paths.formal / "runs" / "csr" / "prove" / f"{top}_csr_prove",
+                    paths.logs / "dv" / "formal" / "csr" / f"{top}_prove.log",
+                ),
+                "cover": (
+                    paths.formal / "runs" / "csr" / "cover" / f"{top}_csr_cover.sby",
+                    paths.formal / "runs" / "csr" / "cover" / f"{top}_csr_cover",
+                    paths.logs / "dv" / "formal" / "csr" / f"{top}_cover.log",
+                ),
+            },
+            "properties": {
+                "bmc": (
+                    paths.formal / "runs" / "properties" / "prove" / f"{top}_prove.sby",
+                    paths.formal / "runs" / "properties" / "prove" / f"{top}_bmc",
+                    paths.logs / "dv" / "formal" / "properties" / f"{top}_bmc.log",
+                ),
+                "prove": (
+                    paths.formal / "runs" / "properties" / "prove" / f"{top}_prove.sby",
+                    paths.formal / "runs" / "properties" / "prove" / f"{top}_prove",
+                    paths.logs / "dv" / "formal" / "properties" / f"{top}_prove.log",
+                ),
+                "cover": (
+                    paths.formal / "runs" / "properties" / "cover" / f"{top}_cover.sby",
+                    paths.formal / "runs" / "properties" / "cover" / f"{top}_cover",
+                    paths.logs / "dv" / "formal" / "properties" / f"{top}_cover.log",
+                ),
+            },
+        }
+        matrix: dict[str, dict[str, dict[str, object]]] = {}
+        statuses: list[str] = []
+        for suite, stages in specs.items():
+            matrix[suite] = {}
+            for stage, (config, workdir, log) in stages.items():
+                status = self._stage_status(workdir, log)
+                statuses.append(status)
+                traces = sorted(
+                    path for path in workdir.rglob("trace*")
+                    if path.is_file() and path.suffix in {".vcd", ".yw", ".v", ".smtc"}
+                ) if workdir.is_dir() else []
+                elapsed = None
+                if log.is_file():
+                    matches = re.findall(
+                        r"Elapsed clock time .*?\((\d+)\)",
+                        log.read_text(encoding="utf-8", errors="replace"),
+                    )
+                    if matches:
+                        elapsed = int(matches[-1])
+                evidence: dict[str, object] = {
+                    "status": status,
+                    "config": config.relative_to(paths.run).as_posix() if config.is_relative_to(paths.run) else str(config),
+                    "workdir": workdir.relative_to(paths.run).as_posix() if workdir.is_relative_to(paths.run) else str(workdir),
+                    "log": log.relative_to(paths.run).as_posix() if log.is_relative_to(paths.run) else str(log),
+                    "traces": [
+                        trace.relative_to(paths.run).as_posix() if trace.is_relative_to(paths.run) else str(trace)
+                        for trace in traces[:8]
+                    ],
+                }
+                if elapsed is not None:
+                    evidence["elapsed_s"] = elapsed
+                matrix[suite][stage] = evidence
+
+        failed = statuses.count("FAILED")
+        unknown = statuses.count("UNKNOWN")
+        status = "FAILED" if failed else "PARTIAL" if unknown else "PASS"
+        stage_counts = {}
+        for stage in ("bmc", "prove", "cover"):
+            selected = [matrix[suite][stage]["status"] for suite in ("csr", "properties")]
+            stage_counts[stage] = {
+                "passed": selected.count("PASS"),
+                "failed": selected.count("FAILED"),
+                "unknown": selected.count("UNKNOWN"),
+                "total": 2,
+            }
+        data: dict[str, object] = {
+            "schema": "flexsoc.formal.v1",
+            "stage": "formal",
+            "status": status,
+            "top": top,
+            "counts": {
+                "passed": statuses.count("PASS"),
+                "failed": failed,
+                "unknown": unknown,
+                "observed": len(statuses) - unknown,
+                "total": 6,
+            },
+            "stage_counts": stage_counts,
+            "elapsed_s": sum(
+                int(item.get("elapsed_s", 0))
+                for suite in matrix.values()
+                for item in suite.values()
+            ),
+            "trace_count": sum(
+                len(item.get("traces", ()))
+                for suite in matrix.values()
+                for item in suite.values()
+            ),
+            "matrix": matrix,
+            "artifacts": {"summary": "dv/formal/summary.json"},
+        }
+        output = paths.formal / "summary.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return data
+
+    @staticmethod
+    def _stage_status(workdir: Path, log: Path) -> str:
+        """Return PASS/FAILED/UNKNOWN from native SBY status first, then its log."""
+
+        texts: list[str] = []
+        status = workdir / "status"
+        if status.is_file():
+            texts.append(status.read_text(encoding="utf-8", errors="replace"))
+        if log.is_file():
+            texts.append(log.read_text(encoding="utf-8", errors="replace"))
+        text = "\n".join(texts)
+        if re.search(r"\bPASS(?:ED)?\b|DONE \(PASS", text, flags=re.IGNORECASE):
+            return "PASS"
+        if re.search(r"DONE \(FAIL|DONE \(ERROR|\bFAIL(?:ED)?\b|\bERROR\b", text, flags=re.IGNORECASE):
+            return "FAILED"
+        return "UNKNOWN"
 
     @staticmethod
     def _resolved(paths: Sequence[Path]) -> tuple[Path, ...]:

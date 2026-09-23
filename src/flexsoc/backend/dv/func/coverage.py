@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from io import StringIO
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
+
+from rich.console import Console
+from rich.table import Table
 
 RESET = "\033[0m"
 WHITE = "\033[97m"
@@ -92,40 +97,6 @@ class CoverageFlow:
         Terminal.print_status_label("coverage", "PASS", "stage=report")
         return summary
 
-    def detail(
-        self,
-        data: Path,
-        filelists: Sequence[Path],
-        *,
-        annotated_dir: Path | None = None,
-        limit: int = 0,
-        output: Path | None = None,
-    ) -> list[str]:
-        """Print and return uncovered authored-RTL coverage points."""
-
-        if len(filelists) < 2:
-            raise ValueError("coverage detail requires IP and common RTL filelists")
-        if not data.is_file():
-            raise FileNotFoundError(f"coverage database missing: {data}")
-
-        ip_files = CoverageFlow.filelist_basenames(filelists[0])
-        common_files = CoverageFlow.filelist_basenames(filelists[1])
-        points = CoverageFlow.annotated_points(annotated_dir) if annotated_dir else []
-        selected = CoverageFlow.scoped_points(
-            points,
-            "design",
-            ip_files=ip_files,
-            common_files=common_files,
-        )
-        lines = CoverageFlow.detail_lines(selected, limit=limit, scope="design")
-        if output is not None:
-            output.parent.mkdir(parents=True, exist_ok=True)
-            output.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-        print()
-        for line in lines:
-            print(line)
-        return lines
     def collect(
         self,
         coverage_dir: Path,
@@ -205,21 +176,118 @@ class CoverageFlow:
         Terminal.print_status_label("coverage", "PASS", "stage=annotate")
         return output
 
-    def run_from_context(self, context, *, detail: bool = True, on: str = "local"):
-        """Merge, annotate and report coverage for one configured run."""
-        paths=context.paths
+    def run_from_context(self, context, *, on: str = "local"):
+        """Merge, annotate and write the canonical coverage summary."""
+
+        paths = context.paths
         target = self.runner.targets.get(on) if self.runner is not None else None
         tool = (
             str(context.values.get("VERILATOR_COVERAGE") or "verilator_coverage")
             if target is not None and target.kind != "local"
             else CoverageFlow._resolve_verilator_coverage(context.values)
         )
-        merged=self.collect(paths.coverage, tool=tool, on=on)
-        annotated=self.annotate(merged, paths.coverage / "annotated", tool=tool, on=on)
-        summary=self.report(merged, (paths.rtl_ip, paths.rtl_common), paths.coverage / "summary.txt", annotated_dir=annotated)
-        if detail:
-            self.detail(merged, (paths.rtl_ip, paths.rtl_common), annotated_dir=annotated, limit=int(context.values.get("COVERAGE_DETAIL_LIMIT", "0")), output=paths.logs / "dv" / "functional" / "coverage" / f"{paths.top}_coverage_detail.log")
+        merged = self.collect(paths.coverage, tool=tool, on=on)
+        annotated = self.annotate(merged, paths.coverage / "annotated", tool=tool, on=on)
+        summary = self.report(
+            merged, (paths.rtl_ip, paths.rtl_common), paths.coverage / "summary.txt",
+            annotated_dir=annotated,
+        )
+        summary.update({
+            "stage": "coverage",
+            "status": "PASS",
+            "top": paths.top,
+            "artifacts": {
+                "summary": "dv/functional/coverage/summary.json",
+                "text": "dv/functional/coverage/summary.txt",
+                "merged": "dv/functional/coverage/merged.dat",
+                "annotations": "dv/functional/coverage/annotated",
+                "merge_log": "dv/functional/coverage/merge.log",
+                "annotate_log": "dv/functional/coverage/annotate.log",
+            },
+        })
+        (paths.coverage / "summary.json").write_text(
+            json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
         return summary
+
+    def show(
+        self,
+        context,
+        *,
+        summary: bool = False,
+        debug: bool = False,
+        output: str | None = None,
+        as_json: bool = False,
+    ) -> int:
+        """Render coverage exclusively from the canonical summary."""
+
+        path = context.paths.coverage / "summary.json"
+        if not path.is_file():
+            raise FileNotFoundError(f"coverage summary not found: {path}; run `fx coverage` first")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        capture = StringIO() if output else None
+        console = Console(file=capture, force_terminal=False) if capture else Console()
+        if as_json:
+            print(json.dumps(data, indent=2, sort_keys=True), file=capture or None)
+        else:
+            scopes = data.get("scopes", {}) if isinstance(data.get("scopes"), Mapping) else {}
+            design = scopes.get("design", {}).get("total", {}) if isinstance(scopes.get("design"), Mapping) else {}
+            overall = scopes.get("all", {}).get("total", {}) if isinstance(scopes.get("all"), Mapping) else {}
+            console.print(
+                f"[bold]Coverage[/bold] [green]{data.get('status', 'PASS')}[/green] · "
+                f"design={float(design.get('percent', 0.0)):.2f}% "
+                f"({design.get('hit', 0)}/{design.get('total', 0)}) · "
+                f"all={float(overall.get('percent', 0.0)):.2f}% "
+                f"({overall.get('hit', 0)}/{overall.get('total', 0)}) · "
+                f"uncovered={len(data.get('uncovered', ())) }"
+            )
+            table = Table(box=None, show_edge=False, pad_edge=False)
+            table.add_column("Scope", style="bright_cyan")
+            table.add_column("Hit", justify="right")
+            table.add_column("Total", justify="right")
+            table.add_column("Percent", justify="right")
+            for name in SCOPES:
+                item = scopes.get(name, {}) if isinstance(scopes, Mapping) else {}
+                total = item.get("total", {}) if isinstance(item, Mapping) else {}
+                table.add_row(
+                    name, str(total.get("hit", 0)), str(total.get("total", 0)),
+                    f"{float(total.get('percent', 0.0)):.2f}%",
+                )
+            console.print(table)
+
+            if not summary:
+                limit = int(context.values.get("COVERAGE_SHOW_LIMIT", "0"))
+                uncovered = [item for item in data.get("uncovered", ()) if isinstance(item, Mapping)]
+                shown = uncovered if limit <= 0 else uncovered[:limit]
+                table = Table(box=None, show_edge=False, pad_edge=False)
+                table.add_column("Line", justify="right")
+                table.add_column("Type", style="bright_cyan")
+                table.add_column("Hits", justify="right")
+                table.add_column("Detail", overflow="fold")
+                table.add_column("File", style="grey70", overflow="fold")
+                for item in shown:
+                    table.add_row(
+                        str(item.get("line", "-")), str(item.get("type", "-")),
+                        str(item.get("hits", 0)), str(item.get("detail", "")),
+                        str(item.get("file", "-")),
+                    )
+                console.print(table)
+                if len(shown) < len(uncovered):
+                    console.print(f"[grey70]Showing {len(shown)} of {len(uncovered)} uncovered points.[/grey70]")
+
+            if debug:
+                console.print("[bold]Artifacts[/bold]")
+                artifacts = data.get("artifacts", {}) if isinstance(data.get("artifacts"), Mapping) else {}
+                for name, artifact in artifacts.items():
+                    console.print(f"[grey70]{name}[/grey70] {artifact}")
+
+        if output and capture is not None:
+            destination = Path(output)
+            if not destination.is_absolute():
+                destination = context.project_root / destination
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(capture.getvalue(), encoding="utf-8")
+        return 0
 
     @staticmethod
     def _resolve_verilator_coverage(values: object) -> str:
@@ -435,7 +503,11 @@ class CoverageFlow:
                 "columns": columns,
             }
         return {
-            "schema_version": 2,
+            "schema_version": 3,
+            "uncovered": [
+                {"line": point.line, "type": point.kind, "hits": point.hits, "detail": point.detail, "file": point.path}
+                for point in points if point.hits == 0
+            ],
             "types": kinds,
             "display_columns": list(DISPLAY_COLUMNS),
             "scopes": scopes,
@@ -499,67 +571,3 @@ class CoverageFlow:
         print(f"\n{BOLD}{WHITE}Coverage{RESET}")
         for line in lines:
             print(CoverageFlow._render_summary_line(line))
-
-    @staticmethod
-    def _shorten(text: str, width: int) -> str:
-        if len(text) <= width:
-            return text
-        return text[: max(1, width - 1)] + "…"
-
-    @staticmethod
-    def detail_lines(points: list[CoveragePoint], *, limit: int, scope: str) -> list[str]:
-        missing = [point for point in points if point.hits == 0]
-        shown = missing if limit <= 0 else missing[:limit]
-        lines = [f"Coverage detail — uncovered points (scope={scope})", ""]
-    
-        if not shown:
-            lines.append("No zero-hit coverage points found.")
-            return lines
-    
-        path_width = min(64, max(len("File"), *(len(point.path) for point in shown)))
-        kind_width = min(18, max(len("Type"), *(len(point.kind) for point in shown)))
-        detail_width = 96
-        header = (
-            f"{'File':<{path_width}}  {'Line':>6}  "
-            f"{'Type':<{kind_width}}  {'Hits':>6}  Detail"
-        )
-        lines.extend([header, "-" * min(180, len(header) + detail_width)])
-        for point in shown:
-            lines.append(
-                f"{CoverageFlow._shorten(point.path, path_width):<{path_width}}  "
-                f"{point.line:>6}  "
-                f"{CoverageFlow._shorten(point.kind, kind_width):<{kind_width}}  "
-                f"{point.hits:>6}  "
-                f"{CoverageFlow._shorten(point.detail, detail_width)}"
-            )
-    
-        if len(shown) < len(missing):
-            lines.extend(["", f"Showing {len(shown)} of {len(missing)} uncovered points."])
-        else:
-            lines.extend(["", f"Uncovered points: {len(missing)}"])
-        return lines
-
-    @staticmethod
-    def write_detail(
-        points: list[CoveragePoint],
-        *,
-        scope: str,
-        ip_files: set[str],
-        common_files: set[str],
-        limit: int,
-        output: Path,
-    ) -> int:
-        """Write detailed uncovered points to a log and return the uncovered count."""
-    
-        selected = CoverageFlow.scoped_points(
-            points,
-            scope,
-            ip_files=ip_files,
-            common_files=common_files,
-        )
-        missing = sum(point.hits == 0 for point in selected)
-        lines = CoverageFlow.detail_lines(selected, limit=limit, scope=scope)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        return missing
-

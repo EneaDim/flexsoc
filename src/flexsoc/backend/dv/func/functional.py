@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ast
+from io import StringIO
+import json
 import random
 import re
 import shlex
@@ -10,7 +12,10 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
+
+from rich.console import Console
+from rich.table import Table
 
 from flexsoc.backend.core import Files
 from flexsoc.backend.core.runtime.execution import Terminal
@@ -298,16 +303,40 @@ class FunctionalFlow:
         reset_settle_cycles: int = 8,
         coverage_dir: Path | None = None,
         log_dir: Path,
+        summary_path: Path | None = None,
+        run_root: Path | None = None,
         on: str = "local",
     ) -> tuple[object, ...]:
-        """Run every generated test through selected functional backends."""
+        """Run every generated test and persist the canonical regression outcome."""
+
         tests = self.tests(test_root)
         if not tests:
             raise FileNotFoundError(f"no generated tests under {test_root}")
-        results = []
+        selected = tuple(dict.fromkeys(backends))
+        invalid = [name for name in selected if name not in {"sv", "cocotb"}]
+        if invalid:
+            raise ValueError(f"unsupported regression backend(s): {', '.join(invalid)}")
+
+        results: list[object] = []
         sv_logs = log_dir / "sv"
         cocotb_logs = log_dir / "cocotb"
-        if "sv" in backends:
+        matrix: dict[str, dict[str, dict[str, object]]] = {
+            name: {
+                backend: {
+                    "status": "NOT_RUN",
+                    "log": (
+                        (sv_logs / f"{top}_sv_sim_{name}.log")
+                        if backend == "sv"
+                        else (cocotb_logs / f"{top}_cocotb_{name}.log")
+                    ),
+                }
+                for backend in selected
+            }
+            for name in tests
+        }
+        compile_data: dict[str, object] = {}
+
+        if "sv" in selected:
             compile_log = sv_logs / f"{top}_sv_compile.log"
             Terminal.print_label("regression", f"backend=sv · compiler={compiler} · test=compile")
             Terminal.print_path_label("log", compile_log)
@@ -319,16 +348,23 @@ class FunctionalFlow:
                 log=compile_log, on=on,
             )
             results.append(compile_result)
-            compile_status = "PASS" if compile_result.returncode == 0 else "FAIL"
+            compile_status = "PASS" if compile_result.returncode == 0 else "FAILED"
+            compile_data = {"status": compile_status, "log": compile_log}
             Terminal.print_status_label(
-                "regression", compile_status,
+                "regression", "PASS" if compile_status == "PASS" else "FAIL",
                 f"backend=sv · compiler={compiler} · test=compile",
             )
             if compile_result.returncode != 0:
                 FunctionalFlow._print_failure_tail(compile_log)
+                if summary_path is not None:
+                    self._write_regression_summary(
+                        summary_path, top=top, compiler=compiler, backends=selected, tests=tests,
+                        compile_data=compile_data, matrix=matrix, run_root=run_root,
+                    )
                 return tuple(results)
+
         for name in tests:
-            if "sv" in backends:
+            if "sv" in selected:
                 cov = coverage_dir / "sv" / f"{name}.dat" if coverage_dir else None
                 run_log = sv_logs / f"{top}_sv_sim_{name}.log"
                 Terminal.print_label("regression", f"backend=sv · compiler={compiler} · test={name}")
@@ -340,13 +376,15 @@ class FunctionalFlow:
                     log=run_log, on=on,
                 )
                 results.append(result)
+                status = "PASS" if result.returncode == 0 else "FAILED"
+                matrix[name]["sv"]["status"] = status
                 Terminal.print_status_label(
-                    "regression", "PASS" if result.returncode == 0 else "FAIL",
+                    "regression", "PASS" if status == "PASS" else "FAIL",
                     f"backend=sv · compiler={compiler} · test={name}",
                 )
                 if result.returncode != 0:
                     FunctionalFlow._print_failure_tail(run_log)
-            if "cocotb" in backends:
+            if "cocotb" in selected:
                 cov = coverage_dir / "cocotb" / f"{name}.dat" if coverage_dir else None
                 run_log = cocotb_logs / f"{top}_cocotb_{name}.log"
                 Terminal.print_label("regression", f"backend=cocotb · simulator={compiler} · test={name}")
@@ -360,12 +398,20 @@ class FunctionalFlow:
                     log=run_log, on=on,
                 )
                 results.append(result)
+                status = "PASS" if result.returncode == 0 else "FAILED"
+                matrix[name]["cocotb"]["status"] = status
                 Terminal.print_status_label(
-                    "regression", "PASS" if result.returncode == 0 else "FAIL",
+                    "regression", "PASS" if status == "PASS" else "FAIL",
                     f"backend=cocotb · simulator={compiler} · test={name}",
                 )
                 if result.returncode != 0:
                     FunctionalFlow._print_failure_tail(run_log)
+
+        if summary_path is not None:
+            self._write_regression_summary(
+                summary_path, top=top, compiler=compiler, backends=selected, tests=tests,
+                compile_data=compile_data, matrix=matrix, run_root=run_root,
+            )
         return tuple(results)
 
     def run_regression_from_context(self, context, *, on: str = "local"):
@@ -387,8 +433,175 @@ class FunctionalFlow:
             seed=int(values.get("SEED", "1")),
             reset_settle_cycles=int(values.get("RESET_SETTLE_CYCLES", "8")),
             coverage_dir=paths.coverage,
-            log_dir=paths.logs / "dv" / "functional" / "regression", on=on,
+            log_dir=paths.logs / "dv" / "functional" / "regression",
+            summary_path=paths.functional / "regression" / "summary.json",
+            run_root=paths.run, on=on,
         )
+
+    def show_regression(
+        self,
+        context,
+        *,
+        summary: bool = False,
+        debug: bool = False,
+        output: str | None = None,
+        as_json: bool = False,
+    ) -> int:
+        """Render the canonical regression summary without reading simulator logs."""
+
+        path = context.paths.functional / "regression" / "summary.json"
+        if not path.is_file():
+            raise FileNotFoundError(f"regression summary not found: {path}; run `fx regression` first")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        capture = StringIO() if output else None
+        console = Console(file=capture, force_terminal=False) if capture else Console()
+        if as_json:
+            print(json.dumps(data, indent=2, sort_keys=True), file=capture or None)
+        else:
+            status = str(data.get("status", "UNKNOWN"))
+            color = "green" if status == "PASS" else "red" if status == "FAILED" else "orange1"
+            counts = data.get("counts", {}) if isinstance(data.get("counts"), Mapping) else {}
+            console.print(
+                f"[bold]Regression[/bold] [{color}]{status}[/{color}] · "
+                f"tests={data.get('test_count', 0)} · subruns={counts.get('total', 0)} · "
+                f"pass={counts.get('passed', 0)} · fail={counts.get('failed', 0)} · "
+                f"not-run={counts.get('not_run', 0)}"
+            )
+            backend_counts = data.get("backend_counts", {})
+            table = Table(box=None, show_edge=False, pad_edge=False)
+            table.add_column("Backend", style="bright_cyan")
+            table.add_column("Pass", justify="right")
+            table.add_column("Fail", justify="right")
+            table.add_column("Not run", justify="right")
+            table.add_column("Total", justify="right")
+            for name in data.get("backends", ()):
+                item = backend_counts.get(name, {}) if isinstance(backend_counts, Mapping) else {}
+                table.add_row(
+                    str(name), str(item.get("passed", 0)), str(item.get("failed", 0)),
+                    str(item.get("not_run", 0)), str(item.get("total", 0)),
+                )
+            console.print(table)
+
+            if not summary:
+                matrix = data.get("matrix", {}) if isinstance(data.get("matrix"), Mapping) else {}
+                table = Table(box=None, show_edge=False, pad_edge=False)
+                table.add_column("Test", style="bright_cyan")
+                for backend in data.get("backends", ()):
+                    table.add_column(str(backend).upper())
+                for test in data.get("tests", ()):
+                    row = matrix.get(test, {}) if isinstance(matrix, Mapping) else {}
+                    table.add_row(
+                        str(test),
+                        *(str(row.get(name, {}).get("status", "NOT_RUN")) for name in data.get("backends", ())),
+                    )
+                console.print(table)
+
+            if debug:
+                console.print("[bold]Diagnostics[/bold]")
+                compile_data = data.get("compile", {}) if isinstance(data.get("compile"), Mapping) else {}
+                if compile_data:
+                    console.print(
+                        f"[grey70]sv compile[/grey70] {compile_data.get('status', 'UNKNOWN')} · "
+                        f"{compile_data.get('log', '-')}"
+                    )
+                matrix = data.get("matrix", {}) if isinstance(data.get("matrix"), Mapping) else {}
+                failures = 0
+                for test, row in matrix.items():
+                    if not isinstance(row, Mapping):
+                        continue
+                    for backend, item in row.items():
+                        if isinstance(item, Mapping) and item.get("status") != "PASS":
+                            failures += 1
+                            console.print(
+                                f"[grey70]{backend}/{test}[/grey70] {item.get('status', 'UNKNOWN')} · "
+                                f"{item.get('log', '-')}"
+                            )
+                if failures == 0 and compile_data.get("status", "PASS") == "PASS":
+                    console.print("[green]No failing or incomplete regression sub-runs.[/green]")
+                console.print(f"[grey70]summary[/grey70] {path}")
+
+        if output and capture is not None:
+            destination = Path(output)
+            if not destination.is_absolute():
+                destination = context.project_root / destination
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(capture.getvalue(), encoding="utf-8")
+        return 0
+
+    def _write_regression_summary(
+        self,
+        output: Path,
+        *,
+        top: str,
+        compiler: str,
+        backends: tuple[str, ...],
+        tests: tuple[str, ...],
+        compile_data: Mapping[str, object],
+        matrix: Mapping[str, Mapping[str, Mapping[str, object]]],
+        run_root: Path | None,
+    ) -> dict[str, object]:
+        """Write the machine-readable regression contract from executed sub-runs."""
+
+        serialized_matrix: dict[str, dict[str, dict[str, object]]] = {}
+        backend_counts: dict[str, dict[str, int]] = {}
+        statuses: list[str] = []
+        for test in tests:
+            serialized_matrix[test] = {}
+            for backend in backends:
+                item = dict(matrix[test][backend])
+                log = item.get("log")
+                if isinstance(log, Path):
+                    item["log"] = (
+                        log.relative_to(run_root).as_posix()
+                        if run_root is not None and log.is_relative_to(run_root)
+                        else str(log)
+                    )
+                serialized_matrix[test][backend] = item
+                statuses.append(str(item.get("status", "NOT_RUN")))
+
+        for backend in backends:
+            selected = [str(serialized_matrix[test][backend]["status"]) for test in tests]
+            backend_counts[backend] = {
+                "passed": selected.count("PASS"),
+                "failed": selected.count("FAILED"),
+                "not_run": selected.count("NOT_RUN"),
+                "total": len(selected),
+            }
+
+        compile_record = dict(compile_data)
+        compile_log = compile_record.get("log")
+        if isinstance(compile_log, Path):
+            compile_record["log"] = (
+                compile_log.relative_to(run_root).as_posix()
+                if run_root is not None and compile_log.is_relative_to(run_root)
+                else str(compile_log)
+            )
+        failed = statuses.count("FAILED") + (1 if compile_record.get("status") == "FAILED" else 0)
+        not_run = statuses.count("NOT_RUN")
+        status = "FAILED" if failed else "PARTIAL" if not_run else "PASS"
+        data: dict[str, object] = {
+            "schema": "flexsoc.regression.v1",
+            "stage": "regression",
+            "status": status,
+            "top": top,
+            "compiler": compiler,
+            "backends": list(backends),
+            "tests": list(tests),
+            "test_count": len(tests),
+            "counts": {
+                "passed": statuses.count("PASS"),
+                "failed": statuses.count("FAILED"),
+                "not_run": not_run,
+                "total": len(statuses),
+            },
+            "backend_counts": backend_counts,
+            "compile": compile_record,
+            "matrix": serialized_matrix,
+            "artifacts": {"summary": "dv/functional/regression/summary.json"},
+        }
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return data
 
     @staticmethod
     def _print_command(argv: Sequence[str]) -> None:
