@@ -221,24 +221,6 @@ class Reporting:
         return result
 
     @staticmethod
-    def parse_coverage_summary(path: Path) -> dict[str, Any]:
-        """Parse plain FlexSoC coverage scope totals."""
-
-        scopes: dict[str, Any] = {}
-        if not path.is_file():
-            return scopes
-        for line in Reporting.read_text(path).splitlines():
-            match = re.match(
-                r"^\s*([A-Za-z_]+)\s+(\d+)(?:/|\s+)(\d+)\s+([0-9.]+)%\s*$",
-                line,
-            )
-            if not match:
-                continue
-            name, hit, total, percent = match.groups()
-            scopes[name] = {"hit": int(hit), "total": int(total), "percent": float(percent)}
-        return scopes
-
-    @staticmethod
     def parse_coverage_matrix(path: Path) -> dict[str, Any]:
         """Read the machine-readable scope-by-type coverage matrix."""
 
@@ -254,76 +236,57 @@ class Reporting:
 
     @staticmethod
     def collect_regression(top: str, run_dir: Path) -> dict[str, Any] | None:
-        """Collect generated regression execution and coverage data."""
+        """Collect regression metrics from the canonical DV summary."""
 
-        test_root = run_dir / "dv" / "functional" / "tests"
-        log_root = run_dir / "logs" / "dv" / "functional" / "regression"
+        summary_path = run_dir / "dv" / "functional" / "regression" / "summary.json"
+        if not summary_path.is_file():
+            return None
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+        if not isinstance(summary, dict):
+            return None
+
         coverage_dir = run_dir / "dv" / "functional" / "coverage"
-        tests = sorted(path.name for path in test_root.iterdir() if path.is_dir()) if test_root.is_dir() else []
-        backends: dict[str, Any] = {}
-        patterns = {
-            "sv": (f"{top}_sv_sim_*.log", f"{top}_sv_sim_"),
-            "cocotb": (f"{top}_cocotb_*.log", f"{top}_cocotb_"),
-        }
-        for backend, (pattern, prefix) in patterns.items():
-            backend_dir = log_root / backend
-            logs = sorted(backend_dir.glob(pattern)) if backend_dir.is_dir() else []
-            logged_tests = sorted(
-                path.stem[len(prefix):] for path in logs if path.stem.startswith(prefix)
-            )
-            backends[backend] = {
-                "tests_logged": len(logs),
-                "logged_tests": logged_tests,
-                "missing_tests": sorted(set(tests) - set(logged_tests)),
-                "extra_tests": sorted(set(logged_tests) - set(tests)),
-                "logs": [Reporting.relative(path, run_dir) for path in logs],
-            }
-
-        summary = coverage_dir / "summary.txt"
-        summary_json = coverage_dir / "summary.json"
-        coverage_matrix = Reporting.parse_coverage_matrix(summary_json)
-        matrix_scopes = coverage_matrix.get("scopes", {}) if coverage_matrix else {}
+        coverage_path = coverage_dir / "summary.json"
+        coverage_matrix = Reporting.parse_coverage_matrix(coverage_path)
+        scopes = coverage_matrix.get("scopes", {}) if coverage_matrix else {}
         coverage = {
             scope: values.get("total", {})
-            for scope, values in matrix_scopes.items()
+            for scope, values in scopes.items()
             if isinstance(values, dict) and isinstance(values.get("total"), dict)
         }
-        if not coverage:
-            coverage = Reporting.parse_coverage_summary(summary)
-        expected = len(tests)
-        regression_ok = bool(
-            expected
-            and all(not data["missing_tests"] for data in backends.values())
-            and (coverage_dir / "merged.dat").is_file()
-            and coverage
-        )
-        matrix: dict[str, dict[str, str]] = {test: {} for test in tests}
-        command_log = run_dir / "logs" / "commands" / "regression.log"
-        if command_log.is_file():
-            plain = re.sub(r"\x1b\[[0-9;]*m", "", command_log.read_text(encoding="utf-8", errors="replace"))
-            pattern = re.compile(
-                r"\[regression\]\s+(PASS|FAIL)\s+.*?backend=(sv|cocotb).*?test=([A-Za-z0-9_.-]+)"
-            )
-            for status, backend, test in pattern.findall(plain):
-                if test in matrix:
-                    matrix[test][backend] = status.lower()
+        matrix: dict[str, dict[str, str]] = {}
+        raw_matrix = summary.get("matrix", {})
+        if isinstance(raw_matrix, dict):
+            for test, row in raw_matrix.items():
+                if not isinstance(row, dict):
+                    continue
+                matrix[str(test)] = {
+                    str(backend): {
+                        "PASS": "pass",
+                        "FAILED": "fail",
+                        "NOT_RUN": "not_run",
+                    }.get(str(item.get("status", "UNKNOWN")).upper(), "partial")
+                    for backend, item in row.items()
+                    if isinstance(item, dict)
+                }
 
-        if not tests and not any(data["logs"] for data in backends.values()) and not coverage:
-            return None
+        status = str(summary.get("status", "PARTIAL")).upper()
         return {
-            "status": "pass" if regression_ok else "partial",
-            "tests": tests,
-            "test_count": expected,
-            "backends": backends,
+            "status": {"PASS": "pass", "FAILED": "fail"}.get(status, "partial"),
+            "tests": list(summary.get("tests", ())),
+            "test_count": int(summary.get("test_count", 0)),
+            "backends": summary.get("backend_counts", {}),
             "matrix": matrix,
             "coverage": coverage,
             "coverage_matrix": coverage_matrix,
-            "coverage_summary": Reporting.relative(summary, run_dir) if summary.is_file() else None,
-            "coverage_summary_json": Reporting.relative(summary_json, run_dir) if summary_json.is_file() else None,
+            "summary": Reporting.relative(summary_path, run_dir),
+            "coverage_summary_json": Reporting.relative(coverage_path, run_dir) if coverage_path.is_file() else None,
             "coverage_merged": (
                 Reporting.relative(coverage_dir / "merged.dat", run_dir)
-                if (coverage_dir / "merged.dat").is_file()
-                else None
+                if (coverage_dir / "merged.dat").is_file() else None
             ),
         }
 
@@ -340,171 +303,61 @@ class Reporting:
         return len(re.findall(pattern, text, flags=re.IGNORECASE | re.MULTILINE))
 
     @staticmethod
-    def yosys_statistics(top: str, text: str) -> dict[str, Any]:
-        """Parse the top-module table printed by Yosys `stat -liberty`."""
-
-        headers = list(re.finditer(r"^===\s+(.+?)\s+===$", text, flags=re.MULTILINE))
-        section = ""
-        for index, header in enumerate(headers):
-            module = header.group(1).strip().lstrip("\\")
-            if module != top:
-                continue
-            end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
-            section = text[header.end() : end]
-
-        source = section
-        fields = {
-            "wires": r"^\s*(\d+)\s+-\s+wires\s*$",
-            "wire_bits": r"^\s*(\d+)\s+-\s+wire bits\s*$",
-            "public_wires": r"^\s*(\d+)\s+-\s+public wires\s*$",
-            "public_wire_bits": r"^\s*(\d+)\s+-\s+public wire bits\s*$",
-            "ports": r"^\s*(\d+)\s+-\s+ports\s*$",
-            "port_bits": r"^\s*(\d+)\s+-\s+port bits\s*$",
-        }
-        stats: dict[str, Any] = {}
-        for name, pattern in fields.items():
-            value = Reporting.last_number(pattern, source, int)
-            if value is not None:
-                stats[name] = value
-
-        cells = re.search(
-            r"^\s*(\d+)\s+(?:" + FLOAT + r")\s+cells\s*$",
-            source,
-            flags=re.MULTILINE,
-        )
-        if cells:
-            stats["cells"] = int(cells.group(1))
-        else:
-            fallback_cells = Reporting.last_number(r"^\s*Number of cells:\s*(\d+)\s*$", text, int)
-            if fallback_cells is not None:
-                stats["cells"] = fallback_cells
-
-        area_source = source or text
-        area = Reporting.last_number(
-            r"^\s*Chip area for module .*?:\s*(" + FLOAT + r")\s*$",
-            area_source,
-            float,
-        )
-        if area is not None:
-            stats["area"] = area
-            stats["area_unit"] = "liberty"
-
-        sequential = re.search(
-            r"^\s*of which used for sequential elements:\s*("
-            + FLOAT
-            + r")\s+\(("
-            + FLOAT
-            + r")%\)\s*$",
-            source,
-            flags=re.MULTILINE,
-        )
-        if sequential:
-            stats["sequential_area"] = float(sequential.group(1))
-            stats["sequential_area_pct"] = float(sequential.group(2))
-
-        cell_types: dict[str, dict[str, int | float]] = {}
-        for count, cell_area, cell_type in re.findall(
-            r"^\s*(\d+)\s+(" + FLOAT + r")\s+(\S+)\s*$",
-            source,
-            flags=re.MULTILINE,
-        ):
-            if cell_type == "cells":
-                continue
-            cell_types[cell_type] = {"count": int(count), "area": float(cell_area)}
-        if cell_types:
-            stats["cell_types"] = cell_types
-        return stats
-
-    @staticmethod
     def collect_synthesis(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
-        """Collect useful statistics from the selected PDK synthesis log."""
+        """Consume the synthesis owner summary without reparsing Yosys logs."""
 
-        log_dir = PDKRunLayout.from_run(run_dir, pdk=pdk, top=top).synthesis_log_dir
-        log = Reporting.unique_file(tuple(log_dir.glob(f"{top}_synth_opt_*.log")), label=f"synthesis log for {top}")
-        if log is None:
+        layout = PDKRunLayout.from_run(run_dir, pdk=pdk, top=top)
+        summary = Reporting._json_object(layout.syn_dir / "summary.json")
+        if not summary:
             return None
-
-        text = Reporting.read_text(log)
-        prefix = f"{top}_synth_opt_"
-        strategy = log.stem[len(prefix) :] if log.stem.startswith(prefix) else "unknown"
-        data: dict[str, Any] = {
-            "strategy": strategy,
-            "warnings": Reporting.synthesis_diagnostic_count(text, "warning"),
-            "errors": Reporting.synthesis_diagnostic_count(text, "error"),
-            "log": Reporting.relative(log, run_dir),
+        metrics = summary.get("metrics", {}) if isinstance(summary.get("metrics"), dict) else {}
+        artifacts = summary.get("artifacts", {}) if isinstance(summary.get("artifacts"), dict) else {}
+        logs = summary.get("logs", ()) if isinstance(summary.get("logs"), list) else ()
+        return {
+            "status": {"PASS": "pass", "FAILED": "fail"}.get(str(summary.get("status")), "incomplete"),
+            "strategy": summary.get("profile", "unknown"),
+            **metrics,
+            "netlist": artifacts.get("netlist"),
+            "log": logs[-1] if logs else None,
+            "evidence": Reporting.relative(layout.syn_dir / "summary.json", run_dir),
         }
-        data.update(Reporting.yosys_statistics(top, text))
-        return data
 
     @staticmethod
     def collect_sta(
         top: str, run_dir: Path, pdk: str, stage: str = "post_syn"
     ) -> dict[str, Any] | None:
-        """Collect per-corner setup/hold data from one sign-off stage."""
+        """Consume canonical per-corner STA summary evidence."""
 
         layout = PDKRunLayout.from_run(run_dir, pdk=pdk, top=top)
         root = layout.signoff_stage_root(stage)
         log_root = layout.signoff_stage_log_root(stage)
         canonical = root / "sta" / "summary.json"
-        if canonical.is_file():
-            payload = json.loads(canonical.read_text(encoding="utf-8"))
-            scenarios: dict[str, dict[str, Any]] = {}
-            for item in payload.get("scenarios", []):
-                corner = str(item.get("corner", ""))
-                mode = str(item.get("mode", ""))
-                if not corner or mode not in {"setup", "hold"}:
-                    continue
-                data = {
-                    "reported_violating_paths": int(item.get("violating_paths", 0)),
-                    "reported_unconstrained_paths": int(item.get("unconstrained_paths", 0)),
-                    "report": Reporting.relative(root / "sta" / "sta.rpt", run_dir),
-                    "log": Reporting.relative(log_root / "sta" / corner / mode / f"{top}.log", run_dir),
-                    "scenario": item.get("id", f"{mode}_{corner}"),
-                    "status": item.get("status", "unknown"),
-                }
-                if item.get("wns") is not None:
-                    data["wns"] = float(item["wns"])
-                if item.get("tns") is not None:
-                    data["tns"] = float(item["tns"])
-                scenarios.setdefault(corner, {})[mode] = data
-            return scenarios or None
-
+        payload = Reporting._json_object(canonical)
+        if not payload:
+            return None
         scenarios: dict[str, dict[str, Any]] = {}
-        for report in sorted((root / "sta").glob("*/*/timing.rpt")):
-            corner = report.parent.parent.name
-            mode = report.parent.name
-            if mode not in {"setup", "hold"}:
+        for item in payload.get("scenarios", []):
+            if not isinstance(item, Mapping):
                 continue
-            text = Reporting.read_text(report)
-            wns = Reporting.last_number(r"^\s*wns(?:\s+\w+)?\s+(" + FLOAT + r")\s*$", text, float)
-            tns = Reporting.last_number(r"^\s*tns(?:\s+\w+)?\s+(" + FLOAT + r")\s*$", text, float)
-            violating = (
-                Reporting.marked_section(text, "=== Violating paths ===", "=== Near-critical paths ===") or text
-            )
-            if wns is None:
-                slacks = re.findall(
-                    r"^\s*(" + FLOAT + r")\s+slack\s+\(VIOLATED\)",
-                    violating,
-                    flags=re.IGNORECASE | re.MULTILINE,
-                )
-                wns = min(map(float, slacks)) if slacks else None
-            constraint = Reporting.marked_section(text, "=== Constraint validation ===", "=== Violating paths ===") or ""
-            unconstrained = re.search(
-                r"\bThere (?:is|are)\s+(\d+)\s+unconstrained endpoints?\b",
-                constraint, flags=re.IGNORECASE,
-            )
+            corner = str(item.get("corner", ""))
+            mode = str(item.get("mode", ""))
+            if not corner or mode not in {"setup", "hold"}:
+                continue
             data: dict[str, Any] = {
-                "reported_violating_paths": len(
-                    re.findall(r"slack\s*\(VIOLATED\)", violating, flags=re.IGNORECASE)
-                ),
-                "reported_unconstrained_paths": int(unconstrained.group(1)) if unconstrained else 0,
-                "report": Reporting.relative(report, run_dir),
+                "reported_violating_paths": int(item.get("violating_paths", 0)),
+                "reported_unconstrained_paths": int(item.get("unconstrained_paths", 0)),
+                "report": Reporting.relative(root / "sta" / "sta.rpt", run_dir),
                 "log": Reporting.relative(log_root / "sta" / corner / mode / f"{top}.log", run_dir),
+                "scenario": item.get("id", f"{mode}_{corner}"),
+                "timing_role": item.get("timing_role", "gating"),
+                "violation_types": dict(item.get("violation_types", {}))
+                if isinstance(item.get("violation_types"), Mapping) else {},
+                "status": item.get("status", "unknown"),
             }
-            if wns is not None:
-                data["wns"] = wns
-            if tns is not None:
-                data["tns"] = tns
+            if item.get("wns") is not None:
+                data["wns"] = float(item["wns"])
+            if item.get("tns") is not None:
+                data["tns"] = float(item["tns"])
             scenarios.setdefault(corner, {})[mode] = data
         return scenarios or None
 
@@ -512,58 +365,18 @@ class Reporting:
     def collect_power_estimate(
         top: str, run_dir: Path, pdk: str, stage: str = "post_syn"
     ) -> dict[str, Any] | None:
-        """Collect vectorless input-activity power estimates by corner."""
+        """Consume canonical vectorless power summary evidence."""
 
         layout = PDKRunLayout.from_run(run_dir, pdk=pdk, top=top)
         root = layout.signoff_stage_root(stage)
-        log_root = layout.signoff_stage_log_root(stage)
         summary = Reporting._json_object(root / "power" / "estimate" / "summary.json")
-        if isinstance(summary.get("corners"), dict):
-            return {
-                key: summary[key]
-                for key in ("activity", "duty", "activity_source", "corners", "status")
-                if key in summary
-            }
-
-        corners: dict[str, Any] = {}
-        activity: float | None = None
-        duty: float | None = None
-        for report in sorted((root / "power" / "estimate").glob("*/power.rpt")):
-            corner = report.parent.name
-            text = Reporting.read_text(report)
-            activity_match = re.search(r"^activity=(" + FLOAT + r")$", text, flags=re.MULTILINE)
-            duty_match = re.search(r"^duty=(" + FLOAT + r")$", text, flags=re.MULTILINE)
-            if activity_match:
-                activity = float(activity_match.group(1))
-            if duty_match:
-                duty = float(duty_match.group(1))
-            total = re.search(
-                r"^\s*Total\s+(" + FLOAT + r")\s+(" + FLOAT + r")\s+(" + FLOAT + r")\s+(" + FLOAT + r")",
-                text,
-                flags=re.MULTILINE,
-            )
-            data: dict[str, Any] = {
-                "report": Reporting.relative(report, run_dir),
-                "log": Reporting.relative(log_root / "power" / "estimate" / corner / f"{top}.log", run_dir),
-            }
-            if total:
-                internal, switching, leakage, overall = (float(value) for value in total.groups())
-                data.update({
-                    "internal_w": internal,
-                    "switching_w": switching,
-                    "dynamic_w": internal + switching,
-                    "leakage_w": leakage,
-                    "total_w": overall,
-                })
-            corners[corner] = data
-        if not corners:
+        if not isinstance(summary.get("corners"), dict):
             return None
-        result: dict[str, Any] = {"activity_source": "input_assumption", "corners": corners}
-        if activity is not None:
-            result["activity"] = activity
-        if duty is not None:
-            result["duty"] = duty
-        return result
+        return {
+            key: summary[key]
+            for key in ("activity", "duty", "activity_source", "corners", "status")
+            if key in summary
+        }
 
     @staticmethod
     def status_word(path: Path, log: Path | None = None) -> str:
@@ -584,188 +397,85 @@ class Reporting:
         return "unknown"
 
     @staticmethod
-    def formal_stage(run_dir: Path, workdir: Path, log: Path) -> dict[str, Any] | None:
-        """Collect one SBY task including its persisted status and traces."""
-
-        status = workdir / "status"
-        if not status.is_file() and not log.is_file() and not workdir.is_dir():
-            return None
-        traces = (
-            sorted(
-                path
-                for path in workdir.rglob("trace*")
-                if path.is_file() and path.suffix in {".vcd", ".yw", ".v", ".smtc"}
-            )
-            if workdir.is_dir()
-            else []
-        )
-        elapsed = None
-        if log.is_file():
-            elapsed = Reporting.last_number(r"Elapsed clock time .*?\((\d+)\)", Reporting.read_text(log), int)
-        result: dict[str, Any] = {
-            "status": Reporting.status_word(status, log),
-            "workdir": Reporting.relative(workdir, run_dir) if workdir.exists() else None,
-            "log": Reporting.relative(log, run_dir) if log.is_file() else None,
-            "trace_count": len(traces),
-        }
-        if elapsed is not None:
-            result["elapsed_s"] = elapsed
-        if traces:
-            result["traces"] = [Reporting.relative(path, run_dir) for path in traces[:8]]
-        return result
-
-    @staticmethod
     def collect_formal(top: str, run_dir: Path) -> dict[str, Any] | None:
-        """Collect CSR and authored-property BMC/prove/cover status."""
+        """Collect formal metrics from the canonical FormalFlow summary."""
 
-        formal = run_dir / "dv" / "formal" / "runs"
-        logs = run_dir / "logs" / "dv" / "formal"
-        specs = {
-            "csr": {
-                "bmc": (formal / "csr" / "prove" / f"{top}_csr_bmc", logs / "csr" / f"{top}_bmc.log"),
-                "prove": (formal / "csr" / "prove" / f"{top}_csr_prove", logs / "csr" / f"{top}_prove.log"),
-                "cover": (formal / "csr" / "cover" / f"{top}_csr_cover", logs / "csr" / f"{top}_cover.log"),
-            },
-            "properties": {
-                "bmc": (formal / "properties" / "prove" / f"{top}_bmc", logs / "properties" / f"{top}_bmc.log"),
-                "prove": (formal / "properties" / "prove" / f"{top}_prove", logs / "properties" / f"{top}_prove.log"),
-                "cover": (formal / "properties" / "cover" / f"{top}_cover", logs / "properties" / f"{top}_cover.log"),
-            },
-        }
-        result: dict[str, Any] = {}
-        for suite, stages in specs.items():
-            suite_data: dict[str, Any] = {}
-            for name, (workdir, log) in stages.items():
-                data = Reporting.formal_stage(run_dir, workdir, log)
-                if data is not None:
-                    suite_data[name] = data
-            if suite_data:
-                result[suite] = suite_data
-        if not result:
+        del top
+        summary_path = run_dir / "dv" / "formal" / "summary.json"
+        if not summary_path.is_file():
             return None
-        statuses = [stage.get("status") for suite in result.values() for stage in suite.values()]
-        by_stage: dict[str, Any] = {}
-        for stage_name in ("bmc", "prove", "cover"):
-            stage_statuses = [
-                result.get(suite, {}).get(stage_name, {}).get("status")
-                for suite in ("csr", "properties")
-            ]
-            by_stage[stage_name] = {
-                "passed": sum(item == "pass" for item in stage_statuses),
-                "total": 2,
-            }
-        result["summary"] = {
-            "passed": sum(item == "pass" for item in statuses),
-            "observed": len(statuses),
-            "total": 6,
-            "elapsed_s": sum(
-                int(stage.get("elapsed_s", 0))
-                for suite in result.values()
-                if isinstance(suite, dict)
-                for stage in suite.values()
-                if isinstance(stage, dict) and "status" in stage
-            ),
-            "traces": sum(
-                int(stage.get("trace_count", 0))
-                for suite in result.values()
-                if isinstance(suite, dict)
-                for stage in suite.values()
-                if isinstance(stage, dict) and "status" in stage
-            ),
-            "stages": by_stage,
+        try:
+            data = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+        if not isinstance(data, dict):
+            return None
+
+        raw_matrix = data.get("matrix", {}) if isinstance(data.get("matrix"), dict) else {}
+        matrix: dict[str, dict[str, dict[str, Any]]] = {}
+        for suite, row in raw_matrix.items():
+            if not isinstance(row, dict):
+                continue
+            matrix[str(suite)] = {}
+            for stage, item in row.items():
+                if not isinstance(item, dict):
+                    continue
+                normalized = dict(item)
+                normalized["status"] = {
+                    "PASS": "pass",
+                    "FAILED": "fail",
+                }.get(str(item.get("status", "UNKNOWN")).upper(), "unknown")
+                matrix[str(suite)][str(stage)] = normalized
+        counts = data.get("counts", {}) if isinstance(data.get("counts"), dict) else {}
+        stage_counts = data.get("stage_counts", {}) if isinstance(data.get("stage_counts"), dict) else {}
+        traces = int(data.get("trace_count", 0))
+        status = str(data.get("status", "PARTIAL")).upper()
+        return {
+            "csr": matrix.get("csr", {}),
+            "properties": matrix.get("properties", {}),
+            "summary": {
+                "passed": int(counts.get("passed", 0)),
+                "observed": int(counts.get("observed", 0)),
+                "total": int(counts.get("total", 6)),
+                "elapsed_s": int(data.get("elapsed_s", 0)),
+                "traces": traces,
+                "stages": stage_counts,
+            },
+            "status": {"PASS": "pass", "FAILED": "fail"}.get(status, "partial"),
+            "evidence": Reporting.relative(summary_path, run_dir),
         }
-        result["status"] = "pass" if len(statuses) == 6 and all(item == "pass" for item in statuses) else "partial"
-        return result
-
-    @staticmethod
-    def _eqy_partition_summary(result_dir: Path, log: Path) -> dict[str, Any]:
-        """Summarize partition closure without confusing engine errors with mismatch."""
-
-        strategy_root = result_dir / "strategies"
-        partition_dirs = sorted(path for path in strategy_root.iterdir() if path.is_dir()) if strategy_root.is_dir() else []
-        counts = {"proven": 0, "failed": 0, "errors": 0, "timeouts": 0, "unknown": 0}
-
-        if partition_dirs:
-            for partition in partition_dirs:
-                states: list[str] = []
-                for status_path in partition.rglob("status"):
-                    words = Reporting.read_text(status_path).strip().upper().split()
-                    if words:
-                        states.append(words[0])
-                if "PASS" in states:
-                    counts["proven"] += 1
-                elif "ERROR" in states:
-                    counts["errors"] += 1
-                elif "FAIL" in states:
-                    counts["failed"] += 1
-                elif "TIMEOUT" in states:
-                    counts["timeouts"] += 1
-                else:
-                    counts["unknown"] += 1
-            total = len(partition_dirs)
-        else:
-            text = Reporting.read_text(log) if log.is_file() else ""
-            final = re.search(r"Failed to prove equivalence for\s+(\d+)/(\d+)\s+partitions", text)
-            if final:
-                unproved, total = (int(value) for value in final.groups())
-                counts["proven"] = max(0, total - unproved)
-                counts["failed"] = unproved
-            else:
-                proved = set(re.findall(r"Proved equivalence of partition '([^']+)'", text))
-                attempted = set(re.findall(r"Running strategy '[^']+' on '([^']+)'", text))
-                errored = set(re.findall(r"strategy '[^']+' on partition '([^']+)' encountered an error", text))
-                total = len(attempted | proved | errored)
-                counts["proven"] = len(proved)
-                counts["errors"] = len(errored - proved)
-                counts["unknown"] = max(0, total - counts["proven"] - counts["errors"])
-
-        percent = 100.0 * counts["proven"] / total if total else 0.0
-        return {**counts, "total": total, "percent": percent}
-
-    @staticmethod
-    def eqy_solver_stats(log: Path) -> dict[str, dict[str, int]]:
-        """Count EQY strategy attempts and which strategies actually proved partitions."""
-
-        text = Reporting.read_text(log) if log.is_file() else ""
-        names = re.findall(r"Running strategy '([^']+)' on '[^']+'", text)
-        stats = {name: {"attempts": names.count(name), "proved": 0, "unproved": 0, "errors": 0} for name in dict.fromkeys(names)}
-        for field, pattern in (
-            ("proved", r"Proved equivalence of partition '[^']+' using strategy '([^']+)'"),
-            ("unproved", r"Could not prove equivalence of partition '[^']+' using strategy '([^']+)'"),
-            ("errors", r"Execution of strategy '([^']+)' on partition '[^']+' encountered an error"),
-        ):
-            for name in re.findall(pattern, text):
-                stats.setdefault(name, {"attempts": 0, "proved": 0, "unproved": 0, "errors": 0})[field] += 1
-        return stats
 
     @staticmethod
     def collect_equivalence(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
-        """Collect sign-off EQY closure for the selected PDK."""
+        """Consume canonical EQY summary evidence without reparsing runtime logs."""
 
         layout = PDKRunLayout.from_run(run_dir, pdk=pdk, top=top)
-        log = layout.equivalence_log
-        result_dir = layout.equivalence_dir / f"{top}_rtl_vs_syn"
-        if not log.is_file() and not result_dir.exists():
+        path = layout.equivalence_dir / "summary.json"
+        summary = Reporting._json_object(path)
+        if not summary:
             return None
-
-        partitions = Reporting._eqy_partition_summary(result_dir, log)
-        if (result_dir / "PASS").is_file() or (partitions["total"] and partitions["proven"] == partitions["total"]):
-            status = "pass"
-        elif partitions["failed"]:
-            status = "fail"
-        elif partitions["errors"] or partitions["timeouts"] or partitions["unknown"] or partitions["proven"]:
-            status = "partial"
-        elif (result_dir / "FAIL").is_file():
-            status = "fail"
-        else:
-            status = "unknown"
-
+        result = summary.get("result", {}) if isinstance(summary.get("result"), dict) else {}
+        counts = result.get("counts", {}) if isinstance(result.get("counts"), dict) else {}
+        total = int(result.get("total", 0))
+        proven = int(counts.get("PASS", 0))
+        partitions = {
+            "proven": proven,
+            "failed": int(counts.get("FAIL", 0)),
+            "errors": int(counts.get("ERROR", 0)),
+            "timeouts": int(counts.get("TIMEOUT", 0)),
+            "unknown": int(counts.get("UNKNOWN", 0)) + int(counts.get("MISSING", 0)),
+            "total": total,
+            "percent": 100.0 * proven / total if total else 0.0,
+        }
         return {
-            "status": status,
+            "status": {"PASS": "pass", "FAILED": "fail", "REVIEW": "partial"}.get(
+                str(summary.get("status")), "unknown"
+            ),
             "partitions": partitions,
-            "strategies": Reporting.eqy_solver_stats(log),
-            "log": Reporting.relative(log, run_dir) if log.is_file() else None,
-            "result_dir": Reporting.relative(result_dir, run_dir) if result_dir.exists() else None,
+            "strategies": summary.get("strategies", {}),
+            "log": summary.get("artifacts", {}).get("log") if isinstance(summary.get("artifacts"), dict) else None,
+            "result_dir": summary.get("artifacts", {}).get("result_dir") if isinstance(summary.get("artifacts"), dict) else None,
+            "evidence": Reporting.relative(path, run_dir),
         }
 
     @staticmethod
@@ -927,7 +637,7 @@ class Reporting:
         """Collect direct GLS reports from one gate-level stage."""
 
         layout = PDKRunLayout.from_run(run_dir, pdk=pdk, top=top)
-        report_stage = "post_impl" if stage == "post_route" else "post_syn"
+        report_stage = "post_impl" if stage == "post_impl" else "post_syn"
         stage_dir = layout.post_impl_sim_dir if report_stage == "post_impl" else layout.post_syn_sim_dir
         report_paths = sorted(stage_dir.glob(f"{top}_{report_stage}_*.json"))
         if not report_paths:
@@ -1061,30 +771,22 @@ class Reporting:
 
     @staticmethod
     def collect_implementation(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
-        """Collect final ORFS implementation artifacts for one PDK."""
+        """Consume canonical implementation summary evidence."""
 
         layout = PDKRunLayout.from_run(run_dir, pdk=pdk, top=top)
-        roots = sorted(
-            root.resolve()
-            for root in (layout.pnr_dir / "results").glob(f"*/{top}/base")
-            if root.is_dir()
-        )
-        if len(roots) > 1:
-            raise ValueError(
-                f"ambiguous ORFS results for {top}: " + ", ".join(str(root) for root in roots)
-            )
-        if not roots:
+        path = layout.pnr_dir / "summary.json"
+        summary = Reporting._json_object(path)
+        if not summary or summary.get("top") != top:
             return None
-        root = roots[0]
-        required = ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds")
-        artifacts = {name: Reporting.relative(root / name, run_dir) for name in required if (root / name).is_file()}
-        status = "pass" if len(artifacts) == len(required) else "partial"
-        log = layout.pnr_log_dir / f"{top}_pnr.log"
         return {
-            "status": status,
-            "platform_root": Reporting.relative(root, run_dir),
-            "artifacts": artifacts,
-            "log": Reporting.relative(log, run_dir) if log.is_file() else None,
+            "status": {"PASS": "pass", "FAILED": "fail"}.get(
+                str(summary.get("status", "")), "incomplete"
+            ),
+            "platform": summary.get("platform"),
+            "phases": summary.get("phases", []),
+            "artifacts": summary.get("artifacts", {}),
+            "log": summary.get("log"),
+            "evidence": Reporting.relative(path, run_dir),
         }
 
     @staticmethod
@@ -1144,6 +846,25 @@ class Reporting:
         return "missing"
 
     @staticmethod
+    def _sta_status(value: object) -> str:
+        """Return the canonical STA outcome without treating advisory warnings as failures."""
+
+        if not isinstance(value, Mapping):
+            return "missing"
+        statuses = [
+            str(mode.get("status", "unknown"))
+            for corner in value.values() if isinstance(corner, Mapping)
+            for mode in corner.values() if isinstance(mode, Mapping)
+        ]
+        if not statuses:
+            return "missing"
+        if any(status in {"fail", "error"} for status in statuses):
+            return "fail"
+        if any(status in {"missing", "partial", "unknown", "incomplete"} for status in statuses):
+            return "incomplete"
+        return "pass"
+
+    @staticmethod
     def flow_summary(metrics: dict[str, Any]) -> dict[str, Any]:
         """Summarize the complete FlexSoC lifecycle in user-facing order."""
 
@@ -1158,7 +879,7 @@ class Reporting:
 
         pre = Reporting._phase_status(
             Reporting._metric_status(metrics, "sdf"),
-            "pass" if metrics.get("sta") else "missing",
+            Reporting._sta_status(metrics.get("sta")),
             "pass" if metrics.get("power_estimate") else "missing",
             Reporting._metric_status(metrics, "post_syn_gls"),
             Reporting._metric_status(metrics, "power_analysis"),
@@ -1169,7 +890,7 @@ class Reporting:
         if isinstance(routed, dict):
             post = Reporting._phase_status(
                 str(routed.get("sdf", {}).get("status", "missing")) if isinstance(routed.get("sdf"), dict) else "missing",
-                "pass" if routed.get("sta") else "missing",
+                Reporting._sta_status(routed.get("sta")),
                 "pass" if routed.get("power_estimate") else "missing",
                 str(routed.get("gls", {}).get("status", "missing")) if isinstance(routed.get("gls"), dict) else "missing",
                 str(routed.get("power_analysis", {}).get("status", "missing")) if isinstance(routed.get("power_analysis"), dict) else "missing",
@@ -1248,7 +969,11 @@ class Reporting:
         if isinstance(sdf, dict):
             result["sdf"] = {"status": sdf.get("status", "unknown"), "count": sdf.get("count", 0)}
         if metrics.get("sta"):
-            result["sta"] = {"status": "pass", "clock_model": "ideal", "interconnect": "none"}
+            result["sta"] = {
+                "status": Reporting._sta_status(metrics.get("sta")),
+                "clock_model": "ideal",
+                "interconnect": "none",
+            }
         if metrics.get("power_estimate"):
             result["power"] = {"status": "pass"}
         power_activity = metrics.get("power_analysis")
@@ -1282,7 +1007,11 @@ class Reporting:
             if isinstance(sdf, dict):
                 routed["sdf"] = {"status": sdf.get("status", "unknown"), "count": sdf.get("count", 0)}
             if post_impl.get("sta"):
-                routed["sta"] = {"status": "pass", "clock_model": "propagated", "interconnect": "spef"}
+                routed["sta"] = {
+                    "status": Reporting._sta_status(post_impl.get("sta")),
+                    "clock_model": "propagated",
+                    "interconnect": "spef",
+                }
             if post_impl.get("power_estimate"):
                 routed["power"] = {"status": "pass"}
             gls = post_impl.get("gls")
@@ -1343,7 +1072,7 @@ class Reporting:
         stages["equivalence"] = str(equiv.get("status")) if isinstance(equiv, dict) else "missing"
         sdf = metrics.get("sdf")
         stages["sdf"] = str(sdf.get("status")) if isinstance(sdf, dict) else "missing"
-        stages["sta"] = "pass" if metrics.get("sta") else "missing"
+        stages["sta"] = Reporting._sta_status(metrics.get("sta"))
         stages["power"] = "pass" if metrics.get("power_estimate") else "missing"
         order = ["lint", "cdc_rdc", "formal", "regression", "synthesis", "equivalence", "sdf", "sta", "power"]
         gls = metrics.get("post_syn_gls")
@@ -1376,7 +1105,7 @@ class Reporting:
         stages["post_impl_sdf"] = (
             str(routed_sdf.get("status", "unknown")) if isinstance(routed_sdf, dict) else "missing"
         )
-        stages["post_impl_sta"] = "pass" if routed.get("sta") else "missing"
+        stages["post_impl_sta"] = Reporting._sta_status(routed.get("sta"))
         stages["post_impl_power"] = "pass" if routed.get("power_estimate") else "missing"
         routed_gls = routed.get("gls")
         stages["post_impl_gls"] = (
@@ -1473,7 +1202,7 @@ class Reporting:
             ("power_analysis", Reporting.collect_power_analysis),
             ("fusion_analysis", Reporting.collect_fusion_analysis),
         ):
-            data = collector(top, run_dir, selected_pdk, "post_route")
+            data = collector(top, run_dir, selected_pdk, "post_impl")
             if data is not None:
                 post_impl[name] = data
         if post_impl:

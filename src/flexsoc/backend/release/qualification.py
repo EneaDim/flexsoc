@@ -871,24 +871,16 @@ class QualificationFlow:
     def validate_contract_snapshot(
         package_root: Path, *, spec_root: Path | None = None,
     ) -> dict[str, object]:
-        """Validate new merged release metadata, with legacy package read support."""
+        """Validate the current interface release contract and common specification."""
 
         root = Path(package_root)
         contract_file = root / "meta" / "contract.json"
-        legacy = False
-        if not contract_file.is_file():
-            contract_file = root / "contract" / "contract.json"
-            legacy = True
         if not contract_file.is_file():
             raise FileNotFoundError(f"missing release contract: {contract_file}")
         contract = json.loads(contract_file.read_text(encoding="utf-8"))
-        effective_spec_root = Path(spec_root) if spec_root is not None else (
-            root / "contract" if legacy else root.parent.parent / "spec"
-        )
+        effective_spec_root = Path(spec_root) if spec_root is not None else root.parent.parent / "spec"
         spec = QualificationFlow.validate_spec_bundle(effective_spec_root, ip_name=str(contract.get("ip", "")))
         if contract.get("spec_fingerprint") != spec["fingerprint"]:
-            if legacy:
-                raise ValueError("release contract fingerprint does not match packaged specification")
             raise ValueError("IP-level spec fingerprint does not match packaged contract snapshot")
 
         source_of_truth = contract.get("source_of_truth", {}) or {}

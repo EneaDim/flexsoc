@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from io import StringIO
 from pathlib import Path
+
+from rich.console import Console
 
 from flexsoc.backend.core.core import BackendContext
 from flexsoc.backend.core.flow.target import Target
+from flexsoc.backend.core.render.show import ShowRenderer
 from flexsoc.backend.core.render.templates import templates
 from flexsoc.backend.core.runtime.execution import Terminal
 from flexsoc.backend.core.runtime.toolchain import Toolchain
@@ -22,6 +27,13 @@ _PHASE = {
     "5": "routing",
     "6": "finish",
 }
+_FINAL_ARTIFACTS = (
+    ("netlist", "6_final.v"),
+    ("sdc", "6_final.sdc"),
+    ("spef", "6_final.spef"),
+    ("odb", "6_final.odb"),
+    ("gds", "6_final.gds"),
+)
 
 
 @dataclass(slots=True)
@@ -61,7 +73,7 @@ class ImplementationFlow:
         log: Path,
         on: str = "local",
     ) -> int:
-        """Run ORFS through the shared execution layer."""
+        """Run ORFS and publish canonical implementation evidence."""
 
         from flexsoc.backend.core.runtime.execution import CommandRequest
 
@@ -74,12 +86,12 @@ class ImplementationFlow:
         if not config.is_file():
             raise ValueError(f"OpenROAD config.mk not found: {config}")
         workdir.mkdir(parents=True, exist_ok=True)
-        seen: set[str] = set()
+        seen: list[str] = []
 
         def on_line(line: str) -> None:
             phase = ImplementationFlow.checkpoint(line)
             if phase and phase not in seen:
-                seen.add(phase)
+                seen.append(phase)
                 Terminal.print_label("pnr", phase)
 
         Terminal.print_log(log)
@@ -93,39 +105,67 @@ class ImplementationFlow:
             line_callback=on_line,
         )
         result = self.runner.run(request, on=on)
-        if result.returncode == 0:
-            top = ImplementationFlow._config_value(config, "DESIGN_NAME")
-            platform = ImplementationFlow._config_value(config, "PLATFORM")
-            for kind, path in ImplementationFlow._final_artifacts(workdir, top, platform):
+        top = ImplementationFlow._config_value(config, "DESIGN_NAME")
+        platform = ImplementationFlow._config_value(config, "PLATFORM")
+        artifacts = ImplementationFlow._final_artifacts(workdir, top, platform)
+        returncode = result.returncode
+        if returncode == 0 and len(artifacts) != len(_FINAL_ARTIFACTS):
+            returncode = 1
+        self._write_summary(
+            workdir=workdir,
+            top=top,
+            platform=platform,
+            returncode=returncode,
+            tool_returncode=result.returncode,
+            phases=tuple(seen),
+            artifacts=artifacts,
+            command=request.argv,
+            log=log,
+        )
+        if returncode == 0:
+            for kind, path in artifacts:
                 Terminal.print_path_label("report", path, details={"kind": kind})
-        return result.returncode
+        return returncode
 
-    def debug(self, log: Path) -> dict[str, object]:
-        """Return implementation phase evidence from an existing ORFS log."""
+    def debug(
+        self, *, output: str | None = None, as_json: bool = False,
+    ) -> int:
+        """Show implementation evidence plus existing runtime artifact paths."""
 
-        phases: list[str] = []
-        if log.is_file():
-            for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
-                phase = ImplementationFlow.checkpoint(line)
-                if phase and phase not in phases:
-                    phases.append(phase)
-        return {"log": str(log), "phases": phases}
+        return self.show(debug=True, output=output, as_json=as_json)
 
     def show(
-        self, workdir: Path, *, top: str, platform: str | None = None
-    ) -> dict[str, object]:
-        """Return compact canonical implementation artifacts."""
+        self, *, summary: bool = False, debug: bool = False,
+        output: str | None = None, as_json: bool = False,
+    ) -> int:
+        """Render canonical implementation evidence without rediscovering ORFS outputs."""
 
-        return {
-            "top": top,
-            "platform": platform,
-            "artifacts": {
-                kind: str(path)
-                for kind, path in ImplementationFlow._final_artifacts(
-                    workdir.expanduser().resolve(), top, platform
-                )
-            },
-        }
+        path = self.context.paths.impl / "summary.json"
+        if not path.is_file():
+            raise FileNotFoundError(f"implementation summary not found: {path}; run `fx pnr` first")
+        relative = path.relative_to(self.context.paths.run).as_posix()
+        document = ShowRenderer.load_file(self.context.paths.run, relative)
+        if summary:
+            data = dict(document.data)
+            data["summary_only"] = True
+            document = replace(document, data=data)
+
+        capture = StringIO() if output else None
+        console = Console(file=capture, force_terminal=False) if capture else Console()
+        if as_json:
+            print(json.dumps(document.data, indent=2, sort_keys=True), file=capture or None)
+        else:
+            ShowRenderer(console).render(document)
+            if debug:
+                self._show_debug(console, document.data)
+
+        if output and capture is not None:
+            destination = Path(output).expanduser()
+            if not destination.is_absolute():
+                destination = self.context.project_root / destination
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(capture.getvalue(), encoding="utf-8")
+        return 0
 
     def collect(
         self, workdir: Path, *, top: str, platform: str | None = None
@@ -183,18 +223,65 @@ class ImplementationFlow:
             )
         raise ValueError(f"unsupported implementation action: {target.action!r}")
 
-    @staticmethod
-    def _show_checkpoints(log: Path) -> None:
-        """Render compact phase labels from the completed ORFS log."""
+    def _write_summary(
+        self,
+        *,
+        workdir: Path,
+        top: str,
+        platform: str,
+        returncode: int,
+        tool_returncode: int,
+        phases: tuple[str, ...],
+        artifacts: tuple[tuple[str, Path], ...],
+        command: tuple[str, ...],
+        log: Path,
+    ) -> Path:
+        """Write one compact implementation summary from the completed ORFS run."""
 
-        if not log.is_file():
+        payload = {
+            "schema": "flexsoc.implementation.v1",
+            "top": top,
+            "pdk": self.context.paths.pdk,
+            "platform": platform,
+            "status": "PASS" if returncode == 0 else "FAILED",
+            "returncode": returncode,
+            "tool_returncode": tool_returncode,
+            "phases": list(phases),
+            "artifacts": {
+                kind: self._relative(path)
+                for kind, path in artifacts
+            },
+            "command": list(command),
+            "log": self._relative(log),
+        }
+        output = workdir / "summary.json"
+        output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return output
+
+    def _show_debug(self, console: Console, data: object) -> None:
+        """Render runtime paths already recorded in the implementation summary."""
+
+        if not isinstance(data, dict):
             return
-        seen: set[str] = set()
-        for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
-            phase = ImplementationFlow.checkpoint(line)
-            if phase and phase not in seen:
-                seen.add(phase)
-                Terminal.print_label("pnr", phase)
+        console.print("[bold orange1]Diagnostics[/bold orange1]")
+        command = data.get("command")
+        if isinstance(command, list):
+            console.print(f"[grey70]command[/grey70] {' '.join(str(item) for item in command)}")
+        if data.get("log"):
+            console.print(f"[grey70]log[/grey70] {data['log']}")
+        artifacts = data.get("artifacts")
+        if isinstance(artifacts, dict):
+            for kind, path in artifacts.items():
+                console.print(f"[grey70]{kind}[/grey70] {path}")
+
+    def _relative(self, path: Path) -> str:
+        """Return one run-relative artifact path when possible."""
+
+        path = path.expanduser().resolve()
+        try:
+            return path.relative_to(self.context.paths.run.resolve()).as_posix()
+        except ValueError:
+            return str(path)
 
     @staticmethod
     def render_config(
@@ -293,14 +380,11 @@ class ImplementationFlow:
         branch = ImplementationFlow.resolve_orfs_branch(workdir, "results", top, platform)
         if branch is None:
             return ()
-        names = (
-            ("netlist", "6_final.v"),
-            ("sdc", "6_final.sdc"),
-            ("spef", "6_final.spef"),
-            ("odb", "6_final.odb"),
-            ("gds", "6_final.gds"),
+        return tuple(
+            (kind, path)
+            for kind, name in _FINAL_ARTIFACTS
+            if (path := branch / name).is_file()
         )
-        return tuple((kind, path) for kind, name in names if (path := branch / name).is_file())
 
     @staticmethod
     def _config_value(config: Path, key: str) -> str:

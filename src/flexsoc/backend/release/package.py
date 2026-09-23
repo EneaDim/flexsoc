@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 
 SYNTHESIS_RELEASE_FILES = (
+    "summary.json",
     "abc.constr", "synth_pre.ys", "synth_pre_sv.ys", "synth.ys", "synth_sv.ys",
     "repair_config.mk", "repair.tcl", "repair_json.ys",
 )
@@ -39,7 +40,13 @@ SIGNOFF_RELEASE_FILES = (
     "fusion/fusion_analysis.tcl", "fusion/summary.json",
 )
 PHYSICAL_RELEASE_FILES = ("physical/summary.json",)
-PNR_FINAL_FILES = ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds")
+PNR_FINAL_ARTIFACTS = (
+    ("netlist", "6_final.v"),
+    ("sdc", "6_final.sdc"),
+    ("spef", "6_final.spef"),
+    ("odb", "6_final.odb"),
+    ("gds", "6_final.gds"),
+)
 
 
 _RUNTIME_QOR_KEYS = frozenset({
@@ -346,15 +353,15 @@ class PackageFlow:
             self._stage_sources(staged, run)
             self._stage_dv_evidence(staged, run, top)
             self._stage_synthesis(staged, pdk, synth_dir, top)
-            self._stage_post_syn_signoff(staged, pdk, signoff_dir, sdc_file, top)
+            self._stage_post_syn_signoff(staged, pdk, signoff_dir, sdc_file)
             self._stage_equivalence(
                 staged, pdk, top, eqy_config, eqy_view, filelists,
                 netlist, liberty, cell_models, clock_gate_model,
             )
             packaged_impl = staged / "impl" / pdk
             if impl_dir and Path(impl_dir).is_dir():
-                self._stage_implementation(staged, pdk, Path(impl_dir), top)
-                self._stage_physical_signoff(staged, pdk, Path(signoff_dir) / "post_impl", top)
+                self._stage_implementation(staged, pdk, Path(impl_dir))
+                self._stage_physical_signoff(staged, pdk, Path(signoff_dir) / "post_impl")
             else:
                 shutil.rmtree(packaged_impl, ignore_errors=True)
                 impl_root = staged / "impl"
@@ -622,7 +629,7 @@ class PackageFlow:
                 shutil.copy2(path, target)
     @classmethod
     def _stage_post_syn_signoff(
-        cls, staged: Path, pdk: str, source: Path, sdc: Path, top: str
+        cls, staged: Path, pdk: str, source: Path, sdc: Path
     ) -> None:
         """Save reusable post-synthesis signoff without scenario-local reports."""
 
@@ -632,22 +639,9 @@ class PackageFlow:
         constraints.mkdir(parents=True, exist_ok=True)
         shutil.copy2(sdc, constraints / sdc.name)
 
-        estimate = destination / "power" / "estimate" / "summary.json"
-        if not estimate.is_file():
-            run = Path(source).parents[1]
-            summary = Reporting.collect_power_estimate(top, run, pdk)
-            if summary:
-                for values in summary.get("corners", {}).values():
-                    values.pop("report", None)
-                    values.pop("log", None)
-                estimate.parent.mkdir(parents=True, exist_ok=True)
-                estimate.write_text(
-                    json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-                )
-
     @classmethod
     def _stage_physical_signoff(
-        cls, staged: Path, pdk: str, source: Path, top: str
+        cls, staged: Path, pdk: str, source: Path
     ) -> None:
         """Package Level-5 signoff as setup-owned collateral plus canonical summaries."""
 
@@ -657,40 +651,42 @@ class PackageFlow:
             return
         cls._copy_signoff_evidence(Path(source), destination, physical=True)
 
-        estimate = destination / "power" / "estimate" / "summary.json"
-        if not estimate.is_file():
-            run = Path(source).parents[2]
-            summary = Reporting.collect_power_estimate(top, run, pdk, "post_route")
-            if summary:
-                for values in summary.get("corners", {}).values():
-                    values.pop("report", None)
-                    values.pop("log", None)
-                estimate.parent.mkdir(parents=True, exist_ok=True)
-                estimate.write_text(
-                    json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-                )
-
     @staticmethod
-    def _stage_implementation(staged: Path, pdk: str, source: Path, top: str) -> None:
-        """Retain PnR setup plus only the five canonical final ORFS artifacts."""
+    def _stage_implementation(staged: Path, pdk: str, source: Path) -> None:
+        """Retain PnR setup plus only artifacts declared by the canonical summary."""
 
+        source = Path(source)
         destination = staged / "impl" / pdk
         shutil.rmtree(destination, ignore_errors=True)
         destination.mkdir(parents=True, exist_ok=True)
-        config = Path(source) / "config.mk"
+        config = source / "config.mk"
         if config.is_file():
             shutil.copy2(config, destination / "config.mk")
-        roots = sorted(path for path in (Path(source) / "results").glob(f"*/{top}/base") if path.is_dir())
-        if len(roots) != 1:
-            raise ValueError(f"expected one canonical ORFS result branch for {top}, found {len(roots)}")
-        root = roots[0]
-        target_root = destination / root.relative_to(source)
-        target_root.mkdir(parents=True, exist_ok=True)
-        for name in PNR_FINAL_FILES:
-            path = root / name
-            if not path.is_file():
-                raise FileNotFoundError(f"missing canonical PnR artifact: {path}")
-            shutil.copy2(path, target_root / name)
+        summary = source / "summary.json"
+        if not summary.is_file():
+            raise FileNotFoundError(f"missing canonical implementation summary: {summary}")
+        data = json.loads(summary.read_text(encoding="utf-8"))
+        artifacts = data.get("artifacts")
+        if not isinstance(artifacts, dict):
+            raise ValueError(f"implementation summary has no artifact map: {summary}")
+        (destination / "summary.json").write_text(
+            json.dumps(PackageFlow._portable_qor(data), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        run_root = source.parents[1]
+        for kind, name in PNR_FINAL_ARTIFACTS:
+            relative = str(artifacts.get(kind, "")).strip()
+            path = run_root / relative if relative else Path()
+            if not relative or path.name != name or not path.is_file():
+                raise FileNotFoundError(f"missing canonical PnR artifact {kind}: {relative or name}")
+            try:
+                package_relative = path.resolve().relative_to(source.resolve())
+            except ValueError as exc:
+                raise ValueError(f"PnR artifact is outside implementation root: {path}") from exc
+            target = destination / package_relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
 
     @staticmethod
     def _stage_optional_reports(
@@ -717,13 +713,17 @@ class PackageFlow:
                         encoding="utf-8",
                     )
         if coverage_dir:
-            reports = [Path(coverage_dir) / "summary.json"]
-            reports = [path for path in reports if path.is_file()]
-            if reports:
-                target = staged / "dv" / "functional" / "coverage"
-                target.mkdir(parents=True, exist_ok=True)
-                for report in reports:
-                    shutil.copy2(report, target / report.name)
+            coverage_root = Path(coverage_dir)
+            reports = (
+                (coverage_root / "summary.json", staged / "dv" / "functional" / "coverage" / "summary.json"),
+                (coverage_root.parent / "regression" / "summary.json", staged / "dv" / "functional" / "regression" / "summary.json"),
+                (coverage_root.parents[1] / "formal" / "summary.json", staged / "dv" / "formal" / "summary.json"),
+            )
+            for source, destination in reports:
+                if not source.is_file():
+                    continue
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, destination)
         if not any(
             path and Path(path).is_file()
             for path in (manifest_json, metrics_json, provenance_json, settings_json, design_intent_json, qualification_json)
