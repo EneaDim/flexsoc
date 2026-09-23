@@ -86,7 +86,7 @@ class PowerAnalysis:
         layout = PDKRunLayout.from_values(project_root, values)
         top = values.get("TOP", "test")
         signoff_stage = values.get("SIGNOFF_STAGE", "post_syn")
-        report_stage = "post_impl" if signoff_stage == "post_route" else "post_syn"
+        report_stage = "post_impl" if signoff_stage == "post_impl" else "post_syn"
         stage_dir = layout.post_impl_sim_dir if report_stage == "post_impl" else layout.post_syn_sim_dir
         scenario = StaAnalysis.scenario_corner(mode)
         return stage_dir / f"{top}_{report_stage}_{test}_{backend}_{scenario}.json"
@@ -115,7 +115,7 @@ class PowerAnalysis:
         payload = StaAnalysis._load_json(report)
         top = values.get("TOP", "test")
         pdk = values.get("PDK", "sky130")
-        report_stage = "post_impl" if values.get("SIGNOFF_STAGE", "post_syn") == "post_route" else "post_syn"
+        report_stage = "post_impl" if values.get("SIGNOFF_STAGE", "post_syn") == "post_impl" else "post_syn"
         expected = {
             "stage": report_stage,
             "top": top,
@@ -177,7 +177,7 @@ class PowerAnalysis:
 
         layout = PDKRunLayout.from_values(project_root, values)
         top = values.get("TOP", "test")
-        report_stage = "post_impl" if values.get("SIGNOFF_STAGE", "post_syn") == "post_route" else "post_syn"
+        report_stage = "post_impl" if values.get("SIGNOFF_STAGE", "post_syn") == "post_impl" else "post_syn"
         stage_dir = layout.post_impl_sim_dir if report_stage == "post_impl" else layout.post_syn_sim_dir
         prefix = f"{top}_{report_stage}_"
         rows: set[tuple[str, str, str]] = set()
@@ -1120,7 +1120,7 @@ class PowerAnalysis:
             "workload": spec.workload,
             "activity_source": (
                 "post_impl_gls_vcd"
-                if values.get("SIGNOFF_STAGE") == "post_route"
+                if values.get("SIGNOFF_STAGE") == "post_impl"
                 else "post_syn_gls_vcd"
             ),
             "scope_requested": requested_scope,

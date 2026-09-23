@@ -369,7 +369,7 @@ class GateLevelSimulation:
             else:
                 corner = StaAnalysis.scenario_corner(timing.mode)
                 sdf = (
-                    layout.signoff_stage_root("post_route")
+                    layout.signoff_stage_root("post_impl")
                     / "sdf"
                     / corner
                     / f"{top}_{corner}.sdf"
@@ -804,6 +804,28 @@ class GateLevelSimulation:
         return result.returncode
 
     @staticmethod
+    def _failure_diagnostics(log: Path, limit: int = 6) -> list[str]:
+        """Return concise testbench failure lines from one GLS runtime log."""
+
+        if not log.is_file():
+            return []
+        lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
+        focused = [
+            line.strip()
+            for line in lines
+            if "[TB][FAIL]" in line or "[TB][ERROR]" in line
+        ]
+        if focused:
+            return focused[:limit]
+        fallback = [
+            line.strip()
+            for line in lines
+            if re.search(r"\b(?:fatal|error|failed)\b", line, re.I)
+            and not _SDF_EXPECTED_WARNING.search(line)
+        ]
+        return fallback[:limit]
+
+    @staticmethod
     def sdf_annotation_summary(text: str) -> dict[str, object]:
         """Summarize actionable Icarus SDF diagnostics."""
 
@@ -916,6 +938,7 @@ class GateLevelSimulation:
             "wave": str(paths.wave),
             "log": str(paths.log),
             "annotation": annotation,
+            "diagnostics": GateLevelSimulation._failure_diagnostics(paths.log) if final_rc else [],
         }
         paths.report.parent.mkdir(parents=True, exist_ok=True)
         paths.report.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -1044,6 +1067,9 @@ class GateLevelSimulation:
                 f"scenario={GateLevelSimulation.timing_scenario(mode)}" + (f" sdf_mode={mode}" if mode in SDF_MODES else ""),
                 flush=True,
             )
+            if rc != 0:
+                for line in report.get("diagnostics", ()) if isinstance(report, Mapping) else ():
+                    print(f"[{label}]   {line}", flush=True)
             print(f"[report] {test}/{backend}/{GateLevelSimulation.timing_scenario(mode)} {paths.report}", flush=True)
 
         summary = {

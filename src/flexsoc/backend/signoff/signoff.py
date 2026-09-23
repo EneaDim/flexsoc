@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 import json
+from io import StringIO
 from pathlib import Path
 import re
 import shlex
@@ -16,6 +17,7 @@ from rich.table import Table
 
 from flexsoc.backend.core import BackendContext, PDKRunLayout
 from flexsoc.backend.core.runtime.execution import CommandRequest, ToolRunner, Terminal
+from flexsoc.backend.core.render.show import ShowRenderer
 from flexsoc.backend.core.flow.target import Target
 from flexsoc.backend.core.runtime.toolchain import Toolchain
 from flexsoc.backend.impl import ImplementationFlow
@@ -31,7 +33,7 @@ class SignoffStage(str, Enum):
     """Select post-synthesis or post-implementation sign-off."""
 
     POST_SYN = "post_syn"
-    POST_IMPL = "post_route"
+    POST_IMPL = "post_impl"
 
 
 _ANT = re.compile(r"Found\s+(\d+)\s+(net|pin) violations", re.IGNORECASE)
@@ -129,41 +131,154 @@ class SignoffFlow:
             )
         raise ValueError(f"run is not supported for sign-off target {target.name!r}")
 
-    def debug(self, target: Target, *, output: str | None = None) -> int:
-        """Diagnose existing artifacts without rerunning the target."""
+    def debug(
+        self, target: Target, *, output: str | None = None, as_json: bool = False,
+    ) -> int:
+        """Show canonical evidence plus existing diagnostic artifacts."""
 
-        if target.debug == "sta":
-            return self.debug_sta(output=output)
-        if target.debug == "power_estimate":
-            return self.debug_power(activity=False, output=output)
-        if target.debug == "power_activity":
-            return self.debug_power(activity=True, output=output)
-        if target.debug == "fusion":
-            return self.debug_fusion(output=output)
-        if target.debug == "gls":
-            return self.debug_gls(output=output)
-        raise ValueError(f"--debug is not supported for target {target.name!r}")
+        return self.show(target, debug=True, output=output, as_json=as_json)
 
-    def show(self, target: Target) -> tuple[Path, ...]:
-        """Return canonical machine-readable evidence paths for one target."""
+    def show(
+        self, target: Target, *, summary: bool = False, debug: bool = False,
+        output: str | None = None, as_json: bool = False,
+    ) -> int:
+        """Render one canonical sign-off summary without rerunning any tool."""
+
+        if not target.show:
+            raise ValueError(f"--show is not supported for target {target.name!r}")
+        layout = PDKRunLayout.from_values(self.project_root, self.values)
+        if target.action == "gls_all":
+            sim = layout.post_impl_sim_dir if self.stage is SignoffStage.POST_IMPL else layout.post_syn_sim_dir
+            backend = self.values.get("GLS_BACKEND", "sv").strip().lower() or "sv"
+            path = sim / f"summary_{backend}.json"
+            if not path.is_file():
+                raise FileNotFoundError(f"GLS summary not found: {path}; run `fx {target.name}` first")
+            document = ShowRenderer.load_file(layout.run_root, path.relative_to(layout.run_root).as_posix())
+            document = replace(
+                document,
+                title=f"{'Post-implementation' if self.stage is SignoffStage.POST_IMPL else 'Post-synthesis'} GLS",
+            )
+        else:
+            document = ShowRenderer.load(
+                layout.run_root, top=layout.top, pdk=layout.pdk, key=target.show,
+            )
+        data = self._summary_data(target, document.data) if summary else document.data
+        capture = StringIO() if output else None
+        console = Console(file=capture, force_terminal=False) if capture else Console()
+        if as_json:
+            print(json.dumps(data, indent=2, sort_keys=True), file=capture or None)
+        elif summary:
+            self._render_summary(console, target, data)
+        else:
+            ShowRenderer(console).render(document)
+
+        if debug and not as_json:
+            rows = self._debug_rows(target)
+            if capture is None:
+                self._debug_emit(self.project_root, target.debug or target.name, rows, None)
+            else:
+                console.print("[bold orange1]Diagnostics[/bold orange1]")
+                for label, text in rows:
+                    console.print(f"[grey70]{label}[/grey70] {text}")
+
+        if output and capture is not None:
+            destination = Path(output).expanduser()
+            if not destination.is_absolute():
+                destination = self.project_root / destination
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(capture.getvalue(), encoding="utf-8")
+        return 0
+
+    def _summary_data(self, target: Target, raw: object) -> dict[str, object]:
+        """Return the compact per-target summary fields used by --summary."""
+
+        data = dict(raw) if isinstance(raw, Mapping) else {}
+        result: dict[str, object] = {
+            "target": target.name,
+            "stage": self.stage.value,
+            "status": data.get("status", "MISSING"),
+        }
+        if target.action == "sta":
+            qor = data.get("qor", {}) if isinstance(data.get("qor"), Mapping) else {}
+            result.update({
+                "scenario_count": qor.get("scenario_count", 0),
+                "worst_wns": qor.get("worst_wns"),
+                "worst_tns": qor.get("worst_tns"),
+                "gating_violations": qor.get("violating_paths", 0),
+                "advisory_violations": qor.get("advisory_violating_paths", 0),
+                "unconstrained_paths": qor.get("unconstrained_paths", 0),
+            })
+        elif target.action == "power_estimate":
+            corners = data.get("corners", {}) if isinstance(data.get("corners"), Mapping) else {}
+            totals = [
+                float(item["total_w"]) for item in corners.values()
+                if isinstance(item, Mapping) and isinstance(item.get("total_w"), (int, float))
+            ]
+            result.update({"corners": len(corners), "worst_total_w": max(totals) if totals else None})
+        elif target.action in {"power_activity", "power_activity_all", "fusion", "fusion_all", "gls_all"}:
+            result.update({key: data.get(key, 0) for key in ("total", "passed", "failed")})
+        elif target.action == "physical":
+            checks = data.get("checks", {}) if isinstance(data.get("checks"), Mapping) else {}
+            result["checks"] = {
+                str(name): item.get("status", "MISSING")
+                for name, item in checks.items() if isinstance(item, Mapping)
+            }
+        return result
+
+    @staticmethod
+    def _render_summary(console: Console, target: Target, data: Mapping[str, object]) -> None:
+        """Render a short sign-off status line plus essential counts/metrics."""
+
+        renderer = ShowRenderer(console)
+        console.print(
+            f"[bold bright_cyan]{target.name}[/bold bright_cyan]  "
+            f"{renderer.status(data.get('status', 'MISSING'))}  "
+            f"[grey70]{data.get('stage', '-')}[/grey70]"
+        )
+        details = [
+            f"{key}={value}" for key, value in data.items()
+            if key not in {"target", "stage", "status", "checks"} and value is not None
+        ]
+        if details:
+            console.print("  ".join(details))
+        checks = data.get("checks")
+        if isinstance(checks, Mapping):
+            console.print("  ".join(f"{name}={value}" for name, value in checks.items()))
+
+    def _debug_rows(self, target: Target) -> list[tuple[str, str]]:
+        """Collect diagnostic rows from already-existing sign-off artifacts."""
 
         layout = PDKRunLayout.from_values(self.project_root, self.values)
         root = layout.signoff_stage_root(self.stage.value)
-        action = target.action
-        if action == "sta":
-            return (root / "sta" / "summary.json",)
-        if action == "power_estimate":
-            return (root / "power" / "estimate" / "summary.json",)
-        if action in {"power_activity", "power_activity_all"}:
-            return (root / "power" / "analysis" / "summary.json",)
-        if action in {"fusion", "fusion_all"}:
-            return (root / "fusion" / "summary.json",)
-        if action == "physical":
-            return (root / "physical" / "summary.json",)
-        if action in {"gls", "gls_all"}:
-            sim = layout.post_impl_sim_dir if self.stage is SignoffStage.POST_IMPL else layout.post_syn_sim_dir
-            return (sim / "summary_sv.json",)
-        return ()
+        if target.debug == "sta":
+            return self._debug_sta(root)
+        if target.debug == "power_estimate":
+            return self._debug_reports(root / "power" / "estimate", "power")
+        if target.debug == "power_activity":
+            return self._debug_reports(root / "power" / "analysis", "power")
+        if target.debug == "fusion":
+            return self._debug_reports(root / "fusion", "fusion")
+        if target.debug == "gls":
+            return self._debug_gls(layout, self.stage.value)
+        if target.debug == "physical":
+            summary = root / "physical" / "summary.json"
+            rows = [("debug", f"Physical sign-off artifacts={summary.parent}")]
+            if summary.is_file():
+                rows.append(("artifact", str(summary)))
+                try:
+                    data = json.loads(summary.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    data = {}
+                for item in data.get("checks", {}).values() if isinstance(data, Mapping) else ():
+                    if not isinstance(item, Mapping):
+                        continue
+                    for key in ("report", "log"):
+                        if item.get(key):
+                            rows.append(("artifact", str(item[key])))
+                    for path in item.get("reports", ()) if isinstance(item.get("reports"), list) else ():
+                        rows.append(("artifact", str(path)))
+            return rows
+        raise ValueError(f"--debug is not supported for target {target.name!r}")
 
 
     def setup_sdc(self) -> Path:
@@ -215,25 +330,6 @@ class SignoffFlow:
     def run_fusion(self, *, all_workloads: bool = False, on: str = "local") -> int:
         return self.fusion.run(all_workloads=all_workloads, on=on)
 
-    def debug_sta(self, *, output: str | None = None) -> int:
-        layout = PDKRunLayout.from_values(self.project_root, self.values)
-        root = layout.signoff_stage_root(self.stage.value)
-        return SignoffFlow._debug_emit(self.project_root, "sta", SignoffFlow._debug_sta(root), output)
-
-    def debug_power(self, *, activity: bool = False, output: str | None = None) -> int:
-        layout = PDKRunLayout.from_values(self.project_root, self.values)
-        root = layout.signoff_stage_root(self.stage.value) / "power"
-        branch = root / ("analysis" if activity else "estimate")
-        return SignoffFlow._debug_emit(self.project_root, "power", SignoffFlow._debug_reports(branch, "power"), output)
-
-    def debug_fusion(self, *, output: str | None = None) -> int:
-        layout = PDKRunLayout.from_values(self.project_root, self.values)
-        root = layout.signoff_stage_root(self.stage.value) / "fusion"
-        return SignoffFlow._debug_emit(self.project_root, "fusion", SignoffFlow._debug_reports(root, "fusion"), output)
-
-    def debug_gls(self, *, output: str | None = None) -> int:
-        layout = PDKRunLayout.from_values(self.project_root, self.values)
-        return SignoffFlow._debug_emit(self.project_root, "gls", SignoffFlow._debug_gls(layout, self.stage.value), output)
 
     def _physical(
         self,
@@ -765,7 +861,7 @@ class SignoffFlow:
 
     @staticmethod
     def _debug_gls(layout, stage: str) -> list[tuple[str, str]]:
-        root = layout.post_impl_sim_dir if stage == "post_route" else layout.post_syn_sim_dir
+        root = layout.post_impl_sim_dir if stage == "post_impl" else layout.post_syn_sim_dir
         rows: list[tuple[str, str]] = [("debug", f"GLS artifacts={root}")]
         reports = []
         for path in sorted(root.rglob("*.json")) if root.is_dir() else ():

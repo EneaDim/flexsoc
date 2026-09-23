@@ -130,6 +130,13 @@ class StaAnalysis:
             ) from exc
 
     @staticmethod
+    def timing_modes(values: Mapping[str, str], stage: str) -> tuple[str, ...]:
+        """Return the timing analyses appropriate for one lifecycle stage."""
+
+        default = "setup" if stage == "post_syn" else "setup hold"
+        return StaAnalysis._selection(values.get("STA_MODES"), default, ("setup", "hold"), "STA mode")
+
+    @staticmethod
     def timing_scenarios(
         values: Mapping[str, str], liberties: Mapping[str, Path], stage: str
     ) -> tuple[TimingScenario, ...]:
@@ -138,7 +145,7 @@ class StaAnalysis:
         corners = StaAnalysis._selection(
             values.get("SIGNOFF_CORNERS"), "ss tt ff", tuple(liberties), "sign-off corner"
         )
-        modes = StaAnalysis._selection(values.get("STA_MODES"), "setup hold", ("setup", "hold"), "STA mode")
+        modes = StaAnalysis.timing_modes(values, stage)
         return tuple(
             TimingScenario(f"{mode}_{corner}", corner, mode, liberties[corner], stage)
             for corner in corners
@@ -399,7 +406,7 @@ class StaAnalysis:
         )
         routed = (
             templates.render("signoff/opensta/sta_routed.tcl.j2")
-            if ctx.stage == "post_route"
+            if ctx.stage == "post_impl"
             else ""
         )
         return StaAnalysis.render_opensta_script(
@@ -413,8 +420,8 @@ class StaAnalysis:
             corner=ctx.corner,
             mode=ctx.mode,
             stage=ctx.stage,
-            clock_network="propagated" if ctx.stage == "post_route" else "ideal",
-            interconnect="spef" if ctx.stage == "post_route" else "none",
+            clock_network="propagated" if ctx.stage == "post_impl" else "ideal",
+            interconnect="spef" if ctx.stage == "post_impl" else "none",
             routed_block=routed,
         )
 
@@ -444,10 +451,10 @@ class StaAnalysis:
 
         layout = PDKRunLayout.from_values(project_root, values)
         stage = values.get("SIGNOFF_STAGE", "post_syn").strip().lower()
-        if stage not in {"post_syn", "post_route"}:
-            raise ValueError(f"SIGNOFF_STAGE must be post_syn or post_route, got {stage!r}")
+        if stage not in {"post_syn", "post_impl"}:
+            raise ValueError(f"SIGNOFF_STAGE must be post_syn or post_impl, got {stage!r}")
         top = values.get("TOP", "test")
-        if stage == "post_route":
+        if stage == "post_impl":
             platform = values.get("ORS_TECH", values.get("PDK", "")).strip() or None
             raw_netlist = values.get("NETLIST") or values.get("PNR_NETLIST")
             netlist = Path(raw_netlist) if raw_netlist else ImplementationFlow.resolve_orfs_artifact(
@@ -495,7 +502,7 @@ class StaAnalysis:
         """Resolve one analysis context, optionally before the stage netlist exists."""
 
         layout = PDKRunLayout.from_values(project_root, values)
-        if validate_stage_inputs or values.get("SIGNOFF_STAGE", "post_syn") == "post_route":
+        if validate_stage_inputs or values.get("SIGNOFF_STAGE", "post_syn") == "post_impl":
             netlist, spef = StaAnalysis._stage_inputs(project_root, values)
         else:
             top = values.get("TOP", "test")
@@ -748,9 +755,12 @@ class StaAnalysis:
                 "fmax_mhz": fmax,
             })
         violation_count = len(re.findall(r"slack\s+\(VIOLATED\)", violating, flags=re.IGNORECASE))
+        removal_count = len(re.findall(r"removal check", violating, flags=re.IGNORECASE))
+        recovery_count = len(re.findall(r"recovery check", violating, flags=re.IGNORECASE))
+        data_count = max(0, violation_count - removal_count - recovery_count)
         unconstrained_count = StaAnalysis._unconstrained_endpoint_count(text)
         timing_violation = bool(violation_count or (timing.get("wns") or 0.0) < 0.0)
-        blocking_timing = ctx.mode == "setup" or ctx.stage == "post_route"
+        blocking_timing = ctx.mode == "setup" or ctx.stage == "post_impl"
         status = (
             "fail" if unconstrained_count or (blocking_timing and timing_violation)
             else "warn" if timing_violation
@@ -766,8 +776,14 @@ class StaAnalysis:
             "wns": timing.get("wns"),
             "tns": timing.get("tns"),
             "violating_paths": violation_count,
+            "violation_types": {
+                "data": data_count,
+                "recovery": recovery_count,
+                "removal": removal_count,
+            },
             "unconstrained_paths": unconstrained_count,
             "clocks": clocks,
+            "timing_role": "gating" if blocking_timing else "advisory",
             "status": status,
             "detail_report": str(report),
         }
@@ -789,8 +805,12 @@ class StaAnalysis:
         sta_root.mkdir(parents=True, exist_ok=True)
         json_path = sta_root / "summary.json"
         report_path = sta_root / "sta.rpt"
-        finite_wns = [float(item["wns"]) for item in scenarios if item.get("wns") is not None]
-        finite_tns = [float(item["tns"]) for item in scenarios if item.get("tns") is not None]
+        gating = [item for item in scenarios if item.get("timing_role") == "gating"]
+        advisory = [item for item in scenarios if item.get("timing_role") == "advisory"]
+        finite_wns = [float(item["wns"]) for item in gating if item.get("wns") is not None]
+        finite_tns = [float(item["tns"]) for item in gating if item.get("tns") is not None]
+        advisory_wns = [float(item["wns"]) for item in advisory if item.get("wns") is not None]
+        advisory_tns = [float(item["tns"]) for item in advisory if item.get("tns") is not None]
         status = "fail" if failures or any(item.get("status") == "fail" for item in scenarios) else "pass"
         json_scenarios = [
             {key: value for key, value in item.items() if key not in {"detail_report", "liberty", "spef"}}
@@ -803,13 +823,27 @@ class StaAnalysis:
             "stage": stage,
             "sdc": sdc.name,
             "status": status,
+            "policy": {
+                "clock_network": "ideal" if stage == "post_syn" else "propagated",
+                "interconnect": "none" if stage == "post_syn" else "spef",
+                "setup": "gating",
+                "hold": "advisory" if stage == "post_syn" else "gating",
+                "recovery_removal": "advisory" if stage == "post_syn" else "gating",
+            },
             "qor": {
                 "scenario_count": len(scenarios),
+                "gating_scenarios": len(gating),
+                "advisory_scenarios": len(advisory),
                 "failing_scenarios": sum(item.get("status") == "fail" for item in scenarios),
                 "worst_wns": min(finite_wns) if finite_wns else None,
                 "worst_tns": min(finite_tns) if finite_tns else None,
-                "violating_paths": sum(int(item.get("violating_paths", 0)) for item in scenarios),
-                "unconstrained_paths": sum(int(item.get("unconstrained_paths", 0)) for item in scenarios),
+                "violating_paths": sum(int(item.get("violating_paths", 0)) for item in gating),
+                "advisory_worst_wns": min(advisory_wns) if advisory_wns else None,
+                "advisory_worst_tns": min(advisory_tns) if advisory_tns else None,
+                "advisory_violating_paths": sum(int(item.get("violating_paths", 0)) for item in advisory),
+                "unconstrained_paths": max(
+                    (int(item.get("unconstrained_paths", 0)) for item in scenarios), default=0
+                ),
             },
             "failures": list(failures),
             "scenarios": json_scenarios,
@@ -828,19 +862,22 @@ class StaAnalysis:
             "QoR",
             "-" * 78,
             f"scenarios             : {data['qor']['scenario_count']}",
+            f"gating scenarios      : {data['qor']['gating_scenarios']}",
+            f"advisory scenarios    : {data['qor']['advisory_scenarios']}",
             f"failing scenarios     : {data['qor']['failing_scenarios']}",
-            f"worst WNS             : {data['qor']['worst_wns']}",
-            f"worst TNS             : {data['qor']['worst_tns']}",
-            f"violating paths       : {data['qor']['violating_paths']}",
+            f"gating worst WNS      : {data['qor']['worst_wns']}",
+            f"gating worst TNS      : {data['qor']['worst_tns']}",
+            f"gating violations     : {data['qor']['violating_paths']}",
+            f"advisory violations   : {data['qor']['advisory_violating_paths']}",
             f"unconstrained paths   : {data['qor']['unconstrained_paths']}",
             "",
             "Scenarios",
             "-" * 78,
-            f"{'scenario':18} {'mode':8} {'corner':8} {'WNS':>12} {'TNS':>12} {'viol':>6} {'uncon':>6} status",
+            f"{'scenario':18} {'mode':8} {'role':9} {'corner':8} {'WNS':>12} {'TNS':>12} {'viol':>6} {'uncon':>6} status",
         ]
         for item in scenarios:
             lines.append(
-                f"{item['id']:18} {item['mode']:8} {item['corner']:8} "
+                f"{item['id']:18} {item['mode']:8} {item.get('timing_role', 'gating'):9} {item['corner']:8} "
                 f"{str(item.get('wns')):>12} {str(item.get('tns')):>12} "
                 f"{int(item.get('violating_paths', 0)):>6} {int(item.get('unconstrained_paths', 0)):>6} {item['status']}"
             )
