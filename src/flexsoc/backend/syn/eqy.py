@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-import hashlib
+from io import StringIO
 import json
 import os
 import re
 import shutil
 import sys
-import time
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Callable, Iterable, Mapping, Sequence
+from typing import Iterable, Mapping, Sequence
+
+from rich.console import Console
 
 from flexsoc.backend.core import ClockConfig, PDKRunLayout
 from flexsoc.backend.core.runtime.execution import CommandRequest
+from flexsoc.backend.core.render.show import ShowRenderer
 from flexsoc.backend.core.render.templates import templates
 
 @dataclass(frozen=True, slots=True)
@@ -77,12 +79,6 @@ class EquivalenceConfig:
 _STATUS_ORDER = {"FAIL": 5, "ERROR": 4, "TIMEOUT": 3, "UNKNOWN": 2, "PASS": 1, "MISSING": 0}
 _TRACE_NAMES = ("trace.vcd", "trace_induct.vcd", "trace.yw", "trace.smtc", "trace_tb.v")
 _LOG_NAMES = ("logfile.txt", "logfile_basecase.txt", "logfile_induction.txt")
-_INTERESTING_WORDS = (
-    "gold", "gate", "clk", "clock", "rst", "reset", "valid", "ready", "ack",
-    "outstanding", "equiv", "trigger", "assert", "compare",
-)
-
-
 @dataclass(frozen=True, slots=True)
 class StrategyResult:
     """One EQY strategy result for one partition."""
@@ -282,7 +278,7 @@ class Eqy:
         inputs: Sequence[Path] = (),
         on: str = "local",
     ) -> int:
-        """Run one prepared EQY profile through the configured executor."""
+        """Run one prepared EQY profile and publish canonical partition evidence."""
 
         result_dir = config.parent / config.stem
         if result_dir.is_dir():
@@ -295,32 +291,158 @@ class Eqy:
             inputs=tuple(dict.fromkeys((config.absolute(), *(path.absolute() for path in inputs)))),
             outputs=(result_dir.resolve(),),
         )
-        return self.runner.run(request, on=on).returncode
+        result = self.runner.run(request, on=on)
+        self._write_summary(
+            config, log, result_dir, result.returncode,
+            float(getattr(result, "duration_s", 0.0)), request.argv,
+        )
+        return result.returncode
 
     def debug(
-        self,
-        result_dir: Path,
-        *,
-        partition: str | None = None,
-        trace_kind: str = "auto",
+        self, summary_path: Path, *, run_root: Path, output: str | None = None,
+        project_root: Path | None = None, as_json: bool = False,
+    ) -> int:
+        """Show canonical EQY evidence plus existing failing logs and traces."""
+
+        return self.show(
+            summary_path, run_root=run_root, debug=True, output=output,
+            project_root=project_root, as_json=as_json,
+        )
+
+    def show(
+        self, summary_path: Path, *, run_root: Path, summary: bool = False,
+        debug: bool = False, output: str | None = None, project_root: Path | None = None,
+        as_json: bool = False,
+    ) -> int:
+        """Render existing EQY evidence; debug only adds paths and failing traces."""
+
+        if not summary_path.is_file():
+            raise FileNotFoundError(f"EQY summary not found: {summary_path}; run `fx eqy` first")
+        document = ShowRenderer.load_file(run_root, summary_path.relative_to(run_root).as_posix())
+        data = dict(document.data)
+        if summary:
+            data["summary_only"] = True
+            document = replace(document, data=data)
+
+        capture = StringIO() if output else None
+        console = Console(file=capture, force_terminal=False) if capture else Console()
+        if as_json:
+            print(json.dumps(data, indent=2, sort_keys=True), file=capture or None)
+        else:
+            ShowRenderer(console).render(document)
+            if debug:
+                self._show_debug(console, data)
+
+        if output and capture is not None:
+            destination = Path(output)
+            if not destination.is_absolute() and project_root is not None:
+                destination = project_root / destination
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(capture.getvalue(), encoding="utf-8")
+        return 0
+
+    def _write_summary(
+        self, config: Path, log: Path, result_dir: Path, returncode: int,
+        duration_s: float, command: Sequence[str],
     ) -> dict[str, object]:
-        """Return structured diagnostics for one unresolved partition."""
+        """Normalize native EQY partition/strategy results into summary.json."""
 
         results = Eqy.scan(result_dir)
-        item = Eqy.select(results, partition) if results else None
-        if item is None:
-            return {"status": "missing", "result_dir": str(result_dir)}
-        return Eqy.explain_counterexample(item, trace_kind=trace_kind)
+        counts = {name: 0 for name in ("PASS", "FAIL", "ERROR", "TIMEOUT", "UNKNOWN", "MISSING")}
+        strategies: dict[str, dict[str, int]] = {}
+        partitions: list[dict[str, object]] = []
+        for item in results:
+            counts[item.status if item.status in counts else "UNKNOWN"] += 1
+            row = item.to_dict()
+            row["directory"] = Eqy._relative(item.directory, config.parent)
+            normalized_strategies = []
+            for strategy in item.strategies:
+                bucket = strategies.setdefault(strategy.name, {name: 0 for name in counts})
+                bucket[strategy.status if strategy.status in bucket else "UNKNOWN"] += 1
+                entry = strategy.to_dict()
+                entry["directory"] = Eqy._relative(strategy.directory, config.parent)
+                entry["traces"] = [Eqy._relative(path, config.parent) for path in strategy.traces]
+                entry["logs"] = [Eqy._relative(path, config.parent) for path in strategy.logs]
+                normalized_strategies.append(entry)
+            row["strategies"] = normalized_strategies
+            partitions.append(row)
 
-    def show(self, result_dir: Path) -> dict[str, object]:
-        """Return compact existing EQY evidence without inferring qualification."""
+        if results and all(item.status == "PASS" for item in results):
+            result_status = "PASS"
+        elif any(item.status == "FAIL" for item in results) or (result_dir / "FAIL").is_file():
+            result_status = "FAILED"
+        elif any(item.status in {"ERROR", "TIMEOUT", "UNKNOWN"} for item in results):
+            result_status = "REVIEW"
+        elif (result_dir / "PASS").is_file():
+            result_status = "PASS"
+        else:
+            result_status = "REVIEW"
 
-        results = Eqy.scan(result_dir)
-        return {
-            "result_dir": str(result_dir),
-            "status": "missing" if not results else "available",
-            "partitions": [item.to_dict() for item in results],
+        execution_status = "PASS" if returncode == 0 else "FAILED"
+        if execution_status == "FAILED" or result_status == "FAILED":
+            status = "FAILED"
+        elif result_status == "PASS":
+            status = "PASS"
+        else:
+            status = "REVIEW"
+        top = config.stem.removesuffix("_rtl_vs_syn")
+        summary = {
+            "schema": "flexsoc.eqy.v1",
+            "stage": "eqy",
+            "status": status,
+            "top": top,
+            "execution": {
+                "status": execution_status, "exit_code": int(returncode),
+                "duration_s": float(duration_s), "command": list(command),
+            },
+            "result": {"status": result_status, "counts": counts, "total": len(results)},
+            "strategies": strategies,
+            "partitions": partitions,
+            "artifacts": {
+                "config": Eqy._relative(config, config.parent),
+                "log": Eqy._relative(log, config.parent),
+                "result_dir": Eqy._relative(result_dir, config.parent),
+            },
         }
+        path = config.parent / "summary.json"
+        path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return summary
+
+    @staticmethod
+    def _show_debug(console: Console, data: Mapping[str, object]) -> None:
+        """Append unresolved EQY evidence without launching probes or viewers."""
+
+        console.print()
+        console.print("[bold]Debug evidence[/bold]")
+        artifacts = data.get("artifacts", {})
+        if isinstance(artifacts, Mapping):
+            for name, path in artifacts.items():
+                console.print(f"[grey70]{name}[/grey70] {path}")
+        for item in data.get("partitions", ()) if isinstance(data.get("partitions"), list) else ():
+            if not isinstance(item, Mapping) or item.get("status") == "PASS":
+                continue
+            console.print(
+                f"[orange1]{item.get('status', 'UNKNOWN')}[/orange1] "
+                f"[white]{item.get('partition', '-')}[/white]"
+            )
+            for strategy in item.get("strategies", ()) if isinstance(item.get("strategies"), list) else ():
+                if not isinstance(strategy, Mapping) or strategy.get("status") == "PASS":
+                    continue
+                console.print(
+                    f"  [grey70]{strategy.get('name', '-')}[/grey70] "
+                    f"{strategy.get('status', 'UNKNOWN')}"
+                )
+                for path in strategy.get("logs", ()) if isinstance(strategy.get("logs"), list) else ():
+                    console.print(f"    [grey70]log[/grey70] {path}")
+                for path in strategy.get("traces", ()) if isinstance(strategy.get("traces"), list) else ():
+                    console.print(f"    [grey70]trace[/grey70] {path}")
+
+    @staticmethod
+    def _relative(path: Path, root: Path) -> str:
+        try:
+            return path.resolve().relative_to(root.resolve()).as_posix()
+        except ValueError:
+            return str(path)
 
     @staticmethod
     def optional_path(value: str | None) -> Path | None:
@@ -1057,856 +1179,3 @@ class Eqy:
             overall = Eqy._best_status(item.status for item in strategies)
             output.append(Counterexample(partition_dir.name, overall, partition_dir, tuple(strategies)))
         return tuple(output)
-
-    @staticmethod
-    def select(items: Iterable[Counterexample], partition: str | None = None) -> Counterexample:
-        """Select an explicit partition or the unique non-PASS partition."""
-
-        rows = tuple(items)
-        if partition:
-            exact = [item for item in rows if item.partition == partition]
-            if exact:
-                return exact[0]
-            partial = [item for item in rows if partition in item.partition]
-            if len(partial) == 1:
-                return partial[0]
-            if partial:
-                names = ", ".join(item.partition for item in partial[:10])
-                raise ValueError(f"partition {partition!r} is ambiguous: {names}")
-            raise ValueError(f"partition not found: {partition}")
-
-        failing = [item for item in rows if item.status != "PASS"]
-        if len(failing) == 1:
-            return failing[0]
-        if not failing:
-            raise ValueError("no EQY counterexamples found: all discovered partitions PASS")
-        names = ", ".join(item.partition for item in failing[:10])
-        suffix = " ..." if len(failing) > 10 else ""
-        raise ValueError(f"multiple non-PASS partitions; choose one explicitly: {names}{suffix}")
-
-    @staticmethod
-    def interesting_log_lines(strategy: StrategyResult, *, limit: int = 40) -> list[str]:
-        """Extract compact diagnostic lines from SBY/EQY logs."""
-
-        pattern = re.compile(r"fail|counter|assert|basecase|induction|equiv|unreached|timeout|error|trace", re.I)
-        lines: list[str] = []
-        for path in strategy.logs:
-            for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
-                if pattern.search(raw):
-                    line = raw.strip()
-                    if line and line not in lines:
-                        lines.append(line)
-                    if len(lines) >= limit:
-                        return lines
-        return lines
-
-    @staticmethod
-    def parse_vcd_signals(vcd: Path) -> tuple[str, ...]:
-        """Return fully-qualified signal names found in a VCD header."""
-
-        scope: list[str] = []
-        signals: list[str] = []
-        try:
-            with vcd.open("r", encoding="utf-8", errors="replace") as handle:
-                for raw in handle:
-                    line = raw.strip()
-                    if line.startswith("$scope "):
-                        parts = line.split()
-                        if len(parts) >= 3:
-                            scope.append(parts[2])
-                    elif line.startswith("$upscope"):
-                        if scope:
-                            scope.pop()
-                    elif line.startswith("$var "):
-                        parts = line.split()
-                        if len(parts) >= 5:
-                            reference = parts[4]
-                            if len(parts) >= 6 and parts[5].startswith("["):
-                                reference += parts[5]
-                            signals.append(".".join((*scope, reference)))
-                    elif line.startswith("$enddefinitions"):
-                        break
-        except OSError:
-            return ()
-        return tuple(signals)
-
-    @staticmethod
-    def ranked_signals(vcd: Path, partition: str, *, limit: int = 48) -> tuple[str, ...]:
-        """Rank VCD signals for a useful counterexample first view."""
-
-        signals = Eqy.parse_vcd_signals(vcd)
-        tokens = [token.lower() for token in re.split(r"[^A-Za-z0-9_]+", partition) if len(token) >= 2]
-
-        def score(name: str) -> tuple[int, str]:
-            lower = name.lower()
-            value = 0
-            for token in tokens:
-                if token in lower:
-                    value += 8
-            for word in _INTERESTING_WORDS:
-                if word in lower:
-                    value += 4
-            if "gold" in lower or "gate" in lower:
-                value += 4
-            return (-value, name)
-
-        ranked = sorted(signals, key=score)
-        selected = [name for name in ranked if score(name)[0] < 0][:limit]
-        if not selected:
-            selected = ranked[: min(limit, len(ranked))]
-        return tuple(selected)
-
-    @staticmethod
-    def choose_trace(strategy: StrategyResult, kind: str = "auto") -> Path:
-        """Choose the VCD trace to open."""
-
-        vcdb = [path for path in strategy.traces if path.suffix.lower() == ".vcd"]
-        if not vcdb:
-            raise FileNotFoundError(f"no VCD trace found for strategy {strategy.name}")
-        normalized = kind.lower().replace("-", "_")
-        if normalized in {"induction", "induct"}:
-            for path in vcdb:
-                if "induct" in path.name:
-                    return path
-            raise FileNotFoundError("induction VCD trace not found")
-        if normalized in {"base", "basecase", "auto"}:
-            for path in vcdb:
-                if "induct" not in path.name:
-                    return path
-            return vcdb[0]
-        raise ValueError("trace kind must be auto, basecase, or induction")
-
-    @staticmethod
-    def write_gtkwave_session(vcd: Path, partition: str, *, output: Path | None = None) -> Path:
-        """Write a small GTKWave save file focused on likely counterexample signals."""
-
-        output = output or vcd.with_name(f"{partition.replace('/', '_')}.gtkw")
-        signals = Eqy.ranked_signals(vcd, partition)
-        lines = [
-            "[*] FlexSoC EQY counterexample session",
-            f'[dumpfile] "{vcd}"',
-            "[timestart] 0",
-        ]
-        for signal in signals:
-            lines.extend(("@28", signal))
-        output.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        return output
-
-    @staticmethod
-    def open_wave(
-        vcd: Path, partition: str, *, viewer: str = "gtkwave", background: bool = True,
-        runner=None, on: str = "local",
-    ) -> tuple[Path | None, tuple[str, ...]]:
-        """Open a counterexample waveform through the configured executor."""
-
-        from flexsoc.backend.core import CommandRequest, ToolRunner
-
-        viewer = viewer.strip().lower()
-        if viewer == "gtkwave":
-            session = Eqy.write_gtkwave_session(vcd, partition)
-            command = ("gtkwave", str(vcd), str(session))
-            inputs = (vcd, session)
-        elif viewer == "surfer":
-            session = None
-            command = ("surfer", str(vcd))
-            inputs = (vcd,)
-        else:
-            raise ValueError("WAVE_VIEWER must be gtkwave or surfer")
-
-        active_runner = runner or ToolRunner(project_root=vcd.parent)
-        log = vcd.with_name(f"{vcd.stem}_{viewer}.log")
-        result = active_runner.run(
-            CommandRequest(command, vcd.parent, {}, log, inputs=inputs, detach=background),
-            on=on,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"{viewer} failed ({result.returncode}); log: {log}")
-        return session, command
-
-    @staticmethod
-    def json_text(items: Iterable[Counterexample]) -> str:
-        return json.dumps([item.to_dict() for item in items], indent=2)
-
-    @staticmethod
-    def failure_metadata(strategy: StrategyResult) -> dict[str, object]:
-        """Extract the failing phase, bounded step and assertion from SBY logs."""
-
-        result: dict[str, object] = {
-            "phase": None,
-            "step": None,
-            "assertion": None,
-        }
-        phase_patterns = (
-            ("basecase", re.compile(r"basecase.*(?:FAIL|failed)|BMC failed", re.I)),
-            ("induction", re.compile(r"induction.*(?:FAIL|failed)|Temporal induction failed", re.I)),
-        )
-        step_re = re.compile(r"failed assertion .*? step\s+(\d+)", re.I)
-        assertion_re = re.compile(r"Assert failed in\s+([^:]+):([^\s]+)", re.I)
-
-        lines: list[str] = []
-        for path in strategy.logs:
-            lines.extend(path.read_text(encoding="utf-8", errors="replace").splitlines())
-
-        for line in lines:
-            if result["phase"] is None:
-                for phase, pattern in phase_patterns:
-                    if pattern.search(line):
-                        result["phase"] = phase
-                        break
-            if result["step"] is None:
-                match = step_re.search(line)
-                if match:
-                    result["step"] = int(match.group(1))
-            if result["assertion"] is None:
-                match = assertion_re.search(line)
-                if match:
-                    result["assertion"] = f"{match.group(1)}:{match.group(2)}"
-
-        return result
-
-    @staticmethod
-    def _vcd_header(vcd: Path) -> tuple[dict[str, str], dict[str, str]]:
-        """Return VCD identifier-to-name and name-to-identifier maps."""
-
-        scope: list[str] = []
-        by_id: dict[str, str] = {}
-        by_name: dict[str, str] = {}
-        with vcd.open("r", encoding="utf-8", errors="replace") as handle:
-            for raw in handle:
-                line = raw.strip()
-                if line.startswith("$scope "):
-                    parts = line.split()
-                    if len(parts) >= 3:
-                        scope.append(parts[2])
-                elif line.startswith("$upscope"):
-                    if scope:
-                        scope.pop()
-                elif line.startswith("$var "):
-                    parts = line.split()
-                    if len(parts) >= 5:
-                        identifier = parts[3]
-                        reference = parts[4]
-                        if len(parts) >= 6 and parts[5].startswith("["):
-                            reference += parts[5]
-                        full = ".".join((*scope, reference))
-                        by_id[identifier] = full
-                        by_name[full] = identifier
-                elif line.startswith("$enddefinitions"):
-                    break
-        return by_id, by_name
-
-    @staticmethod
-    def _pair_candidates(names: Iterable[str], partition: str) -> list[tuple[str, str, str]]:
-        """Return likely gold/gate VCD signal pairs, ordered by diagnostic value."""
-
-        available = set(names)
-        tokens = [token.lower() for token in re.split(r"[^A-Za-z0-9_]+", partition) if token]
-        pairs: list[tuple[int, str, str, str]] = []
-
-        def add(gold: str, gate: str, kind: str) -> None:
-            if gate not in available:
-                return
-            lower = gold.lower()
-            score = 0
-            if all(token in lower for token in tokens[-2:]):
-                score += 20
-            if "__po_" in lower or "assert" in lower:
-                score += 15
-            if kind == "value":
-                score += 8
-            elif kind == "xmask":
-                score += 6
-            elif kind == "data":
-                score += 4
-            pairs.append((-score, gold, gate, kind))
-
-        for name in sorted(available):
-            lower = name.lower()
-            if ".gold." in lower:
-                index = lower.index(".gold.")
-                gate = name[:index] + ".gate." + name[index + len(".gold."):]
-                add(name, gate, "value")
-            if "__gold_x" in lower:
-                index = lower.index("__gold_x")
-                gate = name[:index] + "__gate_x" + name[index + len("__gold_x"):]
-                add(name, gate, "xmask")
-            elif "__gold_d" in lower:
-                index = lower.index("__gold_d")
-                gate = name[:index] + "__gate_d" + name[index + len("__gold_d"):]
-                add(name, gate, "data")
-            elif "__gold" in lower:
-                index = lower.index("__gold")
-                gate = name[:index] + "__gate" + name[index + len("__gold"):]
-                add(name, gate, "value")
-
-        seen: set[tuple[str, str]] = set()
-        output: list[tuple[str, str, str]] = []
-        for _, gold, gate, kind in sorted(pairs):
-            key = (gold, gate)
-            if key not in seen:
-                seen.add(key)
-                output.append((gold, gate, kind))
-        return output
-
-    @staticmethod
-    def _normalize_vcd_value(raw: str) -> str:
-        value = raw.strip().lower()
-        if not value:
-            return value
-        if value[0] in "bBrR":
-            return value[1:].split()[0].lower()
-        return value[0]
-
-    @staticmethod
-    def _xprop_quartets(names: Iterable[str], partition: str) -> list[tuple[str, str, str, str]]:
-        """Return ``gold_d/gold_x/gate_d/gate_x`` groups ordered by relevance."""
-
-        available = set(names)
-        tokens = [token.lower() for token in re.split(r"[^A-Za-z0-9_]+", partition) if token]
-        ranked: list[tuple[int, tuple[str, str, str, str]]] = []
-        for gold_d in sorted(available):
-            lower = gold_d.lower()
-            marker = "__gold_d"
-            if marker not in lower:
-                continue
-            index = lower.index(marker)
-            prefix = gold_d[:index]
-            suffix = gold_d[index + len(marker):]
-            gold_x = prefix + "__gold_x" + suffix
-            gate_d = prefix + "__gate_d" + suffix
-            gate_x = prefix + "__gate_x" + suffix
-            if not all(name in available for name in (gold_x, gate_d, gate_x)):
-                continue
-            score = 0
-            if all(token in lower for token in tokens[-2:]):
-                score += 20
-            if "__po_" in lower or "assert" in lower:
-                score += 15
-            ranked.append((-score, (gold_d, gold_x, gate_d, gate_x)))
-        return [quartet for _, quartet in sorted(ranked)]
-
-    @staticmethod
-    def _mask_is_unknown(value: str) -> bool:
-        """Return true when a one-bit/vector X mask contains an asserted bit."""
-
-        value = value.lower()
-        return any(bit in value for bit in ("1", "x", "z"))
-
-    @staticmethod
-    def first_vcd_divergence(vcd: Path, partition: str) -> dict[str, object] | None:
-        """Find the first semantic gold/gate mismatch in an EQY VCD trace."""
-
-        by_id, by_name = Eqy._vcd_header(vcd)
-        quartets = Eqy._xprop_quartets(by_name, partition)
-        pairs = Eqy._pair_candidates(by_name, partition)
-        if not quartets and not pairs:
-            return None
-
-        watched_names = {name for quartet in quartets for name in quartet}
-        watched_names.update(name for pair in pairs for name in pair[:2])
-        context_names = tuple(
-            name for name in Eqy.ranked_signals(vcd, partition, limit=40)
-            if any(word in name.lower() for word in ("clk", "clock", "rst", "reset"))
-        )[:12]
-        watched_names.update(context_names)
-        watched_ids = {by_name[name] for name in watched_names if name in by_name}
-
-        state: dict[str, str] = {}
-        time = 0
-        header_done = False
-
-        def context() -> list[dict[str, str]]:
-            return [
-                {"signal": name, "value": state.get(by_name[name], "?")}
-                for name in context_names
-                if name in by_name
-            ]
-
-        def check() -> dict[str, object] | None:
-            # Formal-X semantic comparison first.  Gold X is a don't-care under
-            # EQY safe-replacement semantics; known gold data must match gate data.
-            for gold_d, gold_x, gate_d, gate_x in quartets:
-                ids = [by_name[name] for name in (gold_d, gold_x, gate_d, gate_x)]
-                if any(identifier not in state for identifier in ids):
-                    continue
-                gd, gx, td, tx = (state[identifier] for identifier in ids)
-                gold_unknown = Eqy._mask_is_unknown(gx)
-                gate_unknown = Eqy._mask_is_unknown(tx)
-                if gate_unknown or (not gold_unknown and gd != td):
-                    return {
-                        "time": time,
-                        "gold_signal": gold_d,
-                        "gate_signal": gate_d,
-                        "gold": gd,
-                        "gate": td,
-                        "gold_x_signal": gold_x,
-                        "gate_x_signal": gate_x,
-                        "gold_x": gx,
-                        "gate_x": tx,
-                        "kind": "xprop",
-                        "class": "x-init" if gate_unknown else "boolean-data",
-                        "context": context(),
-                    }
-
-            # Fall back to ordinary gold/gate pairs only when no formal-X quartet
-            # exists for that logical pair.  This keeps old/non-xprop traces useful.
-            quartet_names = {name for quartet in quartets for name in quartet}
-            for gold, gate, kind in pairs:
-                if gold in quartet_names or gate in quartet_names:
-                    continue
-                gold_id = by_name[gold]
-                gate_id = by_name[gate]
-                if gold_id not in state or gate_id not in state:
-                    continue
-                gold_value = state[gold_id]
-                gate_value = state[gate_id]
-                if gold_value != gate_value:
-                    category = (
-                        "x-init"
-                        if kind == "xmask" or any(char in gold_value + gate_value for char in "xz")
-                        else "boolean-data"
-                    )
-                    return {
-                        "time": time,
-                        "gold_signal": gold,
-                        "gate_signal": gate,
-                        "gold": gold_value,
-                        "gate": gate_value,
-                        "kind": kind,
-                        "class": category,
-                        "context": context(),
-                    }
-            return None
-
-        with vcd.open("r", encoding="utf-8", errors="replace") as handle:
-            pending_check = False
-            for raw in handle:
-                line = raw.strip()
-                if not header_done:
-                    if line.startswith("$enddefinitions"):
-                        header_done = True
-                    continue
-                if not line:
-                    continue
-                if line.startswith("#"):
-                    if pending_check:
-                        found = check()
-                        if found:
-                            return found
-                    try:
-                        time = int(line[1:])
-                    except ValueError:
-                        pass
-                    pending_check = False
-                    continue
-                if line.startswith("$"):
-                    continue
-                if line[0] in "bBrR":
-                    parts = line.split()
-                    if len(parts) >= 2 and parts[1] in watched_ids:
-                        state[parts[1]] = Eqy._normalize_vcd_value(parts[0])
-                        pending_check = True
-                else:
-                    identifier = line[1:]
-                    if identifier in watched_ids:
-                        state[identifier] = Eqy._normalize_vcd_value(line[0])
-                        pending_check = True
-            if pending_check:
-                return check()
-        return None
-
-    @staticmethod
-    def _eqy_config_for_result(result_dir: Path) -> Path:
-        """Return the generated EQY config associated with one result directory."""
-
-        result_dir = result_dir.expanduser().resolve()
-        eqy_root = result_dir.parent
-        config = eqy_root / f"{result_dir.name}.eqy"
-        if config.is_file():
-            return config
-        candidates = tuple(sorted(eqy_root.glob("*.eqy")))
-        if len(candidates) != 1:
-            raise FileNotFoundError(f"cannot identify EQY config beside result: {result_dir}")
-        return candidates[0]
-
-    @staticmethod
-    def _probe_target(result_dir: Path, partition: str) -> str:
-        """Return the final generated strategy target for one EQY partition."""
-
-        path = result_dir / "summary_targets.list"
-        if not path.is_file():
-            raise RuntimeError(f"EQY setup did not create {path}")
-        prefix = f"strategies/{partition}/"
-        matches = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()
-                   if line.strip().startswith(prefix) and line.strip().endswith("/status")]
-        if len(matches) != 1:
-            raise RuntimeError(
-                f"cannot identify final EQY strategy target for {partition}: "
-                f"found {len(matches)}"
-            )
-        return matches[0]
-
-    @staticmethod
-    def _run_eqy_probe(
-        result_dir: Path,
-        *,
-        name: str,
-        config_text: str,
-        partition: str,
-        eqy: str = "eqy",
-        runner=None,
-        on: str = "local",
-    ) -> dict[str, object]:
-        """Set up EQY, then prove only ``partition`` instead of the full design."""
-
-        result_dir = result_dir.expanduser().resolve()
-        config = Eqy._eqy_config_for_result(result_dir)
-        diagnostic_dir = result_dir.parent / "diagnostics" / name
-        diagnostic_dir.mkdir(parents=True, exist_ok=True)
-        diagnostic_config = diagnostic_dir / config.name
-        diagnostic_result = diagnostic_dir / config.stem
-        log = diagnostic_dir / "eqy_debug.log"
-        stamp = diagnostic_dir / ".probe.json"
-        digest = hashlib.sha256(config_text.encode("utf-8")).hexdigest()
-        key = {"config_sha256": digest, "partition": partition}
-
-        executable = eqy
-
-        cached = False
-        target = None
-        if diagnostic_result.is_dir() and stamp.is_file():
-            try:
-                cached = json.loads(stamp.read_text(encoding="utf-8")) == key
-                if cached:
-                    target = Eqy._probe_target(diagnostic_result, partition)
-                    cached = (diagnostic_result / target).is_file()
-            except (OSError, ValueError, json.JSONDecodeError, RuntimeError):
-                cached = False
-
-        setup_seconds = 0.0
-        prove_seconds = 0.0
-        if not cached:
-            from flexsoc.backend.core import CommandRequest, ToolRunner
-
-            active_runner = runner or ToolRunner(project_root=diagnostic_dir)
-            diagnostic_config.write_text(config_text, encoding="utf-8")
-            if diagnostic_result.exists():
-                shutil.rmtree(diagnostic_result)
-            started = time.monotonic()
-            setup = active_runner.run(
-                CommandRequest(
-                    (str(executable), "-f", "-m", diagnostic_config.name),
-                    diagnostic_dir, {}, log, inputs=(diagnostic_config,),
-                    outputs=(diagnostic_result,),
-                ),
-                on=on,
-            )
-            setup_seconds = time.monotonic() - started
-            if setup.returncode != 0 or not diagnostic_result.is_dir():
-                tail = log.read_text(encoding="utf-8", errors="replace").splitlines()[-20:]
-                raise RuntimeError("EQY diagnostic setup failed (rc=%d)%s" % (
-                    setup.returncode, "\n" + "\n".join(tail) if tail else ""
-                ))
-            target = Eqy._probe_target(diagnostic_result, partition)
-            prove_log = diagnostic_dir / "eqy_debug_prove.log"
-            started = time.monotonic()
-            prove = active_runner.run(
-                CommandRequest(
-                    ("make", "--no-print-directory", "-C", str(diagnostic_result),
-                     "-f", "strategies.mk", target),
-                    diagnostic_dir, {}, prove_log, inputs=(diagnostic_result,),
-                    outputs=(diagnostic_result,),
-                ),
-                on=on,
-            )
-            prove_seconds = time.monotonic() - started
-            prove_text = prove_log.read_text(encoding="utf-8", errors="replace") if prove_log.is_file() else ""
-            with log.open("a", encoding="utf-8") as handle:
-                handle.write(f"\n[eqy_debug] make {target}\n")
-                handle.write(prove_text)
-            prove_log.unlink(missing_ok=True)
-            stamp.write_text(json.dumps(key, sort_keys=True) + "\n", encoding="utf-8")
-            if prove.returncode != 0 and not (diagnostic_result / target).is_file():
-                tail = log.read_text(encoding="utf-8", errors="replace").splitlines()[-20:]
-                raise RuntimeError("EQY partition probe failed (rc=%d)%s" % (
-                    prove.returncode, "\n" + "\n".join(tail) if tail else ""
-                ))
-
-        assert target is not None
-        item = Eqy.select(Eqy.scan(diagnostic_result), partition)
-        log_tail = [line.rstrip() for line in log.read_text(encoding="utf-8", errors="replace").splitlines()[-16:] if line.strip()] if log.is_file() else []
-        return {
-            "config": str(diagnostic_config), "result_dir": str(diagnostic_result),
-            "log": str(log), "valid": item.status != "MISSING",
-            "partition": partition, "status": item.status, "pass": item.status == "PASS",
-            "strategy": item.failing_strategy.name if item.failing_strategy else None,
-            "cached": cached, "setup_seconds": setup_seconds, "prove_seconds": prove_seconds,
-            "log_tail": log_tail,
-        }
-
-    @staticmethod
-    def _inject_reset_initialization(
-        source: str,
-        *,
-        clock: str,
-        reset: str,
-        reset_active: str,
-        reset_cycles: int,
-        domains: Sequence[tuple[str, str, str]] | None = None,
-    ) -> str:
-        """Inject reset initialization into the common EQY preprocessing."""
-
-        source = re.sub(
-            r"(?ms)^# FlexSoC EQY reset normalization begin\n.*?"
-            r"^# FlexSoC EQY reset normalization end\n?",
-            "",
-            source,
-        )
-        specs = tuple(domains or ((clock, reset, reset_active),))
-        if reset_cycles <= 0:
-            raise ValueError("reset_cycles must be > 0")
-        commands: list[str] = ["# FlexSoC EQY reset normalization begin"]
-        for domain_clock, domain_reset, polarity in specs:
-            if polarity not in {"low", "high"}:
-                raise ValueError("reset polarity must be 'low' or 'high'")
-            for label, signal in (("clock", domain_clock), ("reset", domain_reset)):
-                if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", signal):
-                    raise ValueError(f"invalid {label} port name: {signal!r}")
-            reset_opt = "-resetn" if polarity == "low" else "-reset"
-            commands.append(
-                f"sim -clock {domain_clock} {reset_opt} {domain_reset} "
-                f"-rstlen {reset_cycles} -n {reset_cycles} -w"
-            )
-        commands.append("# FlexSoC EQY reset normalization end")
-        lines = source.splitlines()
-
-        # Apply one preprocessing script to gold and gate; single-clock adds async2sync.
-        # Multi-clock leaves event lowering to SBY after memory lowering.
-        section = ""
-        anchors = ("async2sync", "memory_map -formal", "memory -nomap")
-        present = next((anchor for anchor in anchors if any(line.strip() == anchor for line in lines)), None)
-        if present:
-            out: list[str] = []
-            inserted = False
-            for line in lines:
-                stripped = line.strip()
-                if stripped.startswith("[") and stripped.endswith("]"):
-                    section = stripped[1:-1].split()[0].lower()
-                out.append(line)
-                if section == "script" and stripped == present and not inserted:
-                    out.extend(("uniquify", *commands))
-                    inserted = True
-            if inserted:
-                return "\n".join(out) + ("\n" if source.endswith("\n") else "")
-
-        # Independently prepared views must uniquify reused technology modules.
-        # This keeps state writeback legal before sim -w.
-        out = []
-        section = ""
-        inserted_sides: set[str] = set()
-        for line in lines:
-            stripped = line.strip()
-            if stripped.startswith("[") and stripped.endswith("]"):
-                section = stripped[1:-1].split()[0].lower()
-            out.append(line)
-            if section in {"gold", "gate"} and stripped.startswith("prep "):
-                out.extend(("uniquify", *commands))
-                inserted_sides.add(section)
-        missing = {"gold", "gate"} - inserted_sides
-        if missing:
-            raise ValueError(
-                "cannot inject reset initialization; missing shared normalization anchor or prep "
-                "command in EQY section(s): " + ", ".join(sorted(missing))
-            )
-        return "\n".join(out) + ("\n" if source.endswith("\n") else "")
-
-    @staticmethod
-    def run_reset_normalized_diagnostic(
-        result_dir: Path,
-        *,
-        partition: str,
-        clock: str = "clk_i",
-        reset: str = "rst_ni",
-        reset_active: str = "low",
-        reset_cycles: int = 1,
-        eqy: str = "eqy",
-        domains: Sequence[tuple[str, str, str]] | None = None,
-        runner=None,
-        on: str = "local",
-    ) -> dict[str, object]:
-        """Replay EQY after initializing both sides through the real reset port."""
-
-        config = Eqy._eqy_config_for_result(result_dir)
-        source = config.read_text(encoding="utf-8")
-        rewritten = Eqy._inject_reset_initialization(
-            source,
-            clock=clock,
-            reset=reset,
-            reset_active=reset_active,
-            reset_cycles=reset_cycles,
-            domains=domains,
-        )
-        baseline = hashlib.sha256()
-        for name in ("gold.il", "gate.il"):
-            path = result_dir / name
-            if path.is_file():
-                baseline.update(path.read_bytes())
-        rewritten += f"# FlexSoC baseline_sha256 {baseline.hexdigest()}\n"
-        result = Eqy._run_eqy_probe(
-            result_dir, name="reset_normalized", config_text=rewritten,
-            partition=partition, eqy=eqy, runner=runner, on=on,
-        )
-        result.update(
-            {
-                "clock": clock,
-                "reset": reset,
-                "reset_active": reset_active,
-                "reset_cycles": reset_cycles,
-                "domains": [
-                    {"clock": item[0], "reset": item[1], "polarity": item[2]}
-                    for item in (domains or ((clock, reset, reset_active),))
-                ],
-            }
-        )
-        return result
-
-    @staticmethod
-    def _replace_gate_netlist(source: str, checkpoint: Path) -> str:
-        """Replace only the mapped design read while preserving any formal wrapper."""
-
-        lines = source.splitlines()
-        section = ""
-        candidates: list[int] = []
-        implementation_rename: int | None = None
-        for index, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped.startswith("[") and stripped.endswith("]"):
-                section = stripped[1:-1].split()[0].lower()
-            elif section == "gate" and stripped.startswith(("read_verilog ", "read_rtlil ")):
-                candidates.append(index)
-            elif section == "gate" and re.fullmatch(r"rename\s+\S+\s+\S+__eqy_impl", stripped):
-                implementation_rename = index
-            elif section == "gate" and stripped.startswith("prep "):
-                break
-        if implementation_rename is not None:
-            candidates = [index for index in candidates if index < implementation_rename]
-        if not candidates:
-            raise ValueError("cannot identify mapped netlist read in EQY [gate] section")
-        checkpoint = checkpoint.expanduser().resolve()
-        lines[candidates[-1]] = f"read_rtlil {checkpoint}"
-        digest = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
-        lines.append(f"# FlexSoC checkpoint_sha256 {digest}")
-        return "\n".join(lines) + ("\n" if source.endswith("\n") else "")
-
-    @staticmethod
-    def synthesis_boundary_diagnosis(stages: Mapping[str, object]) -> str:
-        """Classify checkpoint results without turning UNKNOWN or TIMEOUT into mismatches."""
-
-        order = ("generic", "dffmap", "abc", "clean")
-        if any(
-            isinstance(stages.get(name), Mapping) and stages[name].get("missing")
-            for name in order
-        ):
-            return "missing"
-        for name in order:
-            stage = stages.get(name)
-            status = str(stage.get("status", "UNKNOWN")) if isinstance(stage, Mapping) else "UNKNOWN"
-            if status == "FAIL":
-                return f"{name}_fail"
-            if status != "PASS":
-                return f"{name}_inconclusive"
-        return "serialization"
-
-    @staticmethod
-    def run_synthesis_boundary_diagnostics(
-        result_dir: Path,
-        *,
-        top: str,
-        syn_dir: Path,
-        partition: str,
-        eqy: str = "eqy",
-        progress: Callable[[str], None] | None = None,
-        runner=None,
-        on: str = "local",
-    ) -> dict[str, object]:
-        """Probe only one failing partition at natural synthesis boundaries."""
-
-        config = Eqy._eqy_config_for_result(result_dir)
-        source = config.read_text(encoding="utf-8")
-        checkpoints = {
-            "generic": syn_dir / f"{top}_generic.il",
-            "dffmap": syn_dir / f"{top}_dffmap.il",
-            "abc": syn_dir / f"{top}_abc.il",
-            "clean": syn_dir / f"{top}_clean.il",
-        }
-        stages: dict[str, object] = {}
-        for name, checkpoint in checkpoints.items():
-            if not checkpoint.is_file():
-                stages[name] = {"valid": False, "missing": str(checkpoint)}
-                continue
-            if progress:
-                progress(name)
-            try:
-                stages[name] = Eqy._run_eqy_probe(
-                    result_dir, name=f"synthesis_{name}",
-                    config_text=Eqy._replace_gate_netlist(source, checkpoint),
-                    partition=partition, eqy=eqy, runner=runner, on=on,
-                )
-            except (FileNotFoundError, ValueError, RuntimeError, OSError) as exc:
-                stages[name] = {"valid": False, "error": str(exc), "checkpoint": str(checkpoint)}
-            else:
-                stages[name]["checkpoint"] = str(checkpoint)  # type: ignore[index]
-        return {"partition": partition, "stages": stages}
-
-    @staticmethod
-    def explain_counterexample(item: Counterexample, *, trace_kind: str = "auto") -> dict[str, object]:
-        """Build a machine-readable explanation of one EQY counterexample."""
-
-        strategy = item.failing_strategy
-        if strategy is None:
-            raise ValueError(f"partition {item.partition} has no failing strategy")
-        metadata = Eqy.failure_metadata(strategy)
-        result: dict[str, object] = {
-            "partition": item.partition,
-            "status": item.status,
-            "strategy": strategy.name,
-            "failure": metadata,
-            "diagnostics": Eqy.interesting_log_lines(strategy),
-            "trace": None,
-            "first_divergence": None,
-            "classification": "unclassified",
-            "interpretation": [],
-        }
-        try:
-            trace = Eqy.choose_trace(strategy, trace_kind)
-        except FileNotFoundError:
-            return result
-
-        result["trace"] = str(trace)
-        divergence = Eqy.first_vcd_divergence(trace, item.partition)
-        result["first_divergence"] = divergence
-        interpretation: list[str] = []
-        if divergence:
-            category = str(divergence.get("class", "unclassified"))
-            result["classification"] = category
-            if category == "x-init":
-                interpretation.append(
-                    "Gold/gate X-state encoding diverges first; inspect reset, initialization, and xprop semantics before treating this as a Boolean logic mismatch."
-                )
-            elif category == "boolean-data":
-                interpretation.append(
-                    "Gold/gate known data values diverge; inspect the mapped sequential/data cone and technology-cell semantics."
-                )
-        phase = metadata.get("phase")
-        step = metadata.get("step")
-        if phase == "basecase":
-            suffix = f" at step {step}" if step is not None else ""
-            interpretation.append(
-                f"The failure is a concrete bounded counterexample in the basecase{suffix}, not a solver timeout or incomplete induction."
-            )
-        elif phase == "induction":
-            interpretation.append(
-                "The bounded basecase did not identify the first failure; inspect the induction trace and reachable-state assumptions."
-            )
-        result["interpretation"] = interpretation
-        return result

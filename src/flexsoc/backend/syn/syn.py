@@ -5,11 +5,15 @@ from __future__ import annotations
 import json
 import re
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from io import StringIO
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Mapping, Sequence
+
+from rich.console import Console
 
 from ..core import BackendContext, Target, ToolRunner
+from ..core.render.show import ShowRenderer
 from ..core.render.templates import templates
 from ..impl.implementation import ImplementationFlow
 from .eqy import Eqy
@@ -125,14 +129,14 @@ class Syn:
         )
 
     def run(self, target: Target, *, inputs=(), on: str = "local") -> int:
-        """Run the configured synthesis target."""
+        """Run synthesis and always publish the canonical execution summary."""
 
         context = self._context()
         paths, values = context.paths, context.values
         libs = self._paths(values.get("LIBS", ""))
         repair_liberty = libs[0] if libs else self._paths(values["LIB_SYN"])[0]
         makefile, _ = ImplementationFlow.orfs_paths(values, paths.impl)
-        return self.run_asic(
+        returncode = self.run_asic(
             output=paths.syn,
             top=paths.top,
             log_dir=paths.logs / "synthesis" / paths.pdk,
@@ -147,33 +151,49 @@ class Syn:
             orfs_makefile=makefile,
             openroad=values.get("OPENROAD", "openroad"),
         )
+        self._write_summary(target, returncode)
+        return returncode
 
-    def debug(self, log: Path) -> dict[str, list[str]]:
-        """Return synthesis warnings and errors already extracted from one log."""
+    def debug(
+        self, *, output: str | None = None, as_json: bool = False,
+    ) -> int:
+        """Show synthesis evidence plus generated scripts, logs and diagnostics."""
 
-        self._diagnostics(log)
-        return {
-            kind: path.read_text(encoding="utf-8", errors="replace").splitlines() if path.is_file() else []
-            for kind, path in (
-                ("warnings", log.with_suffix(".warnings")),
-                ("errors", log.with_suffix(".errors")),
-            )
-        }
+        return self.show(debug=True, output=output, as_json=as_json)
 
-    def show(self) -> dict[str, object]:
-        """Return compact canonical synthesis artifacts that currently exist."""
+    def show(
+        self, *, summary: bool = False, debug: bool = False,
+        output: str | None = None, as_json: bool = False,
+    ) -> int:
+        """Render the canonical synthesis summary without reparsing runtime logs."""
 
         context = self._context()
-        paths = context.paths
-        candidates = {
-            "netlist": paths.syn / f"{paths.top}_synth.v",
-            "json": paths.syn / f"{paths.top}_synth.json",
-            "repair": paths.syn / f"{paths.top}_synth_repair.json",
-        }
-        return {
-            "top": paths.top,
-            "artifacts": {name: str(path) for name, path in candidates.items() if path.is_file()},
-        }
+        path = context.paths.syn / "summary.json"
+        if not path.is_file():
+            raise FileNotFoundError(f"synthesis summary not found: {path}; run `fx syn` first")
+        relative = path.relative_to(context.paths.run).as_posix()
+        document = ShowRenderer.load_file(context.paths.run, relative)
+        data = dict(document.data)
+        if summary:
+            data["summary_only"] = True
+            document = replace(document, data=data)
+
+        capture = StringIO() if output else None
+        console = Console(file=capture, force_terminal=False) if capture else Console()
+        if as_json:
+            print(json.dumps(data, indent=2, sort_keys=True), file=capture or None)
+        else:
+            ShowRenderer(console).render(document)
+            if debug:
+                self._show_debug_paths(console, data)
+
+        if output and capture is not None:
+            destination = Path(output)
+            if not destination.is_absolute():
+                destination = context.project_root / destination
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(capture.getvalue(), encoding="utf-8")
+        return 0
 
     def setup_eqy(self, *, on: str = "local") -> object:
         """Generate the EQY scaffold without running equivalence."""
@@ -205,7 +225,7 @@ class Syn:
         )
 
     def run_eqy(self, *, inputs=(), on: str = "local") -> int:
-        """Run the prepared EQY profile explicitly."""
+        """Run the prepared EQY profile explicitly and publish its summary."""
 
         context = self._context()
         paths, values = context.paths, context.values
@@ -219,23 +239,27 @@ class Syn:
             on=on,
         )
 
-    def debug_target(self, target: Target, *, output: str | None = None) -> dict[str, object]:
-        """Diagnose existing EQY results without rerunning equivalence."""
+    def show_eqy(
+        self, *, summary: bool = False, debug: bool = False,
+        output: str | None = None, as_json: bool = False,
+    ) -> int:
+        """Render canonical EQY evidence without rerunning equivalence."""
 
-        if target.debug != "eqy":
-            raise ValueError(f"--debug is not supported for target {target.name!r}")
         context = self._context()
-        result_dir = context.layout.equivalence_dir / f"{context.paths.top}_rtl_vs_syn"
-        payload = self.eqy.debug(result_dir)
-        text = json.dumps(payload, indent=2, default=str) + "\n"
-        if output:
-            destination = Path(output)
-            if not destination.is_absolute():
-                destination = context.project_root / destination
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_text(text, encoding="utf-8")
-        print(text, end="")
-        return payload
+        return self.eqy.show(
+            context.layout.equivalence_dir / "summary.json",
+            run_root=context.paths.run, summary=summary, debug=debug,
+            output=output, project_root=context.project_root, as_json=as_json,
+        )
+
+    def debug_target(self, target: Target, *, output: str | None = None) -> int:
+        """Render existing synthesis or EQY diagnostics without execution."""
+
+        if target.debug == "syn":
+            return self.debug(output=output)
+        if target.debug == "eqy":
+            return self.show_eqy(debug=True, output=output)
+        raise ValueError(f"--debug is not supported for target {target.name!r}")
 
     def run_target(self, target: Target, *, inputs=(), on: str = "local") -> object:
         """Execute one registered synthesis/EQY target."""
@@ -299,6 +323,145 @@ class Syn:
                 path = context.project_root / path
             result.append(path.resolve())
         return tuple(result)
+
+    def _write_summary(self, target: Target, returncode: int) -> dict[str, Any]:
+        """Normalize synthesis runtime evidence into syn/<pdk>/summary.json."""
+
+        context = self._context()
+        paths, values = context.paths, context.values
+        opt = values.get("TARGET_OPT", "delay1")
+        log_dir = paths.logs / "synthesis" / paths.pdk
+        main_log = log_dir / f"{paths.top}_synth_opt_{opt}.log"
+        text = main_log.read_text(encoding="utf-8", errors="replace") if main_log.is_file() else ""
+        metrics = self._yosys_statistics(paths.top, text)
+        metrics["warnings"] = self._diagnostic_count(main_log.with_suffix(".warnings"))
+        metrics["errors"] = self._diagnostic_count(main_log.with_suffix(".errors"))
+
+        repair_path = paths.syn / f"{paths.top}_synth_repair.json"
+        repair: dict[str, Any] = {}
+        if repair_path.is_file():
+            try:
+                payload = json.loads(repair_path.read_text(encoding="utf-8"))
+                if isinstance(payload, Mapping):
+                    repair = dict(payload)
+            except (OSError, json.JSONDecodeError):
+                repair = {}
+        for key in ("buffers_inserted", "nets_repaired", "wns_before", "wns_after", "tns_before", "tns_after"):
+            if key in repair:
+                metrics[key] = repair[key]
+
+        artifacts = {
+            name: self._relative(path)
+            for name, path in (
+                ("netlist", paths.syn / f"{paths.top}_synth.v"),
+                ("json", paths.syn / f"{paths.top}_synth.json"),
+                ("repair", repair_path),
+                ("preservation", paths.syn / f"{paths.top}_reset_preserve.json"),
+            )
+            if path.is_file()
+        }
+        scripts = {
+            path.name: self._relative(path)
+            for path in sorted(paths.syn.glob("*.ys"))
+            if path.is_file()
+        }
+        for path in sorted(paths.syn.glob("*.tcl")):
+            if path.is_file():
+                scripts[path.name] = self._relative(path)
+        logs = [self._relative(path) for path in sorted(log_dir.glob(f"{paths.top}_synth*.log")) if path.is_file()]
+        status = "PASS" if returncode == 0 else "FAILED"
+        summary = {
+            "schema": "flexsoc.synthesis.v1",
+            "stage": "synthesis",
+            "status": status,
+            "top": paths.top,
+            "pdk": paths.pdk,
+            "mode": "verilog" if target.action == "syn_v" else "systemverilog",
+            "profile": opt,
+            "execution": {"status": status, "exit_code": int(returncode)},
+            "metrics": metrics,
+            "artifacts": artifacts,
+            "scripts": scripts,
+            "logs": logs,
+        }
+        destination = paths.syn / "summary.json"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return summary
+
+    def _show_debug_paths(self, console: Console, data: Mapping[str, Any]) -> None:
+        """Append synthesis diagnostics and raw artifact paths to the canonical view."""
+
+        console.print()
+        console.print("[bold]Debug evidence[/bold]")
+        for label in ("scripts", "logs", "artifacts"):
+            value = data.get(label, {})
+            if isinstance(value, Mapping):
+                for name, path in value.items():
+                    console.print(f"[grey70]{label[:-1]} {name}[/grey70] {path}")
+            elif isinstance(value, list):
+                for path in value:
+                    console.print(f"[grey70]{label[:-1]}[/grey70] {path}")
+
+    def _relative(self, path: Path) -> str:
+        """Return one run-relative evidence path when possible."""
+
+        try:
+            return path.resolve().relative_to(self._context().paths.run.resolve()).as_posix()
+        except ValueError:
+            return str(path)
+
+    @staticmethod
+    def _diagnostic_count(path: Path) -> int:
+        if not path.is_file():
+            return 0
+        return sum(bool(line.strip()) for line in path.read_text(encoding="utf-8", errors="replace").splitlines())
+
+    @staticmethod
+    def _last_number(pattern: str, text: str, cast: type[int] | type[float]) -> int | float | None:
+        matches = re.findall(pattern, text, flags=re.MULTILINE)
+        return cast(matches[-1]) if matches else None
+
+    @staticmethod
+    def _yosys_statistics(top: str, text: str) -> dict[str, Any]:
+        """Normalize the top-module Yosys stat table from the synthesis log."""
+
+        headers = list(re.finditer(r"^===\s+(.+?)\s+===$", text, flags=re.MULTILINE))
+        section = ""
+        for index, header in enumerate(headers):
+            if header.group(1).strip().lstrip("\\") != top:
+                continue
+            end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
+            section = text[header.end():end]
+
+        fields = {
+            "wires": r"^\s*(\d+)\s+-\s+wires\s*$",
+            "wire_bits": r"^\s*(\d+)\s+-\s+wire bits\s*$",
+            "ports": r"^\s*(\d+)\s+-\s+ports\s*$",
+            "port_bits": r"^\s*(\d+)\s+-\s+port bits\s*$",
+        }
+        stats: dict[str, Any] = {}
+        for name, pattern in fields.items():
+            value = Syn._last_number(pattern, section, int)
+            if value is not None:
+                stats[name] = value
+
+        cell_match = re.search(r"^\s*(\d+)\s+[-+0-9.eE]+\s+cells\s*$", section, flags=re.MULTILINE)
+        cells = int(cell_match.group(1)) if cell_match else Syn._last_number(r"^\s*Number of cells:\s*(\d+)\s*$", text, int)
+        if cells is not None:
+            stats["cells"] = cells
+        area = Syn._last_number(r"^\s*Chip area for module .*?:\s*([-+0-9.eE]+)\s*$", section or text, float)
+        if area is not None:
+            stats["area"] = area
+            stats["area_unit"] = "liberty"
+        sequential = re.search(
+            r"^\s*of which used for sequential elements:\s*([-+0-9.eE]+)\s+\(([-+0-9.eE]+)%\)\s*$",
+            section, flags=re.MULTILINE,
+        )
+        if sequential:
+            stats["sequential_area"] = float(sequential.group(1))
+            stats["sequential_area_pct"] = float(sequential.group(2))
+        return stats
 
     def setup_asic(
         self,
