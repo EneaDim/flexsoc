@@ -148,7 +148,7 @@ updates instead of recreating the complete model workspace.
 fx tests_gen --force
 fx tb cocotb --setup --force
 fx regression
-fx coverage_detail
+fx coverage --show
 ```
 
 Both functional backends derive clock period, waveform, source latency, and clock
@@ -202,13 +202,12 @@ Useful controls:
 ```bash
 ```
 
-Debug unresolved or failing partitions:
+Inspect unresolved or failing partitions after an explicit EQY run:
 
 ```bash
-fx eqy_debug
-fx eqy_debug <partition>
-fx eqy_debug --wave <partition>
-fx eqy_debug --files <partition>
+fx eqy --summary
+fx eqy --show
+fx eqy --debug
 ```
 
 ## 7. Post-synthesis analysis
@@ -399,7 +398,7 @@ fx cdc_rdc --setup
 fx cdc_rdc
 fx tb cocotb --setup
 fx regression
-fx coverage_detail
+fx coverage --show
 fx formal --setup
 fx formal
 fx syn --setup

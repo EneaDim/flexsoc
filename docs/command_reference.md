@@ -49,7 +49,6 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `fx pdk info <name>` | Show source, node, digital views, OpenROAD platform, and formal adapter. | `--set PDK_ROOT=...` inspects a non-default installation. |
 | `fx pdk fetch <name>` | Fetch the configured PDK source/provider. | `--force` refreshes; `--set PDK_VERSION=...` selects a supported version. |
 | `fx pdk use <name>` | Validate digital views and persist the active PDK. | Shared RTL, DV, formal, and the canonical authored `constraints/<TOP>.sdc` remain valid; regenerate only technology-dependent synthesis/sign-off collateral for the selected PDK. |
-| `fx eqy_debug [partition]` | Summarize EQY closure or diagnose one unresolved partition. | Supports `--wave`, `--files`, `--json`, and reset overrides through `--set`. |
 | `fx shell` | Open an interactive prompt with target completion and history. | `help`, `commands`, `exit`, and normal target lines are accepted. |
 
 ### 1.2 Global options
@@ -240,14 +239,14 @@ Those outputs are isolated below `syn/<pdk>`, `impl/<pdk>`, `signoff/<pdk>`, `dv
 | --- | --- | --- |
 | Environment and technology | `fx doctor`, `fx deps-doctor`, `fx pdk info`, `fx pdk use` | Tool/PDK readiness |
 | Requirements to CSR/RTL entry | `fx setup`, `fx hjson`, `fx reg`, `fx doc`, `fx rtl_stub`, `fx top_from_core` | Register collateral and authored RTL boundary |
-| RTL elaboration and lint | `fx flist`, `fx lint`, `fx slang_hier`, `fx slang_ast` | Reachable hierarchy and clean structural RTL |
+| RTL elaboration and lint | `fx flist`, `fx lint`, `fx slang_hier` | Reachable hierarchy and clean structural RTL |
 | Timing intent | `fx sdc --setup` | single authored `constraints/<TOP>.sdc` |
 | CDC/RDC | `fx cdc_rdc --setup`, `fx cdc_rdc` | `design.json`, `summary.json`, `cdc_rdc.rpt`, extraction setup/log |
 | Property formal | `fx formal --setup`, `fx formal` | BMC/prove/cover closure |
-| Functional DV | `fx model --setup`, `fx tests_gen`, `fx tb --setup`, `fx cocotb --setup`, `fx regression`, `fx coverage_detail` | Passing scenarios, waves, coverage |
+| Functional DV | `fx model --setup`, `fx tests_gen`, `fx tb --setup`, `fx cocotb --setup`, `fx regression`, `fx coverage` | Passing scenarios, waves, coverage |
 | Sign-off setup | `fx signoff --setup` | OpenSTA Tcl families consuming `constraints/<TOP>.sdc` |
 | Synthesis | `fx syn --setup`, `fx syn` | `syn/<pdk>/abc.constr`, Yosys scripts, mapped netlist, synthesis reports |
-| Logical sign-off | `fx eqy --setup`, `fx eqy_debug` | RTL ↔ mapped-netlist equivalence |
+| Logical sign-off | `fx eqy --setup`, `fx eqy` | RTL ↔ mapped-netlist equivalence |
 | Post-synthesis sign-off | `fx signoff --setup`, `fx sdf`, `fx sta`, `fx power_estimate`, gate simulation targets | Timing, SDF/GLS, and power evidence |
 | Physical implementation | `fx pnr --setup`, `fx pnr`, `fx pnr_gui` | Placed/routed implementation |
 | Post-layout sign-off | `fx signoff_post_impl --setup`, `fx sdf_post_impl`, `fx sta_post_impl`, routed GLS, `fx power_estimate_post_impl`, activity/fusion post-implementation targets, `fx physical_signoff` | SPEF-aware timing, routed GLS/power/fusion, and physical evidence |
@@ -392,8 +391,6 @@ Elaborate the reachable hierarchy and detect structural RTL issues before simula
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx lint` | Run one Slang pass and one Verilator pass, then classify P0-P3. | `LINT_PROFILE`, `SLANG_WAIVER_FILE`, `VERILATOR_WAIVER_FILE`, `VSV` | Diagnostics are reporting-only in development mode; tool evidence controls PASS/FAILED. |
-| `fx lint_slang` | Run one full-elaboration Slang lint pass. | `LINT_PROFILE`, `SLANG_WAIVER_FILE`, `VSV` | Writes JSON diagnostics and canonical summary. |
-| `fx lint_verilator` | Run one Verilator lint pass. | `LINT_PROFILE`, `VERILATOR_WAIVER_FILE`, `VSV` | Writes SARIF diagnostics and canonical summary. |
 
 Inspect the existing evidence without rerunning either frontend:
 
@@ -407,8 +404,8 @@ fx lint --debug
 ```
 
 `--summary` prints only counts and per-tool status. `--show` prints every diagnostic as a compact row with line and file columns. `--tool` filters rendering only and never launches an additional lint run.
-| `fx slang_hier` | Generate hierarchy text with slang-hier. | `LINT_PROFILE`, `SLANG_WAIVER_FILE`, `VERILATOR_WAIVER_FILE`, `VSV`, `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | Use `--info` for accepted overrides. |
-| `fx slang_ast` | Generate Slang AST JSON. | `LINT_PROFILE`, `SLANG_WAIVER_FILE`, `VERILATOR_WAIVER_FILE`, `VSV`, `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | Use `--info` for accepted overrides. |
+| `fx slang_hier` | Generate hierarchy text and AST JSON in one Slang elaboration. | `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | `--summary`, `--show`, and `--debug` read the canonical structural evidence. |
+| `fx slang_hier` | Generate Slang AST JSON. | `LINT_PROFILE`, `SLANG_WAIVER_FILE`, `VERILATOR_WAIVER_FILE`, `VSV`, `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | Use `--info` for accepted overrides. |
 | `fx slang_flist` | Generate a trimmed topological RTL filelist with Slang. | `LINT_PROFILE`, `SLANG_WAIVER_FILE`, `VERILATOR_WAIVER_FILE`, `VSV`, `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | Use `--info` for accepted overrides. |
 
 ### 3.5 CDC/RDC structural analysis
@@ -474,25 +471,25 @@ Generate the reference-model environment, vectors, testbenches, simulations, reg
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx tb --setup` | Generate a SystemVerilog testbench scaffold. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx cocotb --setup` | Generate a cocotb scaffold. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx model --setup` | Generate Python model, CSR regmap, and test scaffolds. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx regmap_py` | Regenerate only `<top>_regmap.py` from HJSON. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx tests_gen` | Generate all vector tests from `<top>_tests.py`. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | `fx tests_gen --check` verifies the generated tree against the Python source without rewriting it. |
-| `fx test_gen` | Generate one vector test selected by TEST_NAME. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx tests` | List generated vector tests. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx compile` | Compile the current testbench. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx compile_v` | Compile Verilog simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx compile_sv` | Compile SystemVerilog simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx sim` | Run simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx sim_v` | Run Verilog simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx sim_sv` | Run SystemVerilog simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx sim_tests` | Run every generated SystemVerilog vector test. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx cocotb` | Run cocotb tests. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx cocotb_tests` | Run every generated cocotb vector test. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx regression` | Run every existing vector test on each selected backend, then merge Verilator coverage. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Composite target; use it for the standard ordered flow. |
-| `fx coverage` | Merge and report existing Verilator coverage data. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx coverage_detail` | Show uncovered Verilator coverage points. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx tb --setup` | Generate a SystemVerilog testbench scaffold. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx cocotb --setup` | Generate a cocotb scaffold. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx model --setup` | Generate Python model, CSR regmap, and test scaffolds. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx regmap_py` | Regenerate only `<top>_regmap.py` from HJSON. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx tests_gen` | Generate all vector tests from `<top>_tests.py`. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | `fx tests_gen --check` verifies the generated tree against the Python source without rewriting it. |
+| `fx test_gen` | Generate one vector test selected by TEST_NAME. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx tests` | List generated vector tests. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx compile` | Compile the current testbench. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx compile_v` | Compile Verilog simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx compile_sv` | Compile SystemVerilog simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx sim` | Run simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx sim_v` | Run Verilog simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx sim_sv` | Run SystemVerilog simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx sim_tests` | Run every generated SystemVerilog vector test. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx cocotb` | Run cocotb tests. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx cocotb_tests` | Run every generated cocotb vector test. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx regression` | Run every existing vector test on each selected backend, then merge Verilator coverage. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Composite target; use it for the standard ordered flow. |
+| `fx coverage` | Merge and report existing Verilator coverage data. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx coverage --show` | Show uncovered Verilator coverage points. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 
 
 #### Functional-simulation selection and artifacts
@@ -548,7 +545,7 @@ RTL filelists at execution time.
 
 ```bash
 fx regression --live --set 'REGRESSION_BACKENDS=sv cocotb'
-fx coverage_detail
+fx coverage --show
 ```
 
 Regression waveforms are written as:
@@ -958,7 +955,7 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `SEED` | Reproducible regression seed; also drives the deterministic functional clock-jitter sequence derived from SDC uncertainty. |
 | `REGRESSION_BACKENDS` | Space-separated RTL regression backends, normally `sv cocotb`. |
 | `COVERAGE` | Enable or configure coverage collection. |
-| `COVERAGE_DETAIL_LIMIT` | Maximum uncovered items printed by detailed coverage. |
+| `COVERAGE_SHOW_LIMIT` | Maximum uncovered items printed by detailed coverage. |
 | `WAVE_VIEWER` | Waveform viewer executable. |
 | `SURFER_BACKEND` | Surfer rendering/backend choice. |
 | `CLK_PERIOD` | Fallback synthesis clock period; canonical domains normally derive it. |
@@ -1176,11 +1173,12 @@ fx <target> --info
 For equivalence specifically:
 
 ```bash
-fx eqy_debug
-fx eqy_debug <partition>
-fx eqy_debug --wave <partition>
-fx eqy_debug --files <partition>
+fx eqy --summary
+fx eqy --show
+fx eqy --debug
 ```
+
+`--debug` is read-only: it adds existing EQY config, logs, strategy logs, and trace paths without launching probes, viewers, or another equivalence run.
 
 ---
 
@@ -1351,7 +1349,6 @@ After normal HJSON edits, regenerate `reg`, `doc`, and `regmap_py`; do not rerun
 fx top_from_core --force
 fx flist --force
 fx slang_hier
-fx slang_ast
 fx lint
 ```
 
@@ -1379,7 +1376,7 @@ Then rerun:
 
 ```bash
 fx regression --set 'REGRESSION_BACKENDS=sv cocotb'
-fx coverage_detail
+fx coverage --show
 ```
 
 | Symptom | Inspect first | Typical repair |
@@ -1388,7 +1385,7 @@ fx coverage_detail
 | wrong cycle/latency | model `LATENCY`, vector cycles, pipeline RTL | align architectural latency without backend-specific expectations |
 | SV only or cocotb only fails | atomic same-cycle batches, reset, sample phase | regenerate both harnesses and compare the first differing event |
 | CSR transaction timeout | generated regmap, protocol driver, reset/config | debug one named test with `--live` and wave |
-| regression PASS but coverage weak | `coverage_detail`, scenario catalogue | add requirement-driven scenarios or properties, not percentage-only stimulus |
+| regression PASS but coverage weak | `coverage --show`, scenario catalogue | add requirement-driven scenarios or properties, not percentage-only stimulus |
 
 ### 8.6 Formal failures
 
@@ -1426,10 +1423,9 @@ fx sta --live
 ### 8.8 Equivalence failures
 
 ```bash
-fx eqy_debug
-fx eqy_debug <partition>
-fx eqy_debug --files <partition>
-fx eqy_debug --wave <partition>
+fx eqy --summary
+fx eqy --show
+fx eqy --debug
 ```
 
 Classify before acting:
@@ -1635,23 +1631,24 @@ For local inspection of the Docker environment use the scripts under `docker/scr
 
 ## 13. EQY protocol partitioning and reset normalization
 
-For single-clock IPs, the generated EQY scaffold prepares the normal post-reset hardware contract by default. It initializes both gold and gate designs through the clock/reset declared in `CLOCK_DOMAINS` before partition proofs begin. FlexSoC does not expose a generic EQY runtime target yet; execute the generated profile only through an IP-specific/manual closure flow.
+For single-clock IPs, the generated EQY scaffold prepares the normal post-reset hardware contract by default. It initializes both gold and gate designs through the clock/reset declared in `CLOCK_DOMAINS` before partition proofs begin. Setup materializes the authored EQY profile; the runtime target is explicit and is not part of the automatic E2E matrix until qualified for the supported IP/register-interface combinations.
 
 ```bash
 fx eqy --setup
+fx eqy
 ```
 
 Use `EQY_RESET_NORMALIZE=0` only when the design contract explicitly requires equivalence from arbitrary power-up state. Multi-clock runs keep normalization disabled by default because independent-domain reset sequencing must be reviewed rather than inferred.
 
 Packed 66-bit TL-UL response ports are not treated as one monolithic partition. The formal-only protocol view keeps the packed response internal and exposes only bounded witnesses for `a_ready`, `d_valid`, D-channel control, data, and metadata. This detail matters because EQY partitions every public output: exposing both the raw response and the witnesses would create duplicate raw bit partitions such as `cfg_tl_o.0` in addition to the intended field witnesses. The original RTL and mapped netlist are not edited. This preserves the TL-UL care set while making timeout diagnosis field-specific.
 
-The default PDR engine is `abc pdr`. `abc pdr -rfi` remains an explicit expert override, but it is not the default because some partitions can terminate with an engine error and no counterexample trace. An engine error is not a demonstrated mismatch; rerun the generated witness with the stable default or inspect it through `fx eqy_debug`.
+The default PDR engine is `abc pdr`. `abc pdr -rfi` remains an explicit expert override, but it is not the default because some partitions can terminate with an engine error and no counterexample trace. An engine error is not a demonstrated mismatch; rerun the generated witness with the stable default or inspect the existing evidence through `fx eqy --debug`.
 
 When EQY still does not close:
 
 1. inspect the partition names in the EQY log;
 2. distinguish `FAIL` from `timeout`;
-3. run `fx eqy_debug` on the first unresolved witness;
+3. run `fx eqy --debug` and inspect the first unresolved partition evidence;
 4. do not increase timeouts until reset normalization, protocol care-set handling, and synthesis-boundary diagnostics have been checked.
 
 

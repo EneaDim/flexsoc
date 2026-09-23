@@ -2700,7 +2700,7 @@ fx formal
 fx tests_gen --force
 fx tb cocotb --setup --force
 fx regression
-fx coverage_detail
+fx coverage --show
 
 # Technology mapping e proof logica
 fx syn --setup

@@ -317,7 +317,7 @@ Run the regression and coverage:
 
 ```bash
 fx regression
-fx coverage_detail
+fx coverage --show
 ```
 
 Use the model and scenarios as the behavioral source of truth. Do not encode expected values independently in multiple simulator-specific testbenches.
@@ -407,11 +407,12 @@ Setup-only is not equivalence evidence and does not satisfy the L3 qualification
 For unresolved partitions after a real EQY run:
 
 ```bash
-fx eqy_debug
-fx eqy_debug <partition>
-fx eqy_debug --wave <partition>
-fx eqy_debug --files <partition>
+fx eqy --summary
+fx eqy --show
+fx eqy --debug
 ```
+
+`fx eqy --debug` is read-only and reports the existing config, logs, strategy evidence, and trace paths.
 
 Equivalence is the behavioral gate between synthesis and downstream sign-off.
 
@@ -667,7 +668,7 @@ fx cdc_rdc
 fx tests_gen --force
 fx tb cocotb --setup --force
 fx regression
-fx coverage_detail
+fx coverage --show
 fx formal --setup --force
 fx formal
 ```
@@ -737,7 +738,7 @@ fx model --setup --force
 fx tests_gen --force
 fx tb cocotb --setup --force
 fx regression
-fx coverage_detail
+fx coverage --show
 fx formal --setup --force
 fx formal
 
@@ -901,7 +902,7 @@ fx <target> --dry-run --script
 fx <target> --info
 ```
 
-For EQY use `fx eqy_debug` because partition-level formal diagnosis has its own structure.
+For EQY use `fx eqy --debug`; partition-level strategy logs and traces remain part of the EQY owner evidence and no diagnostic rerun is launched.
 
 ### 19.1 Debugging rule
 
