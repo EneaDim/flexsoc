@@ -13,6 +13,7 @@ from .api import TARGETS, FlexSoC, FlexSoCConfig
 from .backend.core.flow.session import (
     DEBUG_TARGETS, DEFAULT_SETTINGS, SETUP_ONLY_TARGETS, SETUP_TARGETS, WorkspaceFlow,
 )
+from .backend.core.flow.target import BACKEND_TARGETS
 
 try:  # Keep the entry point understandable if the new CLI deps are not installed yet.
     import click
@@ -51,7 +52,7 @@ else:
     error_console = Console(stderr=True)
     PSEUDO_COMMANDS = (
         "help", "settings", "commands", "show", "requirements", "testplan", "meta",
-        "doctor", "pdk", "eqy_debug", "shell",
+        "doctor", "pdk", "shell",
     )
     OPTION_WORDS = (
         "--set",
@@ -135,14 +136,14 @@ Use `fx commands` to list every backend target.
                 ("fx regression --setup", "Generate SV and cocotb drivers from the current interfaces."),
                 ("fx sim --set TEST_NAME=smoke", "Run one SystemVerilog vector test."),
                 ("fx cocotb --set TEST_NAME=smoke", "Run the same vectors through cocotb."),
-                ("fx regression | fx coverage | fx coverage_detail", "Run the catalogue and inspect coverage."),
+                ("fx regression | fx coverage", "Run the catalogue and inspect coverage."),
             ),
         ),
         (
             "4. Close RTL and properties",
             (
                 ("fx lint", "Run one Slang pass and one Verilator pass with P0-P3 classification."),
-                ("fx slang_hier | fx slang_ast", "Inspect elaborated hierarchy and AST."),
+                ("fx slang_hier", "Generate elaborated hierarchy and AST evidence in one Slang run."),
                 ("fx formal --setup | fx formal", "Generate and run BMC, prove, and cover stages."),
             ),
         ),
@@ -151,7 +152,7 @@ Use `fx commands` to list every backend target.
             (
                 ("fx syn --setup | fx syn", "Generate synthesis scripts, then produce the mapped netlist."),
                 ("fx eqy --setup | fx eqy", "Materialize the authored EQY scaffold, then run equivalence explicitly when desired."),
-                ("fx eqy_debug [partition]", "Diagnose unresolved equivalence partitions."),
+                ("fx eqy --summary | fx eqy --show | fx eqy --debug", "Inspect canonical equivalence evidence without rerunning EQY."),
             ),
         ),
         (
@@ -225,9 +226,10 @@ Use `fx commands` to list every backend target.
         "SURFER_BACKEND": "Surfer GUI backend policy: auto, x11, or wayland; auto avoids Wayland under WSL.",
         "COCOTB_WAVES": "Enable cocotb waveform generation.",
         "COVERAGE": "Enable or select coverage collection.",
-        "COVERAGE_DETAIL_LIMIT": "Maximum uncovered points printed by coverage_detail.",
+        "COVERAGE_SHOW_LIMIT": "Maximum uncovered points printed by `fx coverage --show`; 0 means all.",
         "LINT_PROFILE": "Lint profile: critical for PRs or everything for full/nightly analysis.",
         "SLANG_WAIVER_FILE": "Optional native Slang TOML waiver file.",
+        "SLANG_HIER": "slang-hier executable used for hierarchy + AST structural evidence.",
         "VERILATOR_WAIVER_FILE": "Optional Verilator .vlt control / waiver file.",
         "VSV": "SystemVerilog/Verilog language selection used by backend scripts.",
         "GLS_SIMULATOR": "Gate-level simulator executable/family.",
@@ -238,10 +240,11 @@ Use `fx commands` to list every backend target.
         "SDF_STRICT": "Fail when SDF annotation is missing or incomplete.",
         "SDF_FILE": "Explicit SDF file used for GLS.",
         "SDF_CORNER": "Corner selected for SDF generation or annotation.",
-        "NETLIST": "Explicit synthesized or post-route netlist.",
-        "SIGNOFF_STAGE": "Sign-off source stage: post_syn or post_route; view also accepts post_impl.",
-        "SPEF_FILE": "Extracted parasitics for post-route timing/power.",
-        "PNR_SDC_FILE": "Post-route SDC override.",
+        "NETLIST": "Explicit synthesized or post-implementation netlist.",
+        "SIGNOFF_STAGE": "Sign-off source stage: post_syn or post_impl.",
+        "STA_MODES": "STA analyses to run. Defaults to setup for post_syn and setup hold for post_impl.",
+        "SPEF_FILE": "Extracted parasitics for post-implementation timing/power.",
+        "PNR_SDC_FILE": "Post-implementation SDC override.",
         "LIBS": "Corner Liberty list or mapping.",
         "LIB_SYN": "Synthesis/default Liberty file.",
         "MACRO_LIBS": "Additional macro Liberty files.",
@@ -299,7 +302,9 @@ Use `fx commands` to list every backend target.
         "tests": ("fx tests",),
         "sim": ("fx sim --set TEST_NAME=smoke --set COMPILER=verilator",),
         "cocotb": ("fx cocotb --set TEST_NAME=smoke --set COCOTB_WAVES=1",),
-        "regression": ("fx regression",),
+        "regression": ("fx regression", "fx regression --summary", "fx regression --show", "fx regression --debug"),
+        "coverage": ("fx coverage", "fx coverage --summary", "fx coverage --show", "fx coverage --debug"),
+        "formal": ("fx formal --setup", "fx formal", "fx formal --summary", "fx formal --show", "fx formal --debug"),
         "view": (
             "fx view --set PDK=ihp-sg13g2 --set SIGNOFF_STAGE=post_syn "
             "--set SIM_NAME=smoke_sv_tt --set WAVE_VIEWER=surfer",
@@ -312,8 +317,23 @@ Use `fx commands` to list every backend target.
             "fx syn --set TARGET_OPT=delay1",
         ),
         "eqy": ("fx eqy --setup", "fx eqy", "fx eqy --debug"),
+        "pnr": (
+            "fx pnr --setup --force", "fx pnr", "fx pnr --summary",
+            "fx pnr --show", "fx pnr --debug",
+        ),
         "signoff": ("fx signoff --setup --force", "fx signoff"),
-        "cdc_rdc": ("fx cdc_rdc --setup --force", "fx cdc_rdc", "fx cdc_rdc --live"),
+        "lint": (
+            "fx lint", "fx lint --summary", "fx lint --show --tool slang",
+            "fx lint --debug --tool verilator",
+        ),
+        "slang_hier": (
+            "fx slang_hier", "fx slang_hier --summary", "fx slang_hier --show",
+            "fx slang_hier --debug",
+        ),
+        "cdc_rdc": (
+            "fx cdc_rdc --setup --force", "fx cdc_rdc", "fx cdc_rdc --summary",
+            "fx cdc_rdc --show", "fx cdc_rdc --debug",
+        ),
         "compile_post_syn": (
             "fx compile_post_syn --set TEST_NAME=smoke "
             "--set GLS_BACKEND=sv --set TIMING_MODE=typ",
@@ -398,11 +418,6 @@ Use `fx commands` to list every backend target.
             ("fx pdk list", "fx pdk info sky130", "fx pdk fetch sky130", "fx pdk use sky130"),
             ("--set PDK_ROOT=PATH", "--force", "--json"),
         ),
-        "eqy_debug": (
-            "Summarize EQY closure or inspect one unresolved partition.",
-            ("fx eqy_debug", "fx eqy_debug partition_name", "fx eqy_debug --wave partition_name"),
-            ("--wave", "--files", "--set KEY=VALUE", "--json"),
-        ),
         "shell": (
             "Open the interactive fx prompt with completion and history.",
             ("fx shell",),
@@ -421,13 +436,153 @@ Use `fx commands` to list every backend target.
 
 
     TARGET_HELP_SECTIONS = {
+        "lint": (
+            (
+                "Execution",
+                (
+                    ("Slang", "One full SystemVerilog elaboration with JSON diagnostics. It catches language/elaboration errors and broad static warnings such as widths, drivers, cases, undriven/unconnected signals, conversions, and related semantic issues."),
+                    ("Verilator", "One independent --lint-only SystemVerilog pass with SARIF diagnostics. It adds a second implementation view for structural/control warnings such as width, latch, multidrive, pins/connections, sequencing, and style/static issues."),
+                    ("runs", "Exactly one Slang run and one Verilator run. P0-P3 are classification only; --tool filters rendering and never triggers another run."),
+                    ("PASS", "Both tools executed and produced valid native diagnostic evidence. Diagnostic priority does not gate lint while the policy is reporting-only."),
+                ),
+            ),
+            (
+                "Priority policy",
+                (
+                    ("P0", "Critical correctness-risk diagnostics: tool errors plus severe width/driver/latch/case/connectivity classes."),
+                    ("P1", "High functional-risk diagnostics such as signedness/conversion, sequencing, comparison, shadowing, and related semantic hazards."),
+                    ("P2", "Normal engineering warnings that should be reviewed but are not classified as P0/P1/P3."),
+                    ("P3", "Low-risk hygiene/style diagnostics such as unused declarations/imports and presentation-oriented warnings."),
+                ),
+            ),
+            (
+                "Evidence views",
+                (
+                    ("--summary", "Status, total diagnostics, P0-P3 counts, and per-tool counts only."),
+                    ("--show", "Canonical diagnostics from summary.json; does not rerun or reparse the tool logs."),
+                    ("--debug", "Show plus hints, exact tool commands, and native JSON/SARIF/log paths."),
+                    ("--tool", "Filter summary/show/debug to slang or verilator; never changes execution."),
+                ),
+            ),
+        ),
+        "regression": (
+            (
+                "Execution",
+                (
+                    ("matrix", "Runs every generated functional test on the selected REGRESSION_BACKENDS. The canonical full regression uses SystemVerilog and cocotb over the same vectors."),
+                    ("SV", "Compiles the generated SystemVerilog testbench once, then executes each test. Compile failure is recorded and remaining SV tests become NOT_RUN."),
+                    ("cocotb", "Executes each generated test through the cocotb testbench using the selected simulator."),
+                    ("coverage", "When enabled, each sub-run writes raw Verilator .dat evidence; coverage reporting is a separate target."),
+                    ("PASS", "Every selected test/backend sub-run completed successfully. FAIL is execution outcome, not coverage quality."),
+                ),
+            ),
+            (
+                "Evidence views",
+                (
+                    ("--summary", "Status, test/sub-run counts, and per-backend pass/fail/not-run counts from summary.json."),
+                    ("--show", "Canonical test × backend matrix from summary.json; no simulator is rerun and logs are not reparsed."),
+                    ("--debug", "Show plus compile/failing/not-run log paths for direct diagnosis."),
+                    ("summary.json", "dv/functional/regression/summary.json is the machine-readable execution contract."),
+                ),
+            ),
+        ),
+        "coverage": (
+            (
+                "Execution",
+                (
+                    ("merge", "Merges existing Verilator coverage databases into merged.dat. It does not rerun simulation."),
+                    ("annotate", "Runs verilator_coverage annotation once and records line/type/hit information."),
+                    ("report", "Normalizes scope/type percentages and uncovered points into summary.json."),
+                    ("PASS", "Merge, annotation, and normalization completed successfully. Coverage percentage itself does not gate PASS."),
+                ),
+            ),
+            (
+                "Evidence views",
+                (
+                    ("--summary", "Compact design/all percentages and scope totals from summary.json."),
+                    ("--show", "Summary plus uncovered points stored in summary.json; no coverage tool is rerun."),
+                    ("--debug", "Show plus merged database, annotation directory, and merge/annotate log paths."),
+                    ("COVERAGE_SHOW_LIMIT", "Limits uncovered rows printed by --show; 0 prints all stored points."),
+                ),
+            ),
+        ),
+        "formal": (
+            (
+                "Execution",
+                (
+                    ("CSR", "Automatic CSR properties derived from generated register semantics."),
+                    ("properties", "Designer-authored properties under dv/formal/properties."),
+                    ("BMC", "Bounded model checking for quick counterexamples up to FORMAL_BMC_DEPTH."),
+                    ("PROVE", "Inductive/PDR-style proof using FORMAL_PROVE_ENGINE."),
+                    ("COVER", "Reachability of cover properties using FORMAL_COVER_ENGINE and FORMAL_DEPTH."),
+                    ("matrix", "The full formal target is CSR/properties × BMC/prove/cover: six native SBY outcomes."),
+                ),
+            ),
+            (
+                "Lifecycle and evidence",
+                (
+                    ("--setup", "Materializes/preserves property scaffolds and generated SBY configurations; it does not run formal engines."),
+                    ("--summary", "Aggregate status and BMC/prove/cover counts from dv/formal/summary.json."),
+                    ("--show", "Canonical CSR/properties × BMC/prove/cover matrix from summary.json."),
+                    ("--debug", "Show plus SBY config, workdir, log, and trace paths. It never reruns SBY."),
+                    ("PARTIAL", "Some of the six formal stages have not produced native status evidence yet."),
+                ),
+            ),
+        ),
+        "slang_hier": (
+            (
+                "Structural evidence",
+                (
+                    ("one elaboration", "Runs slang-hier once. The same elaborated design emits both the compact instance hierarchy and the full AST JSON with source information."),
+                    ("hierarchy.txt", "Compact instance/module/source rows used for human inspection and lightweight structural consumers."),
+                    ("ast.json", "Elaborated Slang AST for deeper downstream analysis. FlexSoC stores it as raw evidence and does not duplicate an AST parser here."),
+                    ("summary.json", "Canonical status, command, metrics, normalized hierarchy rows, and artifact paths."),
+                    ("non-gating", "This is a structural utility. Tool outcome is recorded in summary.json, but hierarchy collection does not qualify or fail the wider flow by itself."),
+                ),
+            ),
+        ),
         "syn": (
             (
-                "Synthesis profile workflow",
+                "Execution",
                 (
-                    ("run-only", "`fx syn` uses the existing setup; a one-shot configuration change makes that setup STALE until regenerated explicitly."),
-                    ("persistent", "Use `fx settings TARGET_OPT=delay1`, then `fx syn --setup --force`, followed by `fx syn`."),
-                    ("provenance", "The existing setup must match the exact effective settings of this invocation; STALE or MODIFIED collateral is rejected."),
+                    ("--setup", "Generates the Yosys/ABC scripts, constraints and repair collateral. It does not run synthesis."),
+                    ("Yosys", "Performs logical synthesis and technology mapping using the selected TARGET_OPT profile."),
+                    ("OpenROAD repair", "Runs only pre-placement electrical repair_design for slew/capacitance/fanout. It does not perform CTS or min-delay/hold repair."),
+                    ("timing", "Post-synthesis release timing is qualified by STA setup checks; hold becomes sign-off blocking only after implementation/CTS."),
+                    ("PASS", "The complete synthesis execution returned zero. Fresh setup alone never implies synthesis PASS."),
+                ),
+            ),
+            (
+                "Profiles and evidence",
+                (
+                    ("TARGET_OPT", "area0..area3 or delay0..delay4; the profile is part of setup provenance."),
+                    ("summary.json", "Canonical execution status, Yosys QoR, diagnostics, repair metrics, scripts, logs and artifact paths."),
+                    ("--summary", "Status, profile, cells, area and diagnostic counts only."),
+                    ("--show", "Canonical synthesis QoR and final artifacts from summary.json; it never reparses logs."),
+                    ("--debug", "Show plus generated script, raw log and artifact paths; it never reruns Yosys/OpenROAD."),
+                    ("provenance", "STALE or MODIFIED setup collateral is rejected before run; regenerate setup or validate an intentional authored override."),
+                ),
+            ),
+        ),
+        "eqy": (
+            (
+                "Execution",
+                (
+                    ("--setup", "Materializes the authored EQY config/formal view. It does not run equivalence."),
+                    ("run", "Runs EQY explicitly against RTL and the synthesized canonical netlist through ToolRunner/Executor."),
+                    ("partitions", "EQY partitions the compare problem and may try multiple strategies per partition."),
+                    ("PASS", "Execution completed and every discovered equivalence partition is PASS."),
+                    ("REVIEW", "Evidence is incomplete or contains ERROR/TIMEOUT/UNKNOWN outcomes; this is not an equivalence PASS."),
+                    ("FAILED", "At least one partition is a demonstrated FAIL, or execution failed without complete passing evidence."),
+                ),
+            ),
+            (
+                "Evidence views",
+                (
+                    ("--summary", "Overall execution/result status and partition counts from summary.json."),
+                    ("--show", "Partition table with status and failing strategy from summary.json."),
+                    ("--debug", "Show plus config/log/result paths and existing failing strategy logs/traces. It never launches probes or viewers."),
+                    ("summary.json", "Canonical partition and strategy evidence under signoff/<pdk>/equivalence/rtl_vs_syn/."),
                 ),
             ),
         ),
@@ -450,7 +605,152 @@ Use `fx commands` to list every backend target.
                 ),
             ),
         ),
+        "pnr": (
+            (
+                "Implementation",
+                (
+                    ("--setup", "Materializes the ORFS config.mk from the synthesized netlist and authored SDC. It does not run OpenROAD."),
+                    ("run", "Runs one ORFS/OpenROAD implementation through CommandRequest -> ToolRunner -> Executor."),
+                    ("phases", "Tracks the native ORFS import, floorplan, placement, CTS, routing, extraction, and finish checkpoints."),
+                    ("PASS", "OpenROAD/ORFS returned success and all five canonical final artifacts exist: netlist, SDC, SPEF, ODB, and GDS."),
+                ),
+            ),
+            (
+                "Evidence views",
+                (
+                    ("--summary", "Status, phase/artifact counts, platform, and return code from impl/<pdk>/summary.json."),
+                    ("--show", "Canonical implementation phases and final artifact paths from summary.json; no ORFS rediscovery."),
+                    ("--debug", "Show plus exact command and raw implementation log path; it never reruns OpenROAD."),
+                ),
+            ),
+        ),
+        "sta": (
+            (
+                "Static timing analysis",
+                (
+                    ("post_syn", "Uses the synthesized netlist with ideal clocks and no extracted interconnect. Setup runs by default and is the timing release gate."),
+                    ("post_impl", "Uses the implemented netlist, propagated clocks, and SPEF. Setup and hold both run by default and are sign-off blocking."),
+                    ("setup", "Maximum-delay/setup timing is gating at both stages."),
+                    ("hold", "Minimum-delay timing is opt-in/advisory post-synthesis because CTS has not happened; it is gating post-implementation."),
+                    ("recovery/removal", "Reset recovery/removal follows the same policy as hold: advisory post-synthesis, gating post-implementation."),
+                    ("STA_MODES", "Override the stage default explicitly, for example `--set STA_MODES='setup hold'` to inspect advisory post-synthesis min timing."),
+                    ("corners", "Runs the configured Liberty corners; STA corner coverage is independent from the sampled GLS min/typ/max matrix."),
+                ),
+            ),
+            (
+                "Evidence views",
+                (
+                    ("--summary", "Status plus gating WNS/TNS/violations, advisory violations, and unconstrained paths from summary.json."),
+                    ("--show", "Per-corner setup/hold table with clock QoR from canonical summary.json."),
+                    ("--debug", "Show plus violating/near-critical paths, constraint issues, reports, and artifact paths. It never reruns OpenSTA."),
+                ),
+            ),
+        ),
+        "power_estimate": (
+            (
+                "Vectorless power",
+                (
+                    ("model", "Runs OpenSTA power with configured input activity/duty assumptions and Liberty corner views; no waveform is required."),
+                    ("post_syn / post_impl", "The same analysis owner is used at both stages; post_impl additionally uses the implemented netlist and SPEF."),
+                    ("metrics", "Reports internal, switching, dynamic, leakage, and total power per corner."),
+                ),
+            ),
+            ("Evidence views", (("--summary", "Status, corner count, and worst total power."), ("--show", "Per-corner canonical power table."), ("--debug", "Show plus power reports/log paths; no OpenSTA rerun."))),
+        ),
+        "power_activity": (
+            (
+                "Activity-based power",
+                (
+                    ("input", "Consumes successful SDF-backed GLS waveform evidence for one or more test/backend/timing workloads."),
+                    ("qualification", "A workload is accepted only when GLS metadata, SDF scenario, annotation marker, and waveform are coherent."),
+                    ("power", "Runs OpenSTA power for each selected workload/corner and records internal + switching as dynamic power."),
+                    ("post_syn / post_impl", "The same flow is reused at both stages; only the stage netlist/parasitics and matching GLS evidence change."),
+                ),
+            ),
+            ("Evidence views", (("--summary", "Status and workload pass/fail counts."), ("--show", "Per-workload canonical power/timing rows."), ("--debug", "Show plus reports/logs and raw artifact paths; no analysis rerun."))),
+        ),
+        "fusion": (
+            (
+                "Timing / power fusion",
+                (
+                    ("purpose", "Correlates timing paths with activity-based power evidence for the same qualified workload."),
+                    ("hotspots", "Identifies power-heavy instances and evaluates timing paths that traverse them; it does not replace STA or power sign-off."),
+                    ("post_syn / post_impl", "The same analysis runs at both stages using the corresponding timing/parasitic model."),
+                ),
+            ),
+            ("Evidence views", (("--summary", "Status and workload pass/fail counts."), ("--show", "Per-workload fused timing/power results."), ("--debug", "Show plus hotspot paths, reports, and raw artifact paths."))),
+        ),
+        "gls_all": (
+            (
+                "Gate-level simulation",
+                (
+                    ("matrix", "Runs the selected representative tests over the configured timing modes with one GLS backend."),
+                    ("min / typ / max", "SDF-backed sampling maps to ff / tt / ss. This is functional GLS sampling, not full STA corner coverage."),
+                    ("post_syn / post_impl", "Uses synthesized or implemented gate netlist/SDF respectively; the matrix contract is otherwise identical."),
+                    ("PASS", "Every selected GLS case executed successfully with the requested timing annotation evidence."),
+                ),
+            ),
+            ("Evidence views", (("--summary", "Status plus total/pass/fail case counts."), ("--show", "Test × timing-scenario matrix from summary.json."), ("--debug", "Show plus failed logs, SDF annotation diagnostics, waveforms, and report paths."))),
+        ),
+        "physical": (
+            (
+                "Physical sign-off",
+                (
+                    ("stage", "Post-implementation only. Physical sign-off is separate evidence from STA and never implies STA PASS."),
+                    ("route_drc", "Checks final-route DRC report violations."),
+                    ("antenna", "Checks native ORFS antenna evidence or runs the final-ODB antenna check when needed."),
+                    ("gds_drc", "Checks final GDS DRC evidence when supported by the platform."),
+                    ("lvs", "Checks final layout-vs-schematic database/log evidence."),
+                    ("ir_drop", "Collects available supply IR-drop reports; missing/unsupported evidence remains REVIEW, not PASS."),
+                ),
+            ),
+            ("Evidence views", (("--summary", "Overall status and each physical check status."), ("--show", "Canonical physical-check table from summary.json."), ("--debug", "Show plus DRC/LVS/IR/antenna report and log paths; no tool rerun."))),
+        ),
         "cdc_rdc": (
+            (
+                "Lifecycle setup vs analysis setup checks",
+                (
+                    ("fx cdc_rdc --setup", "Materializes extract.ys only. It prepares the deterministic Yosys/Slang structural extraction and does not run CDC/RDC analysis."),
+                    ("setup findings", "A check category executed during fx cdc_rdc. It validates that the structural model and declared intent are coherent; it is unrelated to the lifecycle --setup phase."),
+                ),
+            ),
+            (
+                "CDC checks",
+                (
+                    ("clock_crossings", "Find clock-domain crossings and classify scalar synchronizers, multibit buses, and unsafe/unprotected paths."),
+                    ("async_fifo_candidates", "Recognize opposite-direction multibit synchronized buses that look like asynchronous FIFO pointer/data protocols; emit proof obligations rather than assuming safety."),
+                    ("closed_loop_handshakes", "Recognize request/acknowledge structures whose synchronized controls are causally connected across both domains."),
+                    ("synchronized_reconvergence", "Detect independently synchronized signals that reconverge in one destination domain and may lose coherency."),
+                    ("cdc_contracts", "Validate explicit trusted CDC boundaries and their declared source/destination clock/reset intent."),
+                ),
+            ),
+            (
+                "RDC checks",
+                (
+                    ("reset_crossings", "Find data/control paths whose source and destination state belong to different reset domains and classify recognized protection."),
+                    ("reset_synchronizers", "Recognize asynchronous-assert / synchronous-release reset synchronizer chains."),
+                    ("async_reset_release", "Flag domains that directly use an asynchronous reset without recognized synchronized deassertion; emit a review obligation."),
+                    ("reset_sequence", "Require reset sequencing or blocking-control intent when interacting unsafe RDCs span multiple reset families."),
+                ),
+            ),
+            (
+                "Setup checks",
+                (
+                    ("domain_assignment", "Every sequential element must map to a declared clock domain."),
+                    ("clock_relationships", "Cross-domain paths should have a declared sync/async/generated relationship; unknown relationships are reported."),
+                    ("reset_polarity", "Observed reset polarity on sequential state must agree with the declared clock/reset domain intent."),
+                    ("reset_families", "Report multiple or distributed reset families within a clock domain so reset ownership is explicit."),
+                    ("cdc_contracts", "Validate contract metadata before trusting a declared CDC boundary."),
+                ),
+            ),
+            (
+                "Glitch checks",
+                (
+                    ("clock path", "Detect combinational logic between a declared clock input and a sequential clock pin. Such logic can create narrow or spurious clock pulses."),
+                    ("reset path", "Detect combinational logic between a declared reset input and a sequential reset pin. Such logic can create asynchronous reset glitches."),
+                    ("scope", "These are structural hazards on control paths; they are independent evidence and are not CDC/RDC waivers."),
+                ),
+            ),
             (
                 "Summary fields",
                 (
@@ -466,25 +766,25 @@ Use `fx commands` to list every backend target.
             (
                 "Finding status",
                 (
-                    ("PASS", "No WARN, REVIEW, or ERROR findings remain."),
-                    ("REVIEW", "At least one WARN/REVIEW exists and no ERROR exists; the run completed but closure is not complete."),
-                    ("SAFE", "A specific recognized crossing/check is structurally safe."),
-                    ("WARN", "A specific finding needs inspection; it does not make the run fail by itself."),
-                    ("ERROR", "A structural violation. With CDC_RDC_STRICT=1, ERROR findings make the command return non-zero."),
+                    ("SAFE", "Recognized structure is sufficient for this structural check."),
+                    ("REVIEW", "The structure is plausible but requires design-intent or formal/dynamic evidence before closure."),
+                    ("WARN", "Suspicious or ambiguous structure that deserves inspection but is not a proven violation."),
+                    ("ERROR", "Structural violation. With CDC_RDC_STRICT=1, ERROR findings make the command return non-zero."),
                 ),
             ),
             (
                 "Output and reports",
                 (
-                    ("default", "Print the colored closure summary and paths to the two canonical analysis artifacts."),
-                    ("--live", "Show extraction progress, domains, checker counts, every finding and obligation while the same canonical reports are produced."),
-                    ("--debug", "Read existing artifacts only and render grouped blockers, contract survival, diagnosis, and open obligations without rerunning CDC/RDC."),
-                    ("summary.json", "Complete machine-readable CDC/RDC analysis: counts, crossings, findings, and verification obligations."),
+                    ("--summary", "Compact status, structural counts, CDC/RDC counts, and open obligations from summary.json."),
+                    ("--show", "Canonical findings, check groups, classifications, and obligations from summary.json."),
+                    ("--debug", "Show plus grouped blockers, contract survival, diagnosis, command/raw artifact paths; never reruns CDC/RDC."),
+                    ("summary.json", "Complete machine-readable CDC/RDC analysis: counts, crossings, findings, checks, and verification obligations."),
                     ("cdc_rdc.rpt", "Complete human-readable CDC/RDC finding report."),
-                    ("raw evidence", "extract.ys, design.json, and extract.log retain the structural/tool evidence needed to reproduce or diagnose the analysis."),
+                    ("raw evidence", "extract.ys, design.json, and extract.log retain structural/tool evidence for reproduction and diagnosis."),
                 ),
             ),
         ),
+
     }
 
 
@@ -671,10 +971,45 @@ Use `fx commands` to list every backend target.
                 command += " --force"
             return (command,)
 
+        def _target_lifecycle_rows(self, name: str) -> tuple[tuple[str, str], ...]:
+            """Describe the public lifecycle supported by one target."""
+
+            public = name.replace("-", "_")
+            rows: list[tuple[str, str]] = []
+            if public in SETUP_ONLY:
+                rows.append(("run", "setup-only target; use --setup"))
+            else:
+                rows.append(("run", f"fx {public}"))
+            rows.append((
+                "setup",
+                f"fx {public} --setup" if public in SETUP_TARGETS else "not supported",
+            ))
+            evidence_view = public in {
+                "lint", "slang_hier", "cdc_rdc", "regression", "coverage", "formal", "syn", "eqy",
+            } or (
+                public in BACKEND_TARGETS
+                and BACKEND_TARGETS[public].domain == "signoff"
+                and BACKEND_TARGETS[public].show is not None
+            )
+            if evidence_view:
+                rows.extend((
+                    ("summary", f"fx {public} --summary"),
+                    ("show", f"fx {public} --show"),
+                ))
+            rows.append((
+                "debug",
+                f"fx {public} --debug" if public in DEBUG_TARGETS else "not supported",
+            ))
+            return tuple(rows)
+
         def _print_target_sections(self, name: str) -> None:
             """Render concise target-specific semantics after the generic options."""
 
-            for title, rows in TARGET_HELP_SECTIONS.get(name, ()):
+            sections = TARGET_HELP_SECTIONS.get(name)
+            if sections is None and name in BACKEND_TARGETS:
+                action = BACKEND_TARGETS[name].action
+                sections = TARGET_HELP_SECTIONS.get(action or "", ())
+            for title, rows in sections or ():
                 console.print(f"[bold orange1]{title}[/bold orange1]")
                 table = Table(box=box.SIMPLE, expand=True, show_header=False)
                 table.add_column("Keyword", style="bright_cyan", no_wrap=True, width=28)
@@ -711,6 +1046,13 @@ Use `fx commands` to list every backend target.
                 )
             else:
                 console.print("[bold orange1]Setup phase[/bold orange1]  [grey70]none[/grey70]")
+            console.print("[bold orange1]Lifecycle[/bold orange1]")
+            lifecycle = Table(box=box.SIMPLE, expand=True, show_header=False)
+            lifecycle.add_column("Operation", style="bright_cyan", no_wrap=True, width=16)
+            lifecycle.add_column("Command", style="white", ratio=4)
+            for operation, command in self._target_lifecycle_rows(target):
+                lifecycle.add_row(operation, command)
+            console.print(lifecycle)
             console.print("[bold orange1]Accepted target variables[/bold orange1]")
             if params:
                 table = Table(box=box.SIMPLE_HEAVY, expand=True, header_style="bold white")
@@ -1066,300 +1408,6 @@ Use `fx commands` to list every backend target.
                 )
             return 0
 
-        def _eqy_debug(
-                self,
-                root: Path,
-            workdir: Path | None,
-            args: tuple[str, ...],
-            sets: tuple[str, ...],
-            *,
-            as_json: bool,
-            runner=None,
-            on: str = "local",
-        ) -> int:
-            """Explain one EQY failure; expensive probes target only the selected partition."""
-
-            from .backend.syn.eqy import (
-                choose_trace, describe_partition, discover_result_dir, explain_counterexample, open_wave,
-                run_reset_normalized_diagnostic, run_synthesis_boundary_diagnostics,
-                scan, select, synthesis_boundary_diagnosis,
-            )
-
-            settings = WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS)
-            settings.update(self._assignments(sets))
-            top = settings.get("TOP", "test")
-            run_top = settings.get("RUN_TOP") or top
-            run_id = settings.get("RUN_ID", "default")
-            pdk = settings.get("PDK", DEFAULT_SETTINGS["PDK"])
-            workspace = (workdir or Path(settings.get("WORKSPACE", root / "workspace"))).expanduser().resolve()
-
-            values = list(args)
-            action = "show"
-            if values and values[0] in {"--wave", "wave", "open"}:
-                action = "wave"
-                values.pop(0)
-            elif values and values[0] in {"--files", "files"}:
-                action = "files"
-                values.pop(0)
-            partition = values.pop(0) if values else None
-            trace_kind = values.pop(0) if values else "auto"
-            if values:
-                error_console.print("[red]eqy_debug accepts at most one partition and one trace kind[/red]")
-                return 2
-
-            try:
-                result_dir = discover_result_dir(root, workspace, top=top, run_top=run_top, run_id=run_id, pdk=pdk)
-                rows = scan(result_dir)
-            except (FileNotFoundError, ValueError) as exc:
-                error_console.print(f"[red]{exc}[/red]")
-                return 2
-
-            total = len(rows)
-            passed = sum(row.status == "PASS" for row in rows)
-            closure = 100.0 * passed / total if total else 0.0
-            non_pass = tuple(row for row in rows if row.status != "PASS")
-            if not non_pass:
-                payload = {"pdk": pdk, "result_dir": str(result_dir), "passed": passed, "total": total, "closure_pct": closure}
-                if as_json:
-                    print(json.dumps(payload, indent=2))
-                else:
-                    console.print(Panel.fit(
-                        f"PDK: [white]{pdk}[/white]\n[green]{passed}/{total} partitions proven · {closure:.2f}%[/green]\n[green]EQY PASS[/green]",
-                        title="EQY debug", border_style="green",
-                    ))
-                return 0
-
-            try:
-                item = select(rows, partition)
-            except ValueError as exc:
-                if partition is not None:
-                    error_console.print(f"[red]{exc}[/red]")
-                    return 2
-                if as_json:
-                    print(json.dumps({"pdk": pdk, "passed": passed, "total": total, "closure_pct": closure,
-                                      "counterexamples": [entry.to_dict() for entry in non_pass]}, indent=2))
-                else:
-                    table = Table(title=f"EQY debug · {passed}/{total} PASS · {closure:.2f}%",
-                                  header_style="bold grey70", border_style="grey50")
-                    table.add_column("Partition", style="white")
-                    table.add_column("Status")
-                    table.add_column("Strategy", style="grey70")
-                    max_rows = 24
-                    for entry in non_pass[:max_rows]:
-                        strategy = entry.failing_strategy
-                        color = "red" if entry.status == "FAIL" else "orange1"
-                        table.add_row(entry.partition, f"[{color}]{entry.status}[/{color}]", strategy.name if strategy else "-")
-                    console.print(table)
-                    hidden = len(non_pass) - max_rows
-                    if hidden > 0:
-                        console.print(
-                            f"[grey70]Showing {max_rows}/{len(non_pass)} non-PASS partitions; "
-                            f"{hidden} omitted. Use[/grey70] [white]fx eqy_debug --json[/white] [grey70]for the complete list.[/grey70]"
-                        )
-                    console.print("[grey70]Select one:[/grey70] [white]fx eqy_debug <partition>[/white]")
-                return 0
-
-            strategy = item.failing_strategy
-            if strategy is None:
-                error_console.print(
-                    f"[red]partition {item.partition} has no failing strategy[/red]"
-                )
-                return 2
-            if action == "files":
-                files = (*strategy.traces, *strategy.logs)
-                if as_json:
-                    print(json.dumps({"partition": item.partition, "strategy": strategy.name,
-                                      "directory": str(strategy.directory), "files": [str(path) for path in files]}, indent=2))
-                else:
-                    console.print(f"[orange1]{item.partition}[/orange1] · [white]{strategy.name}[/white]")
-                    console.print(f"[grey70]directory:[/grey70] [white]{strategy.directory}[/white]")
-                    for path in files:
-                        console.print(f"  [white]{path}[/white]")
-                return 0
-            if action == "wave":
-                try:
-                    trace = choose_trace(strategy, trace_kind)
-                    viewer = settings.get("WAVE_VIEWER", "gtkwave")
-                    session, _ = open_wave(
-                        trace, item.partition, viewer=viewer, runner=runner, on=on
-                    )
-                except (FileNotFoundError, ValueError, OSError) as exc:
-                    error_console.print(f"[red]{exc}[/red]")
-                    return 2
-                if as_json:
-                    print(json.dumps({"partition": item.partition, "trace": str(trace), "viewer": viewer,
-                                      "session": str(session) if session else None}, indent=2))
-                else:
-                    console.print(f"[orange1][eqy_debug][/orange1] waveform · [white]{item.partition}[/white]")
-                    console.print(f"[grey70]trace:[/grey70] [white]{trace}[/white]")
-                    console.print(f"[grey70]viewer:[/grey70] [white]{viewer}[/white]")
-                return 0
-
-            try:
-                explanation = explain_counterexample(item)
-            except (FileNotFoundError, ValueError, OSError) as exc:
-                error_console.print(f"[red]{exc}[/red]")
-                return 2
-
-            if not as_json:
-                console.print(Panel.fit(
-                    f"PDK: [white]{pdk}[/white]\n[white]{passed}/{total} partitions proven[/white] · [orange1]{closure:.2f}%[/orange1]\n"
-                    f"partition: [white]{item.partition}[/white]\nstatus: [red]{item.status}[/red] · strategy: [white]{strategy.name}[/white]",
-                    title="EQY debug", border_style="orange1",
-                ))
-                failure = explanation.get("failure") or {}
-                divergence = explanation.get("first_divergence")
-                facts = Table(title="Counterexample", header_style="bold grey70", border_style="grey50")
-                facts.add_column("Field", style="grey70")
-                facts.add_column("Value", style="white")
-                phase = failure.get("phase") or "unknown"
-                step = failure.get("step")
-                facts.add_row("Proof", phase + (f" · step {step}" if step is not None else ""))
-                facts.add_row("Class", str(explanation.get("classification", "unclassified")))
-                decoded = describe_partition(item.partition)
-                if decoded:
-                    facts.add_row("Signal", decoded)
-                if divergence:
-                    facts.add_row("First divergence", f"t={divergence.get('time')}")
-                    facts.add_row("Gold", f"{divergence.get('gold_signal')} = {divergence.get('gold')}")
-                    facts.add_row("Gate", f"{divergence.get('gate_signal')} = {divergence.get('gate')}")
-                    if divergence.get("gold_x_signal"):
-                        facts.add_row("X masks", f"gold={divergence.get('gold_x')} · gate={divergence.get('gate_x')}")
-                console.print(facts)
-
-            clock = settings.get("EQY_CLOCK", "clk_i").strip() or "clk_i"
-            reset = settings.get("EQY_RESET", "rst_ni").strip() or "rst_ni"
-            reset_active = settings.get("EQY_RESET_ACTIVE", "low").strip().lower() or "low"
-            explicit_reset = any(key in settings for key in ("EQY_CLOCK", "EQY_RESET", "EQY_RESET_ACTIVE"))
-            reset_domains = None
-            if not explicit_reset:
-                try:
-                    from .backend.core import ClockConfig
-                    reset_domains = tuple(
-                        (domain.signal, domain.reset, domain.reset_polarity)
-                        for domain in ClockConfig.from_values(settings).domains
-                    )
-                except (TypeError, ValueError):
-                    reset_domains = None
-            try:
-                reset_cycles = int(settings.get("EQY_RESET_CYCLES", "1"))
-            except ValueError:
-                reset_cycles = 1
-            eqy = str(settings.get("EQY", "eqy"))
-
-            if not as_json:
-                console.print(f"[bold orange1][eqy_debug][/bold orange1] reset-state probe · [bright_cyan]{item.partition}[/bright_cyan]")
-            try:
-                reset_probe = run_reset_normalized_diagnostic(
-                    result_dir, partition=item.partition, clock=clock, reset=reset,
-                    reset_active=reset_active, reset_cycles=reset_cycles, eqy=eqy,
-                    domains=reset_domains, runner=runner, on=on,
-                )
-            except (FileNotFoundError, ValueError, RuntimeError, OSError) as exc:
-                reset_probe = {"valid": False, "error": str(exc)}
-            if not as_json:
-                if reset_probe.get("valid"):
-                    status = str(reset_probe.get("status", "UNKNOWN"))
-                    color = "green" if status == "PASS" else "red" if status == "FAIL" else "orange1"
-                    cached = " · cached" if reset_probe.get("cached") else ""
-                    console.print(f"  [{color}]{status}[/{color}]{cached}")
-                else:
-                    console.print("  [orange1]INCONCLUSIVE[/orange1]")
-
-            synthesis_probe: dict[str, object] | None = None
-            if reset_probe.get("valid") and reset_probe.get("status") != "PASS":
-                from .backend.core import PDKRunLayout
-                layout = PDKRunLayout.from_run(PDKRunLayout.build_run_root(workspace, run_top=run_top, run_id=run_id), pdk=pdk, top=top)
-                def progress(stage: str) -> None:
-                    if not as_json:
-                        labels = {
-                            "generic": "generic synthesis",
-                            "dffmap": "after dfflibmap",
-                            "abc": "after ABC",
-                            "clean": "after final cleanup",
-                        }
-                        console.print(f"[bold orange1][eqy_debug][/bold orange1] {labels.get(stage, stage)} · [bright_cyan]{item.partition}[/bright_cyan]")
-                synthesis_probe = run_synthesis_boundary_diagnostics(
-                    result_dir, top=top, syn_dir=layout.syn_dir, partition=item.partition,
-                    eqy=eqy, progress=progress, runner=runner, on=on,
-                )
-                if not as_json:
-                    for stage_name in ("generic", "dffmap", "abc", "clean"):
-                        stage = (synthesis_probe.get("stages") or {}).get(stage_name, {})
-                        if stage.get("valid"):
-                            status = str(stage.get("status", "UNKNOWN"))
-                            color = (
-                                "green"
-                                if status == "PASS"
-                                else "red" if status == "FAIL" else "orange1"
-                            )
-                            cached = " · cached" if stage.get("cached") else ""
-                            console.print(f"  [{color}]{status}[/{color}]{cached}")
-
-            payload = {"pdk": pdk, "result_dir": str(result_dir), "passed": passed, "total": total,
-                       "closure_pct": closure, "counterexample": explanation,
-                       "reset_probe": reset_probe, "synthesis_probe": synthesis_probe}
-            if as_json:
-                print(json.dumps(payload, indent=2))
-                return 0
-
-            probe = Table(title="Targeted probes", header_style="bold grey70", border_style="grey50")
-            probe.add_column("Boundary", style="white")
-            probe.add_column("Selected partition", style="white")
-            probe.add_row("mapped baseline", f"[red]{item.status}[/red]")
-            if reset_probe.get("valid"):
-                rs = str(reset_probe.get("status", "UNKNOWN"))
-                rc = (
-                    "green"
-                    if rs == "PASS"
-                    else "red" if rs == "FAIL" else "orange1"
-                )
-                probe.add_row("after reset", f"[{rc}]{rs}[/{rc}]")
-            else:
-                probe.add_row("after reset", "[orange1]inconclusive[/orange1]")
-            stages = (synthesis_probe or {}).get("stages", {}) if synthesis_probe else {}
-            for key, label in (
-                ("generic", "generic synthesis"),
-                ("dffmap", "after dfflibmap"),
-                ("abc", "after ABC"),
-                ("clean", "after final cleanup"),
-            ):
-                stage = stages.get(key, {}) if isinstance(stages, dict) else {}
-                if stage.get("valid"):
-                    ss = str(stage.get("status", "UNKNOWN"))
-                    sc = (
-                        "green"
-                        if ss == "PASS"
-                        else "red" if ss == "FAIL" else "orange1"
-                    )
-                    probe.add_row(label, f"[{sc}]{ss}[/{sc}]")
-                elif stage.get("missing"):
-                    probe.add_row(label, "[grey70]checkpoint missing[/grey70]")
-            console.print(probe)
-
-            if reset_probe.get("status") == "PASS":
-                console.print("[orange1]Diagnosis:[/orange1] [white]mismatch disappears after deterministic reset initialization.[/white]")
-            elif synthesis_probe:
-                diagnosis = synthesis_boundary_diagnosis(stages if isinstance(stages, dict) else {})
-                messages = {
-                    "missing": "synthesis checkpoints missing; rerun synthesis, regenerate `fx eqy --setup --force`, then run `fx eqy` explicitly when the IP profile is ready.",
-                    "generic_fail": "mismatch already exists after generic Yosys synthesis, before technology mapping.",
-                    "dffmap_fail": "generic synthesis passes; mismatch appears across dfflibmap/sequential mapping.",
-                    "abc_fail": "dfflibmap passes; mismatch is introduced by ABC combinational technology mapping.",
-                    "clean_fail": "ABC mapping passes but the cleanup checkpoint fails. Because cleanup is function-preserving, suspect loss of EQY match-points/names rather than a logic change; keep public names during final cleanup.",
-                    "serialization": "all RTLIL checkpoints pass; mismatch appears only after final Verilog serialization/readback in the EQY gate flow.",
-                }
-                message = messages.get(
-                    diagnosis,
-                    "synthesis-boundary probe is inconclusive; UNKNOWN and TIMEOUT are not evidence of a logic mismatch.",
-                )
-                console.print(f"[orange1]Diagnosis:[/orange1] [white]{message}[/white]")
-            else:
-                console.print("[orange1]Diagnosis:[/orange1] [white]reset probe inconclusive; inspect its log before synthesis-boundary attribution.[/white]")
-            console.print(f"[grey70]Waveform:[/grey70] [white]fx eqy_debug --wave {item.partition}[/white]")
-            console.print(f"[grey70]Artifacts:[/grey70] [white]fx eqy_debug --files {item.partition}[/white]")
-            return 0
-
         # -----------------------------------------------------------------------
         # Target invocation and one-shot overrides
         # -----------------------------------------------------------------------
@@ -1387,177 +1435,6 @@ Use `fx commands` to list every backend target.
 
                 Terminal.print_log(path)
                 print(text, end="" if text.endswith("\n") else "\n")
-            return 0
-
-        def _cdc_rdc_debug(self,
-            client: FlexSoC, values: Mapping[str, str], *, as_json: bool, save_output: Path | None
-        ) -> int:
-            """Render root-cause-first CDC/RDC diagnosis from existing canonical artifacts."""
-
-            from collections import Counter
-            from .backend import BackendContext
-            from .backend.dv.lint.cdc import CdcFlow
-
-            effective = client.values(values)
-            context = BackendContext(client.project_root, client.workdir, effective)
-            payload = CdcFlow().debug_from_context(context)
-
-            if save_output is not None:
-                output = save_output.expanduser()
-                if output.suffix.lower() != ".json":
-                    output.mkdir(parents=True, exist_ok=True)
-                    output = output / "cdc_rdc_debug.json"
-                else:
-                    output.parent.mkdir(parents=True, exist_ok=True)
-                output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-            if as_json:
-                print(json.dumps(payload, indent=2))
-                return 0
-
-            status = str(payload.get("status", "unknown")).upper()
-            status_color = "green" if status == "PASS" else "red" if status == "FAIL" else "orange1"
-            obligation_checks = int(payload.get("verification_obligations", 0) or 0)
-            obligation_findings = int(payload.get("obligation_findings", 0) or 0)
-            console.print(Panel.fit(
-                f"Top: [white]{payload.get('top')}[/white]\n"
-                f"Analysis closure: [{status_color}]{status}[/{status_color}]\n"
-                f"Clocks: [white]{payload.get('clock_domains')}[/white] · "
-                f"Reset families: [white]{payload.get('reset_families', payload.get('reset_domains'))}[/white] · "
-                f"Reset signals: [white]{payload.get('reset_domains')}[/white] · "
-                f"Sequential: [white]{payload.get('sequential_elements')}[/white]\n"
-                f"Open obligations: [white]{obligation_checks} checks / {obligation_findings} findings[/white]\n"
-                "Debug execution: [green]OK[/green] · read-only canonical-artifact inspection",
-                title="CDC/RDC debug",
-                border_style=status_color,
-            ))
-
-            contracts = payload.get("contracts", {})
-            contract_table = Table(title="CDC contract survival", header_style="bold grey70", border_style="grey50")
-            contract_table.add_column("Layer", style="bright_cyan")
-            contract_table.add_column("Contracts", style="white")
-            src = contracts.get("source", {})
-            structural = contracts.get("structural_design", {})
-            contract_table.add_row("RTL source", ", ".join(f"{k}×{v}" for k, v in src.items()) or "none")
-            contract_table.add_row("design.json/top", ", ".join(f"{k}×{v}" for k, v in structural.items()) or "none")
-            frontend_hierarchy = bool(contracts.get("frontend_hierarchy_preserved"))
-            selective_guard = bool(contracts.get("selective_contract_guard"))
-            contract_table.add_row(
-                "Slang hierarchy",
-                "[green]preserved[/green]" if frontend_hierarchy else "[red]flattened in frontend[/red]",
-            )
-            contract_table.add_row(
-                "contract guard",
-                "[green]present[/green]" if selective_guard else "[red]missing[/red]",
-            )
-            guard_state = str(contracts.get("extract_guard_state") or ("present" if contracts.get("extract_guard") else "missing"))
-            guard_style = "green" if guard_state in {"effective", "not_applicable"} else "orange1" if "partial" in guard_state else "red"
-            contract_table.add_row("extract guard", f"[{guard_style}]{guard_state}[/{guard_style}]")
-            console.print(contract_table)
-
-            triage = payload.get("triage", {})
-            triage_state = str(triage.get("state", "UNKNOWN")).upper()
-            triage_color = "green" if triage_state == "PASS" else "orange1" if triage_state == "REVIEW" else "red"
-            console.print(Panel.fit(
-                f"Phase: [bright_cyan]{triage.get('phase', '-')}[/bright_cyan]\n"
-                f"State: [{triage_color}]{triage_state}[/{triage_color}]\n"
-                f"Next action: [white]{triage.get('next_action', '-')}[/white]",
-                title="Triage",
-                border_style=triage_color,
-            ))
-
-            scopes = payload.get("scopes", {})
-            downstream_deferred = str(triage.get("downstream", "active")) == "deferred"
-            scope_title = "Observed closure counts (downstream deferred)" if downstream_deferred else "Closure by scope"
-            table = Table(title=scope_title, header_style="bold grey70", border_style="grey50")
-            table.add_column("Scope", style="bright_cyan")
-            table.add_column("ERROR", justify="right")
-            table.add_column("WARN", justify="right")
-            table.add_column("REVIEW", justify="right")
-            table.add_column("SAFE", justify="right")
-            table.add_column("Non-PASS classes", style="white")
-            for name in ("setup", "glitch", "cdc", "rdc"):
-                item = scopes.get(name, {})
-                classes = item.get("classes", {})
-                class_text = ", ".join(f"{key}×{value}" for key, value in classes.items()) or "-"
-                table.add_row(
-                    name.upper(),
-                    str(item.get("errors", 0)),
-                    str(item.get("warnings", 0)),
-                    str(item.get("review", 0)),
-                    str(item.get("safe", 0)),
-                    class_text,
-                )
-            console.print(table)
-            if downstream_deferred:
-                console.print(
-                    "[orange1]CDC/RDC protocol findings are downstream symptoms until extraction/clock setup closes; "
-                    "do not waive or fix them individually yet.[/orange1]"
-                )
-
-            diagnoses = payload.get("diagnoses", [])
-            if diagnoses:
-                diag = Table(title="Root-cause diagnosis", header_style="bold grey70", border_style="grey50")
-                diag.add_column("Severity")
-                diag.add_column("Code", style="bright_cyan")
-                diag.add_column("Meaning", style="white")
-                for item in diagnoses:
-                    sev = str(item.get("severity", "INFO"))
-                    color = "red" if sev == "ERROR" else "orange1" if sev in {"WARN", "REVIEW"} else "green"
-                    diag.add_row(f"[{color}]{sev}[/{color}]", str(item.get("code", "-")), str(item.get("message", "")))
-                console.print(diag)
-
-            blockers = Table(title="Representative active findings", header_style="bold grey70", border_style="grey50")
-            blockers.add_column("Scope", style="bright_cyan")
-            blockers.add_column("ID", style="white")
-            blockers.add_column("State")
-            blockers.add_column("Class", style="white")
-            blockers.add_column("Representative evidence", style="grey70")
-            rows = 0
-            active_scopes = ("setup", "glitch") if downstream_deferred else ("setup", "glitch", "cdc", "rdc")
-            for scope in active_scopes:
-                for item in scopes.get(scope, {}).get("samples", []):
-                    evidence = list(item.get("issues") or ()) + list(item.get("evidence") or ())
-                    blockers.add_row(
-                        scope.upper(),
-                        str(item.get("id") or "-"),
-                        str(item.get("status") or "-"),
-                        str(item.get("classification") or "-"),
-                        str(evidence[0] if evidence else "-"),
-                    )
-                    rows += 1
-            if rows:
-                console.print(blockers)
-
-            obligations = payload.get("obligations", [])
-            if obligations:
-                grouped: Counter[tuple[str, str, tuple[str, ...]]] = Counter()
-                for item in obligations:
-                    key = (
-                        str(item.get("scope") or "-"),
-                        str(item.get("classification") or "-"),
-                        tuple(str(value) for value in (item.get("obligations") or ())),
-                    )
-                    grouped[key] += 1
-                title = "Downstream obligations (deferred)" if downstream_deferred else "Open verification obligations"
-                obligation_table = Table(title=title, header_style="bold grey70", border_style="grey50")
-                obligation_table.add_column("Count", justify="right")
-                obligation_table.add_column("Scope", style="bright_cyan")
-                obligation_table.add_column("Class", style="white")
-                obligation_table.add_column("Obligation checks", style="grey70")
-                for (scope, classification, texts), count in sorted(grouped.items()):
-                    obligation_table.add_row(str(count), scope, classification, ", ".join(texts) or "-")
-                console.print(obligation_table)
-
-            artifacts = payload.get("artifacts", {})
-            console.print(
-                "[grey70]Artifacts:[/grey70] "
-                f"[white]{artifacts.get('summary')}[/white] · "
-                f"[white]{artifacts.get('design_json')}[/white] · "
-                f"[white]{artifacts.get('extract_script')}[/white]"
-            )
-            if save_output is not None:
-                console.print(f"[grey70]Saved:[/grey70] [white]{output}[/white]")
             return 0
 
         def _run(self,
@@ -1590,8 +1467,6 @@ Use `fx commands` to list every backend target.
                 if debug:
                     if len(targets) != 1:
                         raise typer.BadParameter("--debug requires exactly one target")
-                    if targets[0] == "cdc_rdc":
-                        return self._cdc_rdc_debug(client, values, as_json=as_json, save_output=save_output)
                     if targets[0] not in DEBUG_TARGETS:
                         if save_output is not None:
                             raise typer.BadParameter("--save-output/-o requires a target with structured debug support")
@@ -1832,7 +1707,7 @@ Use `fx commands` to list every backend target.
                 if args != ("tests_gen",):
                     raise click.BadParameter("--check is only valid with `fx tests_gen`")
                 raise typer.Exit(self._tests_gen_check(client, set_args, as_json=as_json))
-            if args[0] in {"doctor", "pdk", "eqy_debug"}:
+            if args[0] in {"doctor", "pdk"}:
                 from .backend.core import ToolRunner
 
                 runner = ToolRunner(client.execution_targets, project_root=root)
@@ -1840,24 +1715,31 @@ Use `fx commands` to list every backend target.
                     from .backend.core.runtime.toolchain import Toolchain
 
                     raise typer.Exit(Toolchain.run(root, as_json=as_json, runner=runner, on=on))
-                if args[0] == "pdk":
-                    raise typer.Exit(
-                        self._pdk(
-                            root, workdir, args[1:], set_args, force=force, as_json=as_json,
-                            runner=runner, on=on,
-                        )
-                    )
                 raise typer.Exit(
-                    self._eqy_debug(
-                        root, workdir, args[1:], set_args, as_json=as_json, runner=runner, on=on
+                    self._pdk(
+                        root, workdir, args[1:], set_args, force=force, as_json=as_json,
+                        runner=runner, on=on,
                     )
                 )
             if args[0] == "shell":
                 raise typer.Exit(self._shell(root, workdir))
-            evidence_targets = {("lint",), ("slang_hier",)}
+            signoff_evidence = {
+                "sta", "sta_corners", "power_estimate", "power_estimate_corners",
+                "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all",
+                "sim_post_syn_all", "sta_post_impl", "power_estimate_post_impl",
+                "power_analysis_post_impl", "power_analysis_post_impl_all",
+                "fusion_analysis_post_impl", "fusion_analysis_post_impl_all",
+                "sim_post_impl_all", "physical_signoff",
+            }
+            evidence_targets = {
+                ("lint",), ("slang_hier",), ("cdc_rdc",),
+                ("regression",), ("coverage",), ("formal",),
+                ("syn",), ("eqy",), ("pnr",),
+                *((name,) for name in signoff_evidence),
+            }
             if show or summary:
                 if args not in evidence_targets:
-                    raise click.BadParameter("--show/--summary are supported by `fx lint` and `fx slang_hier`")
+                    raise click.BadParameter("--show/--summary are not supported for this target")
             if tool is not None:
                 if args != ("lint",):
                     raise click.BadParameter("--tool is only valid with `fx lint`")
@@ -1875,13 +1757,72 @@ Use `fx commands` to list every backend target.
                             tool=tool, debug=debug, summary=summary, as_json=as_json,
                             output=str(save_output) if save_output is not None else None,
                         )
-                    elif debug:
-                        code = flows.design.ip.hierarchy.debug(
-                            output=str(save_output) if save_output is not None else None, as_json=as_json,
+                    elif args == ("slang_hier",):
+                        if debug:
+                            code = flows.dv.hierarchy.debug(
+                                output=str(save_output) if save_output is not None else None,
+                                as_json=as_json,
+                            )
+                        else:
+                            code = flows.dv.hierarchy.show(
+                                summary=summary,
+                                output=str(save_output) if save_output is not None else None,
+                                as_json=as_json,
+                            )
+                    elif args == ("cdc_rdc",):
+                        if debug:
+                            code = flows.dv.cdc.debug(
+                                output=str(save_output) if save_output is not None else None,
+                                as_json=as_json,
+                            )
+                        else:
+                            code = flows.dv.cdc.show(
+                                summary=summary,
+                                output=str(save_output) if save_output is not None else None,
+                                as_json=as_json,
+                            )
+                    elif args == ("regression",):
+                        code = flows.dv.functional.show_regression(
+                            flows.dv.context, summary=summary, debug=debug,
+                            output=str(save_output) if save_output is not None else None,
+                            as_json=as_json,
+                        )
+                    elif args == ("coverage",):
+                        code = flows.dv.coverage.show(
+                            flows.dv.context, summary=summary, debug=debug,
+                            output=str(save_output) if save_output is not None else None,
+                            as_json=as_json,
+                        )
+                    elif args == ("formal",):
+                        code = flows.dv.formal.show(
+                            flows.dv.context, summary=summary, debug=debug,
+                            output=str(save_output) if save_output is not None else None,
+                            as_json=as_json,
+                        )
+                    elif args == ("syn",):
+                        code = flows.syn.show(
+                            summary=summary, debug=debug,
+                            output=str(save_output) if save_output is not None else None,
+                            as_json=as_json,
+                        )
+                    elif args == ("eqy",):
+                        code = flows.syn.show_eqy(
+                            summary=summary, debug=debug,
+                            output=str(save_output) if save_output is not None else None,
+                            as_json=as_json,
+                        )
+                    elif args == ("pnr",):
+                        code = flows.impl.show(
+                            summary=summary, debug=debug,
+                            output=str(save_output) if save_output is not None else None,
+                            as_json=as_json,
                         )
                     else:
-                        code = flows.design.ip.hierarchy.show(
-                            summary=summary, output=str(save_output) if save_output is not None else None,
+                        target = BACKEND_TARGETS[args[0]]
+                        flow = flows.signoff.post_impl if target.stage == "post_impl" else flows.signoff.post_syn
+                        code = flow.show(
+                            target, summary=summary, debug=debug,
+                            output=str(save_output) if save_output is not None else None,
                             as_json=as_json,
                         )
                 except (FileNotFoundError, ValueError) as exc:
@@ -1921,12 +1862,6 @@ Use `fx commands` to list every backend target.
             """Run the fx command-line interface."""
 
             args = list(sys.argv[1:] if argv is None else argv)
-            if "eqy_debug" in args:
-                index = args.index("eqy_debug")
-                args[index + 1:] = [
-                    token[2:] if token in {"--wave", "--files"} else token
-                    for token in args[index + 1:]
-                ]
             if os.environ.get("_FX_COMPLETE") or os.environ.get("_FLEXSOC_COMPLETE"):
                 try:
                     return self._click_command().main(

@@ -37,12 +37,12 @@ IPXACT = (*IP_DEV, "IPXACT_VENDOR", "IPXACT_LIBRARY", "IPXACT_VERSION")
 SDC_INTENT = (*BASE, "FORCE", "SDC_IO_DELAY_PCT")
 SPEC = (*BASE, "IP_NAME", "FORCE")
 FETCH = (*BASE, "VENDOR", "TARGET", "FORCE")
-LINT_BASE = (*COMMON, "LINT_PROFILE")
+LINT_BASE = (*BASE, "RUN_TOP", "LINT_PROFILE")
 LINT = (*LINT_BASE, "SLANG_WAIVER_FILE", "VERILATOR_WAIVER_FILE")
-SLANG_LINT = (*LINT_BASE, "SLANG_WAIVER_FILE")
-VERILATOR_LINT = (*LINT_BASE, "VERILATOR_WAIVER_FILE")
 CDC_RDC = (*COMMON, "CLK_PERIOD", "CDC_RDC_HEARTBEAT", "CDC_RDC_STRICT")
-SLANG = (*LINT, "SLANG_ROOT", "SLANG_TOP_FILE", "SLANG_TOP", "SLANG_ARGS", "SLANG_SEARCH_ARGS", "SLANG_AST_SCOPE")
+SLANG_INPUT = ("SLANG_ROOT", "SLANG_TOP_FILE", "SLANG_TOP", "SLANG_ARGS", "SLANG_SEARCH_ARGS")
+SLANG_HIER = (*BASE, "RUN_TOP", "SLANG_HIER", *SLANG_INPUT)
+SLANG_FLIST = (*BASE, "RUN_TOP", "SLANG", *SLANG_INPUT)
 SIM = (
     *COMMON,
     "TESTBENCH",
@@ -58,7 +58,7 @@ SIM = (
     "RESET_SETTLE_CYCLES",
     "REGRESSION_BACKENDS",
     "COVERAGE",
-    "COVERAGE_DETAIL_LIMIT",
+    "COVERAGE_SHOW_LIMIT",
     "WAVE_FORMAT",
     "WAVE_FILE",
 )
@@ -121,6 +121,7 @@ SIGNOFF = (
     "POWER_GLOBAL_ACTIVITY",
     "MACRO_LIBS",
     "SIGNOFF_STAGE",
+    "STA_MODES",
     "STA_ENDPOINT_GROUP_LIMIT",
     "STA_ENDPOINT_PATH_LIMIT",
     "STA_NEAR_CRITICAL_SETUP",
@@ -190,12 +191,9 @@ TARGETS: dict[str, TargetSpec] = {
     "driver": ("IP flow", "Generate C driver files from HJSON", IP_DEV),
     "fetch": ("IP flow", "Fetch or update a vendored dependency", FETCH),
     "lint": ("Linting", "Run one Slang pass and one Verilator pass, then classify P0-P3", LINT),
-    "lint_slang": ("Linting", "Run one full-elaboration Slang lint pass", SLANG_LINT),
-    "lint_verilator": ("Linting", "Run one Verilator lint pass", VERILATOR_LINT),
     "cdc_rdc": ("Domain analysis", "Run structural CDC/RDC, protocol, reset, setup, and glitch checks", CDC_RDC),
-    "slang_hier": ("Linting", "Elaborate hierarchy and write canonical structural evidence", SLANG),
-    "slang_ast": ("Linting", "Generate Slang AST JSON", SLANG),
-    "slang_flist": ("Linting", "Generate a trimmed topological RTL filelist with Slang", SLANG),
+    "slang_hier": ("Linting", "Elaborate hierarchy and write canonical structural evidence", SLANG_HIER),
+    "slang_flist": ("Linting", "Generate a trimmed topological RTL filelist with Slang", SLANG_FLIST),
     "regmap_py": ("DV functional", "Regenerate only <top>_regmap.py from HJSON", SIM),
     "tests_gen": ("DV functional", "Generate all vector tests from <top>_tests.py", SIM),
     "test_gen": ("DV functional", "Generate one vector test selected by TEST_NAME", SIM),
@@ -211,7 +209,6 @@ TARGETS: dict[str, TargetSpec] = {
     "cocotb_tests": ("DV functional", "Run every generated cocotb vector test", SIM),
     "regression": ("DV functional", "Run all tests on selected backends with Verilator coverage", SIM),
     "coverage": ("DV functional", "Merge and report existing Verilator coverage data", SIM),
-    "coverage_detail": ("DV functional", "Show uncovered Verilator coverage points", SIM),
     "view": ("Viewing", "Open selected or latest waveform", VIEW),
     "view_cocotb": ("Viewing", "Open latest cocotb waveform", VIEW),
     "view_syn": ("Viewing", "Reserved synthesis waveform viewer target", VIEW),
@@ -234,7 +231,7 @@ TARGETS: dict[str, TargetSpec] = {
     "formal_bmc": ("DV formal", "Bounded-check authored design assertions", FORMAL),
     "formal_prove": ("DV formal", "Prove authored properties with SymbiYosys", FORMAL),
     "formal_cover": ("DV formal", "Reach authored cover properties with SymbiYosys", FORMAL),
-    "eqy": ("Signoff", "Run RTL-to-synthesis EQY equivalence from the authored scaffold", EQUIV),
+    "eqy": ("Synthesis", "Run RTL-to-synthesis EQY equivalence from the authored scaffold", EQUIV),
     "compile_syn": ("Signoff", "Compile post-synthesis simulation", SIGNOFF),
     "sim_syn": ("Signoff", "Run post-synthesis simulation", SIGNOFF),
     "compile_post_syn": ("Gate simulation", "Compile post-synthesis gate-level simulation with Icarus", GATE_SIM),
@@ -619,7 +616,7 @@ class FlexSoC:
         name = target if setup else self._target(target)
         public = TargetSession.setup_public(name) if setup else name
         if public in POST_IMPL_SIGNOFF_TARGETS:
-            overrides = {**overrides, "SIGNOFF_STAGE": "post_route"}
+            overrides = {**overrides, "SIGNOFF_STAGE": "post_impl"}
         values = self.values(overrides)
         params = set(TARGETS.get(public, ("", "", ()))[2])
         call_values = self._upper(overrides)

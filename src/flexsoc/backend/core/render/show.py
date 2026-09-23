@@ -212,9 +212,18 @@ class ShowRenderer:
             return "provenance"
         if name == "summary.json" and {"qor", "scenarios"} <= keys:
             return "sta"
+        if name == "summary.json" and isinstance(data.get("checks"), Mapping) and {"route_drc", "antenna", "gds_drc", "lvs", "ir_drop"} <= set(data["checks"]):
+            return "physical_signoff"
         if name.startswith("summary") and {"tests", "reports"} <= keys:
             return "matrix"
-        if data.get("schema") == "flexsoc.slang_hier.v1":
+        schema = str(data.get("schema", ""))
+        if schema.startswith("flexsoc.synthesis.v"):
+            return "synthesis"
+        if schema.startswith("flexsoc.eqy.v"):
+            return "eqy"
+        if schema.startswith("flexsoc.implementation.v"):
+            return "implementation"
+        if schema.startswith("flexsoc.slang_hier.v"):
             return "slang_hier"
         if name == "summary.json" and {"order", "tools"} <= keys:
             return "lint"
@@ -343,8 +352,6 @@ class ShowRenderer:
         signoff = run / "signoff" / pdk
         sim = run / "dv" / "functional" / "sim"
         contract = run / "meta" / "contract.json"
-        if not contract.is_file():
-            contract = run / "contract" / "contract.json"
         specs = (
             ShowSpec("qualification", "Qualification", meta / "qualification.json"),
             ShowSpec("evidence", "Qualification evidence", meta / "qualification.json", ("evidence",)),
@@ -357,14 +364,14 @@ class ShowRenderer:
             ShowSpec("contract", "Frozen contract", contract),
             ShowSpec("regression", "RTL regression metrics", metrics, ("regression",)),
             ShowSpec("formal", "Formal metrics", metrics, ("formal",)),
-            ShowSpec("eqy", "Equivalence metrics", metrics, ("equivalence",)),
+            ShowSpec("eqy", "Equivalence summary", signoff / "equivalence" / "rtl_vs_syn" / "summary.json"),
             ShowSpec("synthesis", "Synthesis metrics", metrics, ("synthesis",)),
-            ShowSpec("implementation", "Implementation metrics", metrics, ("implementation",)),
+            ShowSpec("implementation", "Implementation", run / "impl" / pdk / "summary.json"),
             ShowSpec("closure", "Technical closure", metrics, ("closure",)),
             ShowSpec("lint", "Lint summary", run / "dv" / "lint" / "summary.json"),
             ShowSpec("cdc_rdc", "CDC/RDC summary", run / "dv" / "cdc_rdc" / "summary.json"),
             ShowSpec("coverage", "Coverage matrix", run / "dv" / "functional" / "coverage" / "summary.json"),
-            ShowSpec("syn", "Synthesis report", run / "syn" / pdk / f"{top}_synth.json"),
+            ShowSpec("syn", "Synthesis summary", run / "syn" / pdk / "summary.json"),
             ShowSpec("gls_post_syn", "Post-synthesis GLS matrix", sim / "post_syn" / pdk / "summary_sv.json"),
             ShowSpec("sta", "Post-synthesis STA", signoff / "sta" / "summary.json"),
             ShowSpec("power_estimate", "Post-synthesis vectorless power", signoff / "power" / "estimate" / "summary.json"),
@@ -1052,18 +1059,21 @@ class ShowRenderer:
 
         data = document.data
         qor = data.get("qor", {}) if isinstance(data, Mapping) else {}
+        policy = data.get("policy", {}) if isinstance(data, Mapping) and isinstance(data.get("policy"), Mapping) else {}
         self.console.print(Panel.fit(
             f"Status: {self.status(data.get('status', 'MISSING'))}\n"
-            f"Stage: [white]{data.get('stage', '-')}[/white] · PDK: [white]{data.get('pdk', '-')}[/white]\n"
+            f"Stage: [white]{data.get('stage', '-')}[/white] · PDK: [white]{data.get('pdk', '-')}[/white] · "
+            f"setup=[white]{policy.get('setup', 'gating')}[/white] · hold=[white]{policy.get('hold', 'gating')}[/white]\n"
             f"Scenarios: [white]{qor.get('scenario_count', 0)}[/white] · "
-            f"WNS: [white]{self._show_value(qor.get('worst_wns'))}[/white] · "
+            f"gating WNS: [white]{self._show_value(qor.get('worst_wns'))}[/white] · "
             f"TNS: [white]{self._show_value(qor.get('worst_tns'))}[/white] · "
-            f"violating: [white]{qor.get('violating_paths', 0)}[/white] · "
+            f"gating violations: [white]{qor.get('violating_paths', 0)}[/white] · "
+            f"advisory: [white]{qor.get('advisory_violating_paths', 0)}[/white] · "
             f"unconstrained: [white]{qor.get('unconstrained_paths', 0)}[/white]",
             title=document.title, border_style="orange1",
         ))
         table = Table(title="Scenarios", header_style="bold white", expand=True)
-        for name in ("Corner", "Mode", "Status", "WNS", "TNS", "Violating", "Unconstrained", "Clocks"):
+        for name in ("Corner", "Mode", "Role", "Status", "WNS", "TNS", "Violations", "Unconstrained", "Clocks"):
             table.add_column(name, no_wrap=name != "Clocks")
         scenarios = data.get("scenarios", ()) if isinstance(data, Mapping) else ()
         for item in scenarios if isinstance(scenarios, list) else ():
@@ -1073,36 +1083,166 @@ class ShowRenderer:
                 f"{clock.get('name', '?')}:{self._show_value(clock.get('fmax_mhz'))}MHz"
                 for clock in item.get("clocks", ()) if isinstance(clock, Mapping)
             )
+            kinds = item.get("violation_types", {}) if isinstance(item.get("violation_types"), Mapping) else {}
+            kind_text = ", ".join(
+                f"{name}={count}" for name, count in kinds.items() if isinstance(count, int) and count
+            )
+            violations = str(item.get("violating_paths", 0))
+            if kind_text:
+                violations += f" ({kind_text})"
             table.add_row(
                 str(item.get("corner", "-")), str(item.get("mode", "-")),
-                self.status(item.get("status", "MISSING")), self._show_value(item.get("wns")),
-                self._show_value(item.get("tns")), str(item.get("violating_paths", 0)),
+                str(item.get("timing_role", "gating")), self.status(item.get("status", "MISSING")),
+                self._show_value(item.get("wns")), self._show_value(item.get("tns")), violations,
                 str(item.get("unconstrained_paths", 0)), clocks or "-",
             )
         self.console.print(table)
 
-    def _show_slang_hier(self, document: Any) -> None:
-        """Render hierarchy evidence as a compact terminal tree."""
+    def _show_synthesis(self, document: Any) -> None:
+        """Render compact synthesis execution and QoR from canonical summary.json."""
 
         data = document.data if isinstance(document.data, Mapping) else {}
         metrics = data.get("metrics", {}) if isinstance(data.get("metrics"), Mapping) else {}
         self.console.print(
-            f"[bold bright_cyan]Slang hierarchy[/bold bright_cyan]  "
-            f"{self.status(data.get('status', 'MISSING'))}"
+            f"[bold bright_cyan]Synthesis[/bold bright_cyan]  "
+            f"{self.status(data.get('status', 'MISSING'))}  "
+            f"[grey70]{data.get('profile', '-')} · {data.get('mode', '-')} · {data.get('pdk', '-')}[/grey70]"
         )
         self.console.print(
-            f"Top [white]{data.get('top', '-')}[/white]  "
-            f"Lines [bright_cyan]{metrics.get('lines', 0)}[/bright_cyan]"
+            f"Cells [bright_cyan]{self._show_value(metrics.get('cells'))}[/bright_cyan]  "
+            f"Area [bright_cyan]{self._show_value(metrics.get('area'))}[/bright_cyan]  "
+            f"Warnings [orange1]{metrics.get('warnings', 0)}[/orange1]  "
+            f"Errors [red]{metrics.get('errors', 0)}[/red]"
+        )
+        if metrics.get("sequential_area_pct") is not None:
+            self.console.print(
+                f"Sequential area [bright_cyan]{self._show_value(metrics.get('sequential_area'))}[/bright_cyan]  "
+                f"[grey70]{self._show_value(metrics.get('sequential_area_pct'))}%[/grey70]"
+            )
+        if data.get("summary_only"):
+            return
+
+        table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+        table.add_column("Metric", style="bright_cyan")
+        table.add_column("Value", style="white", justify="right")
+        for key in ("wires", "wire_bits", "ports", "port_bits", "buffers_inserted", "nets_repaired", "wns_before", "wns_after", "tns_before", "tns_after"):
+            if key in metrics:
+                table.add_row(key, self._show_value(metrics.get(key)))
+        if table.row_count:
+            self.console.print(table)
+        artifacts = data.get("artifacts", {}) if isinstance(data.get("artifacts"), Mapping) else {}
+        if artifacts:
+            self.console.print(
+                f"[grey70]netlist[/grey70] {artifacts.get('netlist', '-')}  "
+                f"[grey70]json[/grey70] {artifacts.get('json', '-')}"
+            )
+
+    def _show_eqy(self, document: Any) -> None:
+        """Render EQY partition closure and strategy status from canonical summary.json."""
+
+        data = document.data if isinstance(document.data, Mapping) else {}
+        result = data.get("result", {}) if isinstance(data.get("result"), Mapping) else {}
+        counts = result.get("counts", {}) if isinstance(result.get("counts"), Mapping) else {}
+        execution = data.get("execution", {}) if isinstance(data.get("execution"), Mapping) else {}
+        self.console.print(
+            f"[bold bright_cyan]EQY equivalence[/bold bright_cyan]  "
+            f"{self.status(data.get('status', 'MISSING'))}  "
+            f"[grey70]execution {execution.get('status', '-')} · result {result.get('status', '-')}[/grey70]"
+        )
+        self.console.print(
+            f"Partitions [bright_cyan]{result.get('total', 0)}[/bright_cyan]  "
+            f"[green]PASS {counts.get('PASS', 0)}[/green]  "
+            f"[red]FAIL {counts.get('FAIL', 0)}[/red]  "
+            f"[orange1]ERROR {counts.get('ERROR', 0)}[/orange1]  "
+            f"[orange1]TIMEOUT {counts.get('TIMEOUT', 0)}[/orange1]  "
+            f"[grey70]UNKNOWN {counts.get('UNKNOWN', 0)}[/grey70]"
         )
         if data.get("summary_only"):
             return
-        hierarchy = data.get("hierarchy", ())
-        if not hierarchy:
-            self.console.print("[grey70]No hierarchy output.[/grey70]")
+
+        rows = [item for item in data.get("partitions", ()) if isinstance(item, Mapping)]
+        if rows:
+            table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70", expand=True)
+            table.add_column("Partition", style="white", ratio=3)
+            table.add_column("Status", no_wrap=True)
+            table.add_column("Failing strategy", style="grey70", ratio=2)
+            for item in rows:
+                table.add_row(
+                    str(item.get("partition", "-")),
+                    self.status(item.get("status", "UNKNOWN")),
+                    str(item.get("failing_strategy") or "-"),
+                )
+            self.console.print(table)
+
+    def _show_implementation(self, document: Any) -> None:
+        """Render canonical OpenROAD implementation evidence."""
+
+        data = document.data if isinstance(document.data, Mapping) else {}
+        artifacts = data.get("artifacts", {}) if isinstance(data.get("artifacts"), Mapping) else {}
+        self.console.print(
+            f"[bold bright_cyan]Implementation[/bold bright_cyan]  "
+            f"{self.status(data.get('status', 'MISSING'))}  "
+            f"[grey70]{data.get('platform', '-')} · {data.get('pdk', '-')}[/grey70]"
+        )
+        self.console.print(
+            f"Phases [bright_cyan]{len(data.get('phases', ()))}[/bright_cyan]  "
+            f"Artifacts [bright_cyan]{len(artifacts)}[/bright_cyan]  "
+            f"Return code [white]{data.get('returncode', '-')}[/white]"
+        )
+        if data.get("summary_only"):
             return
-        self.console.print("[grey70]Hierarchy[/grey70]")
-        for line in hierarchy:
-            self.console.print(str(line), markup=False)
+        phases = data.get("phases", ())
+        if isinstance(phases, list) and phases:
+            self.console.print(f"[grey70]phases[/grey70] {' -> '.join(str(item) for item in phases)}")
+        if artifacts:
+            table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+            table.add_column("Artifact", style="bright_cyan")
+            table.add_column("Path", style="grey70", overflow="fold")
+            for name, path in artifacts.items():
+                table.add_row(str(name), str(path))
+            self.console.print(table)
+
+    def _show_slang_hier(self, document: Any) -> None:
+        """Render structured slang-hier evidence without reparsing its raw output."""
+
+        data = document.data if isinstance(document.data, Mapping) else {}
+        metrics = data.get("metrics", {}) if isinstance(data.get("metrics"), Mapping) else {}
+        self.console.print(
+            f"[bold bright_cyan]Slang hierarchy / AST[/bold bright_cyan]  "
+            f"{self.status(data.get('status', 'MISSING'))}  "
+            f"[grey70]top[/grey70] [white]{data.get('top', '-')}[/white]"
+        )
+        self.console.print(
+            f"Instances [bright_cyan]{metrics.get('instances', 0)}[/bright_cyan]  "
+            f"Modules [bright_cyan]{metrics.get('modules', 0)}[/bright_cyan]  "
+            f"Source files [bright_cyan]{metrics.get('source_files', 0)}[/bright_cyan]  "
+            f"AST [bright_cyan]{metrics.get('ast_bytes', 0)} B[/bright_cyan]"
+        )
+        if data.get("summary_only"):
+            return
+
+        artifacts = data.get("artifacts", {}) if isinstance(data.get("artifacts"), Mapping) else {}
+        if artifacts:
+            self.console.print(
+                f"[grey70]hierarchy[/grey70] {artifacts.get('hierarchy', '-')}  "
+                f"[grey70]ast[/grey70] {artifacts.get('ast', '-')}"
+            )
+
+        instances = [item for item in data.get("instances", ()) if isinstance(item, Mapping)]
+        if not instances:
+            self.console.print("[grey70]No hierarchy instances.[/grey70]")
+            return
+        table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+        table.add_column("Instance", style="white")
+        table.add_column("Module", style="bright_cyan")
+        table.add_column("File", style="grey70", overflow="fold")
+        for item in instances:
+            table.add_row(
+                str(item.get("instance") or "-"),
+                str(item.get("module") or "-"),
+                str(item.get("file") or "-"),
+            )
+        self.console.print(table)
 
     def _show_lint(self, document: Any) -> None:
         """Render compact lint summary and diagnostics without boxed tables."""
@@ -1179,32 +1319,82 @@ class ShowRenderer:
         self.console.print(details)
 
     def _show_cdc_rdc(self, document: Any) -> None:
-        """Render structural CDC/RDC counts and obligations."""
+        """Render canonical CDC/RDC counts, executed checks and open obligations."""
 
-        data = document.data
-        self.console.print(Panel.fit(
-            f"Status: {self.status(data.get('status', 'MISSING'))}\n"
-            f"Clock domains: [white]{self._show_value(data.get('clock_domains'))}[/white] · "
-            f"Reset domains: [white]{self._show_value(data.get('reset_domains'))}[/white] · "
-            f"Sequential elements: [white]{self._show_value(data.get('sequential_elements'))}[/white]",
-            title="CDC/RDC summary", border_style="orange1",
-        ))
-        table = Table(title="Analysis", header_style="bold white", expand=True)
-        table.add_column("Section", style="bright_cyan")
-        table.add_column("Values")
-        for key in ("cdc", "rdc", "setup", "glitch", "obligations", "verification_obligations"):
-            value = data.get(key)
-            if value in (None, {}, []):
-                continue
-            if isinstance(value, Mapping):
-                detail = " · ".join(
-                    f"{name}={self._show_value(item)}" for name, item in value.items()
-                    if not isinstance(item, (Mapping, list, tuple))
-                ) or self._show_value(value)
-            else:
-                detail = self._show_value(value)
-            table.add_row(key, detail)
+        data = document.data if isinstance(document.data, Mapping) else {}
+        self.console.print(
+            f"[bold bright_cyan]CDC/RDC[/bold bright_cyan]  "
+            f"{self.status(data.get('status', 'MISSING'))}  "
+            f"[grey70]top[/grey70] [white]{data.get('top', '-')}[/white]"
+        )
+        self.console.print(
+            f"Clock domains [bright_cyan]{self._show_value(data.get('clock_domains'))}[/bright_cyan]  "
+            f"Reset families [bright_cyan]{self._show_value(data.get('reset_families', data.get('reset_domains')))}[/bright_cyan]  "
+            f"Reset signals [bright_cyan]{self._show_value(data.get('reset_domains'))}[/bright_cyan]  "
+            f"Sequential [bright_cyan]{self._show_value(data.get('sequential_elements'))}[/bright_cyan]"
+        )
+
+        table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+        for name in ("Scope", "Raw", "SAFE", "REVIEW", "WARN", "ERROR", "INFO"):
+            table.add_column(name, justify="right" if name != "Scope" else "left")
+        for scope in ("cdc", "rdc", "setup", "glitch"):
+            item = data.get(scope, {}) if isinstance(data.get(scope), Mapping) else {}
+            table.add_row(
+                scope.upper(),
+                str(item.get("raw_crossings", "-")),
+                f"[green]{item.get('safe', 0)}[/green]",
+                f"[orange1]{item.get('review', 0)}[/orange1]",
+                f"[orange1]{item.get('warnings', 0)}[/orange1]",
+                f"[red]{item.get('errors', 0)}[/red]",
+                f"[grey70]{item.get('info', 0)}[/grey70]",
+            )
         self.console.print(table)
+        self.console.print(
+            f"Open verification obligations "
+            f"[orange1]{self._show_value(data.get('verification_obligations', 0))}[/orange1]"
+        )
+        if data.get("summary_only"):
+            return
+
+        checks = data.get("checks", {}) if isinstance(data.get("checks"), Mapping) else {}
+        if checks:
+            check_table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+            check_table.add_column("Scope", style="bright_cyan")
+            check_table.add_column("Checks executed", style="white", overflow="fold")
+            for scope in ("cdc", "rdc", "setup", "glitch"):
+                names = checks.get(scope, ())
+                check_table.add_row(scope.upper(), ", ".join(str(name) for name in names) or "-")
+            self.console.print(check_table)
+
+        classes = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+        classes.add_column("Scope", style="bright_cyan")
+        classes.add_column("Classification", style="white")
+        classes.add_column("Count", justify="right")
+        class_rows = 0
+        for scope in ("cdc", "rdc", "setup", "glitch"):
+            item = data.get(scope, {}) if isinstance(data.get(scope), Mapping) else {}
+            counts = item.get("classifications", {}) if isinstance(item.get("classifications"), Mapping) else {}
+            for name, count in counts.items():
+                classes.add_row(scope.upper(), str(name), str(count))
+                class_rows += 1
+        if class_rows:
+            self.console.print(classes)
+
+        obligations = [item for item in data.get("obligations", ()) if isinstance(item, Mapping)]
+        if obligations:
+            table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+            table.add_column("Finding", style="grey70")
+            table.add_column("Scope", style="bright_cyan")
+            table.add_column("Classification", style="white")
+            table.add_column("Obligations", style="orange1", overflow="fold")
+            for item in obligations:
+                table.add_row(
+                    str(item.get("finding_id") or "-"),
+                    str(item.get("scope") or "-").upper(),
+                    str(item.get("classification") or "-"),
+                    ", ".join(str(value) for value in item.get("obligations", ())) or "-",
+                )
+            self.console.print(table)
 
     def _show_coverage(self, document: Any) -> None:
         """Render coverage totals by scope and coverage type."""
@@ -1291,6 +1481,28 @@ class ShowRenderer:
             f"[grey70]fail[/grey70]=[red]{data.get('failed', 0)}[/red] · "
             f"[grey70]status[/grey70] {self.status(data.get('status', 'MISSING'))}"
         )
+
+    def _show_physical_signoff(self, document: Any) -> None:
+        """Render physical DRC/LVS/antenna/IR evidence as independent checks."""
+
+        data = document.data if isinstance(document.data, Mapping) else {}
+        self.console.print(
+            f"[bold bright_cyan]Physical sign-off[/bold bright_cyan]  "
+            f"{self.status(data.get('status', 'MISSING'))}"
+        )
+        table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70", expand=True)
+        table.add_column("Check", style="bright_cyan", no_wrap=True)
+        table.add_column("Status", no_wrap=True)
+        table.add_column("Evidence", style="grey70")
+        checks = data.get("checks", {}) if isinstance(data.get("checks"), Mapping) else {}
+        for name, item in checks.items():
+            if not isinstance(item, Mapping):
+                continue
+            evidence = item.get("report") or item.get("log")
+            if not evidence and isinstance(item.get("reports"), list):
+                evidence = ", ".join(str(path) for path in item["reports"]) or None
+            table.add_row(str(name), self.status(item.get("status", "MISSING")), str(evidence or "-"))
+        self.console.print(table)
 
     def _show_metrics(self, document: Any) -> None:
         """Render the saved metrics snapshot in lifecycle order."""
@@ -1382,6 +1594,12 @@ class ShowRenderer:
             self._show_gls(document)
         elif kind == "lint":
             self._show_lint(document)
+        elif kind == "synthesis":
+            self._show_synthesis(document)
+        elif kind == "eqy":
+            self._show_eqy(document)
+        elif kind == "implementation":
+            self._show_implementation(document)
         elif kind == "slang_hier":
             self._show_slang_hier(document)
         elif kind == "cdc_rdc":
@@ -1390,6 +1608,8 @@ class ShowRenderer:
             self._show_coverage(document)
         elif kind == "power_estimate":
             self._show_power_estimate(document)
+        elif kind == "physical_signoff":
+            self._show_physical_signoff(document)
         elif kind == "reports":
             self._show_reports(document)
         elif kind == "metrics":

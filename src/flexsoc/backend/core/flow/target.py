@@ -114,7 +114,7 @@ SIGNOFF_TARGETS: dict[str, Target] = {
         ),
     ),
     "physical_signoff": Target(
-        "physical_signoff", "physical", "post_impl", show="physical_signoff",
+        "physical_signoff", "physical", "post_impl", debug="physical", show="physical_signoff",
     ),
     "path_view": Target("path_view", "path_view", "post_syn"),
 }
@@ -132,9 +132,6 @@ DESIGN_TARGETS: dict[str, Target] = {
     "flist": Target("flist", "filelists", domain="design"),
     "slang_flist": Target("slang_flist", "filelists", domain="design"),
     "fetch": Target("fetch", "fetch", domain="design"),
-    "slang_hier.setup": Target("slang_hier.setup", "slang_hier_setup", domain="design"),
-    "slang_hier": Target("slang_hier", "slang_hier", setup=("slang_hier.setup",), show="slang_hier", debug="slang_hier", domain="design"),
-    "slang_ast": Target("slang_ast", "slang_ast", domain="design"),
     "model.setup": Target("model.setup", "model_setup", domain="design"),
 }
 
@@ -157,15 +154,13 @@ DV_TARGETS: dict[str, Target] = {
     "sim_tests": Target("sim_tests", "functional_regression_sv", setup=("tb.setup",), debug="functional", show="regression", domain="dv"),
     "cocotb": Target("cocotb", "functional_cocotb", setup=("cocotb.setup",), debug="functional", domain="dv"),
     "cocotb_tests": Target("cocotb_tests", "functional_regression_cocotb", setup=("cocotb.setup",), debug="functional", show="regression", domain="dv"),
-    "regression": Target("regression", "functional_regression", setup=("tb.setup", "cocotb.setup"), debug="functional", show="regression", domain="dv"),
+    "regression": Target("regression", "functional_regression", setup=("tb.setup", "cocotb.setup"), debug="regression", show="regression", domain="dv"),
     "coverage": Target("coverage", "coverage", debug="coverage", show="coverage", domain="dv"),
-    "coverage_detail": Target("coverage_detail", "coverage_detail", debug="coverage", show="coverage", domain="dv"),
 
     "lint": Target("lint", "lint", debug="lint", show="lint", domain="dv"),
-    "lint_slang": Target("lint_slang", "lint_slang", domain="dv"),
-    "lint_verilator": Target("lint_verilator", "lint_verilator", domain="dv"),
+    "slang_hier": Target("slang_hier", "slang_hier", show="slang_hier", debug="slang_hier", domain="dv"),
     "cdc_rdc.setup": Target("cdc_rdc.setup", "cdc_setup", domain="dv"),
-    "cdc_rdc": Target("cdc_rdc", "cdc", setup=("cdc_rdc.setup",), show="cdc_rdc", domain="dv"),
+    "cdc_rdc": Target("cdc_rdc", "cdc", setup=("cdc_rdc.setup",), debug="cdc_rdc", show="cdc_rdc", domain="dv"),
 
     "formal.prove.setup": Target("formal.prove.setup", "formal_setup", stage="prove", domain="dv"),
     "formal.cover.setup": Target("formal.cover.setup", "formal_setup", stage="cover", domain="dv"),
@@ -184,7 +179,7 @@ DV_TARGETS: dict[str, Target] = {
         show="formal", domain="dv",
     ),
     "formal": Target(
-        "formal",
+        "formal", debug="formal",
         setup=(
             "formal.prove.setup", "formal.cover.setup",
             "formal.csr_prove.setup", "formal.csr_cover.setup",
@@ -202,9 +197,9 @@ SYN_TARGETS: dict[str, Target] = {
     "yosys-vgen": Target("yosys-vgen", "yosys_vgen", domain="syn"),
     "sv2v": Target("sv2v", "sv2v", domain="syn"),
     "syn.setup": Target("syn.setup", "syn_setup", domain="syn"),
-    "syn": Target("syn", "syn", setup=("syn.setup",), show="syn", domain="syn"),
-    "syn_v": Target("syn_v", "syn_v", setup=("syn.setup",), show="syn", domain="syn"),
-    "syn_sv": Target("syn_sv", "syn_sv", setup=("syn.setup",), show="syn", domain="syn"),
+    "syn": Target("syn", "syn", setup=("syn.setup",), debug="syn", show="syn", domain="syn"),
+    "syn_v": Target("syn_v", "syn_v", setup=("syn.setup",), debug="syn", show="syn", domain="syn"),
+    "syn_sv": Target("syn_sv", "syn_sv", setup=("syn.setup",), debug="syn", show="syn", domain="syn"),
     "eqy.setup": Target("eqy.setup", "eqy_setup", domain="syn"),
     "eqy": Target(
         "eqy", "eqy", setup=("eqy.setup",), debug="eqy", show="eqy", domain="syn",
@@ -214,7 +209,10 @@ SYN_TARGETS: dict[str, Target] = {
 
 IMPL_TARGETS: dict[str, Target] = {
     "pnr.setup": Target("pnr.setup", "pnr_setup", domain="impl"),
-    "pnr": Target("pnr", "pnr", setup=("pnr.setup",), show="implementation", domain="impl"),
+    "pnr": Target(
+        "pnr", "pnr", setup=("pnr.setup",), debug="implementation",
+        show="implementation", domain="impl",
+    ),
     "pnr_gui": Target("pnr_gui", "pnr_gui", setup=("pnr.setup",), show="implementation", domain="impl"),
 }
 

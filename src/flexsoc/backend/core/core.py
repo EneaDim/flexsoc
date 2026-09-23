@@ -489,7 +489,7 @@ class PDKRunLayout:
 
         if stage == "post_syn":
             return self.signoff_pdk_root
-        if stage in {"post_route", "post_impl"}:
+        if stage == "post_impl":
             return self.signoff_pdk_root / "post_impl"
         raise ValueError(f"unsupported sign-off stage: {stage}")
 
@@ -499,7 +499,7 @@ class PDKRunLayout:
         root = self.run_root / "logs" / "signoff" / self.pdk
         if stage == "post_syn":
             return root
-        if stage in {"post_route", "post_impl"}:
+        if stage == "post_impl":
             return root / "post_impl"
         raise ValueError(f"unsupported sign-off stage: {stage}")
 
@@ -601,7 +601,7 @@ class PDKRunLayout:
             "post_syn_sim": str(self.post_syn_sim_dir),
             "post_impl_sim": str(self.post_impl_sim_dir),
             "implementation": str(self.pnr_dir),
-            "post_impl_signoff": str(self.signoff_stage_root("post_route")),
+            "post_impl_signoff": str(self.signoff_stage_root("post_impl")),
             "sdc": str(self.signoff_sdc),
             "sta": str(self.sta_dir),
             "power": str(self.power_dir),
@@ -1811,8 +1811,6 @@ class FlowPaths:
     @property
     def slang_hier(self) -> Path: return self.dv / "slang_hier"
     @property
-    def slang_ast(self) -> Path: return self.dv / "slang_ast"
-    @property
     def lint(self) -> Path: return self.dv / "lint"
     @property
     def cdc_rdc(self) -> Path: return self.dv / "cdc_rdc"
@@ -1856,7 +1854,7 @@ class FlowPaths:
         """Create the canonical run directories and return this layout."""
         for path in (
             self.csr, self.rtl, self.doc, self.drivers, self.logs,
-            self.slang_hier, self.slang_ast, self.lint / "slang", self.lint / "verilator", self.cdc_rdc,
+            self.slang_hier, self.lint / "slang", self.lint / "verilator", self.cdc_rdc,
             self.model, self.tests, self.tb, self.sim, self.coverage,
             self.formal, self.constraints, self.syn, self.signoff, self.impl, self.meta,
         ):

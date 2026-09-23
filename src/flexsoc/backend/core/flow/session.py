@@ -26,6 +26,7 @@ DEFAULT_SETTINGS = {
     "GLS_UNIT_DELAY": "1ps", "SDF_STRICT": "1", "FST2VCD": "fst2vcd",
     "SIGNOFF_STAGE": "post_syn", "POWER_VCD_SCOPE": "auto",
     "POWER_DUT_INSTANCE": "auto", "QUAL_LEVEL": "auto", "LINT_PROFILE": "everything",
+    "COVERAGE_SHOW_LIMIT": "0",
 }
 
 DEBUG_TARGETS = frozenset(name for name, target in BACKEND_TARGETS.items() if target.debug)
@@ -340,7 +341,7 @@ class TargetSession:
         elif stage == "signoff_post_impl.setup":
             from ...signoff.sta import StaAnalysis
 
-            values = {**self.values, "SIGNOFF_STAGE": "post_route"}
+            values = {**self.values, "SIGNOFF_STAGE": "post_impl"}
             netlist, spef = StaAnalysis._stage_inputs(self.project_root, values)
             inputs = (
                 netlist, StaAnalysis._stage_sdc(self.project_root, values),
@@ -662,6 +663,8 @@ class TargetSession:
                 raise ValueError(f"--debug is not supported for target {target!r}")
             return self._execute_target(target)
         self._write_settings_evidence(target)
+        if target == "slang_hier":
+            return self._execute_target(target)
         if target in PROVENANCE_SETUPS:
             reused = self._reuse_setup(target)
             if reused is not None:
@@ -829,10 +832,10 @@ class WorkspaceFlow:
             stage = values.get("SIGNOFF_STAGE", "post_syn").strip().lower()
             if stage == "post_syn":
                 directory = self.context.layout.post_syn_sim_dir
-            elif stage in {"post_route", "post_impl"}:
+            elif stage == "post_impl":
                 directory = self.context.layout.post_impl_sim_dir
             else:
-                raise ValueError("SIGNOFF_STAGE must be post_syn, post_route, or post_impl for view")
+                raise ValueError("SIGNOFF_STAGE must be post_syn or post_impl for view")
             print(f"[wave] stage={stage} pdk={paths.pdk} sim={sim_name} directory={directory}", flush=True)
             wave = self._select_waveform(directory, paths.top, sim_name)
         else:

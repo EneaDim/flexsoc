@@ -35,7 +35,6 @@ STAGE_CONTRACTS: dict[str, StageContract] = {
     "tb.setup": StageContract((*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV")),
     "cocotb.setup": StageContract((*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV")),
     "cdc_rdc.setup": StageContract((*CLOCKS, "TOP", "CLK_PERIOD")),
-    "slang_hier.setup": StageContract(("TOP", "SLANG_ROOT", "SLANG_TOP_FILE", "SLANG_TOP", "SLANG_ARGS", "SLANG_SEARCH_ARGS")),
     "formal.prove.setup": StageContract((
         *CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_BMC_DEPTH", "FORMAL_BMC_APPEND",
         "FORMAL_BMC_ENGINE", "FORMAL_PROVE_ENGINE",
@@ -74,23 +73,16 @@ STAGE_CONTRACTS: dict[str, StageContract] = {
         ("TOP", "LINT_PROFILE", "SLANG_WAIVER_FILE", "VERILATOR_WAIVER_FILE"),
         evidence=("dv/lint/summary.json",), tools=("SLANG", "VERILATOR"),
     ),
-    "lint_slang": StageContract(
-        ("TOP", "LINT_PROFILE", "SLANG_WAIVER_FILE"),
-        evidence=("dv/lint/slang/summary.json",), tools=("SLANG",),
-    ),
-    "lint_verilator": StageContract(
-        ("TOP", "LINT_PROFILE", "VERILATOR_WAIVER_FILE"),
-        evidence=("dv/lint/verilator/summary.json",), tools=("VERILATOR",),
-    ),
-    "slang_hier": StageContract(
-        ("TOP", "SLANG_ROOT", "SLANG_TOP_FILE", "SLANG_TOP", "SLANG_ARGS", "SLANG_SEARCH_ARGS"),
-        ("slang_hier.setup",), evidence=("dv/slang_hier/summary.json",), tools=("SLANG",),
-    ),
     "cdc_rdc": StageContract((*CLOCKS, "TOP", "CDC_RDC_STRICT"), ("cdc_rdc.setup",), ("dv/cdc_rdc/summary.json",), tools=("SLANG", "YOSYS")),
     "regression": StageContract(
         (*CLOCKS, "TOP", "COMPILER", "REGRESSION_BACKENDS", "SEED", "RESET_SETTLE_CYCLES"),
         ("tb.setup", "cocotb.setup"),
-        ("logs/dv/functional/regression", "dv/functional/coverage/sv", "dv/functional/coverage/cocotb"),
+        (
+            "dv/functional/regression/summary.json",
+            "logs/dv/functional/regression",
+            "dv/functional/coverage/sv",
+            "dv/functional/coverage/cocotb",
+        ),
         tools=("IVERILOG", "VERILATOR"),
     ),
     "formal_csr_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.csr_prove.setup",), ("logs/dv/formal/csr/{top}_bmc.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
@@ -102,10 +94,14 @@ STAGE_CONTRACTS: dict[str, StageContract] = {
     "syn": StageContract(
         ("TOP", "PDK", "TARGET_SYN", "TARGET_OPT", "ORS_TECH"),
         ("syn.setup",),
-        ("syn/{pdk}/{top}_synth.v", "syn/{pdk}/{top}_synth.json", "syn/{pdk}/{top}_synth_repair.json"),
+        ("syn/{pdk}/summary.json", "syn/{pdk}/{top}_synth.v", "syn/{pdk}/{top}_synth.json", "syn/{pdk}/{top}_synth_repair.json"),
         scope="pdk", tools=("YOSYS", "OPENROAD", "ORFS"),
     ),
-    "eqy": StageContract(("TOP", "PDK", "EQY_STRATEGY_ORDER"), ("eqy.setup", "syn"), ("signoff/{pdk}/equivalence/{top}_rtl_vs_syn",), scope="pdk", tools=("EQY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
+    "eqy": StageContract(
+        ("TOP", "PDK", "EQY_STRATEGY_ORDER"), ("eqy.setup", "syn"),
+        ("signoff/{pdk}/equivalence/rtl_vs_syn/summary.json", "signoff/{pdk}/equivalence/rtl_vs_syn/{top}_rtl_vs_syn"),
+        scope="pdk", tools=("EQY", "YOSYS", "BITWUZLA", "BOOLECTOR"),
+    ),
     "sdf": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/sdf",), scope="pdk", tools=("OPENSTA",)),
     "sta": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/sta/summary.json",), scope="pdk", tools=("OPENSTA",)),
     "power_estimate": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/power/estimate/summary.json",), scope="pdk", tools=("OPENSTA",)),
@@ -127,6 +123,7 @@ STAGE_CONTRACTS: dict[str, StageContract] = {
     "pnr": StageContract(
         ("TOP", "PDK", "ORS", "ORS_TECH"), ("pnr.setup", "syn"),
         (
+            "impl/{pdk}/summary.json",
             "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.v",
             "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.sdc",
             "impl/{pdk}/results/{ors_tech}/{top}/base/6_final.spef",
