@@ -1432,6 +1432,11 @@ class PdkManager:
             values["MIN_BUF_CELL_AND_PORTS"] = " ".join(item.min_buffer)
         if views.liberty_typ:
             values["LIB_SYN"] = str(views.liberty_typ)
+            values["LIB_TYP"] = str(views.liberty_typ)
+        if views.liberty_slow:
+            values["LIB_SLOW"] = str(views.liberty_slow)
+        if views.liberty_fast:
+            values["LIB_FAST"] = str(views.liberty_fast)
         corners = [path for path in (views.liberty_slow, views.liberty_typ, views.liberty_fast) if path]
         if corners:
             values["LIBS"] = " ".join(str(path) for path in dict.fromkeys(corners))

@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import ast
 from io import StringIO
 import json
-import random
-import re
 import shlex
 import sys
 import tempfile
@@ -17,20 +14,7 @@ from typing import Any, Mapping, Sequence
 from rich.console import Console
 from rich.table import Table
 
-from flexsoc.backend.core import Files
 from flexsoc.backend.core.runtime.execution import Terminal
-from flexsoc.backend.design.ip.rtl import RtlFlow
-
-TEST_NAMES = ("smoke", "corners", "random")
-WRITABLE_SWACCESS = {"rw", "wo", "w1c", "w1s", "rw1c", "rw1s", "rw0c", "rw0w1c"}
-Hjson = dict[str, Any]
-
-
-try:
-    import hjson  # type: ignore
-except ImportError:  # pragma: no cover
-    hjson = None
-
 
 @dataclass(slots=True)
 class FunctionalFlow:
@@ -76,10 +60,7 @@ class FunctionalFlow:
         self,
         base_dir: Path,
         top: str,
-        hjson_path: Path | None,
-        signature: dict[str, Any] | None = None,
         *,
-        force: bool = False,
         on: str = "local",
     ) -> list[Path]:
         """Materialize authored scenarios plus generated ``auto_toggle`` vectors."""
@@ -93,10 +74,7 @@ class FunctionalFlow:
         name: str,
         base_dir: Path,
         top: str,
-        hjson_path: Path | None,
-        signature: dict[str, Any] | None = None,
         *,
-        force: bool = False,
         on: str = "local",
     ) -> list[Path]:
         """Materialize one scenario without touching unrelated vectors."""
@@ -621,25 +599,6 @@ class FunctionalFlow:
             print(line, flush=True)
 
     @staticmethod
-    def _load_hjson(path: Path) -> Hjson:
-        """Load HJSON metadata with the real parser and a tiny fallback for tests."""
-    
-        text = path.read_text(encoding="utf-8")
-        if hjson is not None:
-            return dict(hjson.loads(text))
-        normalized = re.sub(r"([{,]\s*)([A-Za-z_][\w]*)\s*:", r'\1"\2":', text)
-        normalized = re.sub(r",\s*([}\]])", r"\1", normalized).strip()
-        return dict(ast.literal_eval(normalized))
-
-    @staticmethod
-    def hjson_path(rtldir: str | Path, top: str) -> Path | None:
-        """Infer the copied/generated HJSON path for a run directory."""
-    
-        rtl = Path(rtldir).resolve()
-        candidates = [rtl.parent / "csr" / f"{top}.hjson", rtl.parent.parent / "csr" / f"{top}.hjson"]
-        return next((path for path in candidates if path.exists()), None)
-
-    @staticmethod
     def register_entries_for_top(rtldir: str | Path, top: str) -> list[dict[str, Any]]:
         """Return canonical register metadata for flat or named-domain HJSON maps."""
     
@@ -666,243 +625,3 @@ class FunctionalFlow:
                 for register in registers
             ]
         return []
-
-    @staticmethod
-    def _hex(value: int, width: int = 8) -> str:
-        """Render one zero-padded 32-bit hex value."""
-    
-        return f"0x{value & 0xFFFFFFFF:0{width}x}"
-
-    @staticmethod
-    def _register_clock(hj: Hjson, reg: dict[str, Any]) -> str:
-        """Return the clock-domain name used to make a register key unique."""
-    
-        value = reg.get("clock") or reg.get("clk") or reg.get("clock_primary") or hj.get("clock_primary")
-        if isinstance(value, dict):
-            value = value.get("name")
-        if isinstance(value, (list, tuple)):
-            value = value[0] if value else None
-        return str(value or "clk_i")
-
-    @staticmethod
-    def _is_writable_register(reg: dict[str, Any]) -> bool:
-        """Return true when software can write the register or one of its fields."""
-    
-        swaccess = str(reg.get("swaccess", "")).lower()
-        if swaccess in WRITABLE_SWACCESS:
-            return True
-        for field in reg.get("fields", []) or []:
-            if isinstance(field, dict) and str(field.get("swaccess", "")).lower() in WRITABLE_SWACCESS:
-                return True
-        return False
-
-    @staticmethod
-    def _normalizedregister_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
-        """Return reggen-normalized software-visible registers.
-    
-        ``regmap_py`` already uses bundled reggen to flatten multiregs and compute
-        canonical offsets.  Reuse the same normalized view here so generated SV and
-        cocotb testbenches resolve exactly the same register names and addresses.
-        """
-    
-        if hjson_path is None or not hjson_path.exists():
-            return []
-    
-        from flexsoc.backend.design.ip.regs import RegsFlow
-    
-        source = Path(hjson_path)
-        _, registers = RegsFlow._collect(source.stem, source.parent)
-    
-        entries: list[dict[str, Any]] = []
-        for register in registers:
-            accesses = {field.swaccess for field in register.fields}
-            swaccess = next(iter(accesses)) if len(accesses) == 1 else "mixed"
-            entries.append(
-                {
-                    "name": register.name,
-                    "clock": register.domain,
-                    "key": register.path,
-                    "addr": register.offset,
-                    "swaccess": swaccess,
-                    "writable": register.writable,
-                }
-            )
-        return entries
-
-    @staticmethod
-    def register_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
-        """Return writable registers using the canonical reggen expansion."""
-    
-        return [
-            entry
-            for entry in FunctionalFlow._normalizedregister_entries(hjson_path)
-            if bool(entry["writable"])
-        ]
-
-    @staticmethod
-    def register_lookup_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
-        """Return all canonical registers for vector read/write name resolution."""
-    
-        return FunctionalFlow._normalizedregister_entries(hjson_path)
-
-    @staticmethod
-    def _mode_for_test(top: str, test: str) -> int:
-        """Return the generated MODE.SEL value used by vector expectations."""
-    
-        if test == "corners":
-            return 1
-        if test == "random":
-            return random.Random(f"{top}:{test}:mode").randrange(3)
-        return 0
-
-    @staticmethod
-    def _config_value(test: str, reg: dict[str, Any], index: int, *, top: str) -> int:
-        """Choose a deterministic register value for one generated test."""
-    
-        name = str(reg["name"])
-        fixed = {"CTRL": 0x3, "MODE": FunctionalFlow._mode_for_test(top, test), "SCALE": 1}
-        if name in fixed:
-            return fixed[name]
-        if test == "corners":
-            return [0, 1, 0xFFFFFFFF, 0x80000000][index % 4]
-        if test == "random":
-            return random.Random(f"{top}:{test}:{name}:{index}").getrandbits(32)
-        return (index + 1) & 0xFFFFFFFF
-
-    @staticmethod
-    def render_reg_config(top: str, test: str, registers: Sequence[dict[str, Any]]) -> str:
-        """Render a register config where write is implicit."""
-    
-        lines = [
-            "# Auto-generated FlexSoC register configuration.",
-            f"# top={top} test={test}",
-            "# format: <CLOCK.REG_NAME> <DATA> [MASK] [WAIT_CYCLES] [NOTE]",
-            "# write is implicit; MASK=0xffffffff and WAIT_CYCLES=1 by default.",
-            f"# writable_registers={len(registers)}",
-        ]
-        for reg in registers:
-            lines.append(f"# map {reg['key']} {FunctionalFlow._hex(int(reg['addr']))} access={reg.get('swaccess', 'rw')}")
-        for index, reg in enumerate(registers):
-            lines.append(f"{reg['key']} {FunctionalFlow._hex(FunctionalFlow._config_value(test, reg, index, top=top))}")
-        if not registers:
-            lines.append("# no writable registers inferred from HJSON")
-        return "\n".join(lines) + "\n"
-
-    @staticmethod
-    def _is_control_port(name: str) -> bool:
-        """Return true for clocks, resets, and generated bus records."""
-    
-        return RtlFlow.is_register_bus_port(name) or "clk" in name or "rst" in name
-
-    @staticmethod
-    def vector_inputs(sig: dict[str, Any] | None) -> list[str]:
-        """Return top inputs that can be driven from data_in.vec."""
-    
-        return [name for name, _ in (sig or {}).get("ports_in", []) if not FunctionalFlow._is_control_port(name)]
-
-    @staticmethod
-    def vector_outputs(sig: dict[str, Any] | None) -> list[str]:
-        """Return top outputs that can be checked from data_out.vec."""
-    
-        return [name for name, _ in (sig or {}).get("ports_out", []) if not FunctionalFlow._is_control_port(name)]
-
-    @staticmethod
-    def _stimulus_rows(test: str, *, top: str, count: int = 8) -> list[tuple[int, int, int, int]]:
-        """Return cycle, data, coeff, and valid rows for generated vectors."""
-    
-        if test == "smoke":
-            values = [(0, 1, 1), (1, 4, 2), (2, 7, 3), (3, 8, 5)]
-        elif test == "corners":
-            values = [(0, 0, 1), (1, 0xFFFFFFFF, 1), (2, 0x80000000, 2), (3, 0x7FFFFFFF, 3)]
-        else:
-            rng = random.Random(f"{top}:{test}:vectors")
-            values = [(i, rng.getrandbits(16), rng.getrandbits(8)) for i in range(count)]
-        return [(cycle, data, coeff, 1) for cycle, data, coeff in values]
-
-    @staticmethod
-    def _expected(data: int, coeff: int, mode: int) -> int:
-        """Return the expected data_o value for the generated starter core."""
-    
-        if mode == 1:
-            return data ^ coeff
-        if mode == 2:
-            return data << 1
-        return data + coeff
-
-    @staticmethod
-    def render_data_in(top: str, test: str, sig: dict[str, Any] | None = None) -> str:
-        """Render named input vectors for one test."""
-    
-        inputs = FunctionalFlow.vector_inputs(sig) or ["data_i", "coeff_i", "valid_i"]
-        lines = [
-            "# Auto-generated FlexSoC input vectors.",
-            f"# top={top} test={test}",
-            "# format: <CYCLE> <SIGNAL> <VALUE> [<SIGNAL> <VALUE> ...]",
-            "# one or many signals can be assigned on the same cycle.",
-            "# config change: <CYCLE> @cfg <PATH_TO_CONFIG.REGS>",
-        ]
-        for cycle, data, coeff, valid in FunctionalFlow._stimulus_rows(test, top=top):
-            pairs = []
-            if "valid_i" in inputs:
-                pairs += ["valid_i", FunctionalFlow._hex(valid)]
-            if "data_i" in inputs:
-                pairs += ["data_i", FunctionalFlow._hex(data)]
-            if "coeff_i" in inputs:
-                pairs += ["coeff_i", FunctionalFlow._hex(coeff)]
-            if not pairs and inputs:
-                pairs += [inputs[0], FunctionalFlow._hex(data)]
-            lines.append(" ".join([str(cycle), *pairs]))
-        return "\n".join(lines) + "\n"
-
-    @staticmethod
-    def render_data_out(top: str, test: str, sig: dict[str, Any] | None = None, *, latency: int = 2) -> str:
-        """Render named expected-output vectors for one test."""
-    
-        outputs = FunctionalFlow.vector_outputs(sig) or ["data_o", "valid_o"]
-        mode = FunctionalFlow._mode_for_test(top, test)
-        lines = [
-            "# Auto-generated FlexSoC expected output vectors.",
-            f"# top={top} test={test} latency={latency}",
-            "# format: <CYCLE> <SIGNAL> <EXPECTED> [<SIGNAL> <EXPECTED> ...]",
-        ]
-        for cycle, data, coeff, valid in FunctionalFlow._stimulus_rows(test, top=top):
-            pairs = []
-            if "data_o" in outputs:
-                pairs += ["data_o", FunctionalFlow._hex(FunctionalFlow._expected(data, coeff, mode))]
-            if "valid_o" in outputs:
-                pairs += ["valid_o", FunctionalFlow._hex(valid)]
-            if not pairs and outputs:
-                pairs += [outputs[0], FunctionalFlow._hex(FunctionalFlow._expected(data, coeff, mode))]
-            lines.append(" ".join([str(cycle + latency), *pairs]))
-        return "\n".join(lines) + "\n"
-
-    @staticmethod
-    def write_verification_tests(
-        base_dir: str | Path,
-        top: str,
-        hjson_path: Path | None,
-        sig: dict[str, Any] | None = None,
-        *,
-        force: bool,
-    ) -> list[Path]:
-        """Create per-test register, input, and expected-output data files."""
-    
-        root = Path(base_dir)
-        registers = FunctionalFlow.register_entries(hjson_path)
-        written: list[Path] = []
-        for test in TEST_NAMES:
-            test_dir = root / test
-            Files.ensure_dir(test_dir)
-            stale = test_dir / f"{test}.vec"
-            if stale.exists():
-                stale.unlink()
-            files = {
-                test_dir / "config.regs": FunctionalFlow.render_reg_config(top, test, registers),
-                test_dir / "data_in.vec": FunctionalFlow.render_data_in(top, test, sig),
-                test_dir / "data_out.vec": FunctionalFlow.render_data_out(top, test, sig),
-            }
-            for path, text in files.items():
-                Files.safe_write_file(path, text, overwrite=force)
-                written.append(path)
-        return written
-

@@ -21,7 +21,8 @@ from .target import BACKEND_TARGETS, Target as BackendTarget
 DEFAULT_SETTINGS = {
     "TOP": "test", "HOST": "uart", "FORCE": "0", "RUN_ID": "default",
     "N_CLOCKS": "1", "PDK": "sky130", "TARGET_OPT": "delay1",
-    "PNR_HOLD_SLACK_MARGIN": "0.10", "WAVE_FORMAT": "fst",
+    "PNR_HOLD_SLACK_MARGIN": "0.20", "PNR_SLEW_MARGIN": "30", "PNR_CAP_MARGIN": "30",
+    "WAVE_FORMAT": "fst",
     "GLS_SIMULATOR": "iverilog", "GLS_BACKEND": "sv", "TIMING_MODE": "zero",
     "GLS_UNIT_DELAY": "1ps", "SDF_STRICT": "1", "FST2VCD": "fst2vcd",
     "SIGNOFF_STAGE": "post_syn", "POWER_VCD_SCOPE": "auto",
@@ -54,7 +55,8 @@ SETTINGS_EVIDENCE_KEYS = tuple(sorted({
     *DEFAULT_SETTINGS, *DESIGN_INTENT_KEYS,
     *(key for stage in STAGE_CONTRACTS.values() for key in stage.config),
     "PDK", "PDK_ROOT", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT",
-    "LIB_SYN", "LIBS", "PRIM", "MACRO_LIBS", "ORS", "ORS_TECH",
+    "LIB_SYN", "LIBS", "LIB_SLOW", "LIB_TYP", "LIB_FAST",
+    "PRIM", "MACRO_LIBS", "ORS", "ORS_TECH",
     "SDC_IO_DELAY_PCT", "GLS_BACKEND", "GLS_SIMULATOR", "TIMING_MODE", "SDF_STRICT",
 }))
 POST_IMPL_SIGNOFF_TARGETS = frozenset(
@@ -82,8 +84,8 @@ class TargetSession:
         return deps
 
     @staticmethod
-    def setup_public(stage: str) -> str:
-        """Return the public keyword owning one internal setup stage."""
+    def setup_owner(stage: str) -> str:
+        """Return the backend target owning one internal setup stage."""
 
         return {
             "formal.prove.setup": "formal_prove", "formal.cover.setup": "formal_cover",
@@ -92,11 +94,43 @@ class TargetSession:
             "signoff.setup": "signoff", "signoff_post_impl.setup": "signoff_post_impl",
         }.get(stage, stage.removesuffix(".setup"))
 
+    @staticmethod
+    def public_invocation(target: str) -> tuple[str, tuple[str, ...]]:
+        """Return canonical CLI command/options for one internal operation ID."""
+
+        return {
+            "formal_csr": ("formal", ("--csr",)),
+            "formal_csr_bmc": ("formal", ("--csr", "--bmc")),
+            "formal_csr_prove": ("formal", ("--csr", "--prove")),
+            "formal_csr_cover": ("formal", ("--csr", "--cover")),
+            "formal_bmc": ("formal", ("--bmc",)),
+            "formal_prove": ("formal", ("--prove",)),
+            "formal_cover": ("formal", ("--cover",)),
+            "sim_tests": ("sim", ("--all",)),
+            "sim_post_syn": ("sim", ("--post-syn",)),
+            "sim_post_syn_all": ("sim", ("--post-syn", "--all")),
+            "sim_post_impl": ("sim", ("--post-impl",)),
+            "sim_post_impl_all": ("sim", ("--post-impl", "--all")),
+            "sta_post_impl": ("sta", ("--post-impl",)),
+            "power_estimate": ("power-estimate", ()),
+            "power_estimate_post_impl": ("power-estimate", ("--post-impl",)),
+            "power_analysis": ("power-analysis", ()),
+            "power_analysis_all": ("power-analysis", ("--all",)),
+            "power_analysis_post_impl": ("power-analysis", ("--post-impl",)),
+            "power_analysis_post_impl_all": ("power-analysis", ("--post-impl", "--all")),
+            "fusion_analysis": ("fusion", ()),
+            "fusion_analysis_all": ("fusion", ("--all",)),
+            "fusion_analysis_post_impl": ("fusion", ("--post-impl",)),
+            "fusion_analysis_post_impl_all": ("fusion", ("--post-impl", "--all")),
+        }.get(target, (target, ()))
+
     @classmethod
     def setup_command(cls, stage: str, *, force: bool = False) -> str:
-        """Return the public setup command owning one internal stage."""
+        """Return the canonical CLI command that materializes one setup stage."""
 
-        return f"fx {cls.setup_public(stage)} --setup" + (" --force" if force else "")
+        command, options = cls.public_invocation(cls.setup_owner(stage))
+        words = ("fx", command, *options, "--setup", *(("--force",) if force else ()))
+        return " ".join(words)
 
     @classmethod
     def returncode(cls, value: object) -> int:
@@ -531,7 +565,7 @@ class TargetSession:
                 continue
             if stage in PROVENANCE_SETUPS:
                 if state == "MODIFIED":
-                    action = f"run `fx validate_override --set STAGE={self.setup_public(stage)}` or regenerate with `{self.setup_command(stage, force=True)}`"
+                    action = f"run `fx validate_override --set STAGE={stage}` or regenerate with `{self.setup_command(stage, force=True)}`"
                 elif state == "STALE":
                     action = f"regenerate the setup with `{self.setup_command(stage, force=True)}`"
                 elif state == "MISSING":

@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass, replace
 from io import StringIO
 from pathlib import Path
+from typing import Mapping
 
 from rich.console import Console
 
@@ -56,12 +57,16 @@ class ImplementationFlow:
         platform: str,
         netlist: Path,
         sdc_file: Path,
-        hold_slack_margin: float = 0.10,
+        corner_liberties: Mapping[str, Path] | None = None,
+        hold_slack_margin: float = 0.20,
+        slew_margin: float = 30.0,
+        cap_margin: float = 30.0,
     ) -> Path:
         """Generate the physical-only ORFS configuration."""
 
         return ImplementationFlow.write_config(
-            top, output_dir, platform, netlist, sdc_file, hold_slack_margin
+            top, output_dir, platform, netlist, sdc_file, corner_liberties,
+            hold_slack_margin, slew_margin, cap_margin,
         )
 
     def run(
@@ -206,7 +211,10 @@ class ImplementationFlow:
             return self.setup(
                 top=paths.top, output_dir=paths.impl, platform=platform,
                 netlist=paths.syn / f"{paths.top}_synth.v", sdc_file=paths.sdc,
-                hold_slack_margin=float(values.get("PNR_HOLD_SLACK_MARGIN", "0.10")),
+                corner_liberties=ImplementationFlow._corner_liberties(values),
+                hold_slack_margin=float(values.get("PNR_HOLD_SLACK_MARGIN", "0.20")),
+                slew_margin=float(values.get("PNR_SLEW_MARGIN", "30")),
+                cap_margin=float(values.get("PNR_CAP_MARGIN", "30")),
             )
 
         makefile, config = ImplementationFlow.orfs_paths(values, paths.impl)
@@ -289,19 +297,36 @@ class ImplementationFlow:
         platform: str,
         netlist: Path,
         sdc_file: Path,
-        hold_slack_margin: float = 0.10,
+        corner_liberties: Mapping[str, Path] | None = None,
+        hold_slack_margin: float = 0.20,
+        slew_margin: float = 30.0,
+        cap_margin: float = 30.0,
     ) -> str:
         """Render a physical-only ORFS config from FlexSoC synthesis artifacts."""
 
         if hold_slack_margin < 0:
             raise ValueError("PNR hold slack margin must be non-negative")
+        if not 0 <= slew_margin < 100 or not 0 <= cap_margin < 100:
+            raise ValueError("PNR slew/cap margins must be percentages in [0, 100)")
+        corners = dict(corner_liberties or {})
+        unknown = set(corners) - {"ss", "tt", "ff"}
+        if unknown:
+            raise ValueError(f"unsupported PNR corners: {', '.join(sorted(unknown))}")
         return templates.render(
             "impl/orfs/config.mk.j2",
             top=top,
             platform=platform,
             netlist=netlist,
             sdc_file=sdc_file,
+            corners=tuple(
+                (corner, corners[corner])
+                for corner in ("ss", "tt", "ff")
+                if corner in corners
+            ),
+            corner_names=" ".join(corner for corner in ("ss", "tt", "ff") if corner in corners),
             hold_slack_margin=f"{hold_slack_margin:g}",
+            slew_margin=f"{slew_margin:g}",
+            cap_margin=f"{cap_margin:g}",
         )
 
     @staticmethod
@@ -311,22 +336,33 @@ class ImplementationFlow:
         platform: str,
         netlist: Path,
         sdc_file: Path,
-        hold_slack_margin: float = 0.10,
+        corner_liberties: Mapping[str, Path] | None = None,
+        hold_slack_margin: float = 0.20,
+        slew_margin: float = 30.0,
+        cap_margin: float = 30.0,
     ) -> Path:
         """Write `config.mk` for one physical implementation run."""
 
         outdir = outdir.expanduser().resolve()
         netlist = netlist.expanduser().resolve()
         sdc_file = sdc_file.expanduser().resolve()
+        corners = {
+            name: path.expanduser().resolve()
+            for name, path in (corner_liberties or {}).items()
+        }
         if not netlist.is_file():
             raise ValueError(f"synthesized netlist not found: {netlist}")
         if not sdc_file.is_file():
             raise ValueError(f"SDC not found: {sdc_file}")
+        for corner, liberty in corners.items():
+            if not liberty.is_file():
+                raise ValueError(f"{corner} Liberty not found: {liberty}")
         outdir.mkdir(parents=True, exist_ok=True)
         path = outdir / "config.mk"
         path.write_text(
             ImplementationFlow.render_config(
-                top, platform, netlist, sdc_file, hold_slack_margin
+                top, platform, netlist, sdc_file, corners,
+                hold_slack_margin, slew_margin, cap_margin,
             ), encoding="utf-8"
         )
         return path
@@ -387,6 +423,13 @@ class ImplementationFlow:
         )
 
     @staticmethod
+    def _corner_liberties(values: Mapping[str, str]) -> dict[str, Path]:
+        """Return PDK-discovered sign-off views using ORFS corner names."""
+
+        keys = {"ss": "LIB_SLOW", "tt": "LIB_TYP", "ff": "LIB_FAST"}
+        return {corner: Path(values[key]) for corner, key in keys.items() if values.get(key)}
+
+    @staticmethod
     def _config_value(config: Path, key: str) -> str:
         """Read one generated ORFS config value."""
 
@@ -400,10 +443,21 @@ class ImplementationFlow:
     def _config_inputs(config: Path) -> tuple[Path, ...]:
         """Return FlexSoC artifacts referenced by generated config.mk."""
 
-        return tuple(
+        paths = [
             Path(ImplementationFlow._config_value(config, key)).expanduser().resolve()
             for key in ("SYNTH_NETLIST_FILES", "SDC_FILE")
+        ]
+        try:
+            corners = ImplementationFlow._config_value(config, "CORNERS").split()
+        except ValueError:
+            corners = []
+        paths.extend(
+            Path(
+                ImplementationFlow._config_value(config, f"{corner.upper()}_LIB_FILES")
+            ).expanduser().resolve()
+            for corner in corners
         )
+        return tuple(paths)
 
     @staticmethod
     def _config_make_overrides(config: Path) -> tuple[str, ...]:

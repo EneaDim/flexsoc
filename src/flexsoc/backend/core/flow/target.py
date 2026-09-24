@@ -40,13 +40,8 @@ SIGNOFF_TARGETS: dict[str, Target] = {
 
     "sdf": Target("sdf", "sdf", "post_syn", ("signoff.setup",)),
     "sta": Target("sta", "sta", "post_syn", ("signoff.setup",), debug="sta", show="sta"),
-    "sta_corners": Target("sta_corners", "sta", "post_syn", ("signoff.setup",), debug="sta", show="sta"),
     "power_estimate": Target(
         "power_estimate", "power_estimate", "post_syn", ("signoff.setup",),
-        debug="power_estimate", show="power_estimate",
-    ),
-    "power_estimate_corners": Target(
-        "power_estimate_corners", "power_estimate", "post_syn", ("signoff.setup",),
         debug="power_estimate", show="power_estimate",
     ),
     "power_analysis": Target(

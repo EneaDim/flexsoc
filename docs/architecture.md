@@ -66,6 +66,134 @@ user / CI / Python caller
 
 The EDA tools remain authoritative for analysis. FlexSoC owns the **wiring, state, inputs, artifact identity, lifecycle and reproducibility** around them. A status without its supporting artifact is incomplete evidence: release packaging therefore retains normalized lint evidence plus the compact CDC/RDC `summary.json`/`cdc_rdc.rpt` contract at the same run-relative paths consumed by reporting, without copying every raw extraction log.
 
+### 2.1 Public CLI grammar
+
+The CLI names **domains**, not every backend operation. Variants of the same owner are selected with options instead of additional underscore-separated public commands.
+
+```text
+fx <domain> [stage selector] [scope selector] [lifecycle/output options]
+```
+
+Examples:
+
+```bash
+fx formal
+fx formal --csr
+fx formal --csr --prove
+fx sim
+fx sim --post-syn --all
+fx sta --post-impl --summary
+fx power-estimate --post-impl
+fx power-analysis --post-impl --all
+fx fusion --all
+```
+
+The public grammar and the backend operation ID are intentionally different concepts. For example, `formal_csr_prove`, `sim_post_impl_all`, and `fusion_analysis_post_impl_all` remain useful internal IDs for dependency/provenance dispatch, but they are not public CLI aliases.
+
+| Domain | Default | Selectors |
+| --- | --- | --- |
+| `formal` | all applicable formal stages | `--csr`, one of `--bmc/--prove/--cover`; `--csr` may be combined with one stage |
+| `sim` | one RTL simulation | `--rtl`, `--post-syn`, `--post-impl`, `--all` |
+| `sta` | post-synthesis STA over configured corners | `--post-syn`, `--post-impl`, `--all` |
+| `power-estimate` | post-synthesis vectorless estimate | `--post-syn`, `--post-impl`, `--all` |
+| `power-analysis` | one post-synthesis activity workload | `--post-syn`, `--post-impl`, `--all` |
+| `fusion` | one post-synthesis timing/power workload | `--post-syn`, `--post-impl`, `--all` |
+
+`--all` is domain-specific: for workload-based analyses it selects all matching workloads; for STA/vectorless power the analysis already covers all configured corners, so `--all` is an explicit spelling of the existing complete coverage.
+
+Lifecycle controls remain orthogonal to the domain selector:
+
+```text
+--setup     materialize setup-owned collateral
+(no flag)   run
+--summary   compact canonical evidence
+--show      canonical evidence
+--debug     show + diagnostic artifacts/hints
+```
+
+Do not create a new public command merely because one backend operation needs a distinct provenance ID.
+
+### 2.2 Adding a command or option
+
+Use this path when extending FlexSoC:
+
+```text
+CLI intent
+  ↓
+FlexSoCCli
+  ↓
+FlexSoC API
+  ↓
+TargetSession
+  ↓
+existing domain owner
+  ↓
+CommandRequest → ToolRunner → Executor
+```
+
+First decide whether the change is a **new responsibility** or a **variant of an existing responsibility**.
+
+- Add a new public command only when there is a new domain/lifecycle owner with distinct semantics or evidence.
+- Add an option when the same owner is selecting a stage, mode, scope, workload, corner set, or presentation view.
+- Add a backend target ID only when execution/provenance/dependencies genuinely need a distinct operation. The ID may remain internal.
+
+A typical new selector requires only these edits:
+
+1. Add the Typer option and resolve it in `FlexSoCCli._resolve_domain_command()`.
+2. Map it to the existing internal target ID; do not duplicate the backend operation.
+3. If provenance/recovery can print that internal ID, add the canonical spelling to `TargetSession.public_invocation()`.
+4. Keep orchestration in the owning domain class (`FormalFlow`, `ImplementationFlow`, `StaAnalysis`, etc.).
+5. Make `run()` write canonical evidence; make `show()`/`debug()` read that evidence instead of rerunning or reparsing the main tool log.
+6. Update the focused API/CLI tests and the command reference.
+
+When a genuinely new operation is required, add the smallest complete vertical slice:
+
+```text
+backend owner method
+→ Target metadata / StageContract when required
+→ API target metadata
+→ CLI exposure
+→ focused tests
+```
+
+Do **not** introduce a factory, manager, strategy hierarchy, plugin system, dependency-injection layer, or wrapper class just to route a new option. An explicit `if` inside the owner is preferable when it keeps a small finite command grammar visible.
+
+Keep the public and internal names separate:
+
+```text
+user:      fx sta --post-impl
+CLI:       resolves selectors
+internal:  sta_post_impl
+owner:     SignoffFlow / StaAnalysis
+evidence:  signoff/<pdk>/post_impl/sta/summary.json
+```
+
+The internal ID exists for lifecycle/provenance identity. It must not leak into normal CLI guidance or terminal progress labels.
+
+Backend application code stays class-owned. A method belongs to the class that owns the responsibility; do not move two readable lines into a generic helper merely to reduce line count. Keep target/domain classes ordered approximately as:
+
+```text
+__init__
+setup
+run
+debug
+show
+other public operations
+private methods
+```
+
+Before merging a CLI/backend change, verify at minimum:
+
+```bash
+uv run ruff check src tests
+uv run python -m compileall -q src tests
+uv run pytest -q tests/test_api.py
+uv run pytest --collect-only -q tests/test_e2e_fx.py
+```
+
+Run real EDA only when the changed contract can affect tool execution or generated collateral. Never infer an EDA PASS from Python tests alone.
+
+
 ---
 
 ## 3. Main object relationships

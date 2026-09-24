@@ -335,17 +335,17 @@ When CSR HJSON changes but the model workspace is already authored, prefer regen
 
 ## 8. Build formal verification
 
-Generate the formal setup explicitly:
+Run automatic register/CSR formal directly from the generated register semantics:
+
+```bash
+fx formal --csr --setup --force
+fx formal --csr
+```
+
+When the designer has added real properties under `dv/formal/properties/`, set up and run the full formal suite:
 
 ```bash
 fx formal --setup --force
-fx formal_csr --setup --force
-fx formal_prove formal_cover --setup --force
-```
-
-Run:
-
-```bash
 fx formal
 ```
 
@@ -431,7 +431,7 @@ Then run the core analyses:
 ```bash
 fx sdf
 fx sta
-fx power_estimate
+fx power-estimate
 ```
 
 ### 11.1 STA evidence
@@ -480,7 +480,7 @@ Compile/run gate simulation as required:
 
 ```bash
 fx compile_post_syn --force
-fx sim_post_syn --force --set GLS_BACKEND=sv --set TIMING_MODE=typ
+fx sim --post-syn --force --set GLS_BACKEND=sv --set TIMING_MODE=typ
 ```
 
 Qualification timing modes are:
@@ -500,8 +500,8 @@ For a complete matrix, use the `*_all` targets or separate deterministic runs ra
 For qualified GLS activity:
 
 ```bash
-fx power_analysis_all
-fx fusion_analysis_all
+fx power-analysis --all
+fx fusion --all
 ```
 
 Keep vectorless power estimate and workload/activity power separate in metrics; they answer different questions.
@@ -539,7 +539,7 @@ Then:
 
 ```bash
 fx sdf_post_impl
-fx sta_post_impl
+fx sta --post-impl
 ```
 
 Normally the final netlist/SPEF are resolved from the canonical implementation branch. Use explicit `NETLIST`/`SPEF_FILE` overrides only for intentional exceptional analysis.
@@ -548,10 +548,10 @@ Run routed GLS and power/fusion qualification as required:
 
 ```bash
 fx compile_post_impl --force
-fx sim_post_impl_all --set GLS_BACKEND=sv --set TIMING_MODES=all --set TEST_NAMES=all --set SDF_STRICT=1
-fx power_estimate_post_impl
-fx power_analysis_post_impl_all
-fx fusion_analysis_post_impl_all
+fx sim --post-impl --all --set GLS_BACKEND=sv --set TIMING_MODES=all --set TEST_NAMES=all --set SDF_STRICT=1
+fx power-estimate --post-impl
+fx power-analysis --post-impl --all
+fx fusion --post-impl --all
 fx physical_signoff --set ORS=/path/to/OpenROAD-flow-scripts/flow
 ```
 
@@ -568,7 +568,7 @@ A real hold/recovery/removal failure here is a closure problem. Unlike pre-layou
 Use:
 
 ```bash
-fx sta_post_impl --debug
+fx sta --post-impl --debug
 ```
 
 for filtered drill-down.
@@ -751,23 +751,23 @@ fx eqy --setup --force
 fx signoff --setup --force
 fx sdf
 fx sta
-fx power_estimate
+fx power-estimate
 fx compile_post_syn --force
-fx sim_post_syn --force --set GLS_BACKEND=sv --set TIMING_MODE=typ
-fx power_analysis_all
-fx fusion_analysis_all
+fx sim --post-syn --force --set GLS_BACKEND=sv --set TIMING_MODE=typ
+fx power-analysis --all
+fx fusion --all
 
 # Physical branch
 fx pnr --setup --force --set ORS=/path/to/OpenROAD-flow-scripts/flow
 fx pnr --force --set ORS=/path/to/OpenROAD-flow-scripts/flow
 fx signoff_post_impl --setup --force
 fx sdf_post_impl
-fx sta_post_impl
+fx sta --post-impl
 fx compile_post_impl --force
-fx sim_post_impl_all --set GLS_BACKEND=sv --set TIMING_MODES=all --set TEST_NAMES=all --set SDF_STRICT=1
-fx power_estimate_post_impl
-fx power_analysis_post_impl_all
-fx fusion_analysis_post_impl_all
+fx sim --post-impl --all --set GLS_BACKEND=sv --set TIMING_MODES=all --set TEST_NAMES=all --set SDF_STRICT=1
+fx power-estimate --post-impl
+fx power-analysis --post-impl --all
+fx fusion --post-impl --all
 fx physical_signoff --set ORS=/path/to/OpenROAD-flow-scripts/flow
 
 # Snapshot + human review
@@ -794,8 +794,8 @@ fx cdc_rdc
 fx tests_gen --force
 fx tb cocotb --setup --force
 fx regression
-fx formal_csr --setup --force
-fx formal
+fx formal --csr --setup --force
+fx formal --csr
 ```
 
 Then regenerate/rerun technology-dependent setup from synthesis onward.
@@ -811,7 +811,8 @@ fx cdc_rdc
 fx tests_gen --force
 fx tb cocotb --setup --force
 fx regression
-fx formal_prove formal_cover --setup --force
+fx formal --prove --setup --force
+fx formal --cover --setup --force
 fx formal
 ```
 

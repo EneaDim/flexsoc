@@ -195,7 +195,7 @@ fx eqy
 fx signoff --setup
 fx sdf
 fx sta
-fx power_estimate
+fx power-estimate
 
 fx manifest
 fx metrics
@@ -285,23 +285,29 @@ A run is isolated by `RUN_TOP` and `RUN_ID`:
 Run the public API/CLI contract tests:
 
 ```bash
-pytest -q tests/test_api.py
+uv run pytest -q tests/test_api.py
 ```
 
 Run complete generated flows:
 
 ```bash
-pytest -s tests/test_e2e_fx.py
+uv run pytest -s tests/test_e2e_fx.py --e2e-mode full
 ```
 
 Retain E2E workspaces while debugging:
 
 ```bash
-pytest -s tests/test_e2e_fx.py --e2e-root ~/flexsoc-e2e
+uv run pytest -s tests/test_e2e_fx.py --e2e-mode full --e2e-root ~/flexsoc-e2e
 ```
 
-Skip implementation/sign-off for frontend-only iterations:
+Stop after formal checks:
 
 ```bash
-pytest -s tests/test_e2e_fx.py --no-signoff --e2e-root ~/flexsoc-e2e
+uv run pytest -s tests/test_e2e_fx.py --e2e-mode formal --e2e-root ~/flexsoc-e2e
+```
+
+Run through synthesis/post-synthesis sign-off and stop before PnR:
+
+```bash
+uv run pytest -s tests/test_e2e_fx.py --e2e-mode pre-pnr --e2e-root ~/flexsoc-e2e
 ```

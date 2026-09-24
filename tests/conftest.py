@@ -7,10 +7,11 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     """Register FlexSoC pytest options."""
 
     parser.addoption(
-        "--no-signoff",
-        action="store_true",
-        default=False,
-        help="Skip synthesis/signoff targets in FlexSoC E2E tests.",
+        "--e2e-mode",
+        dest="e2e_mode",
+        choices=("formal", "pre-pnr", "full"),
+        default=None,
+        help="E2E depth: formal, pre-pnr, or full (default: full).",
     )
     parser.addoption(
         "--e2e-root",
@@ -32,7 +33,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=None,
         help=(
             "Primary GLS backend for detailed E2E power/fusion checks (default: sv). "
-            "The second backend is also exercised through sim_post_syn_all."
+            "The second backend is also exercised through `fx sim --post-syn --all`."
         ),
     )
     parser.addoption(
@@ -40,12 +41,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         action="store_true",
         default=False,
         help="Skip the explicit post-synthesis GLS/back-annotation command sequence.",
-    )
-    parser.addoption(
-        "--no-pnr",
-        action="store_true",
-        default=False,
-        help="Skip physical implementation in FlexSoC E2E tests.",
     )
     parser.addoption(
         "--e2e-ors",

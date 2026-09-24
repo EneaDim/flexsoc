@@ -54,6 +54,18 @@ else:
         "help", "settings", "commands", "show", "requirements", "testplan", "meta",
         "doctor", "pdk", "shell",
     )
+    PRIVATE_CLI_TARGETS = frozenset({
+        "formal_csr", "formal_csr_bmc", "formal_csr_prove", "formal_csr_cover",
+        "formal_bmc", "formal_prove", "formal_cover",
+        "sim_tests", "sim_post_syn", "sim_post_syn_all", "sim_post_impl", "sim_post_impl_all",
+        "sta_post_impl",
+        "power_estimate_post_impl",
+        "power_analysis_all", "power_analysis_post_impl", "power_analysis_post_impl_all",
+        "fusion_analysis", "fusion_analysis_all",
+        "fusion_analysis_post_impl", "fusion_analysis_post_impl_all",
+    })
+    CANONICAL_CLI_TARGETS = ("formal", "sim", "sta", "power-estimate", "power-analysis", "fusion")
+
     OPTION_WORDS = (
         "--set",
         "--unset",
@@ -67,6 +79,14 @@ else:
         "--force",
         "--overwrite",
         "--setup",
+        "--rtl",
+        "--post-syn",
+        "--post-impl",
+        "--all",
+        "--csr",
+        "--bmc",
+        "--prove",
+        "--cover",
         "--dry-run",
         "--script",
         "--capture",
@@ -105,7 +125,7 @@ Use `fx commands` to list every backend target.
 
     HELP_WORDS = {"help", "info", "-h", "--help"}
     SETUP_ONLY = SETUP_ONLY_TARGETS
-    PUBLIC_KEYWORDS = tuple(SETUP_TARGETS)
+    PUBLIC_KEYWORDS = tuple(name for name in SETUP_TARGETS if name not in PRIVATE_CLI_TARGETS)
 
     FLOW_GUIDE = (
         (
@@ -144,7 +164,7 @@ Use `fx commands` to list every backend target.
             (
                 ("fx lint", "Run one Slang pass and one Verilator pass with P0-P3 classification."),
                 ("fx slang_hier", "Generate elaborated hierarchy and AST evidence in one Slang run."),
-                ("fx formal --setup | fx formal", "Generate and run BMC, prove, and cover stages."),
+                ("fx formal --setup | fx formal", "Run all applicable formal stages; use --csr/--bmc/--prove/--cover to select one view."),
             ),
         ),
         (
@@ -160,13 +180,13 @@ Use `fx commands` to list every backend target.
             (
                 ("fx sdc --setup", "Initialize the single authored constraints/<TOP>.sdc timing contract."),
                 ("fx signoff --setup", "Generate OpenSTA Tcl families that consume constraints/<TOP>.sdc."),
-                ("fx sdf | fx sta | fx power_estimate", "Produce corner SDF, timing, and vectorless power."),
+                ("fx sdf | fx sta | fx power-estimate", "Produce corner SDF, timing, and vectorless power."),
                 ("fx compile_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Compile one named GLS workload."),
-                ("fx sim_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Run one post-synthesis GLS workload."),
-                ("fx sim_post_syn_all", "Run all generated tests/timing modes with the selected GLS backend."),
-                ("fx power_analysis --set POWER_TEST_NAME=smoke --set POWER_TIMING_MODE=typ", "Analyze power for one GLS workload."),
-                ("fx fusion_analysis --set POWER_TEST_NAME=smoke --set POWER_TIMING_MODE=typ", "Correlate worst timing paths and gate power for one workload."),
-                ("fx fusion_analysis_all --set POWER_TEST_NAMES=all", "Run fusion for every matching GLS workload."),
+                ("fx sim --post-syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Run one post-synthesis GLS workload."),
+                ("fx sim --post-syn --all", "Run all generated tests/timing modes with the selected GLS backend."),
+                ("fx power-analysis --set POWER_TEST_NAME=smoke --set POWER_TIMING_MODE=typ", "Analyze power for one GLS workload."),
+                ("fx fusion --set POWER_TEST_NAME=smoke --set POWER_TIMING_MODE=typ", "Correlate worst timing paths and gate power for one workload."),
+                ("fx fusion --all --set POWER_TEST_NAMES=all", "Run fusion for every matching GLS workload."),
             ),
         ),
         (
@@ -174,10 +194,10 @@ Use `fx commands` to list every backend target.
             (
                 ("fx pnr", "Run OpenROAD and produce the final netlist, SDC, SPEF, ODB, and GDS."),
                 ("fx physical_signoff", "Run ORFS physical closure first: route DRC, antenna evidence, GDS DRC, LVS, and IR/PDN evidence."),
-                ("fx signoff_post_impl --setup | fx sdf_post_impl | fx sta_post_impl", "Write routed SDF, then consume <TOP>.sdc plus routed SPEF for propagated-clock/interconnect timing."),
-                ("fx sim_post_impl_all", "Run timing-aware post-implementation GLS across selected tests and scenarios."),
-                ("fx power_estimate_post_impl", "Run vectorless routed power estimation."),
-                ("fx power_analysis_post_impl_all | fx fusion_analysis_post_impl_all", "Use routed GLS activity for activity power and timing/power correlation."),
+                ("fx signoff_post_impl --setup | fx sdf_post_impl | fx sta --post-impl", "Write routed SDF, then consume <TOP>.sdc plus routed SPEF for propagated-clock/interconnect timing."),
+                ("fx sim --post-impl --all", "Run timing-aware post-implementation GLS across selected tests and scenarios."),
+                ("fx power-estimate --post-impl", "Run vectorless routed power estimation."),
+                ("fx power-analysis --post-impl --all | fx fusion --post-impl --all", "Use routed GLS activity for activity power and timing/power correlation."),
                 ("fx manifest | fx metrics | fx check", "Collect identity, snapshot metrics, then render the closure dashboard."),
                 ("fx ip_save", "Save a reusable IP package after closure."),
             ),
@@ -300,11 +320,19 @@ Use `fx commands` to list every backend target.
         "model": ("fx model --setup --force",),
         "test_gen": ("fx test_gen --set TEST_NAME=smoke",),
         "tests": ("fx tests",),
-        "sim": ("fx sim --set TEST_NAME=smoke --set COMPILER=verilator",),
+        "sim": (
+            "fx sim --set TEST_NAME=smoke --set COMPILER=verilator",
+            "fx sim --all",
+            "fx sim --post-syn --set TEST_NAME=smoke --set TIMING_MODE=typ",
+            "fx sim --post-impl --all",
+        ),
         "cocotb": ("fx cocotb --set TEST_NAME=smoke --set COCOTB_WAVES=1",),
         "regression": ("fx regression", "fx regression --summary", "fx regression --show", "fx regression --debug"),
         "coverage": ("fx coverage", "fx coverage --summary", "fx coverage --show", "fx coverage --debug"),
-        "formal": ("fx formal --setup", "fx formal", "fx formal --summary", "fx formal --show", "fx formal --debug"),
+        "formal": (
+            "fx formal --setup", "fx formal", "fx formal --csr",
+            "fx formal --csr --prove", "fx formal --bmc", "fx formal --summary",
+        ),
         "view": (
             "fx view --set PDK=ihp-sg13g2 --set SIGNOFF_STAGE=post_syn "
             "--set SIM_NAME=smoke_sv_tt --set WAVE_VIEWER=surfer",
@@ -320,6 +348,13 @@ Use `fx commands` to list every backend target.
         "pnr": (
             "fx pnr --setup --force", "fx pnr", "fx pnr --summary",
             "fx pnr --show", "fx pnr --debug",
+        ),
+        "sta": (
+            "fx sta", "fx sta --post-impl", "fx sta --all --summary",
+        ),
+        "power_estimate": (
+            "fx power-estimate", "fx power-estimate --post-impl",
+            "fx power-estimate --all --summary",
         ),
         "signoff": ("fx signoff --setup --force", "fx signoff"),
         "lint": (
@@ -338,32 +373,15 @@ Use `fx commands` to list every backend target.
             "fx compile_post_syn --set TEST_NAME=smoke "
             "--set GLS_BACKEND=sv --set TIMING_MODE=typ",
         ),
-        "sim_post_syn": (
-            "fx sim_post_syn --set TEST_NAME=smoke "
-            "--set GLS_BACKEND=sv --set TIMING_MODE=typ --set SDF_STRICT=1",
-        ),
-        "sim_post_syn_all": (
-            "fx sim_post_syn_all",
-            "fx sim_post_syn_all --set TEST_NAMES=all "
-            "--set GLS_BACKEND=sv --set TIMING_MODES=all",
-            "fx sim_post_syn_all --set TEST_NAMES=all "
-            "--set GLS_BACKEND=cocotb --set TIMING_MODES=all",
-        ),
         "power_analysis": (
-            "fx power_analysis --set POWER_TEST_NAME=smoke "
-            "--set POWER_GLS_BACKEND=sv --set POWER_TIMING_MODE=typ",
-        ),
-        "power_analysis_all": (
-            "fx power_analysis_all --set POWER_TEST_NAMES=all "
-            "--set POWER_GLS_BACKENDS=all --set POWER_TIMING_MODES=all",
+            "fx power-analysis --set POWER_TEST_NAME=smoke --set POWER_GLS_BACKEND=sv --set POWER_TIMING_MODE=typ",
+            "fx power-analysis --all --set POWER_TEST_NAMES=all --set POWER_TIMING_MODES=all",
+            "fx power-analysis --post-impl --all",
         ),
         "fusion_analysis": (
-            "fx fusion_analysis --set POWER_TEST_NAME=smoke "
-            "--set POWER_GLS_BACKEND=sv --set POWER_TIMING_MODE=typ",
-        ),
-        "fusion_analysis_all": (
-            "fx fusion_analysis_all --set POWER_TEST_NAMES=all "
-            "--set POWER_GLS_BACKENDS=all --set POWER_TIMING_MODES=all",
+            "fx fusion --set POWER_TEST_NAME=smoke --set POWER_GLS_BACKEND=sv --set POWER_TIMING_MODE=typ",
+            "fx fusion --all --set POWER_TEST_NAMES=all --set POWER_TIMING_MODES=all",
+            "fx fusion --post-impl --all",
         ),
         "validate_override": (
             "fx validate_override --set STAGE=syn.setup",
@@ -465,6 +483,19 @@ Use `fx commands` to list every backend target.
                 ),
             ),
         ),
+        "sim": (
+            (
+                "Simulation selection",
+                (
+                    ("default / --rtl", "Run one RTL SystemVerilog vector test."),
+                    ("--all", "Run every generated RTL SystemVerilog vector test."),
+                    ("--post-syn", "Run one post-synthesis GLS workload."),
+                    ("--post-syn --all", "Run the selected post-synthesis GLS matrix."),
+                    ("--post-impl", "Run one routed GLS workload."),
+                    ("--post-impl --all", "Run the selected routed GLS matrix."),
+                ),
+            ),
+        ),
         "regression": (
             (
                 "Execution",
@@ -510,22 +541,21 @@ Use `fx commands` to list every backend target.
             (
                 "Execution",
                 (
-                    ("CSR", "Automatic CSR properties derived from generated register semantics."),
-                    ("properties", "Designer-authored properties under dv/formal/properties."),
-                    ("BMC", "Bounded model checking for quick counterexamples up to FORMAL_BMC_DEPTH."),
-                    ("PROVE", "Inductive/PDR-style proof using FORMAL_PROVE_ENGINE."),
-                    ("COVER", "Reachability of cover properties using FORMAL_COVER_ENGINE and FORMAL_DEPTH."),
-                    ("matrix", "The full formal target is CSR/properties × BMC/prove/cover: six native SBY outcomes."),
+                    ("default / --all", "Run all applicable automatic CSR and designer-authored formal stages."),
+                    ("--csr", "Run only automatic CSR formal derived from register semantics."),
+                    ("--bmc / --prove / --cover", "Run one designer-authored property stage."),
+                    ("--csr --bmc|--prove|--cover", "Run one automatic CSR stage."),
+                    ("properties", "Designer-authored properties under dv/formal/properties; absence is not an UNKNOWN result."),
                 ),
             ),
             (
                 "Lifecycle and evidence",
                 (
-                    ("--setup", "Materializes/preserves property scaffolds and generated SBY configurations; it does not run formal engines."),
+                    ("--setup", "Generates SBY configurations. Automatic CSR properties are FlexSoC-owned; design formal requires real .sv/.v properties under dv/formal/properties."),
                     ("--summary", "Aggregate status and BMC/prove/cover counts from dv/formal/summary.json."),
                     ("--show", "Canonical CSR/properties × BMC/prove/cover matrix from summary.json."),
                     ("--debug", "Show plus SBY config, workdir, log, and trace paths. It never reruns SBY."),
-                    ("PARTIAL", "Some of the six formal stages have not produced native status evidence yet."),
+                    ("PARTIAL", "An applicable formal stage exists but has not produced a valid native status yet."),
                 ),
             ),
         ),
@@ -628,8 +658,9 @@ Use `fx commands` to list every backend target.
             (
                 "Static timing analysis",
                 (
-                    ("post_syn", "Uses the synthesized netlist with ideal clocks and no extracted interconnect. Setup runs by default and is the timing release gate."),
-                    ("post_impl", "Uses the implemented netlist, propagated clocks, and SPEF. Setup and hold both run by default and are sign-off blocking."),
+                    ("default / --post-syn", "Uses the synthesized netlist with ideal clocks and no extracted interconnect. Setup runs by default and is the timing release gate."),
+                    ("--post-impl", "Uses the implemented netlist, propagated clocks, and SPEF. Setup and hold both run by default and are sign-off blocking."),
+                    ("--all", "Explicitly request all configured corners; this is already the default STA coverage."),
                     ("setup", "Maximum-delay/setup timing is gating at both stages."),
                     ("hold", "Minimum-delay timing is opt-in/advisory post-synthesis because CTS has not happened; it is gating post-implementation."),
                     ("recovery/removal", "Reset recovery/removal follows the same policy as hold: advisory post-synthesis, gating post-implementation."),
@@ -651,7 +682,9 @@ Use `fx commands` to list every backend target.
                 "Vectorless power",
                 (
                     ("model", "Runs OpenSTA power with configured input activity/duty assumptions and Liberty corner views; no waveform is required."),
-                    ("post_syn / post_impl", "The same analysis owner is used at both stages; post_impl additionally uses the implemented netlist and SPEF."),
+                    ("default / --post-syn", "Use the synthesized netlist and configured Liberty corners."),
+                    ("--post-impl", "Use the implemented netlist and SPEF with the same analysis owner."),
+                    ("--all", "Explicitly request all configured corners; this is already the default vectorless estimate coverage."),
                     ("metrics", "Reports internal, switching, dynamic, leakage, and total power per corner."),
                 ),
             ),
@@ -664,7 +697,9 @@ Use `fx commands` to list every backend target.
                     ("input", "Consumes successful SDF-backed GLS waveform evidence for one or more test/backend/timing workloads."),
                     ("qualification", "A workload is accepted only when GLS metadata, SDF scenario, annotation marker, and waveform are coherent."),
                     ("power", "Runs OpenSTA power for each selected workload/corner and records internal + switching as dynamic power."),
-                    ("post_syn / post_impl", "The same flow is reused at both stages; only the stage netlist/parasitics and matching GLS evidence change."),
+                    ("default / --post-syn", "Analyze one aligned post-synthesis GLS workload."),
+                    ("--post-impl", "Use the routed netlist/parasitics and matching post-implementation GLS evidence."),
+                    ("--all", "Analyze all matching workloads for the selected stage."),
                 ),
             ),
             ("Evidence views", (("--summary", "Status and workload pass/fail counts."), ("--show", "Per-workload canonical power/timing rows."), ("--debug", "Show plus reports/logs and raw artifact paths; no analysis rerun."))),
@@ -675,7 +710,9 @@ Use `fx commands` to list every backend target.
                 (
                     ("purpose", "Correlates timing paths with activity-based power evidence for the same qualified workload."),
                     ("hotspots", "Identifies power-heavy instances and evaluates timing paths that traverse them; it does not replace STA or power sign-off."),
-                    ("post_syn / post_impl", "The same analysis runs at both stages using the corresponding timing/parasitic model."),
+                    ("default / --post-syn", "Correlate one post-synthesis workload."),
+                    ("--post-impl", "Correlate one routed workload using the post-implementation timing/parasitic model."),
+                    ("--all", "Correlate all matching workloads for the selected stage."),
                 ),
             ),
             ("Evidence views", (("--summary", "Status and workload pass/fail counts."), ("--show", "Per-workload fused timing/power results."), ("--debug", "Show plus hotspot paths, reports, and raw artifact paths."))),
@@ -686,7 +723,8 @@ Use `fx commands` to list every backend target.
                 (
                     ("matrix", "Runs the selected representative tests over the configured timing modes with one GLS backend."),
                     ("min / typ / max", "SDF-backed sampling maps to ff / tt / ss. This is functional GLS sampling, not full STA corner coverage."),
-                    ("post_syn / post_impl", "Uses synthesized or implemented gate netlist/SDF respectively; the matrix contract is otherwise identical."),
+                    ("fx sim --post-syn --all", "Run the post-synthesis GLS matrix."),
+                    ("fx sim --post-impl --all", "Run the post-implementation GLS matrix."),
                     ("PASS", "Every selected GLS case executed successfully with the requested timing annotation evidence."),
                 ),
             ),
@@ -856,15 +894,31 @@ Use `fx commands` to list every backend target.
 
         @staticmethod
         def _completion_words() -> tuple[str, ...]:
-            """Return words offered by shell and REPL completion."""
+            """Return public words offered by shell and REPL completion."""
 
-            return tuple(dict.fromkeys((*PSEUDO_COMMANDS, *TARGETS, *PUBLIC_KEYWORDS, *OPTION_WORDS)))
+            targets = tuple(
+                FlexSoCCli._public_name(name)
+                for name in TARGETS
+                if name not in PRIVATE_CLI_TARGETS
+            )
+            setup = tuple(FlexSoCCli._public_name(name) for name in PUBLIC_KEYWORDS)
+            return tuple(dict.fromkeys((*PSEUDO_COMMANDS, *targets, *CANONICAL_CLI_TARGETS, *setup, *OPTION_WORDS)))
 
         @staticmethod
         def _complete_items(incomplete: str) -> list[str]:
             """Complete pseudo-commands and backend targets."""
 
             return [word for word in FlexSoCCli._completion_words() if word.startswith(incomplete)]
+
+        @staticmethod
+        def _public_name(target: str) -> str:
+            """Return the canonical CLI spelling for one backend target."""
+
+            return {
+                "power_estimate": "power-estimate",
+                "power_analysis": "power-analysis",
+                "fusion_analysis": "fusion",
+            }.get(target, target)
 
         def _guide(self) -> None:
             """Print the canonical IP lifecycle in execution order."""
@@ -926,10 +980,99 @@ Use `fx commands` to list every backend target.
             """Resolve one public lifecycle keyword to its backend run target."""
 
             name = value.replace("-", "_")
-            target = name
-            if name in SETUP_ONLY and not allow_setup_only:
+            target = "fusion_analysis" if name == "fusion" else name
+            if target in SETUP_ONLY and not allow_setup_only:
                 raise ValueError(f"{name} is setup-only; use `fx {name} --setup`")
             return self._target_name(target)
+
+        def _resolve_domain_command(
+            self, values: tuple[str, ...], *, rtl: bool, post_syn: bool, post_impl: bool,
+            all_runs: bool, csr: bool, bmc: bool, prove: bool, cover: bool,
+        ) -> tuple[str, ...]:
+            """Translate one structured public domain command to existing backend target IDs."""
+
+            legacy_root = {"power_estimate": "power-estimate", "power_analysis": "power-analysis"}
+            if values and values[0] in legacy_root:
+                raise typer.BadParameter(f"use `{legacy_root[values[0]]}` instead of `{values[0]}`")
+            normalized = tuple(value.replace("-", "_") for value in values)
+            direct_private = next((value for value in normalized if value in PRIVATE_CLI_TARGETS), None)
+            if direct_private is not None:
+                raise typer.BadParameter(
+                    f"{direct_private!r} is internal; use formal/sim/sta/power-estimate/"
+                    "power-analysis/fusion options instead"
+                )
+
+            selectors = any((rtl, post_syn, post_impl, all_runs, csr, bmc, prove, cover))
+            if not selectors and normalized != ("fusion",):
+                return values
+            if len(values) != 1:
+                raise typer.BadParameter("domain selector options require exactly one command")
+
+            command = normalized[0]
+            formal_flags = (csr, bmc, prove, cover)
+            stage_flags = (rtl, post_syn, post_impl)
+
+            if command == "formal":
+                if any(stage_flags):
+                    raise typer.BadParameter("--rtl/--post-syn/--post-impl are not valid with `fx formal`")
+                modes = [name for name, enabled in (("bmc", bmc), ("prove", prove), ("cover", cover)) if enabled]
+                if len(modes) > 1:
+                    raise typer.BadParameter("choose only one of --bmc, --prove, or --cover")
+                if all_runs and (csr or modes):
+                    raise typer.BadParameter("--all is the default for `fx formal`; do not combine it with --csr/--bmc/--prove/--cover")
+                if all_runs or not (csr or modes):
+                    return ("formal",)
+                mode = modes[0] if modes else ""
+                if csr:
+                    return (f"formal_csr_{mode}" if mode else "formal_csr",)
+                return (f"formal_{mode}",)
+
+            if any(formal_flags):
+                raise typer.BadParameter("--csr/--bmc/--prove/--cover are only valid with `fx formal`")
+
+            if command == "sim":
+                if sum(stage_flags) > 1:
+                    raise typer.BadParameter("choose only one of --rtl, --post-syn, or --post-impl")
+                if post_syn:
+                    return ("sim_post_syn_all" if all_runs else "sim_post_syn",)
+                if post_impl:
+                    return ("sim_post_impl_all" if all_runs else "sim_post_impl",)
+                return ("sim_tests" if all_runs else "sim",)
+
+            if rtl:
+                raise typer.BadParameter("--rtl is only valid with `fx sim`")
+            if post_syn and post_impl:
+                raise typer.BadParameter("choose only one of --post-syn or --post-impl")
+
+            if command == "sta":
+                return ("sta_post_impl" if post_impl else "sta",)
+            if command == "power_estimate":
+                return ("power_estimate_post_impl" if post_impl else "power_estimate",)
+            if command == "power_analysis":
+                if post_impl:
+                    return ("power_analysis_post_impl_all" if all_runs else "power_analysis_post_impl",)
+                return ("power_analysis_all" if all_runs else "power_analysis",)
+            if command == "fusion":
+                if post_impl:
+                    return ("fusion_analysis_post_impl_all" if all_runs else "fusion_analysis_post_impl",)
+                return ("fusion_analysis_all" if all_runs else "fusion_analysis",)
+
+            if post_syn or post_impl or all_runs:
+                raise typer.BadParameter(
+                    "--post-syn/--post-impl/--all are only valid with sim, sta, "
+                    "power-estimate, power-analysis, or fusion"
+                )
+            return values
+
+        @staticmethod
+        def _formal_view_selection(target: str) -> tuple[str | None, str | None]:
+            """Return formal suite/stage filters for one internal formal target."""
+
+            if target == "formal":
+                return None, None
+            suite = "csr" if target.startswith("formal_csr") else "properties"
+            stage = next((name for name in ("bmc", "prove", "cover") if target.endswith(f"_{name}")), None)
+            return suite, stage
 
         def _mode_targets(self, values: tuple[str, ...], *, setup: bool, debug: bool) -> tuple[str, ...]:
             """Resolve public lifecycle keywords; setup remains an execution mode."""
@@ -974,22 +1117,19 @@ Use `fx commands` to list every backend target.
         def _target_lifecycle_rows(self, name: str) -> tuple[tuple[str, str], ...]:
             """Describe the public lifecycle supported by one target."""
 
-            public = name.replace("-", "_")
+            internal = name.replace("-", "_")
+            public = self._public_name(internal)
             rows: list[tuple[str, str]] = []
-            if public in SETUP_ONLY:
+            if internal in SETUP_ONLY:
                 rows.append(("run", "setup-only target; use --setup"))
             else:
                 rows.append(("run", f"fx {public}"))
             rows.append((
                 "setup",
-                f"fx {public} --setup" if public in SETUP_TARGETS else "not supported",
+                f"fx {public} --setup" if internal in SETUP_TARGETS else "not supported",
             ))
-            evidence_view = public in {
-                "lint", "slang_hier", "cdc_rdc", "regression", "coverage", "formal", "syn", "eqy",
-            } or (
-                public in BACKEND_TARGETS
-                and BACKEND_TARGETS[public].domain == "signoff"
-                and BACKEND_TARGETS[public].show is not None
+            evidence_view = (
+                internal in BACKEND_TARGETS and BACKEND_TARGETS[internal].show is not None
             )
             if evidence_view:
                 rows.extend((
@@ -998,7 +1138,7 @@ Use `fx commands` to list every backend target.
                 ))
             rows.append((
                 "debug",
-                f"fx {public} --debug" if public in DEBUG_TARGETS else "not supported",
+                f"fx {public} --debug" if internal in DEBUG_TARGETS else "not supported",
             ))
             return tuple(rows)
 
@@ -1021,8 +1161,13 @@ Use `fx commands` to list every backend target.
         def _print_target_help(self, name: str) -> None:
             """Render dedicated help for one public lifecycle keyword."""
 
-            public = name.replace("-", "_")
-            target = self._run_target(public, allow_setup_only=True)
+            if name in {"power_estimate", "power_analysis"}:
+                raise ValueError(f"use `{name.replace('_', '-')}` as the public command")
+            normalized = name.replace("-", "_")
+            if normalized in PRIVATE_CLI_TARGETS:
+                raise ValueError(f"{name!r} is an internal target; use the canonical domain command")
+            target = self._run_target(name, allow_setup_only=True)
+            public = self._public_name(target)
             group, description, params = TARGETS[target]
             console.print()
             console.print(
@@ -1035,7 +1180,7 @@ Use `fx commands` to list every backend target.
                 )
             )
             console.print("[bold orange1]Usage[/bold orange1]")
-            examples = (f"fx {public} --setup",) if public in SETUP_ONLY else self._target_examples(target, params)
+            examples = (f"fx {public} --setup",) if target in SETUP_ONLY else self._target_examples(target, params)
             for example in examples:
                 console.print(f"  [bold bright_cyan]{example}[/bold bright_cyan]")
             if target in SETUP_TARGETS:
@@ -1137,19 +1282,35 @@ Use `fx commands` to list every backend target.
             return values
 
         def _print_commands(self, client: FlexSoC, as_json: bool) -> None:
-            """Print the unified target table."""
+            """Print the canonical public CLI command table."""
 
-            targets = client.targets()
+            rows: list[dict[str, object]] = []
+            for target in client.targets():
+                if target.name in PRIVATE_CLI_TARGETS:
+                    continue
+                data = target.to_dict()
+                data["name"] = self._public_name(target.name)
+                rows.append(data)
+            fusion = client.target_info("fusion_analysis").to_dict()
+            fusion["name"] = "fusion"
+            insert_at = next(
+                (index + 1 for index, item in enumerate(rows) if item["name"] == "power-analysis"),
+                len(rows),
+            )
+            rows.insert(insert_at, fusion)
             if as_json:
-                print(json.dumps([target.to_dict() for target in targets], indent=2))
+                print(json.dumps(rows, indent=2))
                 return
-            table = Table(title="FlexSoC backend targets", show_lines=False)
-            table.add_column("Target", style="cyan", no_wrap=True)
+            table = Table(title="FlexSoC commands", show_lines=False)
+            table.add_column("Command", style="cyan", no_wrap=True)
             table.add_column("Group", style="magenta", no_wrap=True)
             table.add_column("Description")
             table.add_column("Variables")
-            for target in targets:
-                table.add_row(target.name, target.group, target.description, ", ".join(target.params))
+            for item in rows:
+                table.add_row(
+                    str(item["name"]), str(item["group"]), str(item["description"]),
+                    ", ".join(str(value) for value in item["params"]),
+                )
             console.print(table)
 
         def _print_settings(self, values: Mapping[str, str], as_json: bool) -> None:
@@ -1594,6 +1755,38 @@ Use `fx commands` to list every backend target.
                 bool,
                 typer.Option("--setup", help="Run the setup phase for the selected lifecycle keyword.", rich_help_panel="Target options"),
             ] = False,
+            rtl: Annotated[
+                bool,
+                typer.Option("--rtl", help="Select RTL simulation (the default for fx sim).", rich_help_panel="Domain selection"),
+            ] = False,
+            post_syn: Annotated[
+                bool,
+                typer.Option("--post-syn", help="Select the post-synthesis stage.", rich_help_panel="Domain selection"),
+            ] = False,
+            post_impl: Annotated[
+                bool,
+                typer.Option("--post-impl", help="Select the post-implementation stage.", rich_help_panel="Domain selection"),
+            ] = False,
+            all_runs: Annotated[
+                bool,
+                typer.Option("--all", help="Run all variants/workloads for the selected domain.", rich_help_panel="Domain selection"),
+            ] = False,
+            csr: Annotated[
+                bool,
+                typer.Option("--csr", help="Select automatic CSR formal checks.", rich_help_panel="Domain selection"),
+            ] = False,
+            bmc: Annotated[
+                bool,
+                typer.Option("--bmc", help="Select bounded model checking.", rich_help_panel="Domain selection"),
+            ] = False,
+            prove: Annotated[
+                bool,
+                typer.Option("--prove", help="Select property proof.", rich_help_panel="Domain selection"),
+            ] = False,
+            cover: Annotated[
+                bool,
+                typer.Option("--cover", help="Select cover reachability.", rich_help_panel="Domain selection"),
+            ] = False,
             on: Annotated[
                 str,
                 typer.Option("--on", help="Execution target name (local or configured server).", rich_help_panel="Target options"),
@@ -1655,6 +1848,10 @@ Use `fx commands` to list every backend target.
 
             root = (project_root or Path.cwd()).resolve()
             args, set_args, unset_args = tuple(items or ()), tuple(sets or ()), tuple(unsets or ())
+            args = self._resolve_domain_command(
+                args, rtl=rtl, post_syn=post_syn, post_impl=post_impl, all_runs=all_runs,
+                csr=csr, bmc=bmc, prove=prove, cover=cover,
+            )
             if deps_user and deps_system:
                 raise click.BadParameter("choose only one of --user or --system")
             if deps_profile is not None and deps_profile not in {"base", "impl", "riscv"}:
@@ -1723,23 +1920,12 @@ Use `fx commands` to list every backend target.
                 )
             if args[0] == "shell":
                 raise typer.Exit(self._shell(root, workdir))
-            signoff_evidence = {
-                "sta", "sta_corners", "power_estimate", "power_estimate_corners",
-                "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all",
-                "sim_post_syn_all", "sta_post_impl", "power_estimate_post_impl",
-                "power_analysis_post_impl", "power_analysis_post_impl_all",
-                "fusion_analysis_post_impl", "fusion_analysis_post_impl_all",
-                "sim_post_impl_all", "physical_signoff",
-            }
-            evidence_targets = {
-                ("lint",), ("slang_hier",), ("cdc_rdc",),
-                ("regression",), ("coverage",), ("formal",),
-                ("syn",), ("eqy",), ("pnr",),
-                *((name,) for name in signoff_evidence),
-            }
-            if show or summary:
-                if args not in evidence_targets:
-                    raise click.BadParameter("--show/--summary are not supported for this target")
+            evidence_target = (
+                BACKEND_TARGETS.get(args[0]) if len(args) == 1 else None
+            )
+            supports_evidence = evidence_target is not None and evidence_target.show is not None
+            if (show or summary) and not supports_evidence:
+                raise click.BadParameter("--show/--summary are not supported for this target")
             if tool is not None:
                 if args != ("lint",):
                     raise click.BadParameter("--tool is only valid with `fx lint`")
@@ -1747,17 +1933,24 @@ Use `fx commands` to list every backend target.
                     raise click.BadParameter("--tool requires `fx lint --show`, `fx lint --summary`, or `fx lint --debug`")
                 if tool not in {"slang", "verilator"}:
                     raise click.BadParameter("--tool must be slang or verilator")
-            if args in evidence_targets and (show or summary or debug):
+            if supports_evidence and (show or summary or debug):
                 if sum((show, summary, debug)) > 1:
                     raise click.BadParameter("choose only one of --show, --summary, or --debug")
+                target = evidence_target
                 flows = client.flows(**self._assignments(set_args))
                 try:
-                    if args == ("lint",):
-                        code = flows.dv.lint.show(
-                            tool=tool, debug=debug, summary=summary, as_json=as_json,
-                            output=str(save_output) if save_output is not None else None,
-                        )
-                    elif args == ("slang_hier",):
+                    if target.name == "lint":
+                        if debug:
+                            code = flows.dv.lint.debug(
+                                tool=tool, as_json=as_json,
+                                output=str(save_output) if save_output is not None else None,
+                            )
+                        else:
+                            code = flows.dv.lint.show(
+                                tool=tool, summary=summary, as_json=as_json,
+                                output=str(save_output) if save_output is not None else None,
+                            )
+                    elif target.show == "slang_hier":
                         if debug:
                             code = flows.dv.hierarchy.debug(
                                 output=str(save_output) if save_output is not None else None,
@@ -1769,7 +1962,7 @@ Use `fx commands` to list every backend target.
                                 output=str(save_output) if save_output is not None else None,
                                 as_json=as_json,
                             )
-                    elif args == ("cdc_rdc",):
+                    elif target.show == "cdc_rdc":
                         if debug:
                             code = flows.dv.cdc.debug(
                                 output=str(save_output) if save_output is not None else None,
@@ -1781,44 +1974,44 @@ Use `fx commands` to list every backend target.
                                 output=str(save_output) if save_output is not None else None,
                                 as_json=as_json,
                             )
-                    elif args == ("regression",):
+                    elif target.show == "regression":
                         code = flows.dv.functional.show_regression(
                             flows.dv.context, summary=summary, debug=debug,
                             output=str(save_output) if save_output is not None else None,
                             as_json=as_json,
                         )
-                    elif args == ("coverage",):
+                    elif target.show == "coverage":
                         code = flows.dv.coverage.show(
                             flows.dv.context, summary=summary, debug=debug,
                             output=str(save_output) if save_output is not None else None,
                             as_json=as_json,
                         )
-                    elif args == ("formal",):
+                    elif target.show == "formal":
+                        suite, stage = self._formal_view_selection(target.name)
                         code = flows.dv.formal.show(
                             flows.dv.context, summary=summary, debug=debug,
                             output=str(save_output) if save_output is not None else None,
-                            as_json=as_json,
+                            as_json=as_json, suite=suite, stage=stage,
                         )
-                    elif args == ("syn",):
-                        code = flows.syn.show(
-                            summary=summary, debug=debug,
-                            output=str(save_output) if save_output is not None else None,
-                            as_json=as_json,
-                        )
-                    elif args == ("eqy",):
+                    elif target.domain == "syn" and target.show == "eqy":
                         code = flows.syn.show_eqy(
                             summary=summary, debug=debug,
                             output=str(save_output) if save_output is not None else None,
                             as_json=as_json,
                         )
-                    elif args == ("pnr",):
+                    elif target.domain == "syn":
+                        code = flows.syn.show(
+                            summary=summary, debug=debug,
+                            output=str(save_output) if save_output is not None else None,
+                            as_json=as_json,
+                        )
+                    elif target.domain == "impl":
                         code = flows.impl.show(
                             summary=summary, debug=debug,
                             output=str(save_output) if save_output is not None else None,
                             as_json=as_json,
                         )
                     else:
-                        target = BACKEND_TARGETS[args[0]]
                         flow = flows.signoff.post_impl if target.stage == "post_impl" else flows.signoff.post_syn
                         code = flow.show(
                             target, summary=summary, debug=debug,

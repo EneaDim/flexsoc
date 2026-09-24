@@ -216,7 +216,7 @@ fx eqy --debug
 fx signoff --setup
 fx sdf
 fx sta
-fx power_estimate
+fx power-estimate
 ```
 
 STA sources `constraints/<TOP>.sdc` directly and writes the canonical human and
@@ -229,7 +229,7 @@ Optional post-synthesis gate simulation:
 
 ```bash
 fx compile_post_syn --force
-fx sim_post_syn --force
+fx sim --post-syn --force
 ```
 
 ## 8. OpenROAD implementation
@@ -246,9 +246,9 @@ implementation branch:
 ```bash
 fx signoff_post_impl --setup --force
 fx sdf_post_impl
-fx sta_post_impl
+fx sta --post-impl
 fx compile_post_impl --force
-fx sim_post_impl --force
+fx sim --post-impl --force
 ```
 
 Use explicit `NETLIST`/`SPEF_FILE` overrides only for intentional exceptional
@@ -284,8 +284,8 @@ fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tb cocotb --setup --force
 fx regression
-fx formal_csr --setup --force
-fx formal
+fx formal --csr --setup --force
+fx formal --csr
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
@@ -303,7 +303,8 @@ fx cdc_rdc
 fx tests_gen --force
 fx tb cocotb --setup --force
 fx regression
-fx formal_prove formal_cover --setup --force
+fx formal --prove --setup --force
+fx formal --cover --setup --force
 fx formal
 fx syn --setup --force
 fx syn
@@ -322,7 +323,8 @@ fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tb cocotb --setup --force
 fx regression
-fx formal_prove formal_cover --setup --force
+fx formal --prove --setup --force
+fx formal --cover --setup --force
 fx formal
 fx syn --setup --force
 fx syn
@@ -355,7 +357,7 @@ fx eqy --setup --force
 fx signoff --setup --force
 fx sdf
 fx sta
-fx power_estimate
+fx power-estimate
 ```
 
 If only timing values change (waveform, latency, uncertainty, I/O delays, drive/load,
@@ -407,13 +409,13 @@ fx eqy --setup
 fx signoff --setup
 fx sdf
 fx sta
-fx power_estimate
+fx power-estimate
 fx pnr --setup
 fx pnr
 fx physical_signoff
 fx signoff_post_impl --setup
 fx sdf_post_impl
-fx sta_post_impl
+fx sta --post-impl
 fx metrics
 fx check
 fx qualify
@@ -425,12 +427,18 @@ EQY setup remains separate from runtime evidence. Run `fx eqy` explicitly only f
 ## 13. Project regression
 
 ```bash
-pytest -q tests/test_api.py
-pytest -s tests/test_e2e_fx.py --e2e-root ~/flexsoc-e2e
+uv run pytest -q tests/test_api.py
+uv run pytest -s tests/test_e2e_fx.py --e2e-mode full --e2e-root ~/flexsoc-e2e
 ```
 
-Frontend-only iteration:
+Formal-only iteration:
 
 ```bash
-pytest -s tests/test_e2e_fx.py --no-signoff --e2e-root ~/flexsoc-e2e
+uv run pytest -s tests/test_e2e_fx.py --e2e-mode formal --e2e-root ~/flexsoc-e2e
+```
+
+Stop before PnR:
+
+```bash
+uv run pytest -s tests/test_e2e_fx.py --e2e-mode pre-pnr --e2e-root ~/flexsoc-e2e
 ```

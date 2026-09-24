@@ -1109,18 +1109,6 @@ class CdcFlow:
         return CrossingAnalysis(dependencies, clock_crossings, reset_crossings)
 
     @staticmethod
-    def find_clock_crossings(ir: DesignIR, clocks: ClockConfig) -> tuple[Crossing, ...]:
-        """Return raw sequential CDC candidates before protocol classification."""
-
-        return CdcFlow.analyze_domains(ir, clocks).clock_crossings
-
-    @staticmethod
-    def find_reset_crossings(ir: DesignIR, clocks: ClockConfig) -> tuple[Crossing, ...]:
-        """Return raw RDC candidates between differently reset sequential state."""
-
-        return CdcFlow.analyze_domains(ir, clocks).reset_crossings
-
-    @staticmethod
     def _bit_consumers(ir: DesignIR, bit: NetBit) -> tuple[tuple[str, str, str], ...]:
         """Return structural consumers of one net bit as ``(kind, name, port)``."""
 
@@ -1318,35 +1306,6 @@ class CdcFlow:
             classification="nff_synchronizer",
             stages=tuple(stages),
             issues=tuple(dict.fromkeys(issues)),
-        )
-
-    @staticmethod
-    def classify_synchronizers(
-        ir: DesignIR,
-        analysis: CrossingAnalysis,
-    ) -> tuple[SynchronizerFinding, ...]:
-        """Recognize only scalar N-FF synchronizers and check chain integrity."""
-
-        widths: dict[tuple[str, str, str, str], int] = {}
-        for crossing in analysis.clock_crossings:
-            key = CdcFlow._crossing_group_key(crossing)
-            widths[key] = widths.get(key, 0) + 1
-
-        findings = []
-        for crossing in analysis.clock_crossings:
-            if widths[CdcFlow._crossing_group_key(crossing)] != 1:
-                continue
-            finding = CdcFlow._classify_synchronizer_crossing(ir, analysis, crossing)
-            if finding is not None:
-                findings.append(finding)
-        return tuple(
-            sorted(
-                findings,
-                key=lambda item: (
-                    CdcFlow._endpoint_key(item.crossing.source),
-                    CdcFlow._endpoint_key(item.crossing.destination),
-                ),
-            )
         )
 
     @staticmethod

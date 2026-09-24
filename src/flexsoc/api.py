@@ -14,7 +14,7 @@ from .backend.signoff.sta import SDF_MODE_TO_CORNER
 from .backend.core.flow.target import BACKEND_TARGETS
 from .backend.core.flow.session import (
     ACTIVITY_ANALYSIS_TARGETS, DEFAULT_SETTINGS,
-    POST_IMPL_SIGNOFF_TARGETS, QUIET_BY_DEFAULT_TARGETS, SETUP_ONLY_TARGETS,
+    QUIET_BY_DEFAULT_TARGETS, SETUP_ONLY_TARGETS,
     SETUP_STAGES, SETUP_TARGETS, STREAM_BY_DEFAULT_TARGETS, TECHNOLOGY_TARGETS,
     TargetSession,
 )
@@ -149,7 +149,17 @@ GATE_SIM = (
     "DATA_OUT",
 )
 GATE_SIM_ALL = tuple(dict.fromkeys((*GATE_SIM, "TEST_NAMES", "TIMING_MODES")))
-PNR = (*COMMON, "PDK", "PDK_ROOT", "CLK_PERIOD", "ORS", "ORS_TECH", "PNR_HOLD_SLACK_MARGIN")
+PNR = (
+    *COMMON,
+    "PDK",
+    "PDK_ROOT",
+    "CLK_PERIOD",
+    "ORS",
+    "ORS_TECH",
+    "PNR_HOLD_SLACK_MARGIN",
+    "PNR_SLEW_MARGIN",
+    "PNR_CAP_MARGIN",
+)
 IP_LOAD = (*COMMON, "REG_ITF", "IP_NAME", "IP_VERSION")
 QUALIFY = (*COMMON, "REG_ITF", "IP_NAME", "IP_VERSION", "QUAL_LEVEL")
 IP_SAVE = tuple(dict.fromkeys((*EQUIV, *SIGNOFF, "REG_ITF", "IP_NAME", "IP_VERSION", "IP_LIBRARY_ROOT", "QUAL_LEVEL")))
@@ -173,8 +183,6 @@ TARGETS: dict[str, TargetSpec] = {
     "setup": ("Setup", "Create the run directory tree", BASE),
     "soc_cfg": ("Setup", "Render SoC configuration variables", SOC),
     "soc_start": ("Setup", "Initialize a SoC run from loaded IPs", SOC),
-    "sta_corners": ("Signoff", "Run STA setup/hold for each configured corner", SIGNOFF),
-    "power_estimate_corners": ("Signoff", "Estimate power for each corner using global activity", SIGNOFF),
     "signoff": ("Signoff", "Run SDF, multi-corner STA and estimated power", SIGNOFF),
     "spec": ("IP flow", "Generate the authoritative Digital IP spec/requirements/test-plan scaffold", SPEC),
     "hjson": ("IP flow", "Generate an HJSON register template", IP_DEV),
@@ -371,6 +379,14 @@ class FlexSoCCommand:
         """Render the command for a shell."""
 
         return shlex.join(self.argv)
+
+    def display_name(self) -> str:
+        """Return the canonical public command without one-shot overrides."""
+
+        words = self.argv[1:]
+        if "--set" in words:
+            words = words[:words.index("--set")]
+        return " ".join(words)
 
     def to_dict(self) -> dict[str, Any]:
         """Return command data as plain data."""
@@ -614,14 +630,19 @@ class FlexSoC:
         """Build one direct run or internal setup command preview."""
         setup = target in SETUP_STAGES
         name = target if setup else self._target(target)
-        public = TargetSession.setup_public(name) if setup else name
-        if public in POST_IMPL_SIGNOFF_TARGETS:
+        owner = TargetSession.setup_owner(name) if setup else name
+        public, selectors = TargetSession.public_invocation(owner)
+        registered = BACKEND_TARGETS.get(name)
+        if registered is not None and registered.stage == "post_impl":
             overrides = {**overrides, "SIGNOFF_STAGE": "post_impl"}
         values = self.values(overrides)
-        params = set(TARGETS.get(public, ("", "", ()))[2])
+        params = set(TARGETS.get(owner, ("", "", ()))[2])
         call_values = self._upper(overrides)
         shown = {key: value for key, value in {**self.settings, **call_values}.items() if key in params}
-        argv = ("fx", public, *(("--setup",) if setup else ()), *(item for key, value in sorted(shown.items()) for item in ("--set", f"{key}={value}")))
+        argv = (
+            "fx", public, *selectors, *(("--setup",) if setup else ()),
+            *(item for key, value in sorted(shown.items()) for item in ("--set", f"{key}={value}")),
+        )
         return FlexSoCCommand(name, argv, self.project_root, self._env(values), values)
 
     def commands(
@@ -721,8 +742,8 @@ class FlexSoC:
 
         results: list[FlexSoCResult] = []
         for command in commands:
-            public = TargetSession.setup_public(command.target) if command.target in SETUP_STAGES else command.target
-            _, description, _ = TARGETS.get(public, ("Target", "Run target", ()))
+            owner = TargetSession.setup_owner(command.target) if command.target in SETUP_STAGES else command.target
+            _, description, _ = TARGETS.get(owner, ("Target", "Run target", ()))
             stream = command.target in STREAM_BY_DEFAULT_TARGETS and not capture and not live
             quiet = command.target in QUIET_BY_DEFAULT_TARGETS and not capture and not live
             log_path = self._command_log_path(command)
@@ -733,7 +754,7 @@ class FlexSoC:
             rc, error = 0, None
 
             if not capture:
-                Terminal.print_target_start(command.target, description)
+                Terminal.print_target_start(command.display_name(), description)
                 if command.target in TECHNOLOGY_TARGETS and not live and not stream:
                     Terminal.print_label(
                         "technology",
@@ -788,7 +809,7 @@ class FlexSoC:
                     print(message, end="", flush=True)
 
             if not capture:
-                Terminal.print_target_result(command.target, rc)
+                Terminal.print_target_result(command.display_name(), rc)
             result = FlexSoCResult(
                 command,
                 rc,
@@ -798,9 +819,9 @@ class FlexSoC:
             )
             results.append(result)
             if error is not None and check:
-                raise RuntimeError(f"target '{command.target}' failed: {error}") from error
+                raise RuntimeError(f"target '{command.display_name()}' failed: {error}") from error
             if rc and check:
-                raise RuntimeError(f"target '{command.target}' failed with exit code {rc}")
+                raise RuntimeError(f"target '{command.display_name()}' failed with exit code {rc}")
         return tuple(results)
 
     @staticmethod

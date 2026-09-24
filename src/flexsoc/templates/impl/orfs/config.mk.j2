@@ -6,7 +6,13 @@ export PLATFORM        = <<: platform :>>
 # FlexSoC owns synthesis and timing intent.
 export SYNTH_NETLIST_FILES := <<: netlist :>>
 export SDC_FILE             := <<: sdc_file :>>
-
+<<% if corners %>>
+# Use the same PDK Liberty corners for implementation repair and sign-off.
+export CORNERS := <<: corner_names :>>
+<<% for corner, liberty in corners %>>
+export <<: corner | upper :>>_LIB_FILES := <<: liberty :>>
+<<% endfor %>>
+<<% endif %>>
 # Platform-owned physical views (LEF/GDS/CDL/LVS decks) stay with ORFS.
 # Physical defaults; synthesis strategy does not alter these.
 export CORE_UTILIZATION ?= 50
@@ -19,6 +25,8 @@ export REPORT_CLOCK_SKEW := 1
 export GUI_TIMING := 1
 export SETUP_SLACK_MARGIN := 0
 export HOLD_SLACK_MARGIN  := <<: hold_slack_margin :>>
+export SLEW_MARGIN        := <<: slew_margin :>>
+export CAP_MARGIN         := <<: cap_margin :>>
 export CELL_PAD_IN_SITES_GLOBAL_PLACEMENT := 0
 export CELL_PAD_IN_SITES_DETAIL_PLACEMENT := 0
 export DETAILED_ROUTE_END_ITERATION := 64

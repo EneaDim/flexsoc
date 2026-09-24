@@ -64,7 +64,18 @@ STAGE_CONTRACTS: dict[str, StageContract] = {
         ("pnr.setup",), scope="pdk",
     ),
     "pnr.setup": StageContract(
-        (*CLOCKS, "TOP", "PDK", "ORS_TECH", "PNR_HOLD_SLACK_MARGIN"),
+        (
+            *CLOCKS,
+            "TOP",
+            "PDK",
+            "ORS_TECH",
+            "LIB_SLOW",
+            "LIB_TYP",
+            "LIB_FAST",
+            "PNR_HOLD_SLACK_MARGIN",
+            "PNR_SLEW_MARGIN",
+            "PNR_CAP_MARGIN",
+        ),
         ("syn.setup", "signoff.setup"), scope="pdk",
     ),
 

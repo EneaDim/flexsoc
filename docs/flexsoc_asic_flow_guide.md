@@ -2745,22 +2745,22 @@ fx eqy --setup
 fx signoff --setup
 fx sta
 fx sdf
-fx power_estimate
-fx sim_post_syn_all
-fx power_analysis_all
-fx fusion_analysis_all
+fx power-estimate
+fx sim --post-syn --all
+fx power-analysis --all
+fx fusion --all
 
 # Implementation
 fx pnr --set ORS=/path/to/OpenROAD-flow-scripts/flow
 
 # Routed sign-off
 fx signoff_post_impl --setup --force
-fx sta_post_impl
+fx sta --post-impl
 fx sdf_post_impl
-fx power_estimate_post_impl
-fx sim_post_impl_all
-fx power_analysis_post_impl_all
-fx fusion_analysis_post_impl_all
+fx power-estimate --post-impl
+fx sim --post-impl --all
+fx power-analysis --post-impl --all
+fx fusion --post-impl --all
 
 # Final physical sign-off
 fx physical_signoff --set ORS=/path/to/OpenROAD-flow-scripts/flow

@@ -86,8 +86,8 @@ FlexSoC separates generated setup collateral from execution. Setup targets creat
 | Execution family | Required setup |
 | --- | --- |
 | `syn`, `syn_v`, `syn_sv` | `syn --setup` |
-| CSR formal execution targets | `formal_csr --setup` or the matching formal keyword with `--setup` |
-| Design formal execution targets | `formal_prove formal_cover --setup`, or `formal --setup` for the complete formal setup |
+| CSR formal execution targets | `fx formal --csr --setup` |
+| Design formal execution targets | `fx formal --prove --setup`, `fx formal --cover --setup`, or `fx formal --setup` for the complete formal setup |
 | `eqy` | `eqy --setup`, `eqy`, `eqy --debug` |
 | `sdf`, `sta*`, `power_estimate*` | `signoff --setup` |
 | `pnr`, `pnr_gui` | `pnr --setup` plus its upstream synthesis/sign-off results |
@@ -222,8 +222,8 @@ fx eqy --setup
 fx signoff --setup
 fx sdf
 fx sta
-fx power_estimate
-# compile_post_syn / sim_post_syn / power_analysis for every vector
+fx power-estimate
+# compile_post_syn / sim --post-syn / power-analysis for every vector
 fx manifest
 fx metrics
 fx check
@@ -247,9 +247,9 @@ Those outputs are isolated below `syn/<pdk>`, `impl/<pdk>`, `signoff/<pdk>`, `dv
 | Sign-off setup | `fx signoff --setup` | OpenSTA Tcl families consuming `constraints/<TOP>.sdc` |
 | Synthesis | `fx syn --setup`, `fx syn` | `syn/<pdk>/abc.constr`, Yosys scripts, mapped netlist, synthesis reports |
 | Logical sign-off | `fx eqy --setup`, `fx eqy` | RTL ↔ mapped-netlist equivalence |
-| Post-synthesis sign-off | `fx signoff --setup`, `fx sdf`, `fx sta`, `fx power_estimate`, gate simulation targets | Timing, SDF/GLS, and power evidence |
+| Post-synthesis sign-off | `fx signoff --setup`, `fx sdf`, `fx sta`, `fx power-estimate`, gate simulation targets | Timing, SDF/GLS, and power evidence |
 | Physical implementation | `fx pnr --setup`, `fx pnr`, `fx pnr_gui` | Placed/routed implementation |
-| Post-layout sign-off | `fx signoff_post_impl --setup`, `fx sdf_post_impl`, `fx sta_post_impl`, routed GLS, `fx power_estimate_post_impl`, activity/fusion post-implementation targets, `fx physical_signoff` | SPEF-aware timing, routed GLS/power/fusion, and physical evidence |
+| Post-layout sign-off | `fx signoff_post_impl --setup`, `fx sdf_post_impl`, `fx sta --post-impl`, routed GLS, `fx power-estimate --post-impl`, activity/fusion post-implementation targets, `fx physical_signoff` | SPEF-aware timing, routed GLS/power/fusion, and physical evidence |
 | Release | `fx manifest`, `fx metrics`, `fx check`, `fx ip_save` | Immutable identity + normalized metrics snapshot + human closure dashboard + reusable package |
 
 The generated register drivers expose the same logical CSR semantics on `tlul`, `reg_iface`, and `axi_lite`: one read/write helper owns the complete protocol transaction and returns only after its handshake controls are quiescent. The surrounding vector scheduler never inserts a protocol-specific clock edge. Put static initial CSR programming in `config.regs`; use cycle-indexed `@write` only when the scenario is intentionally testing a runtime register change or write-triggered action.
@@ -445,23 +445,23 @@ logs/dv/cdc_rdc/
 
 Generate and execute automatic CSR checks and authored property BMC/prove/cover stages.
 
-**Main result:** `dv/formal/` designer-owned prove/cover sources, generated configurations, proof logs, traces, and status files. `formal --setup` creates the initial design-property scaffold only when it is absent; loaded IP properties are preserved.
+**Main result:** `dv/formal/` contains generated SBY configurations plus proof logs, traces, and status files. Automatic CSR properties are FlexSoC-owned and derived from register semantics; design prove/cover sources are user-owned and are never invented or replaced by FlexSoC.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx formal --setup` | Create or preserve starter design assertions and covers. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx formal_csr_prove --setup` | Generate shared CSR BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx formal_csr_cover --setup` | Generate automatic CSR cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx formal_csr_bmc` | Bounded-check automatic CSR assertions. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
-| `fx formal_csr_prove` | Prove automatic CSR semantics with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
-| `fx formal_csr_cover` | Reach automatic CSR cover points with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
-| `fx formal_csr` | Run CSR BMC, prove, then cover. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Composite target; use it for the standard ordered flow. |
+| `fx formal --setup` | Generate SBY configuration for the formal suites that actually have inputs. Design properties must already exist as user-owned `.sv`/`.v` sources. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx formal --csr --prove --setup` | Generate shared CSR BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx formal --csr --cover --setup` | Generate automatic CSR cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx formal --csr --bmc` | Bounded-check automatic CSR assertions. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
+| `fx formal --csr --prove` | Prove automatic CSR semantics with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
+| `fx formal --csr --cover` | Reach automatic CSR cover points with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
+| `fx formal --csr` | Run CSR BMC, prove, then cover. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Composite target; use it for the standard ordered flow. |
 | `fx formal` | Run all formal stages BMC, prove, then cover. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Composite target; use it for the standard ordered flow. |
-| `fx formal_prove --setup` | Generate shared design BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx formal_cover --setup` | Generate authored-property cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx formal_bmc` | Bounded-check authored design assertions. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
-| `fx formal_prove` | Prove authored properties with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
-| `fx formal_cover` | Reach authored cover properties with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
+| `fx formal --prove --setup` | Generate shared design BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx formal --cover --setup` | Generate authored-property cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx formal --bmc` | Bounded-check authored design assertions. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
+| `fx formal --prove` | Prove authored properties with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
+| `fx formal --cover` | Reach authored cover properties with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
 
 ### 3.7 DV functional
 
@@ -484,7 +484,7 @@ Generate the reference-model environment, vectors, testbenches, simulations, reg
 | `fx sim` | Run simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx sim_v` | Run Verilog simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx sim_sv` | Run SystemVerilog simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx sim_tests` | Run every generated SystemVerilog vector test. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx sim --all` | Run every generated SystemVerilog vector test. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx cocotb` | Run cocotb tests. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx cocotb_tests` | Run every generated cocotb vector test. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx regression` | Run every existing vector test on each selected backend, then merge Verilator coverage. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Composite target; use it for the standard ordered flow. |
@@ -529,7 +529,7 @@ fx cocotb --live \
   --set WAVE_FILE="$RUN/dv/functional/sim/rtl/${TOP}_tb_cocotb_smoke.fst"
 ```
 
-`fx sim_tests` and `fx cocotb_tests` run every existing vector test for one
+`fx sim --all` and `fx cocotb_tests` run every existing vector test for one
 backend. `fx regression` runs the same existing vectors on every backend in
 `REGRESSION_BACKENDS`, clears only previous regression logs and coverage, and
 
@@ -635,8 +635,8 @@ Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, an
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx sta_corners` | Run STA setup/hold for each configured corner. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Writes every report and returns non-zero if any corner/mode violates timing. |
-| `fx power_estimate_corners` | Estimate power for each corner using primary-input activity assumptions. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
+| `fx sta --all` | Run STA setup/hold for each configured corner. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Writes every report and returns non-zero if any corner/mode violates timing. |
+| `fx power-estimate --all` | Estimate power for each corner using primary-input activity assumptions. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
 | `fx signoff_corners` | Run SDF, multi-corner STA and estimated power. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Stops at STA when any configured corner/mode violates timing. |
 | `fx eqy --setup` | Generate RTL-vs-post-synthesis EQY configuration. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx signoff --setup` | Generate sign-off Tcl families that consume the authored `constraints/<TOP>.sdc`. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
@@ -644,11 +644,11 @@ Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, an
 | `fx sim_syn` | Run post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx sta` | Run static timing analysis. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all resolved setup/hold scenarios and consolidates qualification into `signoff/<pdk>/sta/sta.rpt` plus `summary.json`; negative timing or unconstrained paths fail qualification. |
 | `fx sdf` | Write SDF timing files. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
-| `fx power_estimate` | Estimate power using primary-input activity assumptions. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
-| `fx power_analysis` | Run workload-dependent OpenSTA power analysis for one qualified GLS trace in its aligned scenario. | `SIGNOFF_STAGE`, `POWER_TEST_NAME`, `POWER_GLS_BACKEND`, `POWER_TIMING_MODE`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE`, `MACRO_LIBS`, `SPEF_FILE` | Requires a passing direct GLS report and VCD/SAIF activity. |
-| `fx power_analysis_all` | Run workload-dependent power analysis for all selected test/scenario pairs. | `POWER_TEST_NAMES`, `POWER_GLS_BACKENDS`, `POWER_GLS_BACKEND`, `POWER_TIMING_MODES`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE` | Treats SV/cocotb as alternative activity sources and selects one qualified backend per test/scenario. |
-| `fx fusion_analysis` | Correlate timing and workload power for one qualified GLS trace. | Power-analysis selectors plus `STA_MODES`, `STA_ENDPOINT_PATH_LIMIT` and `POWER_TOP_INSTANCES` (default 20) | Uses staged public OpenSTA passes to report worst met/violated paths, gate fanout/capacitance/power, and the worst timing path through each top-power gate in one `fusion.rpt` per corner/mode. |
-| `fx fusion_analysis_all` | Run fusion analysis for all selected test/scenario pairs. | Plural power-analysis selectors plus `STA_MODES`, `STA_ENDPOINT_PATH_LIMIT` and `POWER_TOP_INSTANCES` | Selects one qualified SV/cocotb source per test/scenario, then writes one fusion table per selected workload and one global JSON summary. |
+| `fx power-estimate` | Estimate power using primary-input activity assumptions. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
+| `fx power-analysis` | Run workload-dependent OpenSTA power analysis for one qualified GLS trace in its aligned scenario. | `SIGNOFF_STAGE`, `POWER_TEST_NAME`, `POWER_GLS_BACKEND`, `POWER_TIMING_MODE`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE`, `MACRO_LIBS`, `SPEF_FILE` | Requires a passing direct GLS report and VCD/SAIF activity. |
+| `fx power-analysis --all` | Run workload-dependent power analysis for all selected test/scenario pairs. | `POWER_TEST_NAMES`, `POWER_GLS_BACKENDS`, `POWER_GLS_BACKEND`, `POWER_TIMING_MODES`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE` | Treats SV/cocotb as alternative activity sources and selects one qualified backend per test/scenario. |
+| `fx fusion` | Correlate timing and workload power for one qualified GLS trace. | Power-analysis selectors plus `STA_MODES`, `STA_ENDPOINT_PATH_LIMIT` and `POWER_TOP_INSTANCES` (default 20) | Uses staged public OpenSTA passes to report worst met/violated paths, gate fanout/capacitance/power, and the worst timing path through each top-power gate in one `fusion.rpt` per corner/mode. |
+| `fx fusion --all` | Run fusion analysis for all selected test/scenario pairs. | Plural power-analysis selectors plus `STA_MODES`, `STA_ENDPOINT_PATH_LIMIT` and `POWER_TOP_INSTANCES` | Selects one qualified SV/cocotb source per test/scenario, then writes one fusion table per selected workload and one global JSON summary. |
 | `fx sta_violators` | Report timing violators. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx path_view` | Build interactive STA path view. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 
@@ -661,18 +661,18 @@ Compile and run mapped or post-route gate-level simulations, optionally with SDF
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx compile_post_syn` | Compile post-synthesis gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
-| `fx sim_post_syn` | Run one post-synthesis gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
-| `fx sim_post_syn_all` | Run all selected generated tests and timing modes with one GLS backend. | `TEST_NAMES`, `GLS_BACKEND`, `TIMING_MODES`, plus the `sim_post_syn` overrides | Defaults to all test directories, backend `sv`, and `zero unit min typ max`; run `sdf` explicitly first when timing modes require SDF. Run the command once with `GLS_BACKEND=sv` and once with `GLS_BACKEND=cocotb` when both drivers must be qualified. Results and `summary_<backend>.json` stay under `dv/functional/sim/post_syn/<pdk>/`. |
+| `fx sim --post-syn` | Run one post-synthesis gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx sim --post-syn --all` | Run all selected generated tests and timing modes with one GLS backend. | `TEST_NAMES`, `GLS_BACKEND`, `TIMING_MODES`, plus the post-synthesis simulation overrides | Defaults to all test directories, backend `sv`, and `zero unit min typ max`; run `sdf` explicitly first when timing modes require SDF. Run the command once with `GLS_BACKEND=sv` and once with `GLS_BACKEND=cocotb` when both drivers must be qualified. Results and `summary_<backend>.json` stay under `dv/functional/sim/post_syn/<pdk>/`. |
 | `fx compile_post_impl` | Compile post-implementation gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
 | `fx sdf_post_impl` | Export post-implementation SDF from final netlist, the authored SDC, and SPEF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
-| `fx sim_post_impl` | Run post-implementation gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx sim --post-impl` | Run post-implementation gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
 
 
 #### Post-synthesis timing modes
 
 The CLI uses one terminal grammar for every target: `→ target: description` at start, orange labels for `[log]`, `[script]`, `[report]`, cyan/light-blue values and paths, and a green `✓ target: done` or red `✗ target: failed (...)` completion line. Default all-matrix logs use the concise target name (`sim_post_syn_all.log`, `power_analysis_all.log`, `fusion_analysis_all.log`); non-default selectors are appended only when they disambiguate the run.
 
-Both `compile_post_syn` and `sim_post_syn` require Icarus. `sim_post_syn_all` invokes the same direct flow for every selected case. Select the driver with
+Both `compile_post_syn` and `fx sim --post-syn` require Icarus. `fx sim --post-syn --all` invokes the same direct flow for every selected case. Select the driver with
 `GLS_BACKEND=sv|cocotb` and the timing behavior with:
 
 | `TIMING_MODE` | Cell-model behavior | SDF | Report model |
@@ -708,7 +708,7 @@ RUN="$WORKSPACE/runs/$RUN_TOP/$RUN_ID"
 PDK=sky130
 
 fx pdk use "$PDK"
-fx sim_post_syn --live \
+fx sim --post-syn --live \
   --workdir "$WORKSPACE" \
   --set GLS_BACKEND=sv \
   --set TIMING_MODE=typ \
@@ -1033,17 +1033,17 @@ make test E2E_ROOT="$HOME/flexsoc-e2e"
 
 | Pytest option | Environment equivalent | Meaning |
 | --- | --- | --- |
+| `--e2e-mode VALUE` | `FLEXSOC_E2E_MODE` | `formal`, `pre-pnr`, or `full` (default). |
 | `--e2e-root PATH` | `FLEXSOC_E2E_ROOT` | Base directory for isolated workspaces. |
 | `--e2e-gls-modes VALUE` | `FLEXSOC_E2E_GLS_MODES` | One of `zero`, `unit`, `min`, `typ`, or `max`. |
-| `--e2e-gls-backends VALUE` | `FLEXSOC_E2E_GLS_BACKENDS` | Primary backend (`sv` or `cocotb`) used for detailed GLS/power/fusion checks; the other backend is additionally exercised with `sim_post_syn_all`. |
+| `--e2e-gls-backends VALUE` | `FLEXSOC_E2E_GLS_BACKENDS` | Primary backend (`sv` or `cocotb`) used for detailed GLS/power/fusion checks; the other backend is additionally exercised with `fx sim --post-syn --all`. |
 | `--no-post-syn-gls` | none | Keep synthesis/signoff but skip the explicit GLS commands. |
-| `--no-signoff` | none | Skip sign-off SDC setup, formal, synthesis, EQY, SDF, STA, power, and GLS. |
 
 E2E workspaces are always preserved for inspection. To inspect one
 failed target with its generated scripts and complete log, copy the exact command
 printed by pytest and add `--live` manually.
 
-Every `sim_post_syn` run writes direct, test-scoped evidence under:
+Every `fx sim --post-syn` run writes direct, test-scoped evidence under:
 
 ```text
 dv/functional/sim/post_syn/<pdk>/
@@ -1052,7 +1052,7 @@ dv/functional/sim/post_syn/<pdk>/
 └── ...
 ```
 
-`fx sim_post_syn_all` discovers the generated test directories and runs the selected test × timing-mode matrix with the single backend chosen by `GLS_BACKEND`. It writes the same per-case JSON reports plus:
+`fx sim --post-syn --all` discovers the generated test directories and runs the selected test × timing-mode matrix with the single backend chosen by `GLS_BACKEND`. It writes the same per-case JSON reports plus:
 
 ```text
 dv/functional/sim/post_syn/<pdk>/summary_<backend>.json
@@ -1063,7 +1063,7 @@ Use `TEST_NAMES` and `TIMING_MODES` to restrict the matrix; each selector accept
 For qualification, the scaffold `spec/testplan.yaml` intentionally narrows GLS to at most three representative tests, backend `sv`, and the `ss/tt/ff` scenarios (implemented by timing modes `max/typ/min`). Activity-based power and fusion use only that same selected GLS matrix. This bounded qualification policy applies to both post-synthesis and post-implementation evidence; direct GLS commands remain general-purpose and may still be explicitly overridden for debug.
 
 There is no E2E qualification matrix or `matrix.json`. For `min`, `typ`, and
-`max`, the E2E test immediately runs `fx power_analysis` for that exact GLS trace.
+`max`, the E2E test immediately runs `fx power-analysis` for that exact GLS trace.
 The source report records the test, backend, timing mode, netlist, SDF, waveform,
 and observable annotation diagnostics, so stale or mismatched artifacts fail at
 their direct command boundary.
@@ -1082,8 +1082,8 @@ fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tb cocotb --setup --force
 fx regression
-fx formal_csr --setup --force
-fx formal
+fx formal --csr --setup --force
+fx formal --csr
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
@@ -1096,7 +1096,8 @@ fx flist --force
 fx lint
 fx cdc_rdc --setup --force
 fx cdc_rdc
-fx formal_prove formal_cover --setup --force
+fx formal --prove --setup --force
+fx formal --cover --setup --force
 fx formal
 fx tests_gen --force
 fx tb cocotb --setup --force
@@ -1107,9 +1108,9 @@ fx eqy --setup --force
 fx signoff --setup --force
 fx sdf
 fx sta
-fx power_estimate
-fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
-fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=smoke
+fx power-estimate
+fx sim --post-syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
+fx sim --post-syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=smoke
 ```
 
 ### Change top-level ports
@@ -1120,13 +1121,14 @@ fx lint
 # review constraints/<TOP>.sdc if interface timing changed
 fx cdc_rdc tb cocotb --setup --force
 fx cdc_rdc
-fx formal_prove formal_cover --setup --force
+fx formal --prove --setup --force
+fx formal --cover --setup --force
 fx formal
 fx regression
 fx syn --setup --force
 fx syn
 fx eqy --setup --force
-fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
+fx sim --post-syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
 ```
 
 ### Change clock/reset domains
@@ -1137,7 +1139,11 @@ fx top_from_core flist --force
 fx lint
 fx sdc --setup --force
 # review/reapply authored constraints/<TOP>.sdc
-fx tb cocotb cdc_rdc formal_prove formal_cover formal_csr_prove formal_csr_cover --setup --force
+fx tb cocotb cdc_rdc --setup --force
+fx formal --prove --setup --force
+fx formal --cover --setup --force
+fx formal --csr --prove --setup --force
+fx formal --csr --cover --setup --force
 fx cdc_rdc
 fx formal
 fx regression
@@ -1146,9 +1152,9 @@ fx eqy --setup
 fx syn
 fx sdf
 fx sta
-fx power_estimate
-fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=unit --set TEST_NAME=smoke
-fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=smoke
+fx power-estimate
+fx sim --post-syn --set GLS_BACKEND=sv --set TIMING_MODE=unit --set TEST_NAME=smoke
+fx sim --post-syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=smoke
 ```
 
 ### Diagnose a failed target
@@ -1211,15 +1217,15 @@ pre-layout scenario per SDF-backed GLS trace:
 Thus `POWER_TIMING_MODE=typ` means the `tt/typ` scenario; it no longer causes the
 same TT/typ waveform to be swept again through FF and SS Liberty views.
 `POWER_TIMING_MODES=all` means all three aligned scenarios, not a timing-mode ×
-corner Cartesian product.  `sim_post_syn_all` remains a DV matrix and can still
+corner Cartesian product.  `fx sim --post-syn --all` remains a DV matrix and can still
 select `zero`, `unit`, `min`, `typ`, and `max`, while its SDF-backed files are
 named `ff`, `tt`, and `ss`.  SDF generation, STA, and vectorless
 `power_estimate` remain multi-corner (`ff`, `tt`, `ss`).
 
-### 7.1 `fx power_analysis` and `fx power_analysis_all`
+### 7.1 `fx power-analysis` and `fx power-analysis --all`
 
 `power_estimate` is the vectorless reference based by default on primary-input activity and duty
-cycle assumptions; global activity is used only when explicitly requested. `power_analysis` consumes one direct `min`, `typ`, or `max`
+cycle assumptions; global activity is used only when explicitly requested. `fx power-analysis` consumes one direct `min`, `typ`, or `max`
 post-synthesis GLS report. The report itself identifies the waveform and proves
 that `$sdf_annotate` was requested successfully; no matrix manifest is involved.
 FlexSoC converts FST to VCD when needed, resolves the DUT scope, and runs OpenSTA
@@ -1232,7 +1238,7 @@ section at all.
 Analyze one GLS trace:
 
 ```bash
-fx power_analysis \
+fx power-analysis \
   --set POWER_TEST_NAME=smoke \
   --set POWER_GLS_BACKEND=sv \
   --set POWER_TIMING_MODE=typ
@@ -1241,13 +1247,13 @@ fx power_analysis \
 Analyze all matching direct reports currently present:
 
 ```bash
-fx power_analysis_all \
+fx power-analysis --all \
   --set POWER_GLS_BACKENDS=all \
   --set POWER_TIMING_MODES=all \
   --set POWER_TEST_NAMES=all
 ```
 
-`power_analysis_all` discovers `<top>_post_syn_<test>_<backend>_<mode>.json`
+`fx power-analysis --all` discovers `<top>_post_syn_<test>_<backend>_<mode>.json`
 files directly. For each selected `test × timing_mode`, SV and cocotb are
 **alternative activity sources**, not two mandatory sign-off runs. FlexSoC validates
 the available candidates (PASS report, scenario-aligned SDF annotation, non-empty
@@ -1329,7 +1335,7 @@ fx pdk use <pdk>
 fx hjson --force
 fx reg doc regmap_py --force
 fx top_from_core flist --force
-fx formal_csr
+fx formal --csr
 ```
 
 Use `hjson` only to bootstrap or intentionally replace the source specification.
@@ -1341,7 +1347,7 @@ After normal HJSON edits, regenerate `reg`, `doc`, and `regmap_py`; do not rerun
 | HJSON syntax/access error | `csr/*.hjson`, `reg` log | fix HJSON, then `fx reg doc regmap_py --force` |
 | stale CSR addresses in tests | generated `<top>_regmap.py` | remove handwritten constants, then `fx tests_gen --force` |
 | wrapper lacks a register window | core ports and generated top | `fx top_from_core flist --force` |
-| reset/access semantic mismatch | CSR formal counterexample | repair HJSON/RTL ownership, regenerate, rerun `fx formal_csr` |
+| reset/access semantic mismatch | CSR formal counterexample | repair HJSON/RTL ownership, regenerate, rerun `fx formal --csr` |
 
 ### 8.4 RTL and hierarchy failures
 
@@ -1391,9 +1397,9 @@ fx coverage --show
 
 ```bash
 fx formal --setup --force
-fx formal_bmc
-fx formal_prove
-fx formal_cover
+fx formal --bmc
+fx formal --prove
+fx formal --cover
 ```
 
 | Result | Command path |
@@ -1446,7 +1452,7 @@ not close.
 Start with one named test:
 
 ```bash
-fx sim_post_syn --live \
+fx sim --post-syn --live \
   --set GLS_BACKEND=sv \
   --set TIMING_MODE=zero \
   --set TEST_NAME=smoke
@@ -1455,10 +1461,10 @@ fx sim_post_syn --live \
 Then isolate timing/harness behavior:
 
 ```bash
-fx sim_post_syn --live --set GLS_BACKEND=sv     --set TIMING_MODE=unit --set TEST_NAME=smoke
-fx sim_post_syn --live --set GLS_BACKEND=cocotb --set TIMING_MODE=unit --set TEST_NAME=smoke
-fx sim_post_syn --live --set GLS_BACKEND=sv     --set TIMING_MODE=typ  --set TEST_NAME=smoke --set SDF_STRICT=1
-fx sim_post_syn --live --set GLS_BACKEND=cocotb --set TIMING_MODE=typ  --set TEST_NAME=smoke --set SDF_STRICT=1
+fx sim --post-syn --live --set GLS_BACKEND=sv     --set TIMING_MODE=unit --set TEST_NAME=smoke
+fx sim --post-syn --live --set GLS_BACKEND=cocotb --set TIMING_MODE=unit --set TEST_NAME=smoke
+fx sim --post-syn --live --set GLS_BACKEND=sv     --set TIMING_MODE=typ  --set TEST_NAME=smoke --set SDF_STRICT=1
+fx sim --post-syn --live --set GLS_BACKEND=cocotb --set TIMING_MODE=typ  --set TEST_NAME=smoke --set SDF_STRICT=1
 ```
 
 | First failing mode | Primary suspicion |
@@ -1476,9 +1482,9 @@ SDF-backed path-delay modes used for timing-oriented qualification.
 ```bash
 fx sta --live
 fx sta_violators
-fx power_estimate --live
-fx power_analysis --live --set POWER_TEST_NAME=smoke
-fx power_analysis_all --live --set POWER_TEST_NAMES=all
+fx power-estimate --live
+fx power-analysis --live --set POWER_TEST_NAME=smoke
+fx power-analysis --all --live --set POWER_TEST_NAMES=all
 ```
 
 | Failure | First checks |
@@ -1566,7 +1572,7 @@ fx eqy --setup
 fx signoff --setup
 fx sdf
 fx sta
-fx power_estimate
+fx power-estimate
 fx manifest
 fx metrics
 fx check
@@ -1577,7 +1583,7 @@ fx check
 ```bash
 for mode in min typ max; do
   for backend in sv cocotb; do
-    fx sim_post_syn \
+    fx sim --post-syn \
       --set GLS_BACKEND="$backend" \
       --set TIMING_MODE="$mode" \
       --set TEST_NAME=smoke \

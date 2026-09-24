@@ -25,6 +25,8 @@ dv/formal/properties/
 
 These two files are **authored source**.
 
+For the built-in single- and multi-clock RTL examples, `fx rtl_stub` seeds both files with real example properties that bind to `<top>_core`. The same property sources therefore work with `tlul`, `reg_iface`, and `axi_lite`. They are written only when missing: later `rtl_stub --force` runs preserve designer edits. `FormalFlow` never invents design behavior or creates placeholder properties.
+
 They should be reviewed and maintained like RTL or a reference model.
 
 Generated SymbiYosys configuration, solver work directories, traces, and logs
@@ -57,12 +59,12 @@ This checks semantics derived from HJSON, such as generated register behavior.
 Typical targets are:
 
 ```bash
-fx formal_csr_prove --setup --workdir "$WORKSPACE"
-fx formal_csr_bmc --workdir "$WORKSPACE"
-fx formal_csr_prove --workdir "$WORKSPACE"
+fx formal --csr --prove --setup --workdir "$WORKSPACE"
+fx formal --csr --bmc --workdir "$WORKSPACE"
+fx formal --csr --prove --workdir "$WORKSPACE"
 
-fx formal_csr_cover --setup --workdir "$WORKSPACE"
-fx formal_csr_cover --workdir "$WORKSPACE"
+fx formal --csr --cover --setup --workdir "$WORKSPACE"
+fx formal --csr --cover --workdir "$WORKSPACE"
 ```
 
 ### Authored design formal
@@ -72,12 +74,12 @@ This checks behavior that cannot be inferred from the register description.
 Typical targets are:
 
 ```bash
-fx formal_prove --setup --workdir "$WORKSPACE"
-fx formal_bmc --workdir "$WORKSPACE"
-fx formal_prove --workdir "$WORKSPACE"
+fx formal --prove --setup --workdir "$WORKSPACE"
+fx formal --bmc --workdir "$WORKSPACE"
+fx formal --prove --workdir "$WORKSPACE"
 
-fx formal_cover --setup --workdir "$WORKSPACE"
-fx formal_cover --workdir "$WORKSPACE"
+fx formal --cover --setup --workdir "$WORKSPACE"
+fx formal --cover --workdir "$WORKSPACE"
 ```
 
 A CSR proof does not prove a protocol bridge, datapath, handshake, arbitration
@@ -494,12 +496,12 @@ deep design cover
 The preferred order for authored design formal is:
 
 ```bash
-fx formal_prove --setup --workdir "$WORKSPACE"
+fx formal --prove --setup --workdir "$WORKSPACE"
 
-fx formal_bmc \
+fx formal --bmc \
   --workdir "$WORKSPACE"
 
-fx formal_prove \
+fx formal --prove \
   --workdir "$WORKSPACE"
 ```
 
@@ -523,10 +525,10 @@ proof.
 After BMC and prove:
 
 ```bash
-fx formal_cover --setup \
+fx formal --cover --setup \
   --workdir "$WORKSPACE"
 
-fx formal_cover \
+fx formal --cover \
   --workdir "$WORKSPACE"
 ```
 

@@ -1,4 +1,4 @@
-"""Formal scaffold and property verification flow."""
+"""Formal property verification flow."""
 
 from __future__ import annotations
 
@@ -35,16 +35,9 @@ class PropertyFormalConfig:
 
 @dataclass(slots=True)
 class FormalFlow:
-    """Create property-formal scaffolds and SBY configurations."""
+    """Create and run automatic CSR or designer-authored formal checks."""
 
     runner: object | None = None
-
-    def init_properties(
-        self, top: str, formal_dir: Path, *, multiclock: bool | None = None
-    ) -> tuple[Path, ...]:
-        """Create or preserve designer-owned property sources."""
-
-        return FormalFlow.generate_scaffold(top, formal_dir, multiclock=multiclock)
 
     def setup_design(
         self,
@@ -208,11 +201,10 @@ class FormalFlow:
         return paths.formal / "runs" / kind / mode / name
 
     def setup_from_context(self, context, *, csr: bool, mode: str) -> Path:
-        """Generate one formal scaffold/configuration from BackendContext."""
+        """Generate one formal SBY configuration from BackendContext."""
 
         paths, values = context.paths, context.values
         top = paths.top
-        self.init_properties(top, paths.formal, multiclock=context.clocks.multiclock)
         props = paths.formal / ("csr" if csr else "properties") / mode
         output = self._config_from_context(context, csr=csr, mode=mode)
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -271,13 +263,17 @@ class FormalFlow:
         debug: bool = False,
         output: str | None = None,
         as_json: bool = False,
+        suite: str | None = None,
+        stage: str | None = None,
     ) -> int:
-        """Render aggregate formal evidence without reparsing SBY during presentation."""
+        """Render canonical formal evidence without reparsing SBY during presentation."""
 
         path = context.paths.formal / "summary.json"
         if not path.is_file():
             raise FileNotFoundError(f"formal summary not found: {path}; run formal stages first")
         data = json.loads(path.read_text(encoding="utf-8"))
+        if suite is not None or stage is not None:
+            data = self._filter_summary(data, suite=suite, stage=stage)
         capture = StringIO() if output else None
         console = Console(file=capture, force_terminal=False) if capture else Console()
         if as_json:
@@ -288,7 +284,7 @@ class FormalFlow:
             counts = data.get("counts", {}) if isinstance(data.get("counts"), Mapping) else {}
             console.print(
                 f"[bold]Formal[/bold] [{color}]{status}[/{color}] · "
-                f"pass={counts.get('passed', 0)}/{counts.get('total', 6)} · "
+                f"pass={counts.get('passed', 0)}/{counts.get('total', 0)} · "
                 f"fail={counts.get('failed', 0)} · unknown={counts.get('unknown', 0)}"
             )
             stages = data.get("stage_counts", {}) if isinstance(data.get("stage_counts"), Mapping) else {}
@@ -300,9 +296,11 @@ class FormalFlow:
             table.add_column("Total", justify="right")
             for name in ("bmc", "prove", "cover"):
                 item = stages.get(name, {}) if isinstance(stages, Mapping) else {}
+                if not item.get("total", 0):
+                    continue
                 table.add_row(
                     name, str(item.get("passed", 0)), str(item.get("failed", 0)),
-                    str(item.get("unknown", 0)), str(item.get("total", 2)),
+                    str(item.get("unknown", 0)), str(item.get("total", 0)),
                 )
             console.print(table)
 
@@ -314,9 +312,14 @@ class FormalFlow:
                 table.add_column("PROVE")
                 table.add_column("COVER")
                 for suite in ("csr", "properties"):
-                    item = matrix.get(suite, {}) if isinstance(matrix, Mapping) else {}
+                    if suite not in matrix:
+                        continue
+                    item = matrix[suite] if isinstance(matrix, Mapping) else {}
                     table.add_row(
-                        suite, *(str(item.get(stage, {}).get("status", "UNKNOWN")) for stage in ("bmc", "prove", "cover"))
+                        suite, *(
+                            str(item[stage].get("status", "UNKNOWN")) if stage in item else "-"
+                            for stage in ("bmc", "prove", "cover")
+                        )
                     )
                 console.print(table)
 
@@ -324,9 +327,13 @@ class FormalFlow:
                 console.print("[bold]Artifacts[/bold]")
                 matrix = data.get("matrix", {}) if isinstance(data.get("matrix"), Mapping) else {}
                 for suite in ("csr", "properties"):
-                    item = matrix.get(suite, {}) if isinstance(matrix, Mapping) else {}
+                    if suite not in matrix:
+                        continue
+                    item = matrix[suite] if isinstance(matrix, Mapping) else {}
                     for stage in ("bmc", "prove", "cover"):
-                        evidence = item.get(stage, {}) if isinstance(item, Mapping) else {}
+                        if not isinstance(item, Mapping) or stage not in item:
+                            continue
+                        evidence = item[stage]
                         if not isinstance(evidence, Mapping):
                             continue
                         console.print(
@@ -345,6 +352,61 @@ class FormalFlow:
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(capture.getvalue(), encoding="utf-8")
         return 0
+
+    @staticmethod
+    def _filter_summary(
+        data: Mapping[str, object], *, suite: str | None, stage: str | None,
+    ) -> dict[str, object]:
+        """Return one CSR/property and/or BMC/prove/cover view of a formal summary."""
+
+        raw_matrix = data.get("matrix", {}) if isinstance(data.get("matrix"), Mapping) else {}
+        matrix: dict[str, dict[str, object]] = {}
+        for suite_name, raw_stages in raw_matrix.items():
+            if suite is not None and suite_name != suite:
+                continue
+            if not isinstance(raw_stages, Mapping):
+                continue
+            selected = {
+                str(stage_name): evidence
+                for stage_name, evidence in raw_stages.items()
+                if stage is None or stage_name == stage
+            }
+            if selected:
+                matrix[str(suite_name)] = selected
+
+        statuses = [
+            str(evidence.get("status", "UNKNOWN"))
+            for stages in matrix.values()
+            for evidence in stages.values()
+            if isinstance(evidence, Mapping)
+        ]
+        failed = statuses.count("FAILED")
+        unknown = statuses.count("UNKNOWN")
+        result = dict(data)
+        result["status"] = "FAILED" if failed else "PARTIAL" if unknown or not statuses else "PASS"
+        result["counts"] = {
+            "passed": statuses.count("PASS"),
+            "failed": failed,
+            "unknown": unknown,
+            "observed": len(statuses) - unknown,
+            "total": len(statuses),
+        }
+        stage_counts: dict[str, dict[str, int]] = {}
+        for name in ("bmc", "prove", "cover"):
+            selected = [
+                str(stages[name].get("status", "UNKNOWN"))
+                for stages in matrix.values()
+                if name in stages and isinstance(stages[name], Mapping)
+            ]
+            stage_counts[name] = {
+                "passed": selected.count("PASS"),
+                "failed": selected.count("FAILED"),
+                "unknown": selected.count("UNKNOWN"),
+                "total": len(selected),
+            }
+        result["stage_counts"] = stage_counts
+        result["matrix"] = matrix
+        return result
 
     def _write_summary(self, context) -> dict[str, object]:
         """Normalize native SBY status/workdirs into the canonical formal summary."""
@@ -390,8 +452,10 @@ class FormalFlow:
         matrix: dict[str, dict[str, dict[str, object]]] = {}
         statuses: list[str] = []
         for suite, stages in specs.items():
-            matrix[suite] = {}
+            row: dict[str, dict[str, object]] = {}
             for stage, (config, workdir, log) in stages.items():
+                if not (config.is_file() or workdir.exists() or log.is_file()):
+                    continue
                 status = self._stage_status(workdir, log)
                 statuses.append(status)
                 traces = sorted(
@@ -418,19 +482,25 @@ class FormalFlow:
                 }
                 if elapsed is not None:
                     evidence["elapsed_s"] = elapsed
-                matrix[suite][stage] = evidence
+                row[stage] = evidence
+            if row:
+                matrix[suite] = row
 
         failed = statuses.count("FAILED")
         unknown = statuses.count("UNKNOWN")
-        status = "FAILED" if failed else "PARTIAL" if unknown else "PASS"
+        status = "FAILED" if failed else "PARTIAL" if unknown or not statuses else "PASS"
         stage_counts = {}
         for stage in ("bmc", "prove", "cover"):
-            selected = [matrix[suite][stage]["status"] for suite in ("csr", "properties")]
+            selected = [
+                row[stage]["status"]
+                for row in matrix.values()
+                if stage in row
+            ]
             stage_counts[stage] = {
                 "passed": selected.count("PASS"),
                 "failed": selected.count("FAILED"),
                 "unknown": selected.count("UNKNOWN"),
-                "total": 2,
+                "total": len(selected),
             }
         data: dict[str, object] = {
             "schema": "flexsoc.formal.v1",
@@ -442,7 +512,7 @@ class FormalFlow:
                 "failed": failed,
                 "unknown": unknown,
                 "observed": len(statuses) - unknown,
-                "total": 6,
+                "total": len(statuses),
             },
             "stage_counts": stage_counts,
             "elapsed_s": sum(
@@ -550,55 +620,6 @@ class FormalFlow:
     
         name = "csr_cover.sv.j2" if mode == "cover" else "csr_prove.sv.j2"
         return templates.render(f"dv/formal/{name}")
-
-    @staticmethod
-    def render_design_prove(top: str, *, multiclock: bool) -> str:
-        """Render starter assertions for the generated single- or N-clock core."""
-    
-        kind = "multiclock" if multiclock else "single"
-        return templates.render(f"dv/formal/design_prove_{kind}.sv.j2", top=top)
-
-    @staticmethod
-    def render_design_cover(top: str, *, multiclock: bool) -> str:
-        """Render starter covers for the generated single- or N-clock core."""
-    
-        kind = "multiclock" if multiclock else "single"
-        return templates.render(f"dv/formal/design_cover_{kind}.sv.j2", top=top)
-
-    @staticmethod
-    def _write_scaffold(path: Path, text: str, *, incompatible: str | None = None) -> Path:
-        """Create one designer-owned starter and reject an untouched stale topology."""
-    
-        path.parent.mkdir(parents=True, exist_ok=True)
-        if path.exists():
-            if incompatible is not None and path.read_text(encoding="utf-8") == incompatible:
-                raise ValueError(
-                    f"formal scaffold topology changed: {path}; preserve authored work, "
-                    "then remove or update the stale generated starter"
-                )
-            return path.resolve()
-        path.write_text(text, encoding="utf-8")
-        return path.resolve()
-
-    @staticmethod
-    def generate_scaffold(
-        top: str, formal_dir: Path, *, multiclock: bool | None = None
-    ) -> tuple[Path, ...]:
-        """Create non-destructive design-property starters for the generated core."""
-    
-        root = formal_dir.expanduser().resolve() / "properties"
-        is_multiclock = ClockConfig.from_values().multiclock if multiclock is None else multiclock
-        prove = FormalFlow._write_scaffold(
-            root / "prove" / f"{top}_prove.sv",
-            FormalFlow.render_design_prove(top, multiclock=is_multiclock),
-            incompatible=FormalFlow.render_design_prove(top, multiclock=not is_multiclock),
-        )
-        cover = FormalFlow._write_scaffold(
-            root / "cover" / f"{top}_cover.sv",
-            FormalFlow.render_design_cover(top, multiclock=is_multiclock),
-            incompatible=FormalFlow.render_design_cover(top, multiclock=not is_multiclock),
-        )
-        return prove, cover
 
     @staticmethod
     def render_sby(cfg: PropertyFormalConfig, generated_sources: Sequence[Path] = ()) -> str:

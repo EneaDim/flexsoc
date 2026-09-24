@@ -69,16 +69,11 @@ class DvFlow:
             tests = self.functional.tests(paths.tests)
             print("\n".join(tests))
             return tests
-        hjson = paths.csr / f"{paths.top}.hjson"
-        force = self._bool(values.get("FORCE"))
         if action == "test_generate":
             return self.functional.setup_test(
-                values.get("TEST_NAME", "smoke"), paths.tests, paths.top, hjson,
-                force=force, on=on,
+                values.get("TEST_NAME", "smoke"), paths.tests, paths.top, on=on,
             )
-        return self.functional.setup_tests(
-            paths.tests, paths.top, hjson, force=force, on=on,
-        )
+        return self.functional.setup_tests(paths.tests, paths.top, on=on)
 
     def _run_functional_target(self, action: str, *, on: str):
         """Run one functional-DV scaffold, simulation, regression or coverage action."""

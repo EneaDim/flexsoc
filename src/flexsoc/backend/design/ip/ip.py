@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ...core import BackendContext, Target, ToolRunner
+from ...core.render.templates import templates
 from .model import ModelFlow
 from .regs import RegsFlow
 from .rtl import RtlFlow
@@ -67,10 +68,12 @@ class IpDesign:
             )
         if action == "rtl_scaffold":
             hjson = paths.csr / f"{top}.hjson"
-            return self.rtl.init_scaffold(
+            result = self.rtl.init_scaffold(
                 hjson if hjson.exists() else None, interface, paths.rtl,
                 top=top, force=force, clocks=self.context.clocks,
             )
+            self._setup_formal_properties(top)
+            return result
         if action == "rtl_top":
             return self.rtl.setup_top(
                 top, paths.rtl, interface, force=force, clocks=self.context.clocks,
@@ -91,6 +94,18 @@ class IpDesign:
                 force=force, clocks=self.context.clocks,
             )
         raise ValueError(f"unsupported design action: {action!r}")
+
+
+    def _setup_formal_properties(self, top: str) -> None:
+        """Create editable properties aligned with the generated example core."""
+
+        properties = self.context.paths.formal / "properties"
+        for mode in ("prove", "cover"):
+            templates.write(
+                "design/rtl/scaffold_properties.sv.j2",
+                properties / mode / f"{top}_{mode}.sv",
+                top=top, mode=mode, multiclock=self.context.clocks.multiclock,
+            )
 
     @staticmethod
     def _bool(value: object, default: bool = False) -> bool:

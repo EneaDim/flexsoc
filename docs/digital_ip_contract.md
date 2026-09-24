@@ -116,7 +116,7 @@ The generated test plan also defines the default qualification GLS sampling poli
 - the same selected GLS test/scenario matrix is the only activity source used by activity-based power and timing/power fusion;
 - the policy applies independently to `post_syn` and `post_impl` when those stages are part of the requested qualification.
 
-The direct `sim_post_syn_all` / `sim_post_impl_all` commands remain general-purpose selectors; qualification scripts consume the bounded policy recorded in `testplan.yaml` rather than running every RTL test at gate level.
+The direct `fx sim --post-syn --all` / `fx sim --post-impl --all` commands remain general-purpose selectors; qualification scripts consume the bounded policy recorded in `testplan.yaml` rather than running every RTL test at gate level.
 
 ## Save, load and validate
 

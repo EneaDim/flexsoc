@@ -73,9 +73,10 @@ def _fake_pdk(root: Path) -> Path:
 
     (root / "lib").mkdir(parents=True)
     (root / "libs.ref/sky130_fd_sc_hd/verilog").mkdir(parents=True)
-    (root / "lib" / "sky130_fd_sc_hd__tt_025C_1v80.lib").write_text(
-        "library(sky130_fd_sc_hd) {}\n", encoding="utf-8"
-    )
+    for corner in ("ss_100C_1v60", "tt_025C_1v80", "ff_n40C_1v95"):
+        (root / "lib" / f"sky130_fd_sc_hd__{corner}.lib").write_text(
+            "library(sky130_fd_sc_hd) {}\n", encoding="utf-8"
+        )
     (root / "libs.ref/sky130_fd_sc_hd/verilog/sky130_fd_sc_hd.v").write_text(
         "module sky130_fd_sc_hd__buf_1; endmodule\n", encoding="utf-8"
     )
@@ -224,6 +225,9 @@ def test_values_normalize_clock_wave_and_pdk_settings(tmp_path: Path) -> None:
     assert FlexSoC(project_root=tmp_path, WORKSPACE=tmp_path / "saved").workdir == (tmp_path / "saved").resolve()
     assert values["PDK"] == "sky130"
     assert values["LIB_SYN"].endswith("sky130_fd_sc_hd__tt_025C_1v80.lib")
+    assert values["LIB_SLOW"].endswith("sky130_fd_sc_hd__ss_100C_1v60.lib")
+    assert values["LIB_TYP"].endswith("sky130_fd_sc_hd__tt_025C_1v80.lib")
+    assert values["LIB_FAST"].endswith("sky130_fd_sc_hd__ff_n40C_1v95.lib")
     assert values["N_CLOCKS"] == "2"
     assert values["CLOCK_DOMAINS"] == domains
     assert values["CLOCK_RELATIONSHIPS"] == "async:cfg:rx"
@@ -295,7 +299,8 @@ def test_commands_route_direct_backend_targets(tmp_path: Path) -> None:
     ]
     for name in direct:
         command = fx.command(name)
-        assert command.argv[:2] == ("fx", name)
+        public, selectors = TargetSession.public_invocation(name)
+        assert command.argv[:2 + len(selectors)] == ("fx", public, *selectors)
         assert "flexsoc.backend." not in command.shell_line()
 
 
@@ -1026,17 +1031,30 @@ def test_setup_pnr_consumes_only_mapped_netlist_and_sdc(tmp_path: Path) -> None:
     sdc = tmp_path / "demo.sdc"
     netlist.write_text("module demo; endmodule\n", encoding="utf-8")
     sdc.write_text("current_design demo\n", encoding="utf-8")
-    text = pnr_module.ImplementationFlow.render_config("demo", "sky130hd", netlist, sdc)
+    corners = {
+        "ss": tmp_path / "slow.lib",
+        "tt": tmp_path / "typ.lib",
+        "ff": tmp_path / "fast.lib",
+    }
+    text = pnr_module.ImplementationFlow.render_config(
+        "demo", "sky130hd", netlist, sdc, corners
+    )
     assert f"SYNTH_NETLIST_FILES := {netlist}" in text
     assert f"SDC_FILE             := {sdc}" in text
+    assert "CORNERS := ss tt ff" in text
+    assert f"SS_LIB_FILES := {corners['ss']}" in text
+    assert f"TT_LIB_FILES := {corners['tt']}" in text
+    assert f"FF_LIB_FILES := {corners['ff']}" in text
     assert "VERILOG_FILES" not in text
     assert "SYNTH_HDL_FRONTEND" not in text
     assert "ABC_AREA" not in text
     assert "STRATEGY" not in text
     assert "PLACE_DENSITY ?= 0.58" in text
-    assert "HOLD_SLACK_MARGIN  := 0.1" in text
-    assert "HOLD_SLACK_MARGIN  := 0.2" in pnr_module.ImplementationFlow.render_config(
-        "demo", "sky130hd", netlist, sdc, hold_slack_margin=0.2
+    assert "HOLD_SLACK_MARGIN  := 0.2" in text
+    assert "SLEW_MARGIN        := 30" in text
+    assert "CAP_MARGIN         := 30" in text
+    assert "HOLD_SLACK_MARGIN  := 0.3" in pnr_module.ImplementationFlow.render_config(
+        "demo", "sky130hd", netlist, sdc, corners, hold_slack_margin=0.3
     )
     assert "CTS_CLUSTER_SIZE := 8" in text
 
@@ -1767,13 +1785,13 @@ def test_sim_post_syn_all_prints_uniform_header_artifacts_and_done(
 
     output = capsys.readouterr().out
     assert output.startswith(
-        "→ sim_post_syn_all: Run every selected post-synthesis GLS test/timing combination with one backend\n"
+        "→ sim --post-syn --all: Run every selected post-synthesis GLS test/timing combination with one backend\n"
     )
     assert "[log] " in output and "sim_post_syn_all.log" in output
     assert "[report] smoke/sv/typ /tmp/smoke.json" in output
     assert "[report] machine_summary=/tmp/summary_sv.json" in output
     assert "1/1 START" not in output
-    assert "✓ sim_post_syn_all: done" in output
+    assert "✓ sim --post-syn --all: done" in output
     assert result.ok
 
 
@@ -1818,7 +1836,7 @@ def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
         "fusion_analysis", "fusion_analysis_all",
         "fusion_analysis_post_impl", "fusion_analysis_post_impl_all",
     }
-    assert output.startswith("→ fusion_analysis: Correlate timing and power in one aligned GLS scenario\n")
+    assert output.startswith("→ fusion: Correlate timing and power in one aligned GLS scenario\n")
     assert "[log] " in output
     assert "[script] /tmp/fusion_analysis.tcl" in output
     assert "[report] tt/setup /tmp/fusion.rpt" in output
@@ -2506,17 +2524,25 @@ def test_cli_help_and_commands_json(capsys: pytest.CaptureFixture[str], tmp_path
         assert "Canonical IP lifecycle" in help_text
         assert "Step" in help_text and "Command" in help_text and "Purpose" in help_text
         assert help_text.index("1. Configure the run") < help_text.index("2. Create a new IP scaffold")
-        assert help_text.index("sim_post_syn") < help_text.index("power_analysis")
-        assert "sim_post_syn_all" in help_text
-        assert help_text.index("power_analysis") < help_text.index("fusion_analysis")
+        assert help_text.index("sim --post-syn") < help_text.index("power-analysis")
+        assert "sim --post-syn --all" in help_text
+        assert help_text.index("power-analysis") < help_text.index("fusion")
         assert "6. Run post-synthesis sign-off" in help_text
         assert "fx <command> --help" in help_text
 
     assert app(["commands", "--json", "--project-root", str(tmp_path)]) == 0
     catalog = json.loads(capsys.readouterr().out)
-    assert [item["name"] for item in catalog] == list(TARGETS)
+    names = {item["name"] for item in catalog}
+    assert {"formal", "sim", "sta", "power-estimate", "power-analysis", "fusion"} <= names
+    assert {"formal_csr", "sim_post_syn", "sta_post_impl", "fusion_analysis"}.isdisjoint(names)
     assert all({"name", "group", "description", "params"} == set(item) for item in catalog)
 
+
+
+def test_cli_completion_words_use_canonical_domain_spelling() -> None:
+    words = set(cli_module.app._completion_words())
+    assert {"formal", "sim", "sta", "power-estimate", "power-analysis", "fusion"} <= words
+    assert {"formal_csr", "sim_post_syn", "sta_post_impl", "power_estimate", "power_analysis", "fusion_analysis"}.isdisjoint(words)
 
 
 def test_cli_completion_protocol_bypasses_custom_guide(
@@ -2529,14 +2555,14 @@ def test_cli_completion_protocol_bypasses_custom_guide(
     class CompletionCommand:
         def main(self, *, args: list[str], prog_name: str, standalone_mode: bool) -> int:
             calls.append((args, prog_name, standalone_mode))
-            print("sim_post_syn\nsim_post_impl")
+            print("sim\nsta\nfusion")
             return 0
 
     monkeypatch.setenv("_FX_COMPLETE", "complete_bash")
     monkeypatch.setattr(cli_module.app, "_click_command", lambda: CompletionCommand())
     assert app([]) == 0
     output = capsys.readouterr().out
-    assert output == "sim_post_syn\nsim_post_impl\n"
+    assert output == "sim\nsta\nfusion\n"
     assert calls == [([], "fx", False)]
     assert "Canonical IP lifecycle" not in output
 
@@ -2544,20 +2570,20 @@ def test_cli_dedicated_help_aliases_and_signoff_selectors(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     for argv in (
-        ["fusion_analysis", "--help"],
-        ["fusion_analysis", "-h"],
-        ["fusion_analysis", "help"],
-        ["fusion_analysis", "info"],
-        ["help", "fusion_analysis"],
+        ["fusion", "--help"], ["fusion", "-h"], ["fusion", "help"],
+        ["fusion", "info"], ["help", "fusion"],
     ):
         assert app(argv) == 0
         output = capsys.readouterr().out
-        assert "fx fusion_analysis" in output
+        assert "fx fusion" in output
         assert "Correlate timing and power" in output
         assert "POWER_TEST_NAME" in output
         assert "POWER_GLS_BACKEND" in output
         assert "POWER_TIMING_MODE" in output
-        assert "Setup phase" in output and "fx fusion_analysis --setup" in output
+        assert "--post-impl" in output and "--all" in output
+
+    assert app(["fusion_analysis", "--help"]) == 2
+    assert "internal target" in capsys.readouterr().err
 
     assert app(["pdk", "--help"]) == 0
     pdk_help = capsys.readouterr().out
@@ -2596,21 +2622,17 @@ def test_cli_dedicated_help_aliases_and_signoff_selectors(
 
     assert app(["sta", "--help"]) == 0
     sta_help = capsys.readouterr().out
-    assert "post_syn" in sta_help and "post_impl" in sta_help
+    assert "--post-syn" in sta_help and "--post-impl" in sta_help
     assert "ideal" in sta_help and "propagated" in sta_help and "SPEF" in sta_help
     assert "--summary" in sta_help and "--show" in sta_help and "--debug" in sta_help
 
-    assert app(["sta_post_impl", "--help"]) == 0
-    sta_impl_help = capsys.readouterr().out
-    assert "post_impl" in sta_impl_help and "SPEF" in sta_impl_help
-
-    assert app(["power_analysis", "--help"]) == 0
+    assert app(["power-analysis", "--help"]) == 0
     power_help = capsys.readouterr().out
     assert "SDF-backed" in power_help and "internal" in power_help and "switching" in power_help
 
-    assert app(["sim_post_syn_all", "--help"]) == 0
+    assert app(["sim", "--help"]) == 0
     gls_help = capsys.readouterr().out
-    assert "min / typ / max" in gls_help and "functional GLS sampling" in gls_help
+    assert "--post-syn --all" in gls_help and "--post-impl --all" in gls_help
 
     assert app(["physical_signoff", "--help"]) == 0
     physical_help = capsys.readouterr().out
@@ -2663,7 +2685,7 @@ def test_cli_dedicated_help_aliases_and_signoff_selectors(
     assert app(["formal", "--help"]) == 0
     formal_help = capsys.readouterr().out
     assert "BMC" in formal_help and "PROVE" in formal_help and "COVER" in formal_help
-    assert "six native SBY outcomes" in formal_help
+    assert "absence is not an" in formal_help and "UNKNOWN result" in formal_help
     assert "fx formal --summary" in formal_help and "fx formal --debug" in formal_help
 
 
@@ -2780,10 +2802,27 @@ def test_cli_run_and_setup_modes_are_canonical(
 
     assert app(["formal", "--setup", "--dry-run", *root_args]) == 0
     lines = capsys.readouterr().out.strip().splitlines()
-    assert [(line.split()[1], "--setup" in line) for line in lines] == [
-        ("formal_prove", True), ("formal_cover", True),
-        ("formal_csr_prove", True), ("formal_csr_cover", True),
+    assert all(line.split()[1] == "formal" and "--setup" in line for line in lines)
+    assert [tuple(flag for flag in ("--prove", "--cover", "--csr") if flag in line) for line in lines] == [
+        ("--prove",), ("--cover",), ("--prove", "--csr"), ("--cover", "--csr"),
     ]
+
+    assert app(["formal", "--csr", "--bmc", "--dry-run", *root_args]) == 0
+    assert "fx formal --csr --bmc" in capsys.readouterr().out
+    assert app(["sim", "--post-syn", "--all", "--dry-run", *root_args]) == 0
+    assert "fx sim --post-syn --all" in capsys.readouterr().out
+    assert app(["sta", "--post-impl", "--dry-run", *root_args]) == 0
+    assert "fx sta --post-impl" in capsys.readouterr().out
+    assert app(["power-analysis", "--post-impl", "--all", "--dry-run", *root_args]) == 0
+    assert "fx power-analysis --post-impl --all" in capsys.readouterr().out
+    assert app(["fusion", "--all", "--dry-run", *root_args]) == 0
+    assert "fx fusion --all" in capsys.readouterr().out
+    assert app(["formal_csr", "--dry-run", *root_args]) == 2
+    assert "is internal" in capsys.readouterr().err
+    assert app(["power_estimate", "--dry-run", *root_args]) == 2
+    assert "power-estimate" in capsys.readouterr().err
+    assert app(["power_analysis", "--dry-run", *root_args]) == 2
+    assert "power-analysis" in capsys.readouterr().err
 
     assert app(["sdc", "--dry-run", *root_args]) == 2
     assert "setup-only" in capsys.readouterr().err
@@ -2797,6 +2836,16 @@ def test_cli_run_and_setup_modes_are_canonical(
 
     assert app(["setup_syn", "--dry-run", *root_args]) == 2
     assert "unknown target 'setup_syn'" in capsys.readouterr().err
+
+def test_command_display_names_use_public_domain_syntax(tmp_path: Path) -> None:
+    client = FlexSoC(FlexSoCConfig(tmp_path, tmp_path / "work"))
+
+    assert client.command("formal_csr_bmc").display_name() == "formal --csr --bmc"
+    assert client.command("sim_post_impl_all").display_name() == "sim --post-impl --all"
+    assert client.command("sta_post_impl").display_name() == "sta --post-impl"
+    assert client.command("power_analysis_post_impl_all").display_name() == "power-analysis --post-impl --all"
+    assert client.command("fusion_analysis_all").display_name() == "fusion --all"
+
 
 def test_cli_lint_profile_and_dependency_options_are_forwarded(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
@@ -3220,11 +3269,11 @@ def test_cli_signoff_views_use_canonical_stage_summaries(
     summary = capsys.readouterr().out
     assert "sta" in summary and "post_syn" in summary and "worst_wns=0.1" in summary
 
-    assert app(["sta_post_impl", "--show", *base]) == 0
+    assert app(["sta", "--post-impl", "--show", *base]) == 0
     shown = capsys.readouterr().out
     assert "Post-implementation STA" in shown and "post_impl" in shown
 
-    assert app(["sta_post_impl", "--debug", *base]) == 0
+    assert app(["sta", "--post-impl", "--debug", *base]) == 0
     debug = capsys.readouterr().out
     assert "Post-implementation STA" in debug and "no matching artifacts found" in debug
 
@@ -3479,6 +3528,39 @@ def test_generated_testbenches_share_sdc_io_timing_phases() -> None:
     with pytest.raises(ValueError, match="SDC_IO_DELAY_PCT"):
         TestbenchModel.phases(10.0, 0.5)
 
+
+
+@pytest.mark.parametrize(
+    ("values", "expected"),
+    (
+        ({"N_CLOCKS": "1"}, ("pipe_q1", "valid_i")),
+        ({
+            "N_CLOCKS": "3",
+            "CLOCK_DOMAINS": "cfg:cfg_clk_i:cfg_rst_ni:20:low,rx:rx_clk_i:rx_rst_ni:16:low,dsp:dsp_clk_i:dsp_rst_ni:30:low",
+            "CLOCK_RELATIONSHIPS": "async:cfg:rx,async:cfg:dsp,async:rx:dsp",
+        }, ("dsp_clk_active", "fifo_rvalid")),
+    ),
+)
+def test_rtl_scaffold_creates_editable_design_formal_properties(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, values: dict[str, str], expected: tuple[str, str],
+) -> None:
+    from flexsoc.backend.core import BackendContext
+    from flexsoc.backend.design.ip.ip import IpDesign
+
+    settings = {"TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev", **values}
+    flow = IpDesign(BackendContext(tmp_path, tmp_path, settings))
+    monkeypatch.setattr(flow.rtl, "init_scaffold", lambda *args, **kwargs: (Path("core"), Path("top")))
+
+    flow.run_target(BACKEND_TARGETS["rtl_stub"])
+    root = flow.context.paths.formal / "properties"
+    prove = root / "prove" / "demo_prove.sv"
+    cover = root / "cover" / "demo_cover.sv"
+    assert expected[0] in prove.read_text(encoding="utf-8")
+    assert expected[1] in cover.read_text(encoding="utf-8")
+
+    prove.write_text("// designer edit\n", encoding="utf-8")
+    flow.run_target(BACKEND_TARGETS["rtl_stub"])
+    assert prove.read_text(encoding="utf-8") == "// designer edit\n"
 
 
 def test_register_interface_intent_uses_one_canonical_regfile_transport() -> None:
@@ -4369,8 +4451,6 @@ def test_formal_csr_cover_setup_dispatches_cover_mode(
 
 def test_register_transport_ports_are_not_functional_vectors(tmp_path: Path) -> None:
     from flexsoc.backend.design.ip.model import ModelFlow
-    from flexsoc.backend.dv.func.functional import FunctionalFlow
-
     rtl = tmp_path / "demo.sv"
     rtl.write_text(
         "module demo(\n"
@@ -4387,12 +4467,6 @@ def test_register_transport_ports_are_not_functional_vectors(tmp_path: Path) -> 
     assert inputs == ["data_i"]
     assert outputs == ["data_o"]
 
-    sig = {
-        "ports_in": [("data_i", 32), ("axi_lite_i", "demo_reg_pkg::axi_lite_req_t")],
-        "ports_out": [("data_o", 32), ("axi_lite_o", "demo_reg_pkg::axi_lite_rsp_t")],
-    }
-    assert FunctionalFlow.vector_inputs(sig) == ["data_i"]
-    assert FunctionalFlow.vector_outputs(sig) == ["data_o"]
 
 
 def test_saved_cordic_registers_atan_before_z_arithmetic() -> None:
@@ -4712,6 +4786,37 @@ def test_formal_summary_normalizes_native_sby_status_and_trace(tmp_path: Path) -
     assert data["matrix"]["properties"]["prove"]["traces"] == [
         "dv/formal/runs/properties/prove/demo_prove/trace0.vcd"
     ]
+
+
+def test_formal_summary_omits_absent_authored_properties(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    from types import SimpleNamespace
+
+    from flexsoc.backend.dv.formal.formal import FormalFlow
+
+    run = tmp_path / "run"
+    paths = SimpleNamespace(
+        run=run, top="demo", formal=run / "dv" / "formal", logs=run / "logs",
+    )
+    for stage in ("bmc", "prove", "cover"):
+        _write_formal_stage(run, "demo", "csr", stage)
+
+    flow = FormalFlow()
+    data = flow._write_summary(SimpleNamespace(paths=paths))
+
+    assert data["status"] == "PASS"
+    assert data["counts"] == {
+        "passed": 3, "failed": 0, "unknown": 0, "observed": 3, "total": 3,
+    }
+    assert tuple(data["matrix"]) == ("csr",)
+    assert all(item["total"] == 1 for item in data["stage_counts"].values())
+
+    flow.show(SimpleNamespace(paths=paths, project_root=tmp_path))
+    output = capsys.readouterr().out
+    assert "Formal PASS" in output
+    assert "pass=3/3" in output
+    assert "properties" not in output
 
 
 def test_collect_formal_reads_canonical_summary(tmp_path: Path) -> None:
@@ -6179,31 +6284,24 @@ def test_checked_in_ip_technology_roots_are_pdk_first() -> None:
 
 
 
-def test_formal_scaffold_uses_explicit_multiclock_context(tmp_path: Path) -> None:
+def test_formal_design_setup_requires_authored_properties(tmp_path: Path) -> None:
     from flexsoc.backend.dv.formal.formal import FormalFlow
 
-    prove, cover = FormalFlow.generate_scaffold("tri_stream_dsp", tmp_path, multiclock=True)
-    prove_text = prove.read_text(encoding="utf-8")
-    cover_text = cover.read_text(encoding="utf-8")
-    assert "dsp_clk_i" in prove_text
-    assert "fifo_rready" in prove_text
-    assert "fifo_rready == (enable_dsp & dsp_clk_req_en & (!dsp_pipe_valid_q | !dsp_valid_o | dsp_ready_i))" in prove_text
-    assert "dsp_clk_req_en & fifo_rvalid" not in prove_text
-    assert "dsp_clk_req_en" in prove_text
-    assert "dsp_clk_gated" in prove_text
-    assert "always_ff @(posedge dsp_clk_gated)" in prove_text
-    assert "clk_gate_en_dsp" not in prove_text
-    assert "pipe_q1" not in prove_text
-    assert "cfg_clk_i" in cover_text
-    assert "rx_clk_i" in cover_text
+    filelist = tmp_path / "rtl.f"
+    filelist.write_text("", encoding="utf-8")
+    properties = tmp_path / "properties" / "prove"
 
+    with pytest.raises(ValueError, match="formal property directory does not exist"):
+        FormalFlow().setup_design(
+            top="demo",
+            filelists=(filelist,),
+            properties_dir=properties,
+            mode="prove",
+            engine="abc pdr",
+            output=tmp_path / "demo_prove.sby",
+        )
 
-def test_formal_scaffold_rejects_untouched_stale_clock_topology(tmp_path: Path) -> None:
-    from flexsoc.backend.dv.formal.formal import FormalFlow
-
-    FormalFlow.generate_scaffold("tri_stream_dsp", tmp_path, multiclock=False)
-    with pytest.raises(ValueError, match="formal scaffold topology changed"):
-        FormalFlow.generate_scaffold("tri_stream_dsp", tmp_path, multiclock=True)
+    assert not properties.exists()
 
 
 def test_orfs_artifact_resolution_prefers_platform_and_rejects_ambiguity(
@@ -7138,7 +7236,16 @@ def test_pnr_request_declares_config_inputs_and_result_trees(tmp_path: Path) -> 
     netlist.write_text("module demo; endmodule\n", encoding="utf-8")
     sdc.write_text("create_clock -period 10 [get_ports clk]\n", encoding="utf-8")
     workdir = tmp_path / "run"
-    config = ImplementationFlow.write_config("demo", workdir, "sky130hd", netlist, sdc)
+    corners = {
+        "ss": tmp_path / "slow.lib",
+        "tt": tmp_path / "typ.lib",
+        "ff": tmp_path / "fast.lib",
+    }
+    for liberty in corners.values():
+        liberty.write_text("library(cells) {}\n", encoding="utf-8")
+    config = ImplementationFlow.write_config(
+        "demo", workdir, "sky130hd", netlist, sdc, corners
+    )
 
     class Runner:
         request = None
@@ -7159,9 +7266,20 @@ def test_pnr_request_declares_config_inputs_and_result_trees(tmp_path: Path) -> 
     assert summary["returncode"] == 1
     assert summary["tool_returncode"] == 1
     assert summary["artifacts"] == {}
-    assert runner.request.inputs == (makefile.resolve(), config.resolve(), netlist.resolve(), sdc.resolve())
+    assert runner.request.inputs == (
+        makefile.resolve(),
+        config.resolve(),
+        netlist.resolve(),
+        sdc.resolve(),
+        corners["ss"].resolve(),
+        corners["tt"].resolve(),
+        corners["ff"].resolve(),
+    )
     assert runner.request.outputs == (workdir / "results", workdir / "reports", workdir / "logs")
-    assert "HOLD_SLACK_MARGIN=0.1" in runner.request.argv
+    assert "CORNERS=ss tt ff" in runner.request.argv
+    assert "HOLD_SLACK_MARGIN=0.2" in runner.request.argv
+    assert "SLEW_MARGIN=30" in runner.request.argv
+    assert "CAP_MARGIN=30" in runner.request.argv
     assert "SETUP_SLACK_MARGIN=0" in runner.request.argv
 
 
@@ -8858,7 +8976,10 @@ def test_cdc_flow_exposes_one_visible_lifecycle_and_check_catalog(tmp_path: Path
 
     for method in ("setup", "run", "debug", "show", "classify_cdc_rdc"):
         assert callable(getattr(flow, method))
-    for legacy in ("setup_analysis", "run_analysis", "run_from_context", "debug_from_context"):
+    for legacy in (
+        "setup_analysis", "run_analysis", "run_from_context", "debug_from_context",
+        "find_clock_crossings", "find_reset_crossings", "classify_synchronizers",
+    ):
         assert not hasattr(flow, legacy)
 
     assert CdcFlow.CHECKS == {
@@ -9473,6 +9594,26 @@ def test_metrics_snapshots_provenance_and_check_does_not_refresh(tmp_path: Path)
     assert metrics["provenance"]["stages"]["cdc_rdc.setup"] == "MODIFIED"
 
 
+def test_formal_design_setup_does_not_invent_properties(tmp_path: Path) -> None:
+    import flexsoc.api as api_module
+
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
+    router = _target_session(client, values)
+    router.paths.ensure()
+    source = router.paths.rtl / "demo.sv"
+    source.write_text("module demo(input logic clk_i); endmodule\n", encoding="utf-8")
+    router.paths.rtl_common.write_text("", encoding="utf-8")
+    router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="formal property directory does not exist"):
+        router._execute_target("formal.prove.setup")
+
+    assert not (router.paths.formal / "properties" / "prove").exists()
+
+
 def test_formal_run_uses_existing_config_without_regeneration(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -9487,6 +9628,9 @@ def test_formal_run_uses_existing_config_without_regeneration(
     config = flow._config_from_context(router.context, csr=False, mode="prove")
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text("[options]\nmode prove\n", encoding="utf-8")
+    properties = router.paths.formal / "properties" / "prove"
+    properties.mkdir(parents=True, exist_ok=True)
+    (properties / "demo_prove.sv").write_text("// authored property\n", encoding="utf-8")
     monkeypatch.setattr(
         type(flow),
         "setup_from_context",
@@ -9536,6 +9680,7 @@ def test_functional_tb_clock_waveform_comes_from_clock_config() -> None:
 
 def test_systemverilog_functional_seed_drives_clock_jitter(tmp_path: Path) -> None:
     from types import SimpleNamespace
+
     from flexsoc.backend.dv.func.functional import FunctionalFlow
 
     class Runner:
@@ -10754,7 +10899,7 @@ def test_lint_debug_renders_show_plus_hints(tmp_path: Path) -> None:
     context = SimpleNamespace(paths=paths, values={}, project_root=tmp_path)
     output = tmp_path / "lint-debug.txt"
 
-    assert Lint(context, None).show(debug=True, output=str(output)) == 0
+    assert Lint(context, None).debug(output=str(output)) == 0
     text = output.read_text(encoding="utf-8")
     assert "Lint" in text
     assert "Diagnostics" in text
@@ -10898,6 +11043,13 @@ def test_cli_regression_coverage_formal_summary_show_debug(
         assert app([target, "--debug", *common]) == 0
         assert debug_token in capsys.readouterr().out
 
+    assert app(["formal", "--csr", "--summary", *common]) == 0
+    filtered = capsys.readouterr().out
+    assert "pass=3/3" in filtered and "properties" not in filtered
+    assert app(["formal", "--prove", "--show", *common]) == 0
+    filtered = capsys.readouterr().out
+    assert "properties" in filtered and "csr" not in filtered and "BMC" in filtered
+
 
 def test_coverage_legacy_target_is_removed() -> None:
     assert "coverage_detail" not in TARGETS
@@ -10906,6 +11058,11 @@ def test_coverage_legacy_target_is_removed() -> None:
 
 
 def test_lint_catalog_has_only_canonical_public_targets() -> None:
+    from flexsoc.backend.dv.lint.lint import Lint
+
+    assert callable(getattr(Lint, "run"))
+    assert callable(getattr(Lint, "show"))
+    assert callable(getattr(Lint, "debug"))
     assert BACKEND_TARGETS["lint"].action == "lint"
     assert BACKEND_TARGETS["lint"].sequence == ()
     assert BACKEND_TARGETS["lint"].debug == "lint"

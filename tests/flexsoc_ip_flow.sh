@@ -335,12 +335,7 @@ flexsoc_ip_flow() {
     echo
     echo "=== FORMAL RUN ==="
 
-    fx formal_csr_bmc --workdir "$WS" || return 1
-    fx formal_bmc --workdir "$WS" || return 1
-    fx formal_csr_prove --workdir "$WS" || return 1
-    fx formal_prove --workdir "$WS" || return 1
-    fx formal_csr_cover --workdir "$WS" || return 1
-    fx formal_cover --workdir "$WS" || return 1
+    fx formal --workdir "$WS" || return 1
     fx formal --summary --workdir "$WS" || return 1
     fx formal --show --workdir "$WS" || return 1
     fx formal --debug --workdir "$WS" || return 1
@@ -359,11 +354,7 @@ flexsoc_ip_flow() {
         fx pdk use "$PDK" \
             --workdir "$WS" || return 1
 
-        if [ "$PDK" = "ihp-sg13g2" ]; then
-            HOLD_MARGIN="${FLEXSOC_IHP_HOLD_SLACK_MARGIN:-0.15}"
-        else
-            HOLD_MARGIN="${FLEXSOC_SKY130_HOLD_SLACK_MARGIN:-0.10}"
-        fi
+        HOLD_MARGIN="${FLEXSOC_PNR_HOLD_SLACK_MARGIN:-0.20}"
 
         fx settings \
             PNR_HOLD_SLACK_MARGIN="$HOLD_MARGIN" \
@@ -421,45 +412,45 @@ flexsoc_ip_flow() {
         fx sta --show --workdir "$WS" || return 1
         fx sta --debug --workdir "$WS" || return 1
 
-        fx power_estimate \
+        fx power-estimate \
             --workdir "$WS" || return 1
-        fx power_estimate --summary --workdir "$WS" || return 1
-        fx power_estimate --show --workdir "$WS" || return 1
-        fx power_estimate --debug --workdir "$WS" || return 1
+        fx power-estimate --summary --workdir "$WS" || return 1
+        fx power-estimate --show --workdir "$WS" || return 1
+        fx power-estimate --debug --workdir "$WS" || return 1
 
         echo
         echo "=== POST-SYN GLS: 3 TESTS x FF/TT/SS = 9 RUNS ==="
 
-        fx sim_post_syn_all \
+        fx sim --post-syn --all \
             --set GLS_BACKEND="$GLS_BACKEND" \
             --set TIMING_MODES="$GLS_TIMING_MODES" \
             --set TEST_NAMES="$GLS_TESTS" \
             --set SDF_STRICT=1 \
             --workdir "$WS" || return 1
-        fx sim_post_syn_all --summary --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
-        fx sim_post_syn_all --show --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
-        fx sim_post_syn_all --debug --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
+        fx sim --post-syn --all --summary --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
+        fx sim --post-syn --all --show --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
+        fx sim --post-syn --all --debug --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
 
         echo
         echo "=== POST-SYN POWER / FUSION: SAME 3 x 3 MATRIX ==="
 
-        fx power_analysis_all \
+        fx power-analysis --all \
             --set POWER_TEST_NAMES="$GLS_TESTS" \
             --set POWER_GLS_BACKENDS="$GLS_BACKEND" \
             --set POWER_TIMING_MODES="$GLS_TIMING_MODES" \
             --workdir "$WS" || return 1
-        fx power_analysis_all --summary --workdir "$WS" || return 1
-        fx power_analysis_all --show --workdir "$WS" || return 1
-        fx power_analysis_all --debug --workdir "$WS" || return 1
+        fx power-analysis --all --summary --workdir "$WS" || return 1
+        fx power-analysis --all --show --workdir "$WS" || return 1
+        fx power-analysis --all --debug --workdir "$WS" || return 1
 
-        fx fusion_analysis_all \
+        fx fusion --all \
             --set POWER_TEST_NAMES="$GLS_TESTS" \
             --set POWER_GLS_BACKENDS="$GLS_BACKEND" \
             --set POWER_TIMING_MODES="$GLS_TIMING_MODES" \
             --workdir "$WS" || return 1
-        fx fusion_analysis_all --summary --workdir "$WS" || return 1
-        fx fusion_analysis_all --show --workdir "$WS" || return 1
-        fx fusion_analysis_all --debug --workdir "$WS" || return 1
+        fx fusion --all --summary --workdir "$WS" || return 1
+        fx fusion --all --show --workdir "$WS" || return 1
+        fx fusion --all --debug --workdir "$WS" || return 1
 
         echo
         echo "=== PNR / $PDK ==="
@@ -506,51 +497,51 @@ flexsoc_ip_flow() {
         fx sdf_post_impl \
             --workdir "$WS" || return 1
 
-        fx sta_post_impl \
+        fx sta --post-impl \
             --workdir "$WS" || return 1
-        fx sta_post_impl --summary --workdir "$WS" || return 1
-        fx sta_post_impl --show --workdir "$WS" || return 1
-        fx sta_post_impl --debug --workdir "$WS" || return 1
+        fx sta --post-impl --summary --workdir "$WS" || return 1
+        fx sta --post-impl --show --workdir "$WS" || return 1
+        fx sta --post-impl --debug --workdir "$WS" || return 1
 
         echo
         echo "=== POST-IMPLEMENTATION GLS: 3 TESTS x FF/TT/SS = 9 RUNS ==="
 
-        fx sim_post_impl_all \
+        fx sim --post-impl --all \
             --set GLS_BACKEND="$GLS_BACKEND" \
             --set TIMING_MODES="$GLS_TIMING_MODES" \
             --set TEST_NAMES="$GLS_TESTS" \
             --set SDF_STRICT=1 \
             --workdir "$WS" || return 1
-        fx sim_post_impl_all --summary --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
-        fx sim_post_impl_all --show --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
-        fx sim_post_impl_all --debug --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
+        fx sim --post-impl --all --summary --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
+        fx sim --post-impl --all --show --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
+        fx sim --post-impl --all --debug --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
 
-        fx power_estimate_post_impl \
+        fx power-estimate --post-impl \
             --workdir "$WS" || return 1
-        fx power_estimate_post_impl --summary --workdir "$WS" || return 1
-        fx power_estimate_post_impl --show --workdir "$WS" || return 1
-        fx power_estimate_post_impl --debug --workdir "$WS" || return 1
+        fx power-estimate --post-impl --summary --workdir "$WS" || return 1
+        fx power-estimate --post-impl --show --workdir "$WS" || return 1
+        fx power-estimate --post-impl --debug --workdir "$WS" || return 1
 
         echo
         echo "=== POST-IMPLEMENTATION POWER / FUSION: SAME 3 x 3 MATRIX ==="
 
-        fx power_analysis_post_impl_all \
+        fx power-analysis --post-impl --all \
             --set POWER_TEST_NAMES="$GLS_TESTS" \
             --set POWER_GLS_BACKENDS="$GLS_BACKEND" \
             --set POWER_TIMING_MODES="$GLS_TIMING_MODES" \
             --workdir "$WS" || return 1
-        fx power_analysis_post_impl_all --summary --workdir "$WS" || return 1
-        fx power_analysis_post_impl_all --show --workdir "$WS" || return 1
-        fx power_analysis_post_impl_all --debug --workdir "$WS" || return 1
+        fx power-analysis --post-impl --all --summary --workdir "$WS" || return 1
+        fx power-analysis --post-impl --all --show --workdir "$WS" || return 1
+        fx power-analysis --post-impl --all --debug --workdir "$WS" || return 1
 
-        fx fusion_analysis_post_impl_all \
+        fx fusion --post-impl --all \
             --set POWER_TEST_NAMES="$GLS_TESTS" \
             --set POWER_GLS_BACKENDS="$GLS_BACKEND" \
             --set POWER_TIMING_MODES="$GLS_TIMING_MODES" \
             --workdir "$WS" || return 1
-        fx fusion_analysis_post_impl_all --summary --workdir "$WS" || return 1
-        fx fusion_analysis_post_impl_all --show --workdir "$WS" || return 1
-        fx fusion_analysis_post_impl_all --debug --workdir "$WS" || return 1
+        fx fusion --post-impl --all --summary --workdir "$WS" || return 1
+        fx fusion --post-impl --all --show --workdir "$WS" || return 1
+        fx fusion --post-impl --all --debug --workdir "$WS" || return 1
 
         echo
         echo "=== REPORTING / QUALIFICATION / $PDK ==="
@@ -577,11 +568,7 @@ flexsoc_ip_flow() {
         fx pdk use "$PDK" \
             --workdir "$WS" || return 1
 
-        if [ "$PDK" = "ihp-sg13g2" ]; then
-            HOLD_MARGIN="${FLEXSOC_IHP_HOLD_SLACK_MARGIN:-0.15}"
-        else
-            HOLD_MARGIN="${FLEXSOC_SKY130_HOLD_SLACK_MARGIN:-0.10}"
-        fi
+        HOLD_MARGIN="${FLEXSOC_PNR_HOLD_SLACK_MARGIN:-0.20}"
 
         fx settings \
             PNR_HOLD_SLACK_MARGIN="$HOLD_MARGIN" \

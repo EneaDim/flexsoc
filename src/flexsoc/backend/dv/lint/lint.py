@@ -42,6 +42,17 @@ class Lint:
 
     # Presentation
 
+    def debug(
+        self,
+        *,
+        tool: str | None = None,
+        output: str | None = None,
+        as_json: bool = False,
+    ) -> int:
+        """Render canonical lint evidence plus diagnostic hints."""
+
+        return self.show(tool=tool, debug=True, output=output, as_json=as_json)
+
     def show(
         self,
         *,

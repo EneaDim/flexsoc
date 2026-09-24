@@ -78,7 +78,7 @@ def _fetch_register_vendors(
 
 @dataclass(frozen=True, slots=True)
 class E2EConfig:
-    """Sign-off and implementation controls shared by both technology branches."""
+    """E2E depth and technology controls shared by both technology branches."""
 
     run_signoff: bool
     run_post_syn: bool
@@ -115,9 +115,12 @@ def _e2e_config(request: pytest.FixtureRequest) -> E2EConfig:
         raise pytest.UsageError(f"unsupported E2E GLS timing mode: {mode}")
     if backend not in {"sv", "cocotb"}:
         raise pytest.UsageError(f"unsupported E2E GLS backend: {backend}")
-    run_signoff = not bool(request.config.getoption("--no-signoff"))
+    e2e_mode = _one_value(request, "e2e_mode", "FLEXSOC_E2E_MODE", "full")
+    if e2e_mode not in {"formal", "pre-pnr", "full"}:
+        raise pytest.UsageError(f"unsupported E2E mode: {e2e_mode}")
+    run_signoff = e2e_mode != "formal"
     run_post_syn = run_signoff and not bool(request.config.getoption("--no-post-syn-gls"))
-    run_pnr = run_signoff and not bool(request.config.getoption("--no-pnr"))
+    run_pnr = e2e_mode == "full"
     ors = _e2e_ors(request) if run_pnr else None
     return E2EConfig(run_signoff, run_post_syn, run_pnr, mode, backend, ors)
 
@@ -677,13 +680,13 @@ def _run_power_and_fusion(
         f"--set POWER_GLS_BACKEND={backend} "
         f"--set POWER_TIMING_MODE={mode} "
     )
-    for target in ("power_analysis", "fusion_analysis"):
+    for command in ("power-analysis", "fusion"):
         _run(
-            f"fx {target} {selectors}--workdir {workdir}",
+            f"fx {command} {selectors}--workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run_evidence_views(
-            target, workspace=workspace, top=top, run_id=run_id, workdir=workdir, settings=selectors,
+            command, workspace=workspace, top=top, run_id=run_id, workdir=workdir, settings=selectors,
         )
 
 
@@ -694,10 +697,11 @@ def _run_gls_all(
     """Qualify every GLS test and timing scenario with both drivers."""
 
     other = "cocotb" if config.gls_backend == "sv" else "sv"
+    command = f"sim --{stage.replace('_', '-')} --all"
     for backend in (config.gls_backend, other):
         _run(
             (
-                f"fx sim_{stage}_all "
+                f"fx {command} "
                 f"--set GLS_BACKEND={backend} --set TIMING_MODES=all "
                 "--set TEST_NAMES=all --set SDF_STRICT=1 "
                 f"--workdir {workdir}"
@@ -705,7 +709,7 @@ def _run_gls_all(
             workspace=workspace, top=top, run_id=run_id,
         )
         _run_evidence_views(
-            f"sim_{stage}_all", workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+            command, workspace=workspace, top=top, run_id=run_id, workdir=workdir,
             settings=f"--set GLS_BACKEND={backend} ",
         )
 
@@ -716,9 +720,10 @@ def _run_scaffold_gls_matrix(
 ) -> None:
     """Run the bounded scaffold GLS matrix used by qualification E2E."""
 
+    command = f"sim --{stage.replace('_', '-')} --all"
     _run(
         (
-            f"fx sim_{stage}_all "
+            f"fx {command} "
             f"--set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} "
             f"--set TIMING_MODES={','.join(SCAFFOLD_GLS_TIMING_MODES)} "
             f"--set TEST_NAMES={','.join(tests)} --set SDF_STRICT=1 "
@@ -727,7 +732,7 @@ def _run_scaffold_gls_matrix(
         workspace=workspace, top=top, run_id=run_id,
     )
     _run_evidence_views(
-        f"sim_{stage}_all", workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+        command, workspace=workspace, top=top, run_id=run_id, workdir=workdir,
         settings=f"--set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} ",
     )
 
@@ -738,19 +743,20 @@ def _run_scaffold_power_fusion(
 ) -> None:
     """Run power/fusion for exactly the scaffold GLS workload matrix."""
 
-    suffix = "_post_impl_all" if stage == "post_impl" else "_all"
+    stage_option = " --post-impl" if stage == "post_impl" else ""
     selectors = (
         f"--set POWER_TEST_NAMES={','.join(tests)} "
         f"--set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} "
         f"--set POWER_TIMING_MODES={','.join(SCAFFOLD_GLS_TIMING_MODES)} "
     )
-    for base in ("power_analysis", "fusion_analysis"):
+    for domain in ("power-analysis", "fusion"):
+        command = f"{domain}{stage_option} --all"
         _run(
-            f"fx {base}{suffix} {selectors}--workdir {workdir}",
+            f"fx {command} {selectors}--workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run_evidence_views(
-            f"{base}{suffix}", workspace=workspace, top=top, run_id=run_id, workdir=workdir, settings=selectors,
+            command, workspace=workspace, top=top, run_id=run_id, workdir=workdir, settings=selectors,
         )
 
 
@@ -829,15 +835,17 @@ def _run_post_impl_signoff(
         f"fx signoff_post_impl --setup --workdir {workdir}",
         workspace=workspace, top=top, run_id=run_id,
     )
-    for target in ("sdf_post_impl", "sta_post_impl"):
-        _run(
-            f"fx {target} --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        if target == "sta_post_impl":
-            _run_evidence_views(
-                target, workspace=workspace, top=top, run_id=run_id, workdir=workdir,
-            )
+    _run(
+        f"fx sdf_post_impl --workdir {workdir}",
+        workspace=workspace, top=top, run_id=run_id,
+    )
+    _run(
+        f"fx sta --post-impl --workdir {workdir}",
+        workspace=workspace, top=top, run_id=run_id,
+    )
+    _run_evidence_views(
+        "sta --post-impl", workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+    )
 
     if config.run_post_syn:
         _run_scaffold_gls_matrix(
@@ -846,12 +854,12 @@ def _run_post_impl_signoff(
         )
 
     _run(
-        f"fx power_estimate_post_impl --workdir {workdir}",
+        f"fx power-estimate --post-impl --workdir {workdir}",
         workspace=workspace, top=top, run_id=run_id,
     )
 
     _run_evidence_views(
-        "power_estimate_post_impl", workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+        "power-estimate --post-impl", workspace=workspace, top=top, run_id=run_id, workdir=workdir,
     )
 
     if config.run_post_syn:
@@ -872,7 +880,7 @@ def _run_implementation(
     assert config.ors is not None
     if not (config.ors / "Makefile").is_file():
         raise pytest.UsageError(
-            f"ORFS flow not found: {config.ors}; use --e2e-ors <flow> or --no-pnr"
+            f"ORFS flow not found: {config.ors}; use --e2e-ors <flow> or --e2e-mode pre-pnr"
         )
     ors = shlex.quote(f"ORS={config.ors}")
     _run(
@@ -948,6 +956,7 @@ def _assert_cdc_rdc_outputs(top: str, run: Path) -> None:
         f"CDC/RDC verification obligations remain: {summary.get('verification_obligations')}"
     )
 
+
 def _assert_design_formal_sources(top: str, run: Path) -> None:
     """Require real designer-owned prove and cover sources."""
 
@@ -955,6 +964,15 @@ def _assert_design_formal_sources(top: str, run: Path) -> None:
     cover = run / "dv" / "formal" / "properties" / "cover" / f"{top}_cover.sv"
     assert prove.is_file() and prove.stat().st_size > 0, f"missing formal prove scaffold: {prove}"
     assert cover.is_file() and cover.stat().st_size > 0, f"missing formal cover scaffold: {cover}"
+
+
+def _assert_formal_complete(run: Path) -> None:
+    """Require CSR and design properties to close all formal stages."""
+
+    summary = json.loads((run / "dv" / "formal" / "summary.json").read_text(encoding="utf-8"))
+    counts = summary.get("counts", {})
+    assert summary.get("status") == "PASS", f"formal did not close: {summary}"
+    assert counts.get("passed") == counts.get("total") == 6, f"expected 6/6 formal PASS: {counts}"
 
 
 def _assert_pre_impl_ip_branch(top: str, run: Path, pdk: str) -> None:
@@ -1270,38 +1288,20 @@ def test_fx_single_clock_flow_debug(
             workspace=workspace, top=top, run_id=run_id,
         )
 
+        _assert_design_formal_sources(top, run)
         _run(
             f"fx formal --setup --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"fx formal_csr_bmc --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"fx formal_bmc --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"fx formal_csr_prove --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"fx formal_prove --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"fx formal_csr_cover --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"fx formal_cover --workdir {workdir}",
+            f"fx formal --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
             f"fx formal --summary --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
+        _assert_formal_complete(run)
         _run(
             f"fx formal --show --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
@@ -1365,7 +1365,7 @@ def test_fx_single_clock_flow_debug(
                 "sta", workspace=workspace, top=top, run_id=run_id, workdir=workdir,
             )
             _run(
-                f"fx power_estimate --workdir {workdir}",
+                f"fx power-estimate --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run_evidence_views(
@@ -1420,7 +1420,7 @@ def test_fx_single_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"fx settings PNR_HOLD_SLACK_MARGIN=0.15 --workdir {workdir}",
+                f"fx settings PNR_HOLD_SLACK_MARGIN=0.20 --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1467,7 +1467,7 @@ def test_fx_single_clock_flow_debug(
                 "sta", workspace=workspace, top=top, run_id=run_id, workdir=workdir,
             )
             _run(
-                f"fx power_estimate --workdir {workdir}",
+                f"fx power-estimate --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run_evidence_views(
@@ -1674,38 +1674,20 @@ def test_fx_multi_clock_flow_debug(
             workspace=workspace, top=top, run_id=run_id,
         )
 
+        _assert_design_formal_sources(top, run)
         _run(
             f"fx formal --setup --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"fx formal_csr_bmc --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"fx formal_bmc --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"fx formal_csr_prove --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"fx formal_prove --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"fx formal_csr_cover --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"fx formal_cover --workdir {workdir}",
+            f"fx formal --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
             f"fx formal --summary --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
+        _assert_formal_complete(run)
         _run(
             f"fx formal --show --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
@@ -1769,7 +1751,7 @@ def test_fx_multi_clock_flow_debug(
                 "sta", workspace=workspace, top=top, run_id=run_id, workdir=workdir,
             )
             _run(
-                f"fx power_estimate --workdir {workdir}",
+                f"fx power-estimate --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run_evidence_views(
@@ -1824,7 +1806,7 @@ def test_fx_multi_clock_flow_debug(
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"fx settings PNR_HOLD_SLACK_MARGIN=0.15 --workdir {workdir}",
+                f"fx settings PNR_HOLD_SLACK_MARGIN=0.20 --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1871,7 +1853,7 @@ def test_fx_multi_clock_flow_debug(
                 "sta", workspace=workspace, top=top, run_id=run_id, workdir=workdir,
             )
             _run(
-                f"fx power_estimate --workdir {workdir}",
+                f"fx power-estimate --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run_evidence_views(
@@ -2062,49 +2044,29 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
             )
             _assert_coverage_outputs(run / "dv" / "functional" / "coverage")
 
-            if config.run_signoff:
-                _assert_design_formal_sources(top, run)
-                _run(
-                    f"fx formal --setup --force --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal_csr_bmc --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal_bmc --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal_csr_prove --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal_prove --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal_csr_cover --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal_cover --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal --summary --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal --show --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal --debug --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
+            _assert_design_formal_sources(top, run)
+            _run(
+                f"fx formal --setup --force --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"fx formal --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"fx formal --summary --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"fx formal --show --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"fx formal --debug --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
 
+            if config.run_signoff:
                 # sky130: rerun only technology-bound synthesis/sign-off stages.
                 _run(
                     f"fx pdk use sky130 --workdir {workdir}",
@@ -2163,7 +2125,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"fx power_estimate --workdir {workdir}",
+                    f"fx power-estimate --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 if config.run_post_syn:
@@ -2379,7 +2341,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"fx power_estimate --workdir {workdir}",
+                    f"fx power-estimate --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 if config.run_post_syn:
@@ -2684,49 +2646,29 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
             )
             _assert_coverage_outputs(run / "dv" / "functional" / "coverage")
 
-            if config.run_signoff:
-                _assert_design_formal_sources(top, run)
-                _run(
-                    f"fx formal --setup --force --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal_csr_bmc --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal_bmc --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal_csr_prove --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal_prove --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal_csr_cover --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal_cover --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal --summary --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal --show --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"fx formal --debug --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
+            _assert_design_formal_sources(top, run)
+            _run(
+                f"fx formal --setup --force --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"fx formal --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"fx formal --summary --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"fx formal --show --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"fx formal --debug --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
 
+            if config.run_signoff:
                 # sky130: rerun only technology-bound synthesis/sign-off stages.
                 _run(
                     f"fx pdk use sky130 --workdir {workdir}",
@@ -2785,7 +2727,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"fx power_estimate --workdir {workdir}",
+                    f"fx power-estimate --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 if config.run_post_syn:
@@ -3001,7 +2943,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"fx power_estimate --workdir {workdir}",
+                    f"fx power-estimate --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 if config.run_post_syn:
@@ -3229,33 +3171,20 @@ def test_fx_provenance_lifecycle_debug(request: pytest.FixtureRequest) -> None:
             workspace=workspace, top=top, run_id=run_id,
         )
 
-        if not config.run_signoff:
-            return
-
         _run(
-            f"fx formal --setup --force --workdir {workdir}",
+            f"fx formal --csr --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         formal_cases = (
             (
                 "formal.csr_prove.setup",
                 run / "dv/formal/runs/csr/prove" / f"{top}_csr_prove.sby",
-                f"fx formal_csr_bmc --workdir {workdir}",
-            ),
-            (
-                "formal.prove.setup",
-                run / "dv/formal/runs/properties/prove" / f"{top}_prove.sby",
-                f"fx formal_bmc --workdir {workdir}",
+                f"fx formal --csr --bmc --workdir {workdir}",
             ),
             (
                 "formal.csr_cover.setup",
                 run / "dv/formal/runs/csr/cover" / f"{top}_csr_cover.sby",
-                f"fx formal_csr_cover --workdir {workdir}",
-            ),
-            (
-                "formal.cover.setup",
-                run / "dv/formal/runs/properties/cover" / f"{top}_cover.sby",
-                f"fx formal_cover --workdir {workdir}",
+                f"fx formal --csr --cover --workdir {workdir}",
             ),
         )
         for stage, artifact, command in formal_cases:
@@ -3263,6 +3192,9 @@ def test_fx_provenance_lifecycle_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
                 stage=stage, artifact=artifact, command=command,
             )
+
+        if not config.run_signoff:
+            return
 
         _run(
             f"fx syn --setup --force --workdir {workdir}",
