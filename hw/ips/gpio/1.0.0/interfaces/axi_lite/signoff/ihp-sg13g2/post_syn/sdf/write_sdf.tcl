@@ -91,7 +91,7 @@ if {$spef ne ""} {
 } else {
   puts "spef=not_used"
 }
-if {$stage eq "post_route"} {
+if {$stage eq "post_impl"} {
   # Collect all SDC clocks before switching post-route analysis to propagated clock latency.
   set clocks [get_clocks *]
   if {[llength $clocks] > 0} {
@@ -188,6 +188,6 @@ if {$stage eq "post_syn"} {
   # Pre-implementation timing intentionally has no extracted interconnect model.
   flexsoc_strip_sdf_interconnect_cell $sdf_file
 } else {
-  puts "sdf_interconnect=retained stage=post_route"
+  puts "sdf_interconnect=retained stage=post_impl"
 }
 puts {FLEXSOC_SIGNOFF_COMPLETE analysis=sdf corner=tt mode=n/a workload=n/a}

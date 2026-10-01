@@ -3,7 +3,7 @@
 #
 # Analysis : sta
 # Design   : rv_timer
-# Variant  : dev
+# Variant  : release
 # PDK      : sky130
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/syn/sky130/rv_timer_synth.v
-#   SDC           : /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/constraints/rv_timer.sdc
+#   Netlist       : /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/syn/sky130/rv_timer_synth.v
+#   SDC           : /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/constraints/rv_timer.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/signoff/sky130/sta/template_reports
+#   Report dir    : /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/signoff/sky130/sta/template_reports
 #
 # Limitations:
 #   - Violating, near-critical and unconstrained paths are separate sections of one report.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/signoff/sky130/sta/template_reports}
+set report_dir {/tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/signoff/sky130/sta/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/syn/sky130/rv_timer_synth.v}
-set sdc {/tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/constraints/rv_timer.sdc}
+set netlist {/tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/syn/sky130/rv_timer_synth.v}
+set sdc {/tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/constraints/rv_timer.sdc}
 set spef {}
 set top {rv_timer}
 set stage {post_syn}
@@ -92,7 +92,7 @@ if {$spef ne ""} {
 } else {
   puts "spef=not_used"
 }
-if {$stage eq "post_route"} {
+if {$stage eq "post_impl"} {
   # Collect all SDC clocks before switching post-route analysis to propagated clock latency.
   set clocks [get_clocks *]
   if {[llength $clocks] > 0} {

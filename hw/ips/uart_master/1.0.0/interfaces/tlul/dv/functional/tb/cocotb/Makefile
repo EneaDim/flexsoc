@@ -83,15 +83,15 @@ else
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv \
-    /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/rtl/uart_master_reg_pkg.sv \
-    /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/rtl/uart_master_reg_core.sv \
-    /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/rtl/uart_master_reg_top.sv \
-    /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/rtl/uart_tx.sv \
-    /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/rtl/uart_rx.sv \
-    /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/rtl/uart_core.sv \
-    /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/rtl/uart_host_bridge.sv \
-    /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/rtl/uart_master_core.sv \
-    /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/rtl/uart_master.sv
+    /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/rtl/uart_master_reg_pkg.sv \
+    /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/rtl/uart_master_reg_core.sv \
+    /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/rtl/uart_master_reg_top.sv \
+    /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/rtl/uart_tx.sv \
+    /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/rtl/uart_rx.sv \
+    /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/rtl/uart_core.sv \
+    /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/rtl/uart_host_bridge.sv \
+    /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/rtl/uart_master_core.sv \
+    /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/rtl/uart_master.sv
 
   COMPILE_ARGS += --sv --timing
   WAVE_FORMAT ?= fst
@@ -107,7 +107,7 @@ else
   COMPILE_ARGS += -Wno-UNOPTFLAT
 endif
 
-COMPILE_ARGS += -I/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/hw/ips/tlul
+COMPILE_ARGS += -I/tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/hw/ips/tlul
 export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
 TEST_NAME ?= smoke
 SEED ?= 1
@@ -142,7 +142,7 @@ export CFG ?= $(REG_CONFIG)
 export DATA_IN  ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
 export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
 export PYTHONPATH := $(PWD):$(PYTHONPATH)
-VERILOG_SOURCES += /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/dv/functional/tb/cocotb/uart_master_tb.sv
+VERILOG_SOURCES += /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/dv/functional/tb/cocotb/uart_master_tb.sv
 
 COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
 ifeq ($(strip $(COCOTB_MAKEFILES)),)

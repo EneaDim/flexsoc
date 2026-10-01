@@ -399,7 +399,7 @@ For the current scaffold baseline, generate the equivalence collateral only:
 fx eqy --setup --force
 ```
 
-Setup-only is not equivalence evidence and does not satisfy the L3 qualification gate. When equivalence closure is intentionally in scope, execute it explicitly:
+Setup-only is not equivalence evidence. EQY contributes only when explicitly executed and is not mandatory in the automatic L3/L4 baseline. When equivalence closure is intentionally in scope, execute it explicitly:
 
 ```bash
 ```

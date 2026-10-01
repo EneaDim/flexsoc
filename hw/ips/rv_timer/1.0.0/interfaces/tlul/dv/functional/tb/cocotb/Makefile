@@ -17,9 +17,11 @@ ifeq ($(GATES),yes)
   GLS_UNIT_DELAY_DEFINE ?= 1
   GLS_INTERCONNECT ?= 0
   SDF_FILE ?=
+  GLS_PACKAGES ?=
   GLS_MODELS ?=
   GLS_NETLIST ?= ../../../../syn/$(PDK)/rv_timer_synth.v
 
+  VERILOG_SOURCES += $(GLS_PACKAGES)
   VERILOG_SOURCES += $(GLS_MODELS)
   VERILOG_SOURCES += $(GLS_NETLIST)
   COMPILE_ARGS += -g2012 -DSIM -DSYN -DFLEXSOC_GLS_EXTERNAL_MODELS -DFLEXSOC_COCOTB_WAVE_OWNER
@@ -52,30 +54,36 @@ else
 
   # RTL sources expanded from rtl_common.f and rtl_ip.f
   VERILOG_SOURCES := \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_intr_hw.sv \
+    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv \
+    /home/eneadim/github/flexsoc/hw/ips/prim/prim_ff_2sync.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_enc.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_enc.sv \
     /home/eneadim/github/flexsoc/hw/ips/pkgs/top_pkg.sv \
     /home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv \
     /home/eneadim/github/flexsoc/hw/ips/pkgs/prim_secded_pkg.sv \
-    /home/eneadim/github/flexsoc/hw/ips/pkgs/tlul_pkg.sv \
-    /home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_enc.sv \
-    /home/eneadim/github/flexsoc/hw/ips/tlul/tlul_rsp_intg_gen.sv \
+    /home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_pkg.sv \
+    /home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_data_integ_enc.sv \
+    /home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_rsp_intg_gen.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_dec.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_dec.sv \
-    /home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_dec.sv \
-    /home/eneadim/github/flexsoc/hw/ips/tlul/tlul_cmd_intg_chk.sv \
-    /home/eneadim/github/flexsoc/hw/ips/tlul/tlul_err.sv \
-    /home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv \
+    /home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_data_integ_dec.sv \
+    /home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_cmd_intg_chk.sv \
+    /home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_err.sv \
+    /home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_adapter_reg.sv \
+    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_buf.sv \
+    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_onehot_check.sv \
+    /home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv \
+    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_reg_we_check.sv \
     /home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv \
-    /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/rtl/rv_timer_core.sv \
-    /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/rtl/rv_timer_reg_pkg.sv \
-    /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/rtl/rv_timer_reg_top.sv \
-    /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/rtl/rv_timer.sv
+    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_intr_hw.sv \
+    /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/rtl/rv_timer_reg_pkg.sv \
+    /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/rtl/rv_timer_reg_core.sv \
+    /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/rtl/rv_timer_reg_top.sv \
+    /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/rtl/rv_timer_core.sv \
+    /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/rtl/rv_timer.sv
 
   COMPILE_ARGS += --sv --timing
   WAVE_FORMAT ?= fst
@@ -91,7 +99,7 @@ else
   COMPILE_ARGS += -Wno-UNOPTFLAT
 endif
 
-COMPILE_ARGS += -I/tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/hw/ips/tlul
+COMPILE_ARGS += -I/tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/hw/ips/tlul
 export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
 TEST_NAME ?= smoke
 SEED ?= 1
@@ -109,6 +117,7 @@ override COVERAGE :=
 unexport COVERAGE
 
 ifeq ($(SIM),verilator)
+  COMPILE_ARGS += -Wno-fatal
   COCOTB_PLUSARGS += +verilator+seed+$(SEED)
   ifeq ($(HDL_COVERAGE),1)
     COMPILE_ARGS += --coverage-line --coverage-toggle --coverage-expr --coverage-fsm --coverage-user
@@ -125,7 +134,7 @@ export CFG ?= $(REG_CONFIG)
 export DATA_IN  ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
 export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
 export PYTHONPATH := $(PWD):$(PYTHONPATH)
-VERILOG_SOURCES += /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/dv/functional/tb/cocotb/rv_timer_tb.sv
+VERILOG_SOURCES += /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/dv/functional/tb/cocotb/rv_timer_tb.sv
 
 COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
 ifeq ($(strip $(COCOTB_MAKEFILES)),)

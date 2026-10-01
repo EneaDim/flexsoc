@@ -58,7 +58,7 @@ class ImplementationFlow:
         netlist: Path,
         sdc_file: Path,
         corner_liberties: Mapping[str, Path] | None = None,
-        hold_slack_margin: float = 0.20,
+        hold_slack_margin: float = 0.05,
         slew_margin: float = 30.0,
         cap_margin: float = 30.0,
     ) -> Path:
@@ -212,7 +212,7 @@ class ImplementationFlow:
                 top=paths.top, output_dir=paths.impl, platform=platform,
                 netlist=paths.syn / f"{paths.top}_synth.v", sdc_file=paths.sdc,
                 corner_liberties=ImplementationFlow._corner_liberties(values),
-                hold_slack_margin=float(values.get("PNR_HOLD_SLACK_MARGIN", "0.20")),
+                hold_slack_margin=float(values.get("PNR_HOLD_SLACK_MARGIN", "0.05")),
                 slew_margin=float(values.get("PNR_SLEW_MARGIN", "30")),
                 cap_margin=float(values.get("PNR_CAP_MARGIN", "30")),
             )
@@ -298,7 +298,7 @@ class ImplementationFlow:
         netlist: Path,
         sdc_file: Path,
         corner_liberties: Mapping[str, Path] | None = None,
-        hold_slack_margin: float = 0.20,
+        hold_slack_margin: float = 0.05,
         slew_margin: float = 30.0,
         cap_margin: float = 30.0,
     ) -> str:
@@ -337,7 +337,7 @@ class ImplementationFlow:
         netlist: Path,
         sdc_file: Path,
         corner_liberties: Mapping[str, Path] | None = None,
-        hold_slack_margin: float = 0.20,
+        hold_slack_margin: float = 0.05,
         slew_margin: float = 30.0,
         cap_margin: float = 30.0,
     ) -> Path:

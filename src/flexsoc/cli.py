@@ -1004,7 +1004,7 @@ Use `fx commands` to list every backend target.
 
             selectors = any((rtl, post_syn, post_impl, all_runs, csr, bmc, prove, cover))
             if not selectors and normalized != ("fusion",):
-                return values
+                return normalized if normalized in {("power_estimate",), ("power_analysis",)} else values
             if len(values) != 1:
                 raise typer.BadParameter("domain selector options require exactly one command")
 

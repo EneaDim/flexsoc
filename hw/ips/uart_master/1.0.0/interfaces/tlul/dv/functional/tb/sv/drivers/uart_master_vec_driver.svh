@@ -56,7 +56,7 @@ task automatic tb_drive_input(input string name, input logic [31:0] value);
     $display("[TB][DRV] cio_rx_i <= 0x%08h", value);
   end
   else begin
-    error_count++;
+    errors++;
     $display("[TB][ERROR] unknown input vector signal: %s", name);
   end
 endtask
@@ -78,7 +78,6 @@ task automatic tb_apply_reg_write(input string reg_key, input string data_raw, i
   logic [31:0] data;
   logic [31:0] mask;
   logic [32:0] parsed;
-  bit ok;
 
   begin : tb_apply_reg_write_body
     parsed = tb_parse_u32(data_raw);
@@ -92,21 +91,21 @@ task automatic tb_apply_reg_write(input string reg_key, input string data_raw, i
       mask = 32'hffff_ffff;
     end
 
-    tb_reg_write_key(reg_key, data, mask, ok);
-    if (ok) tb_vector_apply_count++;
+    apply_reg_masked(reg_key, data, mask);
+    tb_vector_apply_count++;
   end
 endtask
 
-task automatic tb_step(input string data_out_path, inout int now_cycle);
+task automatic tb_step(input string output_path, inout int now_cycle);
   tb_wait_sample_phase();
   now_cycle++;
-  tb_check_outputs(data_out_path, now_cycle);
+  tb_check_outputs(output_path, now_cycle);
 endtask
 
 task automatic tb_apply_reset(
   input string selector,
   input int cycles,
-  input string data_out_path,
+  input string output_path,
   inout int now_cycle
 );
   int i;
@@ -119,27 +118,27 @@ task automatic tb_apply_reset(
   selected = (selector == "" || selector == "all" || selector == "*" ||
               selector == "core" || selector == "rst_ni");
   if (!selected) begin
-    error_count++;
+    errors++;
     $display("[TB][ERROR] unknown reset selector: %s", selector);
   end else begin
     rst_ni = 1'b0;
-    for (i = 0; i < cycles; i++) tb_step(data_out_path, now_cycle);
+    for (i = 0; i < cycles; i++) tb_step(output_path, now_cycle);
     @(negedge clk_i); #1;
     rst_ni = 1'b1;
     tb_vector_apply_count++;
   end
 endtask
 
-task automatic tb_finish_cycle(input string data_out_path, inout int now_cycle, inout bit cycle_open);
+task automatic tb_finish_cycle(input string output_path, inout int now_cycle, inout bit cycle_open);
   if (cycle_open) begin
-    tb_step(data_out_path, now_cycle);
+    tb_step(output_path, now_cycle);
     cycle_open = 1'b0;
   end
 endtask
 
-task automatic tb_wait_before_drive(input int target_cycle, input string data_out_path, inout int now_cycle);
+task automatic tb_wait_before_drive(input int target_cycle, input string output_path, inout int now_cycle);
   while (now_cycle < target_cycle - 1) begin
-    tb_step(data_out_path, now_cycle);
+    tb_step(output_path, now_cycle);
   end
   tb_wait_drive_phase();
 endtask
@@ -161,7 +160,7 @@ task automatic tb_drive_signal_pairs(
   if (code >= 9) tb_drive_raw(t6, t7);
 endtask
 
-task automatic run_vectors(input string data_in_path, input string data_out_path);
+task automatic run_vectors(input string input_path, input string output_path);
   int fd;
   int code;
   int cycle;
@@ -193,18 +192,18 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   cycle_open = 1'b0;
   apply_start = tb_vector_apply_count;
   tb_guarded_output_next = 0;
-  tb_last_output_cycle(data_out_path, final_cycle);
-  tb_guarded_output_count(data_out_path, guarded_total);
+  tb_last_output_cycle(output_path, final_cycle);
+  tb_guarded_output_count(output_path, guarded_total);
 
   begin : run_vectors_body
-  fd = $fopen(data_in_path, "r");
+  fd = $fopen(input_path, "r");
   if (fd == 0) begin
-    $display("[TB][ERROR] input vector file not found: %s", data_in_path);
-    error_count++;
+    $display("[TB][ERROR] input vector file not found: %s", input_path);
+    errors++;
     disable run_vectors_body;
   end
 
-  $display("[TB] running vectors: in=%s out=%s", data_in_path, data_out_path);
+  $display("[TB] running vectors: in=%s out=%s", input_path, output_path);
 
   while (!$feof(fd)) begin : tb_input_line
     line = "";
@@ -223,18 +222,18 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
     cycle = int'(cycle_value);
 
     if (t0 == "@cfg" || t0 == "cfg" || t0 == "@config" || t0 == "config") begin
-      tb_finish_cycle(data_out_path, now_cycle, cycle_open);
-      tb_wait_before_drive(cycle, data_out_path, now_cycle);
+      tb_finish_cycle(output_path, now_cycle, cycle_open);
+      tb_wait_before_drive(cycle, output_path, now_cycle);
       current_cycle = -1;
       $display("[TB][CFG] cycle=%0d path=%s", cycle, t1);
-      run_reg_config(t1);
+      load_config(t1);
       tb_vector_apply_count++;
       disable tb_input_line;
     end
 
     if (t0 == "@reset" || t0 == "reset") begin
-      tb_finish_cycle(data_out_path, now_cycle, cycle_open);
-      tb_wait_before_drive(cycle, data_out_path, now_cycle);
+      tb_finish_cycle(output_path, now_cycle, cycle_open);
+      tb_wait_before_drive(cycle, output_path, now_cycle);
       current_cycle = -1;
       if (code >= 4) begin
         parsed = tb_parse_u32(t2);
@@ -248,19 +247,19 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
         "[TB][RESET] cycle=%0d selector=%s cycles=%0d",
         cycle, reset_selector, reset_cycles
       );
-      tb_apply_reset(reset_selector, int'(reset_cycles), data_out_path, now_cycle);
+      tb_apply_reset(reset_selector, int'(reset_cycles), output_path, now_cycle);
       disable tb_input_line;
     end
 
     if (t0 == "@write" || t0 == "write" || t0 == "@reg_write" || t0 == "reg_write") begin
       if (code < 4) begin
-        error_count++;
+        errors++;
         $display("[TB][ERROR] malformed @write row: %s", line);
         disable tb_input_line;
       end
 
-      tb_finish_cycle(data_out_path, now_cycle, cycle_open);
-      tb_wait_before_drive(cycle, data_out_path, now_cycle);
+      tb_finish_cycle(output_path, now_cycle, cycle_open);
+      tb_wait_before_drive(cycle, output_path, now_cycle);
       current_cycle = -1;
       $display("[TB][VEC-WR] cycle=%0d reg=%s", cycle, t1);
       tb_apply_reg_write(t1, t2, t3);
@@ -268,14 +267,14 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
     end
 
     if ((code - 1) % 2 != 0) begin
-      error_count++;
+      errors++;
       $display("[TB][ERROR] malformed signal vector row: %s", line);
       disable tb_input_line;
     end
 
     if (!cycle_open || cycle != current_cycle) begin
-      tb_finish_cycle(data_out_path, now_cycle, cycle_open);
-      tb_wait_before_drive(cycle, data_out_path, now_cycle);
+      tb_finish_cycle(output_path, now_cycle, cycle_open);
+      tb_wait_before_drive(cycle, output_path, now_cycle);
       current_cycle = cycle;
       cycle_open = 1'b1;
       $display("[TB][VEC] cycle=%0d", cycle);
@@ -286,7 +285,7 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
 
   $fclose(fd);
 
-  tb_finish_cycle(data_out_path, now_cycle, cycle_open);
+  tb_finish_cycle(output_path, now_cycle, cycle_open);
 
   if (final_cycle < now_cycle + 8) begin
     final_cycle = now_cycle + 8;
@@ -295,17 +294,17 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
 
   while ((now_cycle < final_cycle || tb_guarded_output_next < guarded_total) &&
          now_cycle < guarded_deadline) begin
-    tb_step(data_out_path, now_cycle);
+    tb_step(output_path, now_cycle);
   end
   if (tb_guarded_output_next < guarded_total) begin
-    error_count++;
+    errors++;
     $display("[TB][ERROR] timed out waiting for guarded output row %0d/%0d",
              tb_guarded_output_next + 1, guarded_total);
   end
 
   if (tb_vector_apply_count == apply_start) begin
-    error_count++;
-    $display("[TB][ERROR] no vector inputs or register writes were applied from %s", data_in_path);
+    errors++;
+    $display("[TB][ERROR] no vector inputs or register writes were applied from %s", input_path);
   end
   end
 endtask
@@ -367,7 +366,7 @@ task automatic tb_drive_input(input tb_token_t name, input logic [31:0] value);
     $display("[TB][DRV] cio_rx_i <= 0x%08h", value);
   end
   else begin
-    error_count++;
+    errors++;
     $display("[TB][ERROR] unknown input vector signal: %s", name);
   end
 endtask
@@ -389,7 +388,6 @@ task automatic tb_apply_reg_write(input tb_token_t reg_key, input tb_token_t dat
   logic [31:0] data;
   logic [31:0] mask;
   logic [32:0] parsed;
-  bit ok;
 
   begin : tb_apply_reg_write_body
     parsed = tb_parse_u32(data_raw);
@@ -403,21 +401,21 @@ task automatic tb_apply_reg_write(input tb_token_t reg_key, input tb_token_t dat
       mask = 32'hffff_ffff;
     end
 
-    tb_reg_write_key(reg_key, data, mask, ok);
-    if (ok) tb_vector_apply_count++;
+    apply_reg_masked(reg_key, data, mask);
+    tb_vector_apply_count++;
   end
 endtask
 
-task automatic tb_step(input string data_out_path, inout int now_cycle);
+task automatic tb_step(input string output_path, inout int now_cycle);
   tb_wait_sample_phase();
   now_cycle++;
-  tb_check_outputs(data_out_path, now_cycle);
+  tb_check_outputs(output_path, now_cycle);
 endtask
 
 task automatic tb_apply_reset(
   input tb_token_t selector,
   input int cycles,
-  input string data_out_path,
+  input string output_path,
   inout int now_cycle
 );
   int i;
@@ -430,27 +428,27 @@ task automatic tb_apply_reset(
   selected = (selector == "" || selector == "all" || selector == "*" ||
               selector == "core" || selector == "rst_ni");
   if (!selected) begin
-    error_count++;
+    errors++;
     $display("[TB][ERROR] unknown reset selector: %s", selector);
   end else begin
     rst_ni = 1'b0;
-    for (i = 0; i < cycles; i++) tb_step(data_out_path, now_cycle);
+    for (i = 0; i < cycles; i++) tb_step(output_path, now_cycle);
     @(negedge clk_i); #1;
     rst_ni = 1'b1;
     tb_vector_apply_count++;
   end
 endtask
 
-task automatic tb_finish_cycle(input string data_out_path, inout int now_cycle, inout bit cycle_open);
+task automatic tb_finish_cycle(input string output_path, inout int now_cycle, inout bit cycle_open);
   if (cycle_open) begin
-    tb_step(data_out_path, now_cycle);
+    tb_step(output_path, now_cycle);
     cycle_open = 1'b0;
   end
 endtask
 
-task automatic tb_wait_before_drive(input int target_cycle, input string data_out_path, inout int now_cycle);
+task automatic tb_wait_before_drive(input int target_cycle, input string output_path, inout int now_cycle);
   while (now_cycle < target_cycle - 1) begin
-    tb_step(data_out_path, now_cycle);
+    tb_step(output_path, now_cycle);
   end
   tb_wait_drive_phase();
 endtask
@@ -472,7 +470,7 @@ task automatic tb_drive_signal_pairs(
   if (code >= 9) tb_drive_raw(t6, t7);
 endtask
 
-task automatic run_vectors(input string data_in_path, input string data_out_path);
+task automatic run_vectors(input string input_path, input string output_path);
   int fd;
   int code;
   int cycle;
@@ -503,18 +501,18 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   cycle_open = 1'b0;
   apply_start = tb_vector_apply_count;
   tb_guarded_output_next = 0;
-  tb_last_output_cycle(data_out_path, final_cycle);
-  tb_guarded_output_count(data_out_path, guarded_total);
+  tb_last_output_cycle(output_path, final_cycle);
+  tb_guarded_output_count(output_path, guarded_total);
 
   begin : run_vectors_body
-  fd = $fopen(data_in_path, "r");
+  fd = $fopen(input_path, "r");
   if (fd == 0) begin
-    $display("[TB][ERROR] input vector file not found: %s", data_in_path);
-    error_count++;
+    $display("[TB][ERROR] input vector file not found: %s", input_path);
+    errors++;
     disable run_vectors_body;
   end
 
-  $display("[TB] running vectors: in=%s out=%s", data_in_path, data_out_path);
+  $display("[TB] running vectors: in=%s out=%s", input_path, output_path);
 
   while (!$feof(fd)) begin : tb_input_line
     line_buf = '0;
@@ -531,18 +529,18 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
     cycle = int'(cycle_value);
 
     if (t0 == "@cfg" || t0 == "cfg" || t0 == "@config" || t0 == "config") begin
-      tb_finish_cycle(data_out_path, now_cycle, cycle_open);
-      tb_wait_before_drive(cycle, data_out_path, now_cycle);
+      tb_finish_cycle(output_path, now_cycle, cycle_open);
+      tb_wait_before_drive(cycle, output_path, now_cycle);
       current_cycle = -1;
       $display("[TB][CFG] cycle=%0d path=%s", cycle, t1);
-      run_reg_config(t1);
+      load_config(t1);
       tb_vector_apply_count++;
       disable tb_input_line;
     end
 
     if (t0 == "@reset" || t0 == "reset") begin
-      tb_finish_cycle(data_out_path, now_cycle, cycle_open);
-      tb_wait_before_drive(cycle, data_out_path, now_cycle);
+      tb_finish_cycle(output_path, now_cycle, cycle_open);
+      tb_wait_before_drive(cycle, output_path, now_cycle);
       current_cycle = -1;
       if (code >= 4) begin
         parsed = tb_parse_u32(t2);
@@ -556,19 +554,19 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
         "[TB][RESET] cycle=%0d selector=%s cycles=%0d",
         cycle, reset_selector, reset_cycles
       );
-      tb_apply_reset(reset_selector, int'(reset_cycles), data_out_path, now_cycle);
+      tb_apply_reset(reset_selector, int'(reset_cycles), output_path, now_cycle);
       disable tb_input_line;
     end
 
     if (t0 == "@write" || t0 == "write" || t0 == "@reg_write" || t0 == "reg_write") begin
       if (code < 4) begin
-        error_count++;
+        errors++;
         $display("[TB][ERROR] malformed @write row: %0s", line_buf);
         disable tb_input_line;
       end
 
-      tb_finish_cycle(data_out_path, now_cycle, cycle_open);
-      tb_wait_before_drive(cycle, data_out_path, now_cycle);
+      tb_finish_cycle(output_path, now_cycle, cycle_open);
+      tb_wait_before_drive(cycle, output_path, now_cycle);
       current_cycle = -1;
       $display("[TB][VEC-WR] cycle=%0d reg=%s", cycle, t1);
       tb_apply_reg_write(t1, t2, t3);
@@ -576,14 +574,14 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
     end
 
     if ((code - 1) % 2 != 0) begin
-      error_count++;
+      errors++;
       $display("[TB][ERROR] malformed signal vector row: %0s", line_buf);
       disable tb_input_line;
     end
 
     if (!cycle_open || cycle != current_cycle) begin
-      tb_finish_cycle(data_out_path, now_cycle, cycle_open);
-      tb_wait_before_drive(cycle, data_out_path, now_cycle);
+      tb_finish_cycle(output_path, now_cycle, cycle_open);
+      tb_wait_before_drive(cycle, output_path, now_cycle);
       current_cycle = cycle;
       cycle_open = 1'b1;
       $display("[TB][VEC] cycle=%0d", cycle);
@@ -594,7 +592,7 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
 
   $fclose(fd);
 
-  tb_finish_cycle(data_out_path, now_cycle, cycle_open);
+  tb_finish_cycle(output_path, now_cycle, cycle_open);
 
   if (final_cycle < now_cycle + 8) begin
     final_cycle = now_cycle + 8;
@@ -603,17 +601,17 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
 
   while ((now_cycle < final_cycle || tb_guarded_output_next < guarded_total) &&
          now_cycle < guarded_deadline) begin
-    tb_step(data_out_path, now_cycle);
+    tb_step(output_path, now_cycle);
   end
   if (tb_guarded_output_next < guarded_total) begin
-    error_count++;
+    errors++;
     $display("[TB][ERROR] timed out waiting for guarded output row %0d/%0d",
              tb_guarded_output_next + 1, guarded_total);
   end
 
   if (tb_vector_apply_count == apply_start) begin
-    error_count++;
-    $display("[TB][ERROR] no vector inputs or register writes were applied from %s", data_in_path);
+    errors++;
+    $display("[TB][ERROR] no vector inputs or register writes were applied from %s", input_path);
   end
   end
 endtask

@@ -1,11 +1,8 @@
-`ifndef SYN
-  `include "top_pkg.sv"
-  `include "prim_util_pkg.sv"
-  `include "prim_mubi_pkg.sv"
-  `include "prim_secded_pkg.sv"
-  `include "gpio_reg_pkg.sv"
-  `include "tlul_if.sv"
-  `include "gpio.sv"
-`else
-  `include "gpio_synth.v"
+`ifndef FLEXSOC_GPIO_TB_SV
+`define FLEXSOC_GPIO_TB_SV
+
+// Functional TB include hook.
+// The Makefile compiles rtl_common.f and rtl_ip.f explicitly, so this file
+// is intentionally small. Keep local TB typedefs/macros here if needed.
+
 `endif

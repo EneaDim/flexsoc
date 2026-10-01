@@ -1,33 +1,2678 @@
 {
+  "artifacts": {
+    "summary": "dv/lint/summary.json"
+  },
+  "counts": {
+    "P0": 5,
+    "P1": 46,
+    "P2": 180,
+    "P3": 28
+  },
+  "diagnostics": [
+    {
+      "code": "undriven-port",
+      "column": 34,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 44,
+      "message": "undriven output port 'err_o'",
+      "priority": "P0",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "width-trunc",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 211,
+      "message": "implicit conversion truncates from 128 to 16 bits",
+      "priority": "P0",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "UNDRIVEN",
+      "column": 34,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 44,
+      "message": "Signal is not driven: 'err_o'\n... note: In instance 'gpio.u_gpio_reg.u_reg_core.u_prim_reg_we_check.u_prim_onehot_check'\n... For warning description see https://verilator.org/warn/UNDRIVEN?v=5.050\n... Use \"/* verilator lint_off UNDRIVEN */\" and lint_on around source to disable this message.",
+      "priority": "P0",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINMISSING",
+      "column": 17,
+      "file": "rtl/gpio_reg_top.sv",
+      "line": 33,
+      "message": "Instance has missing pin: 'intg_err_o'\n... Location of port declaration\n... For warning description see https://verilator.org/warn/PINMISSING?v=5.050\n... Use \"/* verilator lint_off PINMISSING */\" and lint_on around source to disable this message.",
+      "priority": "P0",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "WIDTHTRUNC",
+      "column": 7,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 211,
+      "message": "Operator ASSIGN expects 16 bits on the Assign RHS, but Assign RHS's SUB generates 128 bits.\n... note: In instance 'gpio'\n... For warning description see https://verilator.org/warn/WIDTHTRUNC?v=5.050\n... Use \"/* verilator lint_off WIDTHTRUNC */\" and lint_on around source to disable this message.",
+      "priority": "P0",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "signed-logical-shift",
+      "column": 11,
+      "file": "hw/ips/pkgs/prim_util_pkg.sv",
+      "line": 35,
+      "message": "logical right shift of signed type 'integer' may have been intended to be an arithmetic shift",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-but-set-variable",
+      "column": 9,
+      "file": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+      "line": 28,
+      "message": "variable 'unused_sig' is assigned but its value is never used",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-but-set-variable",
+      "column": 20,
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "line": 36,
+      "message": "variable 'unused_q' is assigned but its value is never used",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-but-set-variable",
+      "column": 20,
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "line": 46,
+      "message": "variable 'unused_we' is assigned but its value is never used",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-but-set-variable",
+      "column": 20,
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "line": 47,
+      "message": "variable 'unused_wd' is assigned but its value is never used",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-but-set-variable",
+      "column": 20,
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "line": 48,
+      "message": "variable 'unused_q' is assigned but its value is never used",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-but-set-variable",
+      "column": 9,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 397,
+      "message": "variable 'unused_wdata' is assigned but its value is never used",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-but-set-variable",
+      "column": 9,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 398,
+      "message": "variable 'unused_be' is assigned but its value is never used",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "arith-op-mismatch",
+      "column": 43,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 179,
+      "message": "arithmetic between operands of different types ('largest_addr_t' (aka 'logic[127:0]') and 'shortint unsigned')",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "arith-op-mismatch",
+      "column": 55,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 191,
+      "message": "arithmetic between operands of different types ('largest_addr_t' (aka 'logic[127:0]') and 'logic[31:0]')",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "arith-op-mismatch",
+      "column": 29,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 192,
+      "message": "arithmetic between operands of different types ('largest_addr_t' (aka 'logic[127:0]') and 'logic[31:0]')",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "arith-op-mismatch",
+      "column": 37,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 203,
+      "message": "arithmetic between operands of different types ('largest_addr_t' (aka 'logic[127:0]') and 'shortint unsigned')",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "arith-op-mismatch",
+      "column": 53,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 203,
+      "message": "arithmetic between operands of different types ('largest_addr_t' (aka 'logic[127:0]') and 'shortint unsigned')",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "sign-conversion",
+      "column": 12,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 203,
+      "message": "implicit conversion changes signedness from 'shortint' to 'shortint unsigned'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "arith-op-mismatch",
+      "column": 39,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 211,
+      "message": "arithmetic between operands of different types ('largest_addr_t' (aka 'logic[127:0]') and 'bit[31:0]')",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "arith-op-mismatch",
+      "column": 71,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 211,
+      "message": "arithmetic between operands of different types ('largest_addr_t' (aka 'logic[127:0]') and 'shortint unsigned')",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "arith-op-mismatch",
+      "column": 87,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 211,
+      "message": "arithmetic between operands of different types ('largest_addr_t' (aka 'logic[127:0]') and 'shortint unsigned')",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "VARHIDDEN",
+      "column": 18,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 26,
+      "message": "Declaration of signal hides declaration in upper scope: 'AW'\n... Location of original declaration\n... For warning description see https://verilator.org/warn/VARHIDDEN?v=5.050\n... Use \"/* verilator lint_off VARHIDDEN */\" and lint_on around source to disable this message.",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "VARHIDDEN",
+      "column": 18,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 27,
+      "message": "Declaration of signal hides declaration in upper scope: 'DW'\n... Location of original declaration",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "VARHIDDEN",
+      "column": 18,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 28,
+      "message": "Declaration of signal hides declaration in upper scope: 'DBW'\n... Location of original declaration",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 132,
+      "message": "Instance pin connected by name with empty reference: 'qe'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 133,
+      "message": "Instance pin connected by name with empty reference: 'q'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 134,
+      "message": "Instance pin connected by name with empty reference: 'ds'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 153,
+      "message": "Instance pin connected by name with empty reference: 'qre'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 156,
+      "message": "Instance pin connected by name with empty reference: 'ds'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 169,
+      "message": "Instance pin connected by name with empty reference: 'qre'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 172,
+      "message": "Instance pin connected by name with empty reference: 'ds'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 198,
+      "message": "Instance pin connected by name with empty reference: 'qe'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 200,
+      "message": "Instance pin connected by name with empty reference: 'ds'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 225,
+      "message": "Instance pin connected by name with empty reference: 'qe'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 227,
+      "message": "Instance pin connected by name with empty reference: 'ds'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 252,
+      "message": "Instance pin connected by name with empty reference: 'qe'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 254,
+      "message": "Instance pin connected by name with empty reference: 'ds'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 279,
+      "message": "Instance pin connected by name with empty reference: 'qe'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 281,
+      "message": "Instance pin connected by name with empty reference: 'ds'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 306,
+      "message": "Instance pin connected by name with empty reference: 'qe'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 308,
+      "message": "Instance pin connected by name with empty reference: 'ds'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNSIGNED",
+      "column": 37,
+      "file": "vendor/pulp/common_cells/src/rr_arb_tree.sv",
+      "line": 208,
+      "message": "Comparison is constant due to unsigned arithmetic\n... note: In instance 'gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb.gen_rr_arb.i_arbiter'\n... For warning description see https://verilator.org/warn/UNSIGNED?v=5.050\n... Use \"/* verilator lint_off UNSIGNED */\" and lint_on around source to disable this message.",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNSIGNED",
+      "column": 37,
+      "file": "vendor/pulp/common_cells/src/rr_arb_tree.sv",
+      "line": 209,
+      "message": "Comparison is constant due to unsigned arithmetic\n... note: In instance 'gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb.gen_rr_arb.i_arbiter'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 12,
+      "file": "vendor/pulp/common_cells/src/rr_arb_tree.sv",
+      "line": 227,
+      "message": "Instance pin connected by name with empty reference: 'empty_o'\n... For warning description see https://verilator.org/warn/PINCONNECTEMPTY?v=5.050\n... Use \"/* verilator lint_off PINCONNECTEMPTY */\" and lint_on around source to disable this message.",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 8,
+      "file": "vendor/pulp/common_cells/src/stream_arbiter_flushable.sv",
+      "line": 52,
+      "message": "Instance pin connected by name with empty reference: 'idx_o'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 8,
+      "file": "vendor/pulp/common_cells/src/stream_arbiter_flushable.sv",
+      "line": 73,
+      "message": "Instance pin connected by name with empty reference: 'idx_o'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+      "line": 98,
+      "message": "Instance pin connected by name with empty reference: 'usage_o'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+      "line": 124,
+      "message": "Instance pin connected by name with empty reference: 'usage_o'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+      "line": 148,
+      "message": "Instance pin connected by name with empty reference: 'usage_o'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "PINCONNECTEMPTY",
+      "column": 6,
+      "file": "vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+      "line": 171,
+      "message": "Instance pin connected by name with empty reference: 'usage_o'",
+      "priority": "P1",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 3,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 28,
+      "message": "unused package function 'assert_static_in_package_CheckMuBi4ValsComplementary_A'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 31,
+      "message": "unused package function 'mubi4_test_invalid'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 30,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 36,
+      "message": "unused package function 'mubi4_bool_to_mubi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 43,
+      "message": "unused package function 'mubi4_test_true_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 50,
+      "message": "unused package function 'mubi4_test_false_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 57,
+      "message": "unused package function 'mubi4_test_true_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 64,
+      "message": "unused package function 'mubi4_test_false_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 30,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 138,
+      "message": "unused package function 'mubi4_or_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 30,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 145,
+      "message": "unused package function 'mubi4_and_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 3,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 160,
+      "message": "unused package function 'assert_static_in_package_CheckMuBi8ValsComplementary_A'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 163,
+      "message": "unused package function 'mubi8_test_invalid'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 30,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 168,
+      "message": "unused package function 'mubi8_bool_to_mubi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 175,
+      "message": "unused package function 'mubi8_test_true_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 182,
+      "message": "unused package function 'mubi8_test_false_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 189,
+      "message": "unused package function 'mubi8_test_true_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 196,
+      "message": "unused package function 'mubi8_test_false_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 30,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 270,
+      "message": "unused package function 'mubi8_or_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 30,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 277,
+      "message": "unused package function 'mubi8_and_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 3,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 292,
+      "message": "unused package function 'assert_static_in_package_CheckMuBi12ValsComplementary_A'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 295,
+      "message": "unused package function 'mubi12_test_invalid'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 300,
+      "message": "unused package function 'mubi12_bool_to_mubi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 307,
+      "message": "unused package function 'mubi12_test_true_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 314,
+      "message": "unused package function 'mubi12_test_false_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 321,
+      "message": "unused package function 'mubi12_test_true_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 328,
+      "message": "unused package function 'mubi12_test_false_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 402,
+      "message": "unused package function 'mubi12_or_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 409,
+      "message": "unused package function 'mubi12_and_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 3,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 424,
+      "message": "unused package function 'assert_static_in_package_CheckMuBi16ValsComplementary_A'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 427,
+      "message": "unused package function 'mubi16_test_invalid'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 432,
+      "message": "unused package function 'mubi16_bool_to_mubi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 439,
+      "message": "unused package function 'mubi16_test_true_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 446,
+      "message": "unused package function 'mubi16_test_false_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 453,
+      "message": "unused package function 'mubi16_test_true_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 460,
+      "message": "unused package function 'mubi16_test_false_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 534,
+      "message": "unused package function 'mubi16_or_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 541,
+      "message": "unused package function 'mubi16_and_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 3,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 556,
+      "message": "unused package function 'assert_static_in_package_CheckMuBi20ValsComplementary_A'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 559,
+      "message": "unused package function 'mubi20_test_invalid'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 564,
+      "message": "unused package function 'mubi20_bool_to_mubi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 571,
+      "message": "unused package function 'mubi20_test_true_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 578,
+      "message": "unused package function 'mubi20_test_false_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 585,
+      "message": "unused package function 'mubi20_test_true_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 592,
+      "message": "unused package function 'mubi20_test_false_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 652,
+      "message": "unused package function 'mubi20_or_hi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 659,
+      "message": "unused package function 'mubi20_and_hi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 666,
+      "message": "unused package function 'mubi20_or_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 673,
+      "message": "unused package function 'mubi20_and_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 3,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 688,
+      "message": "unused package function 'assert_static_in_package_CheckMuBi24ValsComplementary_A'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 691,
+      "message": "unused package function 'mubi24_test_invalid'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 696,
+      "message": "unused package function 'mubi24_bool_to_mubi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 703,
+      "message": "unused package function 'mubi24_test_true_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 710,
+      "message": "unused package function 'mubi24_test_false_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 717,
+      "message": "unused package function 'mubi24_test_true_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 724,
+      "message": "unused package function 'mubi24_test_false_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 784,
+      "message": "unused package function 'mubi24_or_hi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 791,
+      "message": "unused package function 'mubi24_and_hi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 798,
+      "message": "unused package function 'mubi24_or_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 805,
+      "message": "unused package function 'mubi24_and_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 3,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 820,
+      "message": "unused package function 'assert_static_in_package_CheckMuBi28ValsComplementary_A'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 823,
+      "message": "unused package function 'mubi28_test_invalid'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 828,
+      "message": "unused package function 'mubi28_bool_to_mubi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 835,
+      "message": "unused package function 'mubi28_test_true_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 842,
+      "message": "unused package function 'mubi28_test_false_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 849,
+      "message": "unused package function 'mubi28_test_true_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 856,
+      "message": "unused package function 'mubi28_test_false_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 916,
+      "message": "unused package function 'mubi28_or_hi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 923,
+      "message": "unused package function 'mubi28_and_hi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 930,
+      "message": "unused package function 'mubi28_or_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 937,
+      "message": "unused package function 'mubi28_and_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 3,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 952,
+      "message": "unused package function 'assert_static_in_package_CheckMuBi32ValsComplementary_A'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 955,
+      "message": "unused package function 'mubi32_test_invalid'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 960,
+      "message": "unused package function 'mubi32_bool_to_mubi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 967,
+      "message": "unused package function 'mubi32_test_true_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 974,
+      "message": "unused package function 'mubi32_test_false_strict'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 981,
+      "message": "unused package function 'mubi32_test_true_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 988,
+      "message": "unused package function 'mubi32_test_false_loose'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 1048,
+      "message": "unused package function 'mubi32_or_hi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 1055,
+      "message": "unused package function 'mubi32_and_hi'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 1062,
+      "message": "unused package function 'mubi32_or_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 31,
+      "file": "hw/ips/pkgs/prim_mubi_pkg.sv",
+      "line": 1069,
+      "message": "unused package function 'mubi32_and_lo'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 30,
+      "file": "hw/ips/pkgs/prim_util_pkg.sv",
+      "line": 28,
+      "message": "unused package function '_clog2'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-variable",
+      "column": 21,
+      "file": "hw/ips/prim/prim_ff_2sync.sv",
+      "line": 11,
+      "message": "unused variable 'd_o'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-parameter",
+      "column": 26,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 26,
+      "message": "unused parameter 'AddrCheck'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-parameter",
+      "column": 26,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 28,
+      "message": "unused parameter 'EnableCheck'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-parameter",
+      "column": 26,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 31,
+      "message": "unused parameter 'StrictCheck'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-parameter",
+      "column": 17,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 34,
+      "message": "unused parameter 'EnableAlertTriggerSVA'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-port",
+      "column": 34,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 37,
+      "message": "unused port signal 'clk_i'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-port",
+      "column": 34,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 38,
+      "message": "unused port signal 'rst_ni'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-port",
+      "column": 34,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 42,
+      "message": "unused port signal 'en_i'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 132,
+      "message": "output port 'qe' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 133,
+      "message": "output port 'q' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 134,
+      "message": "output port 'ds' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 153,
+      "message": "output port 'qre' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 156,
+      "message": "output port 'ds' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 169,
+      "message": "output port 'qre' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 172,
+      "message": "output port 'ds' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 198,
+      "message": "output port 'qe' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 200,
+      "message": "output port 'ds' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 225,
+      "message": "output port 'qe' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 227,
+      "message": "output port 'ds' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 252,
+      "message": "output port 'qe' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 254,
+      "message": "output port 'ds' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 279,
+      "message": "output port 'qe' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 281,
+      "message": "output port 'ds' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 306,
+      "message": "output port 'qe' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 308,
+      "message": "output port 'ds' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "case-redundant-default",
+      "column": 12,
+      "file": "rtl/gpio_reg_core.sv",
+      "line": 362,
+      "message": "'case' marked 'unique' has 'default' label",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 17,
+      "file": "rtl/gpio_reg_pkg.sv",
+      "line": 13,
+      "message": "unused package parameter 'NumRegs'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 25,
+      "file": "rtl/gpio_reg_pkg.sv",
+      "line": 80,
+      "message": "unused package parameter 'GPIO_DIRECT_RESVAL'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-typedef",
+      "column": 5,
+      "file": "rtl/gpio_reg_pkg.sv",
+      "line": 87,
+      "message": "unused package typedef 'gpio_id_e'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unconnected-output-port",
+      "column": 17,
+      "file": "rtl/gpio_reg_top.sv",
+      "line": 33,
+      "message": "output port 'intg_err_o' has no connection",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 26,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 45,
+      "message": "unused package parameter 'NsaidWidth'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-typedef",
+      "column": 26,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 56,
+      "message": "unused package typedef 'qos_t'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-typedef",
+      "column": 23,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 58,
+      "message": "unused package typedef 'region_t'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-typedef",
+      "column": 25,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 64,
+      "message": "unused package typedef 'atop_t'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-typedef",
+      "column": 24,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 66,
+      "message": "unused package typedef 'nsaid_t'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 81,
+      "message": "unused package parameter 'BURST_INCR'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 110,
+      "message": "unused package parameter 'CACHE_RD_ALLOC'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 113,
+      "message": "unused package parameter 'CACHE_WR_ALLOC'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "case-redundant-default",
+      "column": 12,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 155,
+      "message": "'case' marked 'unique' has 'default' label",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 3,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 208,
+      "message": "unused package function 'beat_upper_byte'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 218,
+      "message": "unused package function 'bufferable'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 28,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 223,
+      "message": "unused package function 'modifiable'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "incomplete-return",
+      "column": 34,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 244,
+      "message": "non-void function 'get_arcache' does not return a value on all control paths",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 34,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 244,
+      "message": "unused package function 'get_arcache'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "incomplete-return",
+      "column": 34,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 262,
+      "message": "non-void function 'get_awcache' does not return a value on all control paths",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 34,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 262,
+      "message": "unused package function 'get_awcache'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 29,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 289,
+      "message": "unused package function 'resp_precedence'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 35,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 356,
+      "message": "unused package function 'req_width'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 35,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 368,
+      "message": "unused package function 'rsp_width'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 384,
+      "message": "unused package parameter 'ATOP_ATOMICSWAP'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 394,
+      "message": "unused package parameter 'ATOP_ATOMICCMP'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 397,
+      "message": "unused package parameter 'ATOP_NONE'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 404,
+      "message": "unused package parameter 'ATOP_ATOMICSTORE'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 412,
+      "message": "unused package parameter 'ATOP_ATOMICLOAD'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 418,
+      "message": "unused package parameter 'ATOP_LITTLE_END'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 420,
+      "message": "unused package parameter 'ATOP_BIG_END'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 423,
+      "message": "unused package parameter 'ATOP_ADD'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 425,
+      "message": "unused package parameter 'ATOP_CLR'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 427,
+      "message": "unused package parameter 'ATOP_EOR'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 429,
+      "message": "unused package parameter 'ATOP_SET'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 432,
+      "message": "unused package parameter 'ATOP_SMAX'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 435,
+      "message": "unused package parameter 'ATOP_SMIN'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 438,
+      "message": "unused package parameter 'ATOP_UMAX'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 441,
+      "message": "unused package parameter 'ATOP_UMIN'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-parameter",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 444,
+      "message": "unused package parameter 'ATOP_R_RESP'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-typedef",
+      "column": 5,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 519,
+      "message": "unused package typedef 'xbar_cfg_t'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-typedef",
+      "column": 5,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 526,
+      "message": "unused package typedef 'xbar_rule_64_t'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-typedef",
+      "column": 5,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 533,
+      "message": "unused package typedef 'xbar_rule_32_t'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-package-subroutine",
+      "column": 32,
+      "file": "vendor/pulp/common_cells/src/cf_math_pkg.sv",
+      "line": 23,
+      "message": "unused package function 'ceil_div'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-port",
+      "column": 19,
+      "file": "vendor/pulp/common_cells/src/fifo_v3.sv",
+      "line": 24,
+      "message": "unused port signal 'testmode_i'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-variable",
+      "column": 40,
+      "file": "vendor/pulp/common_cells/src/rr_arb_tree.sv",
+      "line": 205,
+      "message": "unused variable 'lower_empty'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 12,
+      "file": "vendor/pulp/common_cells/src/rr_arb_tree.sv",
+      "line": 227,
+      "message": "output port 'empty_o' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "bitwise-op-parentheses",
+      "column": 54,
+      "file": "vendor/pulp/common_cells/src/rr_arb_tree.sv",
+      "line": 269,
+      "message": "'&' within '|'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "diagnostic",
+      "column": 54,
+      "file": "vendor/pulp/common_cells/src/rr_arb_tree.sv",
+      "line": 269,
+      "message": "place parentheses around the '&' expression to silence this warning",
+      "priority": "P2",
+      "severity": "note",
+      "tool": "slang"
+    },
+    {
+      "code": "int-bool-conv",
+      "column": 14,
+      "file": "vendor/pulp/common_cells/src/rr_arb_tree.sv",
+      "line": 313,
+      "message": "implicit conversion from 'int unsigned' to boolean value",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 8,
+      "file": "vendor/pulp/common_cells/src/stream_arbiter_flushable.sv",
+      "line": 52,
+      "message": "output port 'idx_o' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+      "line": 98,
+      "message": "output port 'usage_o' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+      "line": 124,
+      "message": "output port 'usage_o' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+      "line": 148,
+      "message": "output port 'usage_o' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "empty-output-connection",
+      "column": 6,
+      "file": "vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+      "line": 171,
+      "message": "output port 'usage_o' is explicitly connected to nothing",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "unused-def",
+      "column": 8,
+      "file": "vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+      "line": 225,
+      "message": "module definition is unused",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "UNUSEDSIGNAL",
+      "column": 21,
+      "file": "hw/ips/prim/prim_ff_2sync.sv",
+      "line": 11,
+      "message": "Signal is not driven, nor used: 'd_o'\n... note: In instance 'gpio.u_core_reset_sync'\n... For warning description see https://verilator.org/warn/UNUSEDSIGNAL?v=5.050\n... Use \"/* verilator lint_off UNUSEDSIGNAL */\" and lint_on around source to disable this message.",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDSIGNAL",
+      "column": 34,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 37,
+      "message": "Signal is not used: 'clk_i'\n... note: In instance 'gpio.u_gpio_reg.u_reg_core.u_prim_reg_we_check.u_prim_onehot_check'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDSIGNAL",
+      "column": 34,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 38,
+      "message": "Signal is not used: 'rst_ni'\n... note: In instance 'gpio.u_gpio_reg.u_reg_core.u_prim_reg_we_check.u_prim_onehot_check'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDSIGNAL",
+      "column": 34,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 42,
+      "message": "Signal is not used: 'en_i'\n... note: In instance 'gpio.u_gpio_reg.u_reg_core.u_prim_reg_we_check.u_prim_onehot_check'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "WIDTHEXPAND",
+      "column": 12,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 155,
+      "message": "Operator CASE expects 8 bits on the Case Item, but Case Item's CONST '4'h1' generates 4 bits.\n... note: In instance 'gpio'\n... For warning description see https://verilator.org/warn/WIDTHEXPAND?v=5.050\n... Use \"/* verilator lint_off WIDTHEXPAND */\" and lint_on around source to disable this message.",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "WIDTHEXPAND",
+      "column": 12,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 155,
+      "message": "Operator CASE expects 8 bits on the Case Item, but Case Item's CONST '4'h3' generates 4 bits.\n... note: In instance 'gpio'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "WIDTHEXPAND",
+      "column": 12,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 155,
+      "message": "Operator CASE expects 8 bits on the Case Item, but Case Item's CONST '4'h7' generates 4 bits.\n... note: In instance 'gpio'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "WIDTHEXPAND",
+      "column": 12,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 155,
+      "message": "Operator CASE expects 8 bits on the Case Item, but Case Item's CONST '4'hf' generates 4 bits.\n... note: In instance 'gpio'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "WIDTHEXPAND",
+      "column": 81,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 191,
+      "message": "Operator ADD expects 128 bits on the LHS, but LHS's VARREF 'len' generates 8 bits.\n... note: In instance 'gpio'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "WIDTHEXPAND",
+      "column": 55,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 192,
+      "message": "Operator ADD expects 128 bits on the LHS, but LHS's VARREF 'len' generates 8 bits.\n... note: In instance 'gpio'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "WIDTHEXPAND",
+      "column": 37,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 203,
+      "message": "Operator DIV expects 128 bits on the RHS, but RHS's VARREF 'strobe_width' generates 16 bits.\n... note: In instance 'gpio'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "WIDTHEXPAND",
+      "column": 58,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 211,
+      "message": "Operator SUB expects 128 bits on the LHS, but LHS's FUNCREF 'num_bytes' generates 16 bits.\n... note: In instance 'gpio'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "WIDTHEXPAND",
+      "column": 71,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 211,
+      "message": "Operator DIV expects 128 bits on the RHS, but RHS's VARREF 'strobe_width' generates 16 bits.\n... note: In instance 'gpio'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDSIGNAL",
+      "column": 19,
+      "file": "vendor/pulp/common_cells/src/fifo_v3.sv",
+      "line": 24,
+      "message": "Signal is not used: 'testmode_i'\n... note: In instance 'gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_fifo_write_req'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDSIGNAL",
+      "column": 30,
+      "file": "vendor/pulp/common_cells/src/lzc.sv",
+      "line": 59,
+      "message": "Bits of signal are not driven, nor used: 'sel_nodes'[1]\n... note: In instance 'gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb.gen_rr_arb.i_arbiter.gen_arbiter.gen_int_rr.gen_fair_arb.i_lzc_lower'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDSIGNAL",
+      "column": 45,
+      "file": "vendor/pulp/common_cells/src/lzc.sv",
+      "line": 60,
+      "message": "Bits of signal are not driven, nor used: 'index_nodes'[1]\n... note: In instance 'gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb.gen_rr_arb.i_arbiter.gen_arbiter.gen_int_rr.gen_fair_arb.i_lzc_lower'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDSIGNAL",
+      "column": 31,
+      "file": "vendor/pulp/common_cells/src/rr_arb_tree.sv",
+      "line": 93,
+      "message": "Signal is not used: 'rr_i'\n... note: In instance 'gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb.gen_rr_arb.i_arbiter'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDSIGNAL",
+      "column": 40,
+      "file": "vendor/pulp/common_cells/src/rr_arb_tree.sv",
+      "line": 205,
+      "message": "Signal is not driven, nor used: 'lower_empty'\n... note: In instance 'gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb.gen_rr_arb.i_arbiter'",
+      "priority": "P2",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "unused-wildcard-import",
+      "column": 25,
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "line": 30,
+      "message": "unused wildcard import",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "slang"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 26,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 26,
+      "message": "Parameter is not used: 'AddrCheck'\n... note: In instance 'gpio.u_gpio_reg.u_reg_core.u_prim_reg_we_check.u_prim_onehot_check'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 26,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 28,
+      "message": "Parameter is not used: 'EnableCheck'\n... note: In instance 'gpio.u_gpio_reg.u_reg_core.u_prim_reg_we_check.u_prim_onehot_check'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 26,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 31,
+      "message": "Parameter is not used: 'StrictCheck'\n... note: In instance 'gpio.u_gpio_reg.u_reg_core.u_prim_reg_we_check.u_prim_onehot_check'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 17,
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "line": 34,
+      "message": "Parameter is not used: 'EnableAlertTriggerSVA'\n... note: In instance 'gpio.u_gpio_reg.u_reg_core.u_prim_reg_we_check.u_prim_onehot_check'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 17,
+      "file": "rtl/gpio_reg_pkg.sv",
+      "line": 13,
+      "message": "Parameter is not used: 'NumRegs'\n... note: In instance 'gpio.u_gpio_core.gen_input_filter[3].u_filter'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 25,
+      "file": "rtl/gpio_reg_pkg.sv",
+      "line": 80,
+      "message": "Parameter is not used: 'GPIO_DIRECT_RESVAL'\n... note: In instance 'gpio.u_gpio_core.gen_input_filter[3].u_filter'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 26,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 45,
+      "message": "Parameter is not used: 'NsaidWidth'\n... note: In instance 'gpio'\n... For warning description see https://verilator.org/warn/UNUSEDPARAM?v=5.050\n... Use \"/* verilator lint_off UNUSEDPARAM */\" and lint_on around source to disable this message.",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 81,
+      "message": "Parameter is not used: 'BURST_INCR'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 110,
+      "message": "Parameter is not used: 'CACHE_RD_ALLOC'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 113,
+      "message": "Parameter is not used: 'CACHE_WR_ALLOC'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 384,
+      "message": "Parameter is not used: 'ATOP_ATOMICSWAP'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 394,
+      "message": "Parameter is not used: 'ATOP_ATOMICCMP'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 397,
+      "message": "Parameter is not used: 'ATOP_NONE'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 404,
+      "message": "Parameter is not used: 'ATOP_ATOMICSTORE'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 412,
+      "message": "Parameter is not used: 'ATOP_ATOMICLOAD'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 418,
+      "message": "Parameter is not used: 'ATOP_LITTLE_END'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 420,
+      "message": "Parameter is not used: 'ATOP_BIG_END'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 423,
+      "message": "Parameter is not used: 'ATOP_ADD'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 425,
+      "message": "Parameter is not used: 'ATOP_CLR'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 427,
+      "message": "Parameter is not used: 'ATOP_EOR'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 429,
+      "message": "Parameter is not used: 'ATOP_SET'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 432,
+      "message": "Parameter is not used: 'ATOP_SMAX'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 435,
+      "message": "Parameter is not used: 'ATOP_SMIN'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 438,
+      "message": "Parameter is not used: 'ATOP_UMAX'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 441,
+      "message": "Parameter is not used: 'ATOP_UMIN'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "UNUSEDPARAM",
+      "column": 14,
+      "file": "vendor/pulp/axi/src/axi_pkg.sv",
+      "line": 444,
+      "message": "Parameter is not used: 'ATOP_R_RESP'\n... note: In instance 'gpio'",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    },
+    {
+      "code": "DECLFILENAME",
+      "column": 8,
+      "file": "vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+      "line": 225,
+      "message": "Filename 'axi_lite_to_reg' does not match MODULE name: 'axi_lite_to_reg_intf'\n... For warning description see https://verilator.org/warn/DECLFILENAME?v=5.050\n... Use \"/* verilator lint_off DECLFILENAME */\" and lint_on around source to disable this message.",
+      "priority": "P3",
+      "severity": "warning",
+      "tool": "verilator"
+    }
+  ],
   "order": [
     "slang",
     "verilator"
   ],
-  "status": "pass",
+  "policy": "reporting-only",
+  "profile": "everything",
+  "schema": "flexsoc.lint.v1",
+  "stage": "lint",
+  "status": "PASS",
   "tools": {
     "slang": {
-      "diagnostics": {
-        "latch": 0,
-        "unconnected": 1,
-        "undriven": 0,
-        "unused": 0,
-        "width": 0
+      "command": [
+        "slang",
+        "--single-unit",
+        "--top",
+        "gpio",
+        "-DSYNTHESIS",
+        "--diag-abs-paths",
+        "--diag-hierarchy",
+        "never",
+        "--diag-json",
+        "/tmp/flexsoc-ip-release/gpio-axi_lite/runs/gpio/release/dv/lint/slang/slang_diag.json",
+        "-Weverything",
+        "-f",
+        "/tmp/flexsoc-ip-release/gpio-axi_lite/runs/gpio/release/rtl/rtl_common.f",
+        "-f",
+        "/tmp/flexsoc-ip-release/gpio-axi_lite/runs/gpio/release/rtl/rtl_ip.f"
+      ],
+      "counts": {
+        "P0": 2,
+        "P1": 17,
+        "P2": 162,
+        "P3": 1
       },
-      "errors": 0,
-      "status": "pass",
-      "warnings": 1
+      "profile": "everything",
+      "returncode": 0,
+      "schema": "flexsoc.lint.tool.v1",
+      "status": "PASS",
+      "tool": "slang",
+      "top": "gpio",
+      "total": 182
     },
     "verilator": {
-      "diagnostics": {
-        "latch": 0,
-        "unconnected": 18,
-        "undriven": 0,
-        "unused": 2,
-        "width": 0
+      "command": [
+        "verilator",
+        "--lint-only",
+        "--sv",
+        "-Wno-fatal",
+        "-Wall",
+        "--diagnostics-sarif-output",
+        "/tmp/flexsoc-ip-release/gpio-axi_lite/runs/gpio/release/dv/lint/verilator/verilator.sarif",
+        "-f",
+        "/tmp/flexsoc-ip-release/gpio-axi_lite/runs/gpio/release/rtl/rtl_common.f",
+        "-f",
+        "/tmp/flexsoc-ip-release/gpio-axi_lite/runs/gpio/release/rtl/rtl_ip.f",
+        "--top-module",
+        "gpio"
+      ],
+      "counts": {
+        "P0": 3,
+        "P1": 29,
+        "P2": 18,
+        "P3": 27
       },
-      "errors": 0,
-      "status": "pass",
-      "warnings": 77
+      "profile": "everything",
+      "returncode": 0,
+      "schema": "flexsoc.lint.tool.v1",
+      "status": "PASS",
+      "tool": "verilator",
+      "top": "gpio",
+      "total": 77
     }
-  }
+  },
+  "top": "gpio",
+  "total": 259
 }

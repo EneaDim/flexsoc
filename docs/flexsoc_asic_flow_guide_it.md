@@ -4,7 +4,7 @@
 >
 > L'obiettivo è spiegare **cosa fa FlexSoC, perché esiste ogni stage, quali script e tool vengono coinvolti, quali evidenze produce e cosa significa realmente un PASS**. Non è un tutorial di progettazione RTL e non è il riferimento completo di ogni opzione CLI. Per la sintassi esatta dei comandi usare `docs/command_reference.md`; per ownership e policy di rigenerazione usare `docs/project_lifecycle.md` e `docs/ip_development_guide.md`.
 
-> **Policy attuale di qualificazione degli scaffold.** `fx eqy --setup` materializza lo scaffold editabile e `fx eqy` lo esegue esplicitamente; la matrice E2E automatica non lancia EQY finché i profili restano specifici per IP/interfaccia. Il solo setup non è equivalence PASS e quindi non soddisfa L3.
+> **Policy attuale di qualificazione degli scaffold.** `fx eqy --setup` materializza lo scaffold editabile e `fx eqy` lo esegue esplicitamente; la matrice E2E automatica non lancia EQY finché i profili restano specifici per IP/interfaccia. Il solo setup non è equivalence PASS; EQY è evidence esplicita opzionale e non è richiesta dal baseline automatico L3/L4.
 
 ---
 

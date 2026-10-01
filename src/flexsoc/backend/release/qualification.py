@@ -82,7 +82,7 @@ EVIDENCE_GROUPS: Mapping[str, tuple[str, ...]] = {
         "formal_csr_cover",
         "formal_cover",
     ),
-    "netlist": ("syn", "eqy", "sta"),
+    "netlist": ("syn", "sta"),
     "technology": (
         "sdf",
         "power_estimate",

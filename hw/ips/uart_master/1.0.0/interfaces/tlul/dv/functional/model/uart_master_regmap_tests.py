@@ -23,7 +23,10 @@ def _toggle_mask(register: regmap.Register) -> int:
     if SAFE_CONTROLS and register.name == "CTRL":
         return 0
     mask = 0
+    disruptive = ('SOFT_RESET', 'CLK_EN', 'CLK_GATE_EN') if SAFE_CONTROLS else set()
     for field in register.fields:
+        if field.name in disruptive:
+            continue
         if field.swaccess == "rw" and field.hwaccess == "hro":
             mask |= field.mask
     return mask & 0xFFFF_FFFF

@@ -6,7 +6,11 @@ from pathlib import Path
 
 from cocotb.triggers import Combine, FallingEdge, RisingEdge
 
-from drivers.reg_driver import WRITE_TOKENS, _drive_cycle, _sample_cycle, parse_u32
+from drivers.reg_driver import (
+    PRIMARY_CLOCK, WRITE_TOKENS, _drive_cycle, _sample_cycle,
+    apply_config, apply_reg, parse_u32, read_reg, reset,
+)
+from drivers.vec_monitor import LatencyMonitor
 
 CONFIG_TOKENS = {"@cfg", "cfg", "@config", "config"}
 RESET_TOKENS = {"@reset", "reset"}
@@ -249,3 +253,24 @@ async def drive_vectors(
 
     if applied == 0:
         raise AssertionError("no vector inputs or register writes were applied")
+
+
+async def run_vectors(dut, cfg, data_in, data_out):
+    async def do_write(reg, data, mask):
+        await apply_reg(dut, reg, data, mask)
+
+    async def do_read(reg):
+        return await read_reg(dut, reg)
+
+    async def do_reset(selector, cycles):
+        await reset(dut, selector, cycles)
+
+    await apply_config(dut, cfg)
+    await drive_vectors(
+        dut,
+        getattr(dut, PRIMARY_CLOCK),
+        load_vectors(data_in),
+        LatencyMonitor(dut, data_out, register_reader=do_read),
+        register_writer=do_write,
+        reset_runner=do_reset,
+    )

@@ -1,23 +1,23 @@
 {
   "schema_version": 18,
   "top": "uart",
-  "run_root": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release",
+  "run_root": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release",
   "technology": {
     "pdk": "ihp-sg13g2",
     "artifacts": {
-      "synthesis": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/syn/ihp-sg13g2",
-      "equivalence": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/signoff/ihp-sg13g2/equivalence/rtl_vs_syn",
-      "post_syn_sim": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/dv/functional/sim/post_syn/ihp-sg13g2",
-      "post_pnr_sim": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/dv/functional/sim/post_pnr/ihp-sg13g2",
-      "implementation": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/impl/ihp-sg13g2",
-      "post_pnr_signoff": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/signoff/ihp-sg13g2/post_pnr",
-      "sdc": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/constraints/uart.sdc",
-      "sta": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/signoff/ihp-sg13g2/sta",
-      "power": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/signoff/ihp-sg13g2/power",
-      "fusion": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/signoff/ihp-sg13g2/fusion",
-      "sdf": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/signoff/ihp-sg13g2/sdf",
-      "path_view": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/signoff/ihp-sg13g2/path_view",
-      "meta": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/meta/ihp-sg13g2"
+      "synthesis": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/syn/ihp-sg13g2",
+      "equivalence": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/ihp-sg13g2/equivalence/rtl_vs_syn",
+      "post_syn_sim": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/dv/functional/sim/post_syn/ihp-sg13g2",
+      "post_pnr_sim": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/dv/functional/sim/post_pnr/ihp-sg13g2",
+      "implementation": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/impl/ihp-sg13g2",
+      "post_pnr_signoff": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/ihp-sg13g2/post_pnr",
+      "sdc": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/constraints/uart.sdc",
+      "sta": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/ihp-sg13g2/sta",
+      "power": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/ihp-sg13g2/power",
+      "fusion": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/ihp-sg13g2/fusion",
+      "sdf": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/ihp-sg13g2/sdf",
+      "path_view": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/ihp-sg13g2/path_view",
+      "meta": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/meta/ihp-sg13g2"
     }
   },
   "lint": {
@@ -38,21 +38,21 @@
           "unconnected": 1,
           "unused": 0
         },
-        "command": "/tmp/flexsoc-ip-release/uart-reg_iface/runs/uart/release/rtl/uart_reg_top.sv:14:17: warning: output port 'intg_err_o' has no connection [-Wunconnected-output-port]",
+        "command": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/rtl/uart_reg_top.sv:51:17: warning: output port 'intg_err_o' has no connection [-Wunconnected-output-port]",
         "log": "dv/lint/slang/uart_lint_slang_all.log"
       },
       "verilator": {
         "status": "pass",
         "errors": 0,
-        "warnings": 93,
+        "warnings": 154,
         "diagnostics": {
           "latch": 0,
           "undriven": 0,
           "width": 0,
-          "unconnected": 49,
+          "unconnected": 50,
           "unused": 30
         },
-        "command": "%Warning-PINCONNECTEMPTY: /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:87:8: Instance pin connected by name with empty reference: 'cnt_after_commit_o'",
+        "command": "%Warning-PINCONNECTEMPTY: /home/eneadim/github/flexsoc/vendor/lowrisc_ip/ip/tlul/rtl/tlul_data_integ_dec.sv:20:6: Instance pin connected by name with empty reference: 'data_o'",
         "log": "dv/lint/verilator/uart_lint_verilator_all.log"
       }
     }
@@ -63,8 +63,8 @@
     "status": "pass",
     "clock_domains": 1,
     "reset_domains": 6,
-    "sequential_elements": 67,
-    "dependencies": 25671,
+    "sequential_elements": 73,
+    "dependencies": 31380,
     "verification_obligations": 0,
     "cdc": {
       "classifications": {},
@@ -116,7 +116,7 @@
         "workdir": "dv/formal/runs/csr/prove/uart_csr_bmc",
         "log": "logs/dv/formal/csr/uart_bmc.log",
         "trace_count": 0,
-        "elapsed_s": 2
+        "elapsed_s": 3
       },
       "prove": {
         "status": "pass",
@@ -178,7 +178,7 @@
       "passed": 6,
       "observed": 6,
       "total": 6,
-      "elapsed_s": 5,
+      "elapsed_s": 6,
       "traces": 14,
       "stages": {
         "bmc": {
@@ -334,29 +334,29 @@
     },
     "coverage": {
       "all": {
-        "hit": 4042,
-        "percent": 59.24080316576286,
-        "total": 6823
+        "hit": 5406,
+        "percent": 39.10590277777778,
+        "total": 13824
       },
       "common": {
-        "hit": 1204,
-        "percent": 47.62658227848101,
-        "total": 2528
+        "hit": 2102,
+        "percent": 24.6222326344149,
+        "total": 8537
       },
       "design": {
-        "hit": 1637,
-        "percent": 71.1120764552563,
-        "total": 2302
+        "hit": 1691,
+        "percent": 67.69415532425941,
+        "total": 2498
       },
       "other": {
-        "hit": 962,
-        "percent": 57.986738999397225,
-        "total": 1659
+        "hit": 1136,
+        "percent": 56.34920634920635,
+        "total": 2016
       },
       "registers": {
-        "hit": 239,
-        "percent": 71.55688622754491,
-        "total": 334
+        "hit": 477,
+        "percent": 61.707632600258734,
+        "total": 773
       }
     },
     "coverage_matrix": {
@@ -374,14 +374,14 @@
         "all": {
           "columns": {
             "branch": {
-              "hit": 304,
-              "percent": 49.83606557377049,
-              "total": 610
+              "hit": 322,
+              "percent": 51.192368839427665,
+              "total": 629
             },
             "expr": {
-              "hit": 309,
-              "percent": 50.490196078431374,
-              "total": 612
+              "hit": 375,
+              "percent": 9.75292587776333,
+              "total": 3845
             },
             "fsm": {
               "hit": 0,
@@ -389,19 +389,19 @@
               "total": 0
             },
             "line": {
-              "hit": 668,
-              "percent": 61.68051708217913,
-              "total": 1083
+              "hit": 765,
+              "percent": 30.0471327572663,
+              "total": 2546
             },
             "toggle": {
-              "hit": 2761,
-              "percent": 61.111111111111114,
-              "total": 4518
+              "hit": 3944,
+              "percent": 57.96590241034686,
+              "total": 6804
             },
             "total": {
-              "hit": 4042,
-              "percent": 59.24080316576286,
-              "total": 6823
+              "hit": 5406,
+              "percent": 39.10590277777778,
+              "total": 13824
             },
             "user": {
               "hit": 0,
@@ -410,44 +410,44 @@
             }
           },
           "total": {
-            "hit": 4042,
-            "percent": 59.24080316576286,
-            "total": 6823
+            "hit": 5406,
+            "percent": 39.10590277777778,
+            "total": 13824
           },
           "types": {
             "branch": {
-              "hit": 304,
-              "percent": 49.83606557377049,
-              "total": 610
+              "hit": 322,
+              "percent": 51.192368839427665,
+              "total": 629
             },
             "expr": {
-              "hit": 309,
-              "percent": 50.490196078431374,
-              "total": 612
+              "hit": 375,
+              "percent": 9.75292587776333,
+              "total": 3845
             },
             "line": {
-              "hit": 668,
-              "percent": 61.68051708217913,
-              "total": 1083
+              "hit": 765,
+              "percent": 30.0471327572663,
+              "total": 2546
             },
             "toggle": {
-              "hit": 2761,
-              "percent": 61.111111111111114,
-              "total": 4518
+              "hit": 3944,
+              "percent": 57.96590241034686,
+              "total": 6804
             }
           }
         },
         "common": {
           "columns": {
             "branch": {
-              "hit": 70,
-              "percent": 44.87179487179487,
-              "total": 156
+              "hit": 97,
+              "percent": 51.59574468085106,
+              "total": 188
             },
             "expr": {
-              "hit": 106,
-              "percent": 39.405204460966544,
-              "total": 269
+              "hit": 170,
+              "percent": 4.852983157293748,
+              "total": 3503
             },
             "fsm": {
               "hit": 0,
@@ -455,19 +455,19 @@
               "total": 0
             },
             "line": {
-              "hit": 43,
-              "percent": 12.39193083573487,
-              "total": 347
+              "hit": 76,
+              "percent": 4.3628013777267505,
+              "total": 1742
             },
             "toggle": {
-              "hit": 985,
-              "percent": 56.09339407744875,
-              "total": 1756
+              "hit": 1759,
+              "percent": 56.66881443298969,
+              "total": 3104
             },
             "total": {
-              "hit": 1204,
-              "percent": 47.62658227848101,
-              "total": 2528
+              "hit": 2102,
+              "percent": 24.6222326344149,
+              "total": 8537
             },
             "user": {
               "hit": 0,
@@ -476,30 +476,30 @@
             }
           },
           "total": {
-            "hit": 1204,
-            "percent": 47.62658227848101,
-            "total": 2528
+            "hit": 2102,
+            "percent": 24.6222326344149,
+            "total": 8537
           },
           "types": {
             "branch": {
-              "hit": 70,
-              "percent": 44.87179487179487,
-              "total": 156
+              "hit": 97,
+              "percent": 51.59574468085106,
+              "total": 188
             },
             "expr": {
-              "hit": 106,
-              "percent": 39.405204460966544,
-              "total": 269
+              "hit": 170,
+              "percent": 4.852983157293748,
+              "total": 3503
             },
             "line": {
-              "hit": 43,
-              "percent": 12.39193083573487,
-              "total": 347
+              "hit": 76,
+              "percent": 4.3628013777267505,
+              "total": 1742
             },
             "toggle": {
-              "hit": 985,
-              "percent": 56.09339407744875,
-              "total": 1756
+              "hit": 1759,
+              "percent": 56.66881443298969,
+              "total": 3104
             }
           }
         },
@@ -526,14 +526,14 @@
               "total": 91
             },
             "toggle": {
-              "hit": 1344,
-              "percent": 68.6414708886619,
-              "total": 1958
+              "hit": 1398,
+              "percent": 64.9025069637883,
+              "total": 2154
             },
             "total": {
-              "hit": 1637,
-              "percent": 71.1120764552563,
-              "total": 2302
+              "hit": 1691,
+              "percent": 67.69415532425941,
+              "total": 2498
             },
             "user": {
               "hit": 0,
@@ -542,9 +542,9 @@
             }
           },
           "total": {
-            "hit": 1637,
-            "percent": 71.1120764552563,
-            "total": 2302
+            "hit": 1691,
+            "percent": 67.69415532425941,
+            "total": 2498
           },
           "types": {
             "branch": {
@@ -563,23 +563,23 @@
               "total": 91
             },
             "toggle": {
-              "hit": 1344,
-              "percent": 68.6414708886619,
-              "total": 1958
+              "hit": 1398,
+              "percent": 64.9025069637883,
+              "total": 2154
             }
           }
         },
         "other": {
           "columns": {
             "branch": {
-              "hit": 149,
-              "percent": 41.73669467787115,
-              "total": 357
+              "hit": 140,
+              "percent": 40.69767441860465,
+              "total": 344
             },
             "expr": {
-              "hit": 84,
-              "percent": 44.919786096256686,
-              "total": 187
+              "hit": 83,
+              "percent": 45.3551912568306,
+              "total": 183
             },
             "fsm": {
               "hit": 0,
@@ -587,19 +587,19 @@
               "total": 0
             },
             "line": {
-              "hit": 536,
-              "percent": 83.10077519379846,
-              "total": 645
+              "hit": 600,
+              "percent": 84.15147265077138,
+              "total": 713
             },
             "toggle": {
-              "hit": 193,
-              "percent": 41.06382978723404,
-              "total": 470
+              "hit": 313,
+              "percent": 40.33505154639175,
+              "total": 776
             },
             "total": {
-              "hit": 962,
-              "percent": 57.986738999397225,
-              "total": 1659
+              "hit": 1136,
+              "percent": 56.34920634920635,
+              "total": 2016
             },
             "user": {
               "hit": 0,
@@ -608,30 +608,30 @@
             }
           },
           "total": {
-            "hit": 962,
-            "percent": 57.986738999397225,
-            "total": 1659
+            "hit": 1136,
+            "percent": 56.34920634920635,
+            "total": 2016
           },
           "types": {
             "branch": {
-              "hit": 149,
-              "percent": 41.73669467787115,
-              "total": 357
+              "hit": 140,
+              "percent": 40.69767441860465,
+              "total": 344
             },
             "expr": {
-              "hit": 84,
-              "percent": 44.919786096256686,
-              "total": 187
+              "hit": 83,
+              "percent": 45.3551912568306,
+              "total": 183
             },
             "line": {
-              "hit": 536,
-              "percent": 83.10077519379846,
-              "total": 645
+              "hit": 600,
+              "percent": 84.15147265077138,
+              "total": 713
             },
             "toggle": {
-              "hit": 193,
-              "percent": 41.06382978723404,
-              "total": 470
+              "hit": 313,
+              "percent": 40.33505154639175,
+              "total": 776
             }
           }
         },
@@ -643,9 +643,9 @@
               "total": 0
             },
             "expr": {
-              "hit": 0,
-              "percent": 0.0,
-              "total": 0
+              "hit": 3,
+              "percent": 100.0,
+              "total": 3
             },
             "fsm": {
               "hit": 0,
@@ -658,14 +658,14 @@
               "total": 0
             },
             "toggle": {
-              "hit": 239,
-              "percent": 71.55688622754491,
-              "total": 334
+              "hit": 474,
+              "percent": 61.55844155844156,
+              "total": 770
             },
             "total": {
-              "hit": 239,
-              "percent": 71.55688622754491,
-              "total": 334
+              "hit": 477,
+              "percent": 61.707632600258734,
+              "total": 773
             },
             "user": {
               "hit": 0,
@@ -674,9 +674,9 @@
             }
           },
           "total": {
-            "hit": 239,
-            "percent": 71.55688622754491,
-            "total": 334
+            "hit": 477,
+            "percent": 61.707632600258734,
+            "total": 773
           },
           "types": {
             "branch": {
@@ -685,9 +685,9 @@
               "total": 0
             },
             "expr": {
-              "hit": 0,
-              "percent": 0.0,
-              "total": 0
+              "hit": 3,
+              "percent": 100.0,
+              "total": 3
             },
             "line": {
               "hit": 0,
@@ -695,9 +695,9 @@
               "total": 0
             },
             "toggle": {
-              "hit": 239,
-              "percent": 71.55688622754491,
-              "total": 334
+              "hit": 474,
+              "percent": 61.55844155844156,
+              "total": 770
             }
           }
         }
@@ -718,113 +718,117 @@
     "warnings": 0,
     "errors": 0,
     "log": "logs/synthesis/ihp-sg13g2/uart_synth_opt_delay1.log",
-    "wires": 1674,
-    "wire_bits": 1749,
-    "public_wires": 322,
-    "public_wire_bits": 397,
+    "wires": 1818,
+    "wire_bits": 1991,
+    "public_wires": 342,
+    "public_wire_bits": 515,
     "ports": 6,
-    "port_bits": 81,
-    "cells": 1703,
-    "area": 27582.1686,
+    "port_bits": 179,
+    "cells": 1879,
+    "area": 30743.4582,
     "area_unit": "liberty",
-    "sequential_area": 15529.4496,
-    "sequential_area_pct": 56.3,
+    "sequential_area": 17733.9456,
+    "sequential_area_pct": 57.68,
     "cell_types": {
       "sg13g2_a21o_1": {
-        "count": 12,
-        "area": 152.41
+        "count": 36,
+        "area": 457.229
       },
       "sg13g2_a21o_2": {
         "count": 1,
         "area": 14.515
       },
       "sg13g2_a21oi_1": {
-        "count": 120,
-        "area": 1088.64
+        "count": 117,
+        "area": 1060.0
       },
       "sg13g2_a21oi_2": {
         "count": 4,
         "area": 58.061
       },
       "sg13g2_a221oi_1": {
-        "count": 14,
-        "area": 203.213
+        "count": 26,
+        "area": 377.395
       },
       "sg13g2_a22oi_1": {
-        "count": 9,
-        "area": 97.637
+        "count": 41,
+        "area": 444.793
       },
       "sg13g2_and2_1": {
-        "count": 2,
-        "area": 18.144
+        "count": 3,
+        "area": 27.216
       },
       "sg13g2_and3_1": {
-        "count": 1,
-        "area": 12.701
+        "count": 2,
+        "area": 25.402
       },
-      "sg13g2_buf_1": {
-        "count": 67,
-        "area": 486.259
-      },
-      "sg13g2_buf_2": {
-        "count": 11,
-        "area": 99.792
-      },
-      "sg13g2_buf_4": {
+      "sg13g2_and4_1": {
         "count": 3,
         "area": 43.546
       },
+      "sg13g2_buf_1": {
+        "count": 114,
+        "area": 827.366
+      },
+      "sg13g2_buf_2": {
+        "count": 6,
+        "area": 54.432
+      },
+      "sg13g2_buf_4": {
+        "count": 1,
+        "area": 14.515
+      },
       "sg13g2_dfrbpq_1": {
-        "count": 317,
-        "area": 15500.0
+        "count": 362,
+        "area": 17700.0
       },
       "sg13g2_inv_1": {
-        "count": 179,
-        "area": 974.333
+        "count": 206,
+        "area": 1120.0
       },
       "sg13g2_inv_2": {
         "count": 3,
         "area": 21.773
       },
       "sg13g2_mux2_1": {
-        "count": 36,
-        "area": 653.184
+        "count": 14,
+        "area": 254.016
       },
       "sg13g2_nand2_1": {
-        "count": 235,
-        "area": 1710.0
+        "count": 266,
+        "area": 1930.0
       },
       "sg13g2_nand2_2": {
         "count": 1,
         "area": 10.886
       },
       "sg13g2_nand2b_1": {
-        "count": 34,
-        "area": 308.448
+        "count": 75,
+        "area": 680.4
       },
       "sg13g2_nand3_1": {
-        "count": 60,
-        "area": 544.32
+        "count": 58,
+        "area": 526.176
       },
       "sg13g2_nand3b_1": {
-        "count": 2,
-        "area": 25.402
+        "count": 6,
+        "area": 76.205
       },
       "sg13g2_nand4_1": {
-        "count": 5,
-        "area": 54.432
+        "count": 4,
+        "area": 43.546
       },
       "sg13g2_nor2_1": {
-        "count": 96,
-        "area": 696.73
+        "count": 101,
+        "area": 733.018
       },
       "sg13g2_nor2_2": {
         "count": 2,
         "area": 21.773
       },
       "sg13g2_nor2b_1": {
-        "count": 60,
-        "area": 544.32
+        "count": 23,
+        "area": 208.656
       },
       "sg13g2_nor2b_2": {
         "count": 2,
@@ -835,24 +839,40 @@
         "area": 254.016
       },
       "sg13g2_nor4_1": {
-        "count": 23,
-        "area": 250.387
+        "count": 5,
+        "area": 54.432
+      },
+      "sg13g2_nor4_2": {
+        "count": 1,
+        "area": 21.773
       },
       "sg13g2_o21ai_1": {
-        "count": 324,
-        "area": 2940.0
+        "count": 312,
+        "area": 2830.0
+      },
+      "sg13g2_or2_1": {
+        "count": 1,
+        "area": 9.072
+      },
+      "sg13g2_or3_1": {
+        "count": 2,
+        "area": 25.402
       },
       "sg13g2_tiehi": {
         "count": 1,
         "area": 7.258
       },
+      "sg13g2_tielo": {
+        "count": 1,
+        "area": 7.258
+      },
       "sg13g2_xnor2_1": {
-        "count": 37,
-        "area": 537.062
+        "count": 44,
+        "area": 638.669
       },
       "sg13g2_xor2_1": {
-        "count": 14,
-        "area": 203.213
+        "count": 7,
+        "area": 101.606
       }
     },
     "netlist": "syn/ihp-sg13g2/uart_synth.v"
@@ -862,15 +882,15 @@
     "count": 3,
     "corners": {
       "ff": {
-        "bytes": 700866,
+        "bytes": 809288,
         "path": "signoff/ihp-sg13g2/sdf/ff/uart_ff.sdf"
       },
       "ss": {
-        "bytes": 700866,
+        "bytes": 809288,
         "path": "signoff/ihp-sg13g2/sdf/ss/uart_ss.sdf"
       },
       "tt": {
-        "bytes": 700863,
+        "bytes": 809285,
         "path": "signoff/ihp-sg13g2/sdf/tt/uart_tt.sdf"
       }
     }
@@ -1313,25 +1333,25 @@
     "activity_source": "input_assumption",
     "corners": {
       "ff": {
-        "dynamic_w": 0.004343,
-        "internal_w": 0.00382,
-        "leakage_w": 3.56e-06,
-        "switching_w": 0.000523,
-        "total_w": 0.00435
+        "dynamic_w": 0.0047079999999999995,
+        "internal_w": 0.00426,
+        "leakage_w": 3.9e-06,
+        "switching_w": 0.000448,
+        "total_w": 0.00471
       },
       "ss": {
-        "dynamic_w": 0.0029059999999999997,
-        "internal_w": 0.00261,
-        "leakage_w": 2.6e-06,
-        "switching_w": 0.000296,
-        "total_w": 0.00291
+        "dynamic_w": 0.0031769999999999997,
+        "internal_w": 0.00292,
+        "leakage_w": 2.9e-06,
+        "switching_w": 0.000257,
+        "total_w": 0.00318
       },
       "tt": {
-        "dynamic_w": 0.003585,
-        "internal_w": 0.00319,
-        "leakage_w": 1.12e-06,
-        "switching_w": 0.000395,
-        "total_w": 0.00359
+        "dynamic_w": 0.003901,
+        "internal_w": 0.00356,
+        "leakage_w": 1.24e-06,
+        "switching_w": 0.000341,
+        "total_w": 0.00391
       }
     },
     "status": "pass"
@@ -1345,17 +1365,17 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=3051)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=6144)+opensta-id-remap(ids=188)",
         "corners": {
           "ff": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
-            "internal_w": 0.00315,
-            "leakage_w": 3.55e-06,
+            "internal_w": 0.00365,
+            "leakage_w": 3.84e-06,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 2.18e-05,
-            "total_w": 0.00318
+            "switching_w": 2.34e-05,
+            "total_w": 0.00368
           }
         },
         "failures": [],
@@ -1372,17 +1392,17 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=1843)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=3704)+opensta-id-remap(ids=188)",
         "corners": {
           "ff": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
-            "internal_w": 0.00314,
-            "leakage_w": 3.54e-06,
+            "internal_w": 0.00363,
+            "leakage_w": 3.83e-06,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 2.19e-05,
-            "total_w": 0.00316
+            "switching_w": 2.32e-05,
+            "total_w": 0.00366
           }
         },
         "failures": [],
@@ -1399,17 +1419,17 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=251)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=536)+opensta-id-remap(ids=188)",
         "corners": {
           "ff": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
-            "internal_w": 0.00312,
-            "leakage_w": 3.51e-06,
+            "internal_w": 0.00361,
+            "leakage_w": 3.81e-06,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 4e-05,
-            "total_w": 0.00316
+            "switching_w": 4.91e-05,
+            "total_w": 0.00367
           }
         },
         "failures": [],
@@ -1426,17 +1446,17 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=3051)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=6144)+opensta-id-remap(ids=188)",
         "corners": {
           "tt": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
-            "internal_w": 0.00272,
-            "leakage_w": 1.12e-06,
+            "internal_w": 0.00314,
+            "leakage_w": 1.22e-06,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 1.59e-05,
-            "total_w": 0.00273
+            "switching_w": 1.71e-05,
+            "total_w": 0.00316
           }
         },
         "failures": [],
@@ -1453,17 +1473,17 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=1843)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=3704)+opensta-id-remap(ids=188)",
         "corners": {
           "tt": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
-            "internal_w": 0.00271,
-            "leakage_w": 1.12e-06,
+            "internal_w": 0.00313,
+            "leakage_w": 1.22e-06,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 1.6e-05,
-            "total_w": 0.00272
+            "switching_w": 1.69e-05,
+            "total_w": 0.00315
           }
         },
         "failures": [],
@@ -1480,17 +1500,17 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=251)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=536)+opensta-id-remap(ids=188)",
         "corners": {
           "tt": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
-            "internal_w": 0.00269,
-            "leakage_w": 1.11e-06,
+            "internal_w": 0.0031,
+            "leakage_w": 1.21e-06,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 2.99e-05,
-            "total_w": 0.00272
+            "switching_w": 3.6e-05,
+            "total_w": 0.00314
           }
         },
         "failures": [],
@@ -1507,17 +1527,17 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=3051)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=6144)+opensta-id-remap(ids=188)",
         "corners": {
           "ss": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
-            "internal_w": 0.00225,
-            "leakage_w": 2.58e-06,
+            "internal_w": 0.00261,
+            "leakage_w": 2.81e-06,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 1.19e-05,
-            "total_w": 0.00226
+            "switching_w": 1.28e-05,
+            "total_w": 0.00263
           }
         },
         "failures": [],
@@ -1534,17 +1554,17 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=1843)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=3704)+opensta-id-remap(ids=188)",
         "corners": {
           "ss": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
-            "internal_w": 0.00224,
-            "leakage_w": 2.56e-06,
+            "internal_w": 0.00261,
+            "leakage_w": 2.8e-06,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 1.19e-05,
-            "total_w": 0.00226
+            "switching_w": 1.27e-05,
+            "total_w": 0.00262
           }
         },
         "failures": [],
@@ -1561,17 +1581,17 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=251)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=536)+opensta-id-remap(ids=188)",
         "corners": {
           "ss": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
-            "internal_w": 0.00222,
-            "leakage_w": 2.54e-06,
+            "internal_w": 0.00256,
+            "leakage_w": 2.78e-06,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 2.23e-05,
-            "total_w": 0.00224
+            "switching_w": 2.75e-05,
+            "total_w": 0.00259
           }
         },
         "failures": [],
@@ -1601,38 +1621,38 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=3051)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=6144)+opensta-id-remap(ids=188)",
         "corners": {
           "ff/hold": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00315,
-            "leakage_w": 3.55e-06,
-            "path_instance_count": 86,
+            "internal_w": 0.00365,
+            "leakage_w": 3.84e-06,
+            "path_instance_count": 90,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 2.18e-05,
+            "switching_w": 2.34e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00318,
+            "total_w": 0.00368,
             "wns": 0.0
           },
           "ff/setup": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00315,
-            "leakage_w": 3.55e-06,
-            "path_instance_count": 135,
+            "internal_w": 0.00365,
+            "leakage_w": 3.84e-06,
+            "path_instance_count": 144,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 2.18e-05,
+            "switching_w": 2.34e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00318,
+            "total_w": 0.00368,
             "wns": 0.0
           }
         },
@@ -1650,38 +1670,38 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=1843)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=3704)+opensta-id-remap(ids=188)",
         "corners": {
           "ff/hold": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00314,
-            "leakage_w": 3.54e-06,
-            "path_instance_count": 86,
+            "internal_w": 0.00363,
+            "leakage_w": 3.83e-06,
+            "path_instance_count": 85,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 2.19e-05,
+            "switching_w": 2.32e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00316,
+            "total_w": 0.00366,
             "wns": 0.0
           },
           "ff/setup": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00314,
-            "leakage_w": 3.54e-06,
+            "internal_w": 0.00363,
+            "leakage_w": 3.83e-06,
             "path_instance_count": 135,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 2.19e-05,
+            "switching_w": 2.32e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00316,
+            "total_w": 0.00366,
             "wns": 0.0
           }
         },
@@ -1699,38 +1719,38 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=251)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=536)+opensta-id-remap(ids=188)",
         "corners": {
           "ff/hold": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00312,
-            "leakage_w": 3.51e-06,
-            "path_instance_count": 78,
+            "internal_w": 0.00361,
+            "leakage_w": 3.81e-06,
+            "path_instance_count": 79,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 4e-05,
+            "switching_w": 4.91e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00316,
+            "total_w": 0.00367,
             "wns": 0.0
           },
           "ff/setup": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00312,
-            "leakage_w": 3.51e-06,
-            "path_instance_count": 126,
+            "internal_w": 0.00361,
+            "leakage_w": 3.81e-06,
+            "path_instance_count": 140,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 4e-05,
+            "switching_w": 4.91e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00316,
+            "total_w": 0.00367,
             "wns": 0.0
           }
         },
@@ -1748,38 +1768,38 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=3051)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=6144)+opensta-id-remap(ids=188)",
         "corners": {
           "tt/hold": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00272,
-            "leakage_w": 1.12e-06,
-            "path_instance_count": 87,
+            "internal_w": 0.00314,
+            "leakage_w": 1.22e-06,
+            "path_instance_count": 88,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 1.59e-05,
+            "switching_w": 1.71e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00273,
+            "total_w": 0.00316,
             "wns": 0.0
           },
           "tt/setup": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00272,
-            "leakage_w": 1.12e-06,
-            "path_instance_count": 135,
+            "internal_w": 0.00314,
+            "leakage_w": 1.22e-06,
+            "path_instance_count": 134,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 1.59e-05,
+            "switching_w": 1.71e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00273,
+            "total_w": 0.00316,
             "wns": 0.0
           }
         },
@@ -1797,38 +1817,38 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=1843)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=3704)+opensta-id-remap(ids=188)",
         "corners": {
           "tt/hold": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00271,
-            "leakage_w": 1.12e-06,
-            "path_instance_count": 87,
+            "internal_w": 0.00313,
+            "leakage_w": 1.22e-06,
+            "path_instance_count": 86,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 1.6e-05,
+            "switching_w": 1.69e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00272,
+            "total_w": 0.00315,
             "wns": 0.0
           },
           "tt/setup": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00271,
-            "leakage_w": 1.12e-06,
-            "path_instance_count": 135,
+            "internal_w": 0.00313,
+            "leakage_w": 1.22e-06,
+            "path_instance_count": 132,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 1.6e-05,
+            "switching_w": 1.69e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00272,
+            "total_w": 0.00315,
             "wns": 0.0
           }
         },
@@ -1846,38 +1866,38 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=251)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=536)+opensta-id-remap(ids=188)",
         "corners": {
           "tt/hold": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00269,
-            "leakage_w": 1.11e-06,
-            "path_instance_count": 85,
+            "internal_w": 0.0031,
+            "leakage_w": 1.21e-06,
+            "path_instance_count": 83,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 2.99e-05,
+            "switching_w": 3.6e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00272,
+            "total_w": 0.00314,
             "wns": 0.0
           },
           "tt/setup": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00269,
-            "leakage_w": 1.11e-06,
-            "path_instance_count": 131,
+            "internal_w": 0.0031,
+            "leakage_w": 1.21e-06,
+            "path_instance_count": 134,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 2.99e-05,
+            "switching_w": 3.6e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00272,
+            "total_w": 0.00314,
             "wns": 0.0
           }
         },
@@ -1895,38 +1915,38 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=3051)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=6144)+opensta-id-remap(ids=188)",
         "corners": {
           "ss/hold": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00225,
-            "leakage_w": 2.58e-06,
+            "internal_w": 0.00261,
+            "leakage_w": 2.81e-06,
             "path_instance_count": 79,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 1.19e-05,
+            "switching_w": 1.28e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00226,
+            "total_w": 0.00263,
             "wns": 0.0
           },
           "ss/setup": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00225,
-            "leakage_w": 2.58e-06,
-            "path_instance_count": 131,
+            "internal_w": 0.00261,
+            "leakage_w": 2.81e-06,
+            "path_instance_count": 123,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 1.19e-05,
+            "switching_w": 1.28e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00226,
+            "total_w": 0.00263,
             "wns": 0.0
           }
         },
@@ -1944,38 +1964,38 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=1843)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=3704)+opensta-id-remap(ids=188)",
         "corners": {
           "ss/hold": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00224,
-            "leakage_w": 2.56e-06,
+            "internal_w": 0.00261,
+            "leakage_w": 2.8e-06,
             "path_instance_count": 79,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 1.19e-05,
+            "switching_w": 1.27e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00226,
+            "total_w": 0.00262,
             "wns": 0.0
           },
           "ss/setup": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00224,
-            "leakage_w": 2.56e-06,
-            "path_instance_count": 131,
+            "internal_w": 0.00261,
+            "leakage_w": 2.8e-06,
+            "path_instance_count": 123,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 1.19e-05,
+            "switching_w": 1.27e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00226,
+            "total_w": 0.00262,
             "wns": 0.0
           }
         },
@@ -1993,38 +2013,38 @@
       {
         "activity_source": "post_syn_gls_vcd",
         "backend": "sv",
-        "conversion_method": "named-output+opensta-event-filter(events=2,changes=251)+opensta-id-remap(ids=170)",
+        "conversion_method": "named-output+opensta-event-filter(events=4,changes=536)+opensta-id-remap(ids=188)",
         "corners": {
           "ss/hold": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00222,
-            "leakage_w": 2.54e-06,
-            "path_instance_count": 81,
+            "internal_w": 0.00256,
+            "leakage_w": 2.78e-06,
+            "path_instance_count": 76,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 2.23e-05,
+            "switching_w": 2.75e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00224,
+            "total_w": 0.00259,
             "wns": 0.0
           },
           "ss/setup": {
-            "activity_annotation_count": 6521,
+            "activity_annotation_count": 7219,
             "activity_annotation_percent": 100.0,
             "hotspot_path_count": 20,
-            "internal_w": 0.00222,
-            "leakage_w": 2.54e-06,
-            "path_instance_count": 131,
+            "internal_w": 0.00256,
+            "leakage_w": 2.78e-06,
+            "path_instance_count": 138,
             "power_hotspot_count": 20,
             "returncode": 0,
             "status": "pass",
-            "switching_w": 2.23e-05,
+            "switching_w": 2.75e-05,
             "timing_path_count": 20,
             "tns": 0.0,
-            "total_w": 0.00224,
+            "total_w": 0.00259,
             "wns": 0.0
           }
         },
@@ -2064,15 +2084,15 @@
       "count": 3,
       "corners": {
         "ff": {
-          "bytes": 1065006,
+          "bytes": 1212710,
           "path": "signoff/ihp-sg13g2/post_pnr/sdf/ff/uart_ff.sdf"
         },
         "ss": {
-          "bytes": 1065006,
+          "bytes": 1212710,
           "path": "signoff/ihp-sg13g2/post_pnr/sdf/ss/uart_ss.sdf"
         },
         "tt": {
-          "bytes": 1065003,
+          "bytes": 1212707,
           "path": "signoff/ihp-sg13g2/post_pnr/sdf/tt/uart_tt.sdf"
         }
       }
@@ -2515,25 +2535,25 @@
       "activity_source": "input_assumption",
       "corners": {
         "ff": {
-          "dynamic_w": 0.00676,
-          "internal_w": 0.00528,
-          "leakage_w": 3.86e-06,
-          "switching_w": 0.00148,
-          "total_w": 0.00677
+          "dynamic_w": 0.0076,
+          "internal_w": 0.00607,
+          "leakage_w": 4.33e-06,
+          "switching_w": 0.00153,
+          "total_w": 0.0076
         },
         "ss": {
-          "dynamic_w": 0.0042829999999999995,
-          "internal_w": 0.0034,
-          "leakage_w": 2.84e-06,
-          "switching_w": 0.000883,
-          "total_w": 0.00428
+          "dynamic_w": 0.004795000000000001,
+          "internal_w": 0.00388,
+          "leakage_w": 3.26e-06,
+          "switching_w": 0.000915,
+          "total_w": 0.0048
         },
         "tt": {
-          "dynamic_w": 0.0054,
-          "internal_w": 0.00425,
-          "leakage_w": 1.22e-06,
-          "switching_w": 0.00115,
-          "total_w": 0.0054
+          "dynamic_w": 0.00605,
+          "internal_w": 0.00486,
+          "leakage_w": 1.38e-06,
+          "switching_w": 0.00119,
+          "total_w": 0.00605
         }
       },
       "status": "pass"
@@ -2547,17 +2567,17 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=3051)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=6144)+opensta-id-remap(ids=296)",
           "corners": {
             "ff": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
-              "internal_w": 0.00466,
-              "leakage_w": 3.85e-06,
+              "internal_w": 0.00547,
+              "leakage_w": 4.3e-06,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000805,
-              "total_w": 0.00547
+              "switching_w": 0.000937,
+              "total_w": 0.00641
             }
           },
           "failures": [],
@@ -2574,17 +2594,17 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=1843)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=3704)+opensta-id-remap(ids=296)",
           "corners": {
             "ff": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
-              "internal_w": 0.00465,
-              "leakage_w": 3.85e-06,
+              "internal_w": 0.00545,
+              "leakage_w": 4.3e-06,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000805,
-              "total_w": 0.00545
+              "switching_w": 0.000936,
+              "total_w": 0.00639
             }
           },
           "failures": [],
@@ -2601,17 +2621,17 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=251)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=536)+opensta-id-remap(ids=296)",
           "corners": {
             "ff": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
-              "internal_w": 0.00463,
-              "leakage_w": 3.82e-06,
+              "internal_w": 0.00543,
+              "leakage_w": 4.27e-06,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.00083,
-              "total_w": 0.00546
+              "switching_w": 0.000973,
+              "total_w": 0.0064
             }
           },
           "failures": [],
@@ -2628,17 +2648,17 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=3051)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=6144)+opensta-id-remap(ids=296)",
           "corners": {
             "tt": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
-              "internal_w": 0.00382,
-              "leakage_w": 1.22e-06,
+              "internal_w": 0.00446,
+              "leakage_w": 1.38e-06,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000627,
-              "total_w": 0.00445
+              "switching_w": 0.000729,
+              "total_w": 0.00519
             }
           },
           "failures": [],
@@ -2655,17 +2675,17 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=1843)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=3704)+opensta-id-remap(ids=296)",
           "corners": {
             "tt": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
-              "internal_w": 0.00381,
-              "leakage_w": 1.22e-06,
+              "internal_w": 0.00445,
+              "leakage_w": 1.37e-06,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000627,
-              "total_w": 0.00444
+              "switching_w": 0.000729,
+              "total_w": 0.00518
             }
           },
           "failures": [],
@@ -2682,17 +2702,17 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=251)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=536)+opensta-id-remap(ids=296)",
           "corners": {
             "tt": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
-              "internal_w": 0.00379,
-              "leakage_w": 1.21e-06,
+              "internal_w": 0.00442,
+              "leakage_w": 1.36e-06,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000645,
-              "total_w": 0.00443
+              "switching_w": 0.000758,
+              "total_w": 0.00517
             }
           },
           "failures": [],
@@ -2709,17 +2729,17 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=3051)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=6144)+opensta-id-remap(ids=296)",
           "corners": {
             "ss": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
-              "internal_w": 0.00307,
-              "leakage_w": 2.83e-06,
+              "internal_w": 0.00359,
+              "leakage_w": 3.2e-06,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000482,
-              "total_w": 0.00356
+              "switching_w": 0.000561,
+              "total_w": 0.00415
             }
           },
           "failures": [],
@@ -2736,17 +2756,17 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=1843)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=3704)+opensta-id-remap(ids=296)",
           "corners": {
             "ss": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
-              "internal_w": 0.00306,
-              "leakage_w": 2.82e-06,
+              "internal_w": 0.00358,
+              "leakage_w": 3.19e-06,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000482,
-              "total_w": 0.00355
+              "switching_w": 0.00056,
+              "total_w": 0.00415
             }
           },
           "failures": [],
@@ -2763,17 +2783,17 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=251)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=536)+opensta-id-remap(ids=296)",
           "corners": {
             "ss": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
-              "internal_w": 0.00304,
-              "leakage_w": 2.79e-06,
+              "internal_w": 0.00353,
+              "leakage_w": 3.17e-06,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000496,
-              "total_w": 0.00354
+              "switching_w": 0.000582,
+              "total_w": 0.00412
             }
           },
           "failures": [],
@@ -2803,38 +2823,38 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=3051)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=6144)+opensta-id-remap(ids=296)",
           "corners": {
             "ff/hold": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00466,
-              "leakage_w": 3.85e-06,
-              "path_instance_count": 69,
+              "internal_w": 0.00547,
+              "leakage_w": 4.3e-06,
+              "path_instance_count": 73,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000805,
+              "switching_w": 0.000937,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00547,
+              "total_w": 0.00641,
               "wns": 0.0
             },
             "ff/setup": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00466,
-              "leakage_w": 3.85e-06,
-              "path_instance_count": 71,
+              "internal_w": 0.00547,
+              "leakage_w": 4.3e-06,
+              "path_instance_count": 83,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000805,
+              "switching_w": 0.000937,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00547,
+              "total_w": 0.00641,
               "wns": 0.0
             }
           },
@@ -2852,38 +2872,38 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=1843)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=3704)+opensta-id-remap(ids=296)",
           "corners": {
             "ff/hold": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00465,
-              "leakage_w": 3.85e-06,
-              "path_instance_count": 69,
+              "internal_w": 0.00545,
+              "leakage_w": 4.3e-06,
+              "path_instance_count": 73,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000805,
+              "switching_w": 0.000936,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00545,
+              "total_w": 0.00639,
               "wns": 0.0
             },
             "ff/setup": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00465,
-              "leakage_w": 3.85e-06,
-              "path_instance_count": 71,
+              "internal_w": 0.00545,
+              "leakage_w": 4.3e-06,
+              "path_instance_count": 83,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000805,
+              "switching_w": 0.000936,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00545,
+              "total_w": 0.00639,
               "wns": 0.0
             }
           },
@@ -2901,38 +2921,38 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=251)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=536)+opensta-id-remap(ids=296)",
           "corners": {
             "ff/hold": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00463,
-              "leakage_w": 3.82e-06,
-              "path_instance_count": 69,
+              "internal_w": 0.00543,
+              "leakage_w": 4.27e-06,
+              "path_instance_count": 73,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.00083,
+              "switching_w": 0.000973,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00546,
+              "total_w": 0.0064,
               "wns": 0.0
             },
             "ff/setup": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00463,
-              "leakage_w": 3.82e-06,
-              "path_instance_count": 71,
+              "internal_w": 0.00543,
+              "leakage_w": 4.27e-06,
+              "path_instance_count": 83,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.00083,
+              "switching_w": 0.000973,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00546,
+              "total_w": 0.0064,
               "wns": 0.0
             }
           },
@@ -2950,38 +2970,38 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=3051)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=6144)+opensta-id-remap(ids=296)",
           "corners": {
             "tt/hold": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00382,
-              "leakage_w": 1.22e-06,
-              "path_instance_count": 66,
+              "internal_w": 0.00446,
+              "leakage_w": 1.38e-06,
+              "path_instance_count": 72,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000627,
+              "switching_w": 0.000729,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00445,
+              "total_w": 0.00519,
               "wns": 0.0
             },
             "tt/setup": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00382,
-              "leakage_w": 1.22e-06,
-              "path_instance_count": 71,
+              "internal_w": 0.00446,
+              "leakage_w": 1.38e-06,
+              "path_instance_count": 82,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000627,
+              "switching_w": 0.000729,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00445,
+              "total_w": 0.00519,
               "wns": 0.0
             }
           },
@@ -2999,38 +3019,38 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=1843)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=3704)+opensta-id-remap(ids=296)",
           "corners": {
             "tt/hold": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00381,
-              "leakage_w": 1.22e-06,
-              "path_instance_count": 66,
+              "internal_w": 0.00445,
+              "leakage_w": 1.37e-06,
+              "path_instance_count": 72,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000627,
+              "switching_w": 0.000729,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00444,
+              "total_w": 0.00518,
               "wns": 0.0
             },
             "tt/setup": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00381,
-              "leakage_w": 1.22e-06,
-              "path_instance_count": 71,
+              "internal_w": 0.00445,
+              "leakage_w": 1.37e-06,
+              "path_instance_count": 82,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000627,
+              "switching_w": 0.000729,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00444,
+              "total_w": 0.00518,
               "wns": 0.0
             }
           },
@@ -3048,38 +3068,38 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=251)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=536)+opensta-id-remap(ids=296)",
           "corners": {
             "tt/hold": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00379,
-              "leakage_w": 1.21e-06,
-              "path_instance_count": 66,
+              "internal_w": 0.00442,
+              "leakage_w": 1.36e-06,
+              "path_instance_count": 72,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000645,
+              "switching_w": 0.000758,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00443,
+              "total_w": 0.00517,
               "wns": 0.0
             },
             "tt/setup": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00379,
-              "leakage_w": 1.21e-06,
-              "path_instance_count": 71,
+              "internal_w": 0.00442,
+              "leakage_w": 1.36e-06,
+              "path_instance_count": 82,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000645,
+              "switching_w": 0.000758,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00443,
+              "total_w": 0.00517,
               "wns": 0.0
             }
           },
@@ -3097,38 +3117,38 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=3051)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=6144)+opensta-id-remap(ids=296)",
           "corners": {
             "ss/hold": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00307,
-              "leakage_w": 2.83e-06,
-              "path_instance_count": 66,
+              "internal_w": 0.00359,
+              "leakage_w": 3.2e-06,
+              "path_instance_count": 64,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000482,
+              "switching_w": 0.000561,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00356,
+              "total_w": 0.00415,
               "wns": 0.0
             },
             "ss/setup": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00307,
-              "leakage_w": 2.83e-06,
-              "path_instance_count": 71,
+              "internal_w": 0.00359,
+              "leakage_w": 3.2e-06,
+              "path_instance_count": 82,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000482,
+              "switching_w": 0.000561,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00356,
+              "total_w": 0.00415,
               "wns": 0.0
             }
           },
@@ -3146,38 +3166,38 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=1843)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=3704)+opensta-id-remap(ids=296)",
           "corners": {
             "ss/hold": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00306,
-              "leakage_w": 2.82e-06,
-              "path_instance_count": 66,
+              "internal_w": 0.00358,
+              "leakage_w": 3.19e-06,
+              "path_instance_count": 64,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000482,
+              "switching_w": 0.00056,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00355,
+              "total_w": 0.00415,
               "wns": 0.0
             },
             "ss/setup": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00306,
-              "leakage_w": 2.82e-06,
-              "path_instance_count": 71,
+              "internal_w": 0.00358,
+              "leakage_w": 3.19e-06,
+              "path_instance_count": 82,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000482,
+              "switching_w": 0.00056,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00355,
+              "total_w": 0.00415,
               "wns": 0.0
             }
           },
@@ -3195,38 +3215,38 @@
         {
           "activity_source": "post_pnr_gls_vcd",
           "backend": "sv",
-          "conversion_method": "named-output+opensta-event-filter(events=2,changes=251)+opensta-id-remap(ids=268)",
+          "conversion_method": "named-output+opensta-event-filter(events=4,changes=536)+opensta-id-remap(ids=296)",
           "corners": {
             "ss/hold": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00304,
-              "leakage_w": 2.79e-06,
-              "path_instance_count": 66,
+              "internal_w": 0.00353,
+              "leakage_w": 3.17e-06,
+              "path_instance_count": 64,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000496,
+              "switching_w": 0.000582,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00354,
+              "total_w": 0.00412,
               "wns": 0.0
             },
             "ss/setup": {
-              "activity_annotation_count": 6615,
+              "activity_annotation_count": 7351,
               "activity_annotation_percent": 100.0,
               "hotspot_path_count": 0,
-              "internal_w": 0.00304,
-              "leakage_w": 2.79e-06,
-              "path_instance_count": 71,
+              "internal_w": 0.00353,
+              "leakage_w": 3.17e-06,
+              "path_instance_count": 82,
               "power_hotspot_count": 20,
               "returncode": 0,
               "status": "pass",
-              "switching_w": 0.000496,
+              "switching_w": 0.000582,
               "timing_path_count": 20,
               "tns": 0.0,
-              "total_w": 0.00354,
+              "total_w": 0.00412,
               "wns": 0.0
             }
           },
@@ -3315,7 +3335,7 @@
       "passed": 6,
       "observed": 6,
       "total": 6,
-      "elapsed_s": 5,
+      "elapsed_s": 6,
       "traces": 14,
       "stages": {
         "bmc": {
@@ -3336,14 +3356,14 @@
       "status": "pass",
       "tests": 12,
       "coverage_all": {
-        "hit": 4042,
-        "percent": 59.24080316576286,
-        "total": 6823
+        "hit": 5406,
+        "percent": 39.10590277777778,
+        "total": 13824
       },
       "coverage_design": {
-        "hit": 1637,
-        "percent": 71.1120764552563,
-        "total": 2302
+        "hit": 1691,
+        "percent": 67.69415532425941,
+        "total": 2498
       },
       "coverage_matrix": {
         "display_columns": [
@@ -3360,14 +3380,14 @@
           "all": {
             "columns": {
               "branch": {
-                "hit": 304,
-                "percent": 49.83606557377049,
-                "total": 610
+                "hit": 322,
+                "percent": 51.192368839427665,
+                "total": 629
               },
               "expr": {
-                "hit": 309,
-                "percent": 50.490196078431374,
-                "total": 612
+                "hit": 375,
+                "percent": 9.75292587776333,
+                "total": 3845
               },
               "fsm": {
                 "hit": 0,
@@ -3375,19 +3395,19 @@
                 "total": 0
               },
               "line": {
-                "hit": 668,
-                "percent": 61.68051708217913,
-                "total": 1083
+                "hit": 765,
+                "percent": 30.0471327572663,
+                "total": 2546
               },
               "toggle": {
-                "hit": 2761,
-                "percent": 61.111111111111114,
-                "total": 4518
+                "hit": 3944,
+                "percent": 57.96590241034686,
+                "total": 6804
               },
               "total": {
-                "hit": 4042,
-                "percent": 59.24080316576286,
-                "total": 6823
+                "hit": 5406,
+                "percent": 39.10590277777778,
+                "total": 13824
               },
               "user": {
                 "hit": 0,
@@ -3396,44 +3416,44 @@
               }
             },
             "total": {
-              "hit": 4042,
-              "percent": 59.24080316576286,
-              "total": 6823
+              "hit": 5406,
+              "percent": 39.10590277777778,
+              "total": 13824
             },
             "types": {
               "branch": {
-                "hit": 304,
-                "percent": 49.83606557377049,
-                "total": 610
+                "hit": 322,
+                "percent": 51.192368839427665,
+                "total": 629
               },
               "expr": {
-                "hit": 309,
-                "percent": 50.490196078431374,
-                "total": 612
+                "hit": 375,
+                "percent": 9.75292587776333,
+                "total": 3845
               },
               "line": {
-                "hit": 668,
-                "percent": 61.68051708217913,
-                "total": 1083
+                "hit": 765,
+                "percent": 30.0471327572663,
+                "total": 2546
               },
               "toggle": {
-                "hit": 2761,
-                "percent": 61.111111111111114,
-                "total": 4518
+                "hit": 3944,
+                "percent": 57.96590241034686,
+                "total": 6804
               }
             }
           },
           "common": {
             "columns": {
               "branch": {
-                "hit": 70,
-                "percent": 44.87179487179487,
-                "total": 156
+                "hit": 97,
+                "percent": 51.59574468085106,
+                "total": 188
               },
               "expr": {
-                "hit": 106,
-                "percent": 39.405204460966544,
-                "total": 269
+                "hit": 170,
+                "percent": 4.852983157293748,
+                "total": 3503
               },
               "fsm": {
                 "hit": 0,
@@ -3441,19 +3461,19 @@
                 "total": 0
               },
               "line": {
-                "hit": 43,
-                "percent": 12.39193083573487,
-                "total": 347
+                "hit": 76,
+                "percent": 4.3628013777267505,
+                "total": 1742
               },
               "toggle": {
-                "hit": 985,
-                "percent": 56.09339407744875,
-                "total": 1756
+                "hit": 1759,
+                "percent": 56.66881443298969,
+                "total": 3104
               },
               "total": {
-                "hit": 1204,
-                "percent": 47.62658227848101,
-                "total": 2528
+                "hit": 2102,
+                "percent": 24.6222326344149,
+                "total": 8537
               },
               "user": {
                 "hit": 0,
@@ -3462,30 +3482,30 @@
               }
             },
             "total": {
-              "hit": 1204,
-              "percent": 47.62658227848101,
-              "total": 2528
+              "hit": 2102,
+              "percent": 24.6222326344149,
+              "total": 8537
             },
             "types": {
               "branch": {
-                "hit": 70,
-                "percent": 44.87179487179487,
-                "total": 156
+                "hit": 97,
+                "percent": 51.59574468085106,
+                "total": 188
               },
               "expr": {
-                "hit": 106,
-                "percent": 39.405204460966544,
-                "total": 269
+                "hit": 170,
+                "percent": 4.852983157293748,
+                "total": 3503
               },
               "line": {
-                "hit": 43,
-                "percent": 12.39193083573487,
-                "total": 347
+                "hit": 76,
+                "percent": 4.3628013777267505,
+                "total": 1742
               },
               "toggle": {
-                "hit": 985,
-                "percent": 56.09339407744875,
-                "total": 1756
+                "hit": 1759,
+                "percent": 56.66881443298969,
+                "total": 3104
               }
             }
           },
@@ -3512,14 +3532,14 @@
                 "total": 91
               },
               "toggle": {
-                "hit": 1344,
-                "percent": 68.6414708886619,
-                "total": 1958
+                "hit": 1398,
+                "percent": 64.9025069637883,
+                "total": 2154
               },
               "total": {
-                "hit": 1637,
-                "percent": 71.1120764552563,
-                "total": 2302
+                "hit": 1691,
+                "percent": 67.69415532425941,
+                "total": 2498
               },
               "user": {
                 "hit": 0,
@@ -3528,9 +3548,9 @@
               }
             },
             "total": {
-              "hit": 1637,
-              "percent": 71.1120764552563,
-              "total": 2302
+              "hit": 1691,
+              "percent": 67.69415532425941,
+              "total": 2498
             },
             "types": {
               "branch": {
@@ -3549,23 +3569,23 @@
                 "total": 91
               },
               "toggle": {
-                "hit": 1344,
-                "percent": 68.6414708886619,
-                "total": 1958
+                "hit": 1398,
+                "percent": 64.9025069637883,
+                "total": 2154
               }
             }
           },
           "other": {
             "columns": {
               "branch": {
-                "hit": 149,
-                "percent": 41.73669467787115,
-                "total": 357
+                "hit": 140,
+                "percent": 40.69767441860465,
+                "total": 344
               },
               "expr": {
-                "hit": 84,
-                "percent": 44.919786096256686,
-                "total": 187
+                "hit": 83,
+                "percent": 45.3551912568306,
+                "total": 183
               },
               "fsm": {
                 "hit": 0,
@@ -3573,19 +3593,19 @@
                 "total": 0
               },
               "line": {
-                "hit": 536,
-                "percent": 83.10077519379846,
-                "total": 645
+                "hit": 600,
+                "percent": 84.15147265077138,
+                "total": 713
               },
               "toggle": {
-                "hit": 193,
-                "percent": 41.06382978723404,
-                "total": 470
+                "hit": 313,
+                "percent": 40.33505154639175,
+                "total": 776
               },
               "total": {
-                "hit": 962,
-                "percent": 57.986738999397225,
-                "total": 1659
+                "hit": 1136,
+                "percent": 56.34920634920635,
+                "total": 2016
               },
               "user": {
                 "hit": 0,
@@ -3594,30 +3614,30 @@
               }
             },
             "total": {
-              "hit": 962,
-              "percent": 57.986738999397225,
-              "total": 1659
+              "hit": 1136,
+              "percent": 56.34920634920635,
+              "total": 2016
             },
             "types": {
               "branch": {
-                "hit": 149,
-                "percent": 41.73669467787115,
-                "total": 357
+                "hit": 140,
+                "percent": 40.69767441860465,
+                "total": 344
               },
               "expr": {
-                "hit": 84,
-                "percent": 44.919786096256686,
-                "total": 187
+                "hit": 83,
+                "percent": 45.3551912568306,
+                "total": 183
               },
               "line": {
-                "hit": 536,
-                "percent": 83.10077519379846,
-                "total": 645
+                "hit": 600,
+                "percent": 84.15147265077138,
+                "total": 713
               },
               "toggle": {
-                "hit": 193,
-                "percent": 41.06382978723404,
-                "total": 470
+                "hit": 313,
+                "percent": 40.33505154639175,
+                "total": 776
               }
             }
           },
@@ -3629,9 +3649,9 @@
                 "total": 0
               },
               "expr": {
-                "hit": 0,
-                "percent": 0.0,
-                "total": 0
+                "hit": 3,
+                "percent": 100.0,
+                "total": 3
               },
               "fsm": {
                 "hit": 0,
@@ -3644,14 +3664,14 @@
                 "total": 0
               },
               "toggle": {
-                "hit": 239,
-                "percent": 71.55688622754491,
-                "total": 334
+                "hit": 474,
+                "percent": 61.55844155844156,
+                "total": 770
               },
               "total": {
-                "hit": 239,
-                "percent": 71.55688622754491,
-                "total": 334
+                "hit": 477,
+                "percent": 61.707632600258734,
+                "total": 773
               },
               "user": {
                 "hit": 0,
@@ -3660,9 +3680,9 @@
               }
             },
             "total": {
-              "hit": 239,
-              "percent": 71.55688622754491,
-              "total": 334
+              "hit": 477,
+              "percent": 61.707632600258734,
+              "total": 773
             },
             "types": {
               "branch": {
@@ -3671,9 +3691,9 @@
                 "total": 0
               },
               "expr": {
-                "hit": 0,
-                "percent": 0.0,
-                "total": 0
+                "hit": 3,
+                "percent": 100.0,
+                "total": 3
               },
               "line": {
                 "hit": 0,
@@ -3681,9 +3701,9 @@
                 "total": 0
               },
               "toggle": {
-                "hit": 239,
-                "percent": 71.55688622754491,
-                "total": 334
+                "hit": 474,
+                "percent": 61.55844155844156,
+                "total": 770
               }
             }
           }

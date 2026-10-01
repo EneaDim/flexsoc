@@ -4,7 +4,7 @@
 >
 > The focus is deliberately on **what FlexSoC does, why each stage exists, what scripts and tools are involved, what evidence is produced, and what a PASS actually means**. It is not a tutorial on RTL design itself, nor a reference for every CLI option. For exact command syntax use `docs/command_reference.md`; for project ownership and regeneration policy use `docs/project_lifecycle.md` and `docs/ip_development_guide.md`.
 
-> **Current scaffold qualification policy.** `fx eqy --setup` materializes the editable scaffold and `fx eqy` runs it explicitly; the automatic scaffold E2E matrix does not run EQY while profiles remain IP/interface-specific. Setup-only is not equivalence PASS and therefore does not satisfy L3.
+> **Current scaffold qualification policy.** `fx eqy --setup` materializes the editable scaffold and `fx eqy` runs it explicitly; the automatic scaffold E2E matrix does not run EQY while profiles remain IP/interface-specific. Setup-only is not equivalence PASS; EQY is optional explicit evidence and is not required by the automatic L3/L4 baseline.
 
 ---
 

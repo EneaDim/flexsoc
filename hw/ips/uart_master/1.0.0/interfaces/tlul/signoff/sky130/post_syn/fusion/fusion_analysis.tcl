@@ -3,7 +3,7 @@
 #
 # Analysis : fusion_analysis
 # Design   : uart_master
-# Variant  : refresh_tlul_repo
+# Variant  : release
 # PDK      : sky130
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/syn/sky130/uart_master_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/constraints/uart_master.sdc
+#   Netlist       : /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/syn/sky130/uart_master_synth.v
+#   SDC           : /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/constraints/uart_master.sdc
 #   SPEF          : not used
-#   VCD or SAIF   : /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd
+#   VCD or SAIF   : /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd
 #   Activity scope: DUT_SCOPE_REQUIRED
-#   GLS report    : /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json
-#   Report dir    : /home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/signoff/sky130/fusion/template_reports
+#   GLS report    : /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json
+#   Report dir    : /tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/signoff/sky130/fusion/template_reports
 #
 # Limitations:
 #   - Timing and average power use the same netlist, corner, mode and activity trace.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/signoff/sky130/fusion/template_reports}
+set report_dir {/tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/signoff/sky130/fusion/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/syn/sky130/uart_master_synth.v}
-set sdc {/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/constraints/uart_master.sdc}
+set netlist {/tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/syn/sky130/uart_master_synth.v}
+set sdc {/tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/constraints/uart_master.sdc}
 set spef {}
 set top {uart_master}
 set stage {post_syn}
@@ -92,7 +92,7 @@ if {$spef ne ""} {
 } else {
   puts "spef=not_used"
 }
-if {$stage eq "post_route"} {
+if {$stage eq "post_impl"} {
   # Collect all SDC clocks before switching post-route analysis to propagated clock latency.
   set clocks [get_clocks *]
   if {[llength $clocks] > 0} {
@@ -202,7 +202,7 @@ proc flexsoc_append_activity_coverage {path} {
 }
 
 puts "=== Step 7/7: Read activity ==="
-set activity_file {/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd}
+set activity_file {/tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd}
 set activity_scope {DUT_SCOPE_REQUIRED}
 flexsoc_require_readable "activity VCD/SAIF" $activity_file
 puts "activity_file=$activity_file"
@@ -229,7 +229,7 @@ puts $fp "analysis=fusion_analysis corner=tt mode=setup stage=post_syn"
 puts $fp "workload=GLS_WORKLOAD_REQUIRED"
 puts $fp "methodology=staged_public_opensta"
 puts $fp "path_power_semantics=average_instance_power_in_same_analysis_context"
-puts $fp "activity_file=/home/eneadim/github/flexsoc/runs/uart_master/refresh_tlul_repo/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd"
+puts $fp "activity_file=/tmp/flexsoc-ip-release/uart_master-tlul/runs/uart_master/release/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd"
 puts $fp "activity_scope=DUT_SCOPE_REQUIRED"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"

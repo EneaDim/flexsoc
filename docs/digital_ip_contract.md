@@ -45,7 +45,7 @@ The stage fingerprint combines effective inputs, configuration, parent lineage, 
 | --- | --- | --- |
 | L1 | Contract Valid | baselined contract, interfaces, clock/reset, CSR, assumptions and qualification plan |
 | L2 | RTL Qualified | L1 + RTL, lint, functional verification, requirement traceability, formal/CDC-RDC where required, limitations and release evidence |
-| L3 | Netlist Qualified | L2 + synthesis, pre-PnR electrical repair of the mapped netlist, constraints, RTL/netlist equivalence, netlist checks, STA and preliminary PPA |
+| L3 | Netlist Qualified | L2 + synthesis, pre-PnR electrical repair of the mapped netlist, constraints, netlist checks, STA and preliminary PPA; EQY may add explicit equivalence evidence but is not required by the automatic baseline |
 | L4 | Technology Qualified | L3 + declared PDK/library/macro assumptions/PVT and technology-specific evidence such as GLS, timing and power; implementation may be included when the policy requires it |
 | L5 | Physical / Signoff Complete Digital Macro | L4 + the final physical/signoff checks required by the technology/customer, such as post-implementation STA, DRC/LVS, antenna, density/fill, equivalence, IR/EM/reliability and final layout views |
 
@@ -138,7 +138,7 @@ Requirement traceability is emitted machine-readably as `requirement -> testplan
 
 ### Current EQY baseline
 
-EQY support remains part of the Netlist Qualified policy. FlexSoC generates EQY collateral with `fx eqy --setup`; `fx eqy` is an explicit runtime target but is not part of the automatic scaffold E2E matrix while profiles remain IP/interface-specific. **Setup-only is not equivalence evidence**: the `eqy` stage remains `MISSING`, so qualification must not claim L3 until a real EQY run produces acceptable evidence (or an explicit future waiver policy is deliberately applied).
+EQY is supported as explicit RTL↔netlist equivalence evidence. `fx eqy --setup` only prepares collateral and is not PASS; `fx eqy` remains an explicit runtime target. EQY is not required by the automatic L3/L4 qualification baseline while profiles remain IP/interface-specific.
 
 ## Provenance scopes
 

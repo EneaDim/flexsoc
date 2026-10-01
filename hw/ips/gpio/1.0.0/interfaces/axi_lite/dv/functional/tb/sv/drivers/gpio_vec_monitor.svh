@@ -192,14 +192,14 @@ task automatic tb_check_signal_one(input int cycle, input string name, input str
 
     sampled = tb_read_output(name);
     if (!sampled[32]) begin
-      error_count++;
+      errors++;
       $display("[TB][ERROR] unknown expected-output vector signal: %s", name);
       disable tb_check_signal_one_body;
     end
     actual = sampled[31:0];
 
     if (actual !== expected) begin
-      error_count++;
+      errors++;
       $display("[TB][FAIL] cycle=%0d %s actual=0x%08x expected=0x%08x", cycle, name, actual, expected);
     end else begin
       $display("[TB][PASS] cycle=%0d %s=0x%08x", cycle, name, actual);
@@ -217,7 +217,6 @@ task automatic tb_check_read_one(
   logic [31:0] expected;
   logic [31:0] mask;
   logic [32:0] parsed;
-  bit ok;
 
   begin : tb_check_read_one_body
     parsed = tb_parse_u32(expected_raw);
@@ -231,11 +230,10 @@ task automatic tb_check_read_one(
       mask = 32'hffff_ffff;
     end
 
-    tb_reg_read_key(reg_key, actual, ok);
-    if (!ok) disable tb_check_read_one_body;
+    read_reg(reg_key, actual);
 
     if ((actual & mask) !== (expected & mask)) begin
-      error_count++;
+      errors++;
       $display("[TB][FAIL] cycle=%0d read %s actual=0x%08x expected=0x%08x mask=0x%08x",
                cycle, reg_key, actual, expected, mask);
     end else begin
@@ -388,7 +386,7 @@ task automatic tb_check_outputs(input string out_path, input int cycle);
 
     if (t0 == "@read" || t0 == "read" || t0 == "@reg_read" || t0 == "reg_read") begin
       if (code < 4) begin
-        error_count++;
+        errors++;
         $display("[TB][ERROR] malformed @read row: %s", line);
       end else begin
         tb_check_read_one(cycle, t1, t2, t3);
@@ -454,14 +452,14 @@ task automatic tb_check_signal_one(input int cycle, input tb_token_t name, input
 
     sampled = tb_read_output(name);
     if (!sampled[32]) begin
-      error_count++;
+      errors++;
       $display("[TB][ERROR] unknown expected-output vector signal: %s", name);
       disable tb_check_signal_one_body;
     end
     actual = sampled[31:0];
 
     if (actual !== expected) begin
-      error_count++;
+      errors++;
       $display("[TB][FAIL] cycle=%0d %s actual=0x%08x expected=0x%08x", cycle, name, actual, expected);
     end else begin
       $display("[TB][PASS] cycle=%0d %s=0x%08x", cycle, name, actual);
@@ -479,7 +477,6 @@ task automatic tb_check_read_one(
   logic [31:0] expected;
   logic [31:0] mask;
   logic [32:0] parsed;
-  bit ok;
 
   begin : tb_check_read_one_body
     parsed = tb_parse_u32(expected_raw);
@@ -493,11 +490,10 @@ task automatic tb_check_read_one(
       mask = 32'hffff_ffff;
     end
 
-    tb_reg_read_key(reg_key, actual, ok);
-    if (!ok) disable tb_check_read_one_body;
+    read_reg(reg_key, actual);
 
     if ((actual & mask) !== (expected & mask)) begin
-      error_count++;
+      errors++;
       $display("[TB][FAIL] cycle=%0d read %s actual=0x%08x expected=0x%08x mask=0x%08x",
                cycle, reg_key, actual, expected, mask);
     end else begin
@@ -639,7 +635,7 @@ task automatic tb_check_outputs(input string out_path, input int cycle);
 
     if (t0 == "@read" || t0 == "read" || t0 == "@reg_read" || t0 == "reg_read") begin
       if (code < 4) begin
-        error_count++;
+        errors++;
         $display("[TB][ERROR] malformed @read row: %0s", line_buf);
       end else begin
         tb_check_read_one(cycle, t1, t2, t3);

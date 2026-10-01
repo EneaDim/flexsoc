@@ -1,40 +1,44 @@
 {
+  "design_intent": {
+    "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+    "CLOCK_RELATIONSHIPS": "",
+    "N_CLOCKS": "1",
+    "REG_ITF": "tlul",
+    "TOP": "rv_timer"
+  },
   "ip": "rv_timer",
+  "ip_intent_sha256": "e0ac1559cc61aacd7205057e9aad835c0f2c7a2a9808df9c1114fe0c06d9b561",
   "reg_interface": "tlul",
   "schema": 2,
   "source_of_truth": {
     "authored_rtl": [
       {
-        "path": "rtl/rv_timer.sv",
-        "sha256": "4e4a0b6c11e7f3d2a1ac3fcedba5daad6610890ac2094a18b1e75d6e0498005f"
+        "path": "rtl/rv_timer_core.sv",
+        "sha256": "29fc44746ead6fed8db575a5923adab2e5141cb77d2fe5723050f670db4e7e27"
       },
       {
-        "path": "rtl/rv_timer_core.sv",
-        "sha256": "eabeade80260ff6cd1f8806bede43516e1b2f7eaacf842dd85bec178f9cfaefc"
+        "path": "rtl/rv_timer_reg_core.sv",
+        "sha256": "ed895a017a5fbbd332c07d21b2f9d4ea7fdb59c489622da72edeba81dad99624"
       },
       {
         "path": "rtl/rv_timer_reg_pkg.sv",
-        "sha256": "94a464778346f2825ce3c5f59d6831cfde3c973c7f545d5a9c69928241cb508b"
-      },
-      {
-        "path": "rtl/rv_timer_reg_top.sv",
-        "sha256": "6646e96d98d95e8d430141ef6623cffd1c7d9efe75ecfb63c2521fed2119608b"
+        "sha256": "de0f69e51d9c3446a7341cf4f02184a101d4c410da84aa45e794db2798201d77"
       }
     ],
     "constraints": [
       {
         "path": "constraints/rv_timer.sdc",
-        "sha256": "8974014f6163019067f68aac65b9ade53451fc5630b9226933cc4d19eb25d4d1"
+        "sha256": "89f58583923e617b19b8dd67dac6e81d8e65c183a0ced3a47a5c1c0482116542"
       }
     ],
     "formal_properties": [
       {
         "path": "dv/formal/properties/cover/rv_timer_cover.sv",
-        "sha256": "e03d6f728862e20c969ec434c3eafe78bf477fb0754ac6d24e7003fc471fc33d"
+        "sha256": "a033ed2eea8d94465875cd8beac0cb8b2336d999a602d29ea30058ca01482c7e"
       },
       {
         "path": "dv/formal/properties/prove/rv_timer_prove.sv",
-        "sha256": "0064f2630843c4d4036f00264cbc92abd22dced193a7947ef22f9f7d409650f1"
+        "sha256": "0d623e525a6d88034fcd2df560fa436f93c4762ac205d0518cc63b557f2a22fa"
       }
     ],
     "registers": [
@@ -58,6 +62,37 @@
       }
     }
   },
+  "sources": [
+    {
+      "path": "csr/rv_timer.hjson",
+      "sha256": "4e2febc38ad3daa270291b250d1748556cfaf7f7e4eb0ab00fc8784998278006"
+    },
+    {
+      "path": "constraints/rv_timer.sdc",
+      "sha256": "89f58583923e617b19b8dd67dac6e81d8e65c183a0ced3a47a5c1c0482116542"
+    },
+    {
+      "path": "rtl/rv_timer_core.sv",
+      "sha256": "29fc44746ead6fed8db575a5923adab2e5141cb77d2fe5723050f670db4e7e27"
+    },
+    {
+      "path": "dv/functional/model/rv_timer_model.py",
+      "sha256": "e3b49d63b3e054fcd9c8b4c1422cf0f5d0f4a5d6fa27be1c0b451a1351e9608d"
+    },
+    {
+      "path": "dv/functional/model/rv_timer_tests.py",
+      "sha256": "cb6d88bb1ce53a29e1a14f6e640b2b1462e19649706db75573e8af3479b37c85"
+    },
+    {
+      "path": "dv/formal/properties/cover/rv_timer_cover.sv",
+      "sha256": "a033ed2eea8d94465875cd8beac0cb8b2336d999a602d29ea30058ca01482c7e"
+    },
+    {
+      "path": "dv/formal/properties/prove/rv_timer_prove.sv",
+      "sha256": "0d623e525a6d88034fcd2df560fa436f93c4762ac205d0518cc63b557f2a22fa"
+    }
+  ],
   "spec_fingerprint": "578a708ca1a1b85ec4cfa37cd7ec6e5e59f8ffab966da3ebf90433be4298511d",
+  "top": "rv_timer",
   "version": "1.0.0"
 }

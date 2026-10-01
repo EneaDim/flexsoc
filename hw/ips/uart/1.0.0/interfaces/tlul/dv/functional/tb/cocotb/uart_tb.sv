@@ -1,26 +1,28 @@
 `timescale 1ns/1ps
+
 module uart_tb;
   logic clk_i;
   logic rst_ni;
-  logic rx_i;
-  logic tx_o;
-  logic         tl_i_a_valid;
-  logic [2:0]   tl_i_a_opcode;
-  logic [2:0]   tl_i_a_param;
-  logic [1:0]   tl_i_a_size;
-  logic [7:0]   tl_i_a_source;
-  logic [31:0]  tl_i_a_address;
-  logic [3:0]   tl_i_a_mask;
-  logic [31:0]  tl_i_a_data;
-  logic         tl_i_d_ready;
-  logic         tl_o_d_valid;
-  logic [2:0]   tl_o_d_opcode;
-  logic [31:0]  tl_o_d_data;
-  logic         tl_o_d_error;
-  logic         tl_o_a_ready;
   logic [108:0] tl_i;
   logic [65:0]  tl_o;
+  logic        core_a_valid;
+  logic [2:0]  core_a_opcode;
+  logic [2:0]  core_a_param;
+  logic [1:0]  core_a_size;
+  logic [7:0]  core_a_source;
+  logic [31:0] core_a_address;
+  logic [3:0]  core_a_mask;
+  logic [31:0] core_a_data;
+  logic        core_d_ready;
+  logic        core_a_ready;
+  logic        core_d_valid;
+  logic [31:0] core_d_data;
+  logic        core_d_error;
 
+
+
+  logic rx_i;
+  logic tx_o;
   localparam logic [2:0] FLEXSOC_TL_PUT_FULL    = 3'h0;
   localparam logic [2:0] FLEXSOC_TL_PUT_PARTIAL = 3'h1;
   localparam logic [2:0] FLEXSOC_TL_GET         = 3'h4;
@@ -94,57 +96,40 @@ module uart_tb;
     end
   endfunction
 
-  initial begin
-    rx_i = '1;
-  end
+assign tl_i = flexsoc_tlul_h2d(
+  core_a_valid, core_a_opcode, core_a_param, core_a_size,
+  core_a_source, core_a_address, core_a_mask, core_a_data,
+  core_d_ready
+);
+assign core_a_ready = tl_o[0];
+assign core_d_valid = tl_o[65];
+assign core_d_data  = tl_o[47:16];
+assign core_d_error = tl_o[1];
 
-  assign tl_i = flexsoc_tlul_h2d(
-    tl_i_a_valid, tl_i_a_opcode, tl_i_a_param, tl_i_a_size,
-    tl_i_a_source, tl_i_a_address, tl_i_a_mask, tl_i_a_data, tl_i_d_ready
-  );
-  assign tl_o_d_valid  = tl_o[65];
-  assign tl_o_d_opcode = tl_o[64:62];
-  assign tl_o_d_data   = tl_o[47:16];
-  assign tl_o_d_error  = tl_o[1];
-  assign tl_o_a_ready  = tl_o[0];
 
-  string wave_path;
-  initial begin
-    if (!$value$plusargs("WAVE=%s", wave_path)) begin
-      if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
-    end
-    if (wave_path != "") begin
-      `ifdef FLEXSOC_COCOTB_WAVE_OWNER
-        $display("[TB] dumpfile = %s owner=cocotb", wave_path);
-      `else
-        $display("[TB] dumpfile = %s owner=wrapper", wave_path);
-        $dumpfile(wave_path);
-        $dumpvars(0, uart_tb);
-      `endif
-    end
-    #1;
-  end
+
   `ifdef FLEXSOC_ENABLE_SDF
     string sdf_path;
     initial begin
       if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
       if (sdf_path != "") begin
         `ifdef FLEXSOC_SDF_MIN
-          $display("[TB] sdf = %s scope=u_uart mode=MINIMUM", sdf_path);
-          $sdf_annotate(sdf_path, u_uart);
+          $sdf_annotate(sdf_path, u_dut);
         `elsif FLEXSOC_SDF_TYP
-          $display("[TB] sdf = %s scope=u_uart mode=TYPICAL", sdf_path);
-          $sdf_annotate(sdf_path, u_uart);
+          $sdf_annotate(sdf_path, u_dut);
         `else
-          $display("[TB] sdf = %s scope=u_uart mode=MAXIMUM", sdf_path);
-          $sdf_annotate(sdf_path, u_uart);
+          $sdf_annotate(sdf_path, u_dut);
         `endif
       end
     end
   `endif
-  uart u_uart (
-    .clk_i(clk_i),
-    .rst_ni(rst_ni),
-    .*
+
+  uart u_dut (
+    .clk_i                    (clk_i),
+    .rst_ni                   (rst_ni),
+    .rx_i                     (rx_i),
+    .tl_i                     (tl_i),
+    .tx_o                     (tx_o),
+    .tl_o                     (tl_o)
   );
 endmodule

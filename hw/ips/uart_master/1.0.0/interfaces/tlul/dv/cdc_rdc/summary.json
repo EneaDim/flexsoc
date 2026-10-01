@@ -1,0 +1,144 @@
+{
+  "cdc": {
+    "classifications": {},
+    "crossings": [],
+    "errors": 0,
+    "findings": [],
+    "info": 0,
+    "pairs": [],
+    "raw_crossings": 0,
+    "review": 0,
+    "safe": 0,
+    "warnings": 0
+  },
+  "checks": {
+    "cdc": [
+      "clock_crossings",
+      "async_fifo_candidates",
+      "closed_loop_handshakes",
+      "synchronized_reconvergence",
+      "cdc_contracts"
+    ],
+    "glitch": [
+      "combinational_clock_paths",
+      "combinational_reset_paths"
+    ],
+    "rdc": [
+      "reset_crossings",
+      "reset_synchronizers",
+      "async_reset_release",
+      "reset_sequence"
+    ],
+    "setup": [
+      "domain_assignment",
+      "clock_relationships",
+      "reset_polarity",
+      "reset_families",
+      "cdc_contracts"
+    ]
+  },
+  "clock_domains": 1,
+  "dependencies": 49878,
+  "glitch": {
+    "classifications": {},
+    "errors": 0,
+    "findings": [],
+    "info": 0,
+    "review": 0,
+    "safe": 0,
+    "warnings": 0
+  },
+  "obligations": [],
+  "rdc": {
+    "classifications": {
+      "reset_synchronizer": 2
+    },
+    "crossings": [],
+    "errors": 0,
+    "findings": [
+      {
+        "classification": "reset_synchronizer",
+        "crossings": [],
+        "evidence": [
+          "clock_domain=core",
+          "reset=rst_ni",
+          "stages=2",
+          "consumers=2"
+        ],
+        "id": "RDC-0001",
+        "issues": [],
+        "obligations": [],
+        "primary": false,
+        "scope": "rdc",
+        "status": "SAFE"
+      },
+      {
+        "classification": "reset_synchronizer",
+        "crossings": [],
+        "evidence": [
+          "clock_domain=core",
+          "reset=rst_ni",
+          "stages=2",
+          "consumers=19"
+        ],
+        "id": "RDC-0002",
+        "issues": [],
+        "obligations": [],
+        "primary": false,
+        "scope": "rdc",
+        "status": "SAFE"
+      }
+    ],
+    "info": 0,
+    "pairs": [],
+    "raw_crossings": 0,
+    "review": 0,
+    "safe": 2,
+    "warnings": 0
+  },
+  "reset_domains": 8,
+  "reset_families": 1,
+  "reset_family_roots": [
+    "rst_ni"
+  ],
+  "schema": "flexsoc.cdc_rdc.v4",
+  "sequential_elements": 89,
+  "setup": {
+    "classifications": {
+      "distributed_reset_family": 1
+    },
+    "errors": 0,
+    "findings": [
+      {
+        "classification": "distributed_reset_family",
+        "crossings": [],
+        "evidence": [
+          "core_rst_ni",
+          "reg_rst_ni",
+          "rst_ni",
+          "u_uart_master_core.host_rst_ni",
+          "u_uart_master_core.u_host_bridge.bus_rst_ni",
+          "u_uart_master_core.u_host_bridge.parser_rst_ni",
+          "u_uart_master_core.u_host_bridge.response_rst_ni",
+          "u_uart_master_core.uart_rst_ni"
+        ],
+        "id": "SETUP-0001",
+        "issues": [
+          "clock_domain=core",
+          "reset_family=rst_ni"
+        ],
+        "obligations": [],
+        "primary": false,
+        "scope": "setup",
+        "status": "INFO"
+      }
+    ],
+    "info": 1,
+    "review": 0,
+    "safe": 0,
+    "warnings": 0
+  },
+  "status": "pass",
+  "top": "uart_master",
+  "verification_obligations": 0
+}

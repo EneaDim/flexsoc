@@ -5,7 +5,7 @@ current_design uart_master
 # ============================================================
 # 1. CLOCKS
 # ============================================================
-create_clock -name core -period 10 -waveform {0 5} [get_ports clk_i]
+create_clock -name core -period 10 -waveform {0.05 5} [get_ports clk_i]
 
 # ============================================================
 # 2. GENERATED CLOCKS
@@ -17,9 +17,9 @@ create_clock -name core -period 10 -waveform {0 5} [get_ports clk_i]
 # ============================================================
 # 3. CLOCK QUALITY / ENVIRONMENT
 # ============================================================
-set_clock_latency -source 0 [get_clocks core]
-set_clock_uncertainty -setup 0 [get_clocks core]
-set_clock_uncertainty -hold 0 [get_clocks core]
+set_clock_latency -source 0.05 [get_clocks core]
+set_clock_uncertainty -setup 0.025 [get_clocks core]
+set_clock_uncertainty -hold 0.01 [get_clocks core]
 set_clock_transition 0 [get_clocks core]
 
 # ============================================================
@@ -48,12 +48,17 @@ set_output_delay -max 2 -clock core [all_outputs]
 set_output_delay -min 0.0 -clock core [all_outputs]
 
 # ============================================================
-# 8. OUTPUT LOAD
+# 8. FUNCTIONAL MODE CONTROLS
+# ============================================================
+# No additional functional-mode controls are required by the single-clock scaffold.
+
+# ============================================================
+# 9. OUTPUT LOAD
 # ============================================================
 set_load 0.01 [all_outputs]
 
 # ============================================================
-# 9. TIMING EXCEPTIONS
+# 10. TIMING EXCEPTIONS
 # ============================================================
 # False paths and multicycle paths are architectural intent and are never inferred.
 # Example false path:
@@ -63,7 +68,7 @@ set_load 0.01 [all_outputs]
 # set_multicycle_path 1 -hold  -from <startpoints> -to <endpoints>
 
 # ============================================================
-# 10. OPTIONAL DESIGN-RULE CONSTRAINTS
+# 11. OPTIONAL DESIGN-RULE CONSTRAINTS
 # ============================================================
 # Enable only when these limits are part of the intended interface/technology contract.
 # set_max_transition <value> [current_design]

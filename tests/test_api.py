@@ -332,6 +332,7 @@ def test_ip_save_packages_real_pnr_independently_of_physical_signoff() -> None:
     assert "Reporting.collect_implementation(paths.top, paths.run, paths.pdk)" in source
     assert "Reporting.collect_physical_signoff(paths.run, paths.pdk)" not in source
     assert 'implementation.get("status") == "pass"' in source
+    assert "package_level >= 5" in source
     assert "impl_dir=paths.impl if impl_available else None" in source
 
 def test_view_selects_named_gls_waveform_and_avoids_wayland_on_wsl(
@@ -1050,7 +1051,7 @@ def test_setup_pnr_consumes_only_mapped_netlist_and_sdc(tmp_path: Path) -> None:
     assert "ABC_AREA" not in text
     assert "STRATEGY" not in text
     assert "PLACE_DENSITY ?= 0.58" in text
-    assert "HOLD_SLACK_MARGIN  := 0.2" in text
+    assert "HOLD_SLACK_MARGIN  := 0.05" in text
     assert "SLEW_MARGIN        := 30" in text
     assert "CAP_MARGIN         := 30" in text
     assert "HOLD_SLACK_MARGIN  := 0.3" in pnr_module.ImplementationFlow.render_config(
@@ -2836,6 +2837,47 @@ def test_cli_run_and_setup_modes_are_canonical(
 
     assert app(["setup_syn", "--dry-run", *root_args]) == 2
     assert "unknown target 'setup_syn'" in capsys.readouterr().err
+
+
+def test_cli_hyphenated_signoff_views_resolve_backend_targets(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace = tmp_path / "workspace"
+    signoff = workspace / "runs/test/default/signoff/sky130"
+
+    estimate = signoff / "power/estimate/summary.json"
+    estimate.parent.mkdir(parents=True, exist_ok=True)
+    estimate.write_text(json.dumps({
+        "analysis": "power_estimate", "status": "pass", "activity": 0.1, "duty": 0.5,
+        "corners": {
+            "tt": {
+                "internal_w": 0.001,
+                "switching_w": 0.0002,
+                "dynamic_w": 0.0012,
+                "leakage_w": 1e-6,
+                "total_w": 0.001201,
+            }
+        },
+    }), encoding="utf-8")
+
+    analysis = signoff / "power/analysis/summary.json"
+    analysis.parent.mkdir(parents=True, exist_ok=True)
+    analysis.write_text(json.dumps({
+        "analysis": "power_analysis",
+        "status": "pass",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "reports": [],
+    }), encoding="utf-8")
+
+    common = ["--workdir", str(workspace), "--project-root", str(tmp_path)]
+    for command in ("power-estimate", "power-analysis"):
+        assert app([command, "--summary", *common]) == 0
+        capsys.readouterr()
+        assert app([command, "--show", *common]) == 0
+        capsys.readouterr()
+
 
 def test_command_display_names_use_public_domain_syntax(tmp_path: Path) -> None:
     client = FlexSoC(FlexSoCConfig(tmp_path, tmp_path / "work"))
@@ -7277,7 +7319,7 @@ def test_pnr_request_declares_config_inputs_and_result_trees(tmp_path: Path) -> 
     )
     assert runner.request.outputs == (workdir / "results", workdir / "reports", workdir / "logs")
     assert "CORNERS=ss tt ff" in runner.request.argv
-    assert "HOLD_SLACK_MARGIN=0.2" in runner.request.argv
+    assert "HOLD_SLACK_MARGIN=0.05" in runner.request.argv
     assert "SLEW_MARGIN=30" in runner.request.argv
     assert "CAP_MARGIN=30" in runner.request.argv
     assert "SETUP_SLACK_MARGIN=0" in runner.request.argv
@@ -7572,6 +7614,28 @@ def test_backend_has_no_parallel_command_router() -> None:
     assert not (ROOT / "src/flexsoc/__main__.py").exists()
 
 
+def test_technology_qualification_does_not_require_eqy_runtime() -> None:
+    stages = qualification_module.QualificationFlow.required_stages(
+        {
+            "required_evidence": [
+                "traceability",
+                "lint",
+                "functional",
+                "cdc_rdc",
+                "formal",
+            ]
+        },
+        4,
+    )
+    assert "eqy" not in stages
+    assert "syn" in stages
+    assert "sta" in stages
+    assert "sdf" in stages
+    assert "sim_post_syn_all" in stages
+    assert "power_analysis_all" in stages
+    assert "fusion_analysis_all" in stages
+
+
 def test_eqy_runtime_is_explicit_and_not_part_of_setup_only_policy(tmp_path: Path) -> None:
     from flexsoc.backend.syn.eqy import Eqy
 
@@ -7584,7 +7648,7 @@ def test_eqy_runtime_is_explicit_and_not_part_of_setup_only_policy(tmp_path: Pat
     assert "eqy" in BACKEND_TARGETS
     assert "eqy" not in SETUP_ONLY_TARGETS
     assert lifecycle_module.STAGE_CONTRACTS["eqy"].parents == ("eqy.setup", "syn")
-    assert "eqy" in qualification_module.EVIDENCE_GROUPS["netlist"]
+    assert "eqy" not in qualification_module.EVIDENCE_GROUPS["netlist"]
 
 def test_eqy_run_uses_tool_runner_and_declares_result_directory(tmp_path: Path) -> None:
     from types import SimpleNamespace

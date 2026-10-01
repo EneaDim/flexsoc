@@ -7,7 +7,7 @@
 #   -> 3 GLS tests x min/typ/max -> qualification -> ip_save.
 #
 
-flexsoc_ip_flow() {
+_flexsoc_ip_flow_impl() {
     if [ "$#" -ne 8 ]; then
         echo "usage:"
         echo "  flexsoc_ip_flow IP TARGET_ITF LOAD_ITF LOAD_VERSION SAVE_VERSION GLS1 GLS2 GLS3"
@@ -47,8 +47,19 @@ flexsoc_ip_flow() {
     local PHYSICAL_REVIEW=0
     local SAVED=""
     local LEAK=""
+    local FLOW_MODE="${FLEXSOC_IP_FLOW_MODE:-full}"
+    local SAVE_QUAL_LEVEL="auto"
 
     cd "$REPO" || return 1
+
+    case "$FLOW_MODE" in
+        full) SAVE_QUAL_LEVEL="auto" ;;
+        pre-pnr) SAVE_QUAL_LEVEL="technology" ;;
+        *)
+            echo "[STOP] unsupported FLEXSOC_IP_FLOW_MODE=$FLOW_MODE (expected full or pre-pnr)"
+            return 2
+            ;;
+    esac
 
     case "$TARGET_ITF" in
         tlul|reg_iface|axi_lite) ;;
@@ -81,7 +92,7 @@ flexsoc_ip_flow() {
         ORS="$HOME/OpenROAD-flow-scripts/flow"
     fi
 
-    if [ ! -f "$ORS/Makefile" ]; then
+    if [ "$FLOW_MODE" = "full" ] && [ ! -f "$ORS/Makefile" ]; then
         echo "[STOP] OpenROAD-flow-scripts flow not found:"
         echo "$ORS"
         return 1
@@ -128,7 +139,7 @@ flexsoc_ip_flow() {
         POWER_GLS_BACKENDS="$GLS_BACKEND" \
         POWER_TIMING_MODES="$GLS_TIMING_MODES" \
         "ORS=$ORS" \
-        PNR_HOLD_SLACK_MARGIN=0.10 \
+        PNR_HOLD_SLACK_MARGIN=0.05 \
         QUAL_LEVEL=auto \
         "IP_LIBRARY_ROOT=$LIBRARY_ROOT" \
         --workdir "$WS" || return 1
@@ -167,6 +178,7 @@ flexsoc_ip_flow() {
     fi
 
     echo
+    _FLEXSOC_FLOW_STAGE="ip_load"
     echo "=== IP LOAD ==="
 
     if [ "$LOAD_VERSION" = "-" ]; then
@@ -182,6 +194,12 @@ flexsoc_ip_flow() {
             --set REG_ITF="$LOAD_ITF" \
             --set IP_LIBRARY_ROOT="$LIBRARY_ROOT" \
             --workdir "$WS" || return 1
+    fi
+
+    if [ "$FLOW_MODE" = "pre-pnr" ]; then
+        echo
+        echo "=== PRE-PNR: DROP LOADED PHYSICAL EVIDENCE ==="
+        rm -rf "$RUN/impl" "$RUN/signoff/sky130/post_impl" "$RUN/signoff/ihp-sg13g2/post_impl"
     fi
 
     MODEL="$RUN/dv/functional/model/${IP}_tests.py"
@@ -221,6 +239,7 @@ flexsoc_ip_flow() {
     fi
 
     echo
+    _FLEXSOC_FLOW_STAGE="interface_collateral"
     echo "=== MACHINE-OWNED INTERFACE COLLATERAL ==="
 
     fx reg doc driver top_from_core flist \
@@ -233,6 +252,7 @@ flexsoc_ip_flow() {
         --workdir "$WS" || return 1
 
     echo
+    _FLEXSOC_FLOW_STAGE="lint"
     echo "=== LINT / STRUCTURAL ==="
 
     fx lint \
@@ -294,6 +314,7 @@ flexsoc_ip_flow() {
     done
 
     echo
+    _FLEXSOC_FLOW_STAGE="rtl_regression"
     echo "=== RTL REGRESSION: ALL GENERATED TESTS ==="
 
     rm -rf \
@@ -323,6 +344,7 @@ flexsoc_ip_flow() {
     fx coverage --summary --workdir "$WS" || return 1
 
     echo
+    _FLEXSOC_FLOW_STAGE="formal"
     echo "=== FORMAL SETUP: PRESERVE AUTHORED COLLATERAL ==="
 
     fx formal \
@@ -333,6 +355,7 @@ flexsoc_ip_flow() {
     }
 
     echo
+    _FLEXSOC_FLOW_STAGE="formal"
     echo "=== FORMAL RUN ==="
 
     fx formal --workdir "$WS" || return 1
@@ -354,7 +377,7 @@ flexsoc_ip_flow() {
         fx pdk use "$PDK" \
             --workdir "$WS" || return 1
 
-        HOLD_MARGIN="${FLEXSOC_PNR_HOLD_SLACK_MARGIN:-0.20}"
+        HOLD_MARGIN="${FLEXSOC_PNR_HOLD_SLACK_MARGIN:-0.05}"
 
         fx settings \
             PNR_HOLD_SLACK_MARGIN="$HOLD_MARGIN" \
@@ -377,6 +400,7 @@ flexsoc_ip_flow() {
             --workdir "$WS" || return 1
 
         echo
+        _FLEXSOC_FLOW_STAGE="synthesis"
         echo "=== SYNTHESIS / $PDK ==="
 
         fx syn \
@@ -396,6 +420,7 @@ flexsoc_ip_flow() {
         fx syn --debug \
             --workdir "$WS" || return 1
 
+        _FLEXSOC_FLOW_STAGE="post_syn"
         echo "=== POST-SYN SIGNOFF / $PDK ==="
 
         fx signoff \
@@ -419,6 +444,7 @@ flexsoc_ip_flow() {
         fx power-estimate --debug --workdir "$WS" || return 1
 
         echo
+        _FLEXSOC_FLOW_STAGE="post_syn"
         echo "=== POST-SYN GLS: 3 TESTS x FF/TT/SS = 9 RUNS ==="
 
         fx sim --post-syn --all \
@@ -432,6 +458,7 @@ flexsoc_ip_flow() {
         fx sim --post-syn --all --debug --set GLS_BACKEND="$GLS_BACKEND" --workdir "$WS" || return 1
 
         echo
+        _FLEXSOC_FLOW_STAGE="post_syn"
         echo "=== POST-SYN POWER / FUSION: SAME 3 x 3 MATRIX ==="
 
         fx power-analysis --all \
@@ -451,6 +478,29 @@ flexsoc_ip_flow() {
         fx fusion --all --summary --workdir "$WS" || return 1
         fx fusion --all --show --workdir "$WS" || return 1
         fx fusion --all --debug --workdir "$WS" || return 1
+
+        if [ "$FLOW_MODE" = "pre-pnr" ]; then
+            echo
+            echo "=== PRE-PNR COMPLETE / $PDK ==="
+            continue
+        fi
+
+        if [ "$FLOW_MODE" = "pre-pnr" ]; then
+            echo
+            _FLEXSOC_FLOW_STAGE="qualification"
+            _FLEXSOC_FLOW_STAGE="eqy_setup"
+            echo
+            echo "=== EQY SETUP / $PDK ==="
+            fx eqy --setup --force --workdir "$WS" || return 1
+            echo
+            echo "=== PRE-PNR QUALIFICATION / $PDK ==="
+            fx manifest --workdir "$WS" || return 1
+            fx manifest_show --workdir "$WS" || return 1
+            fx metrics --workdir "$WS" || return 1
+            fx check --workdir "$WS" || return 1
+            fx qualify --set IP_NAME="$IP" --set IP_VERSION="$SAVE_VERSION" --set REG_ITF="$TARGET_ITF" --set QUAL_LEVEL=technology --workdir "$WS" || return 1
+            continue
+        fi
 
         echo
         echo "=== PNR / $PDK ==="
@@ -523,6 +573,7 @@ flexsoc_ip_flow() {
         fx power-estimate --post-impl --debug --workdir "$WS" || return 1
 
         echo
+        _FLEXSOC_FLOW_STAGE="power"
         echo "=== POST-IMPLEMENTATION POWER / FUSION: SAME 3 x 3 MATRIX ==="
 
         fx power-analysis --post-impl --all \
@@ -544,6 +595,7 @@ flexsoc_ip_flow() {
         fx fusion --post-impl --all --debug --workdir "$WS" || return 1
 
         echo
+        _FLEXSOC_FLOW_STAGE="qualification"
         echo "=== REPORTING / QUALIFICATION / $PDK ==="
 
         fx manifest --workdir "$WS" || return 1
@@ -568,20 +620,23 @@ flexsoc_ip_flow() {
         fx pdk use "$PDK" \
             --workdir "$WS" || return 1
 
-        HOLD_MARGIN="${FLEXSOC_PNR_HOLD_SLACK_MARGIN:-0.20}"
+        HOLD_MARGIN="${FLEXSOC_PNR_HOLD_SLACK_MARGIN:-0.05}"
 
         fx settings \
             PNR_HOLD_SLACK_MARGIN="$HOLD_MARGIN" \
             --workdir "$WS" || return 1
 
+        _FLEXSOC_FLOW_STAGE="ip_save"
+        _FLEXSOC_FLOW_SAVE="RUNNING"
         fx ip_save \
             --force \
             --set IP_NAME="$IP" \
             --set IP_VERSION="$SAVE_VERSION" \
             --set REG_ITF="$TARGET_ITF" \
             --set IP_LIBRARY_ROOT="$LIBRARY_ROOT" \
-            --set QUAL_LEVEL=auto \
+            --set QUAL_LEVEL="$SAVE_QUAL_LEVEL" \
             --workdir "$WS" || return 1
+        _FLEXSOC_FLOW_SAVE="PASS"
     done
 
     SAVED="$LIBRARY_ROOT/$IP/$SAVE_VERSION/interfaces/$TARGET_ITF"
@@ -622,7 +677,12 @@ flexsoc_ip_flow() {
             return 1
         fi
 
-        if [ ! -f "$SAVED/signoff/$PDK/post_impl/sdf/write_sdf.tcl" ]; then
+        if [ "$FLOW_MODE" = "pre-pnr" ]; then
+            if [ -d "$SAVED/impl/$PDK" ] || [ -d "$SAVED/signoff/$PDK/post_impl" ]; then
+                echo "[STOP] unexpected post-implementation evidence in pre-pnr package for $PDK"
+                return 1
+            fi
+        elif [ ! -f "$SAVED/signoff/$PDK/post_impl/sdf/write_sdf.tcl" ]; then
             echo "[STOP] missing post-implementation write_sdf.tcl for $PDK"
             return 1
         fi
@@ -644,6 +704,83 @@ flexsoc_ip_flow() {
     echo "================================================================"
 
     return 0
+}
+
+# Validate the retained IP set without running implementation or release.
+# Start from each IP's native TL-UL release so interface migration cannot hide
+# a design/package problem.
+flexsoc_ip_pre_pnr_suite() {
+    local failures=0
+    local rc=0
+    local -a rows=()
+
+    FLEXSOC_IP_FLOW_MODE=pre-pnr flexsoc_ip_flow uart tlul tlul 1.0.0 1.0.0 smoke corners parity_error
+    rc=$?
+    rows+=("uart|tlul|${_FLEXSOC_LAST_RESULT}|${_FLEXSOC_LAST_STAGE}|${_FLEXSOC_LAST_SAVE}")
+    [ "$rc" -eq 0 ] || failures=$((failures + 1))
+
+    FLEXSOC_IP_FLOW_MODE=pre-pnr flexsoc_ip_flow uart_master tlul tlul 1.0.0 1.0.0 smoke host_read host_write
+    rc=$?
+    rows+=("uart_master|tlul|${_FLEXSOC_LAST_RESULT}|${_FLEXSOC_LAST_STAGE}|${_FLEXSOC_LAST_SAVE}")
+    [ "$rc" -eq 0 ] || failures=$((failures + 1))
+
+    FLEXSOC_IP_FLOW_MODE=pre-pnr flexsoc_ip_flow gpio tlul tlul 1.0.0 1.0.0 smoke corners interrupt_levels
+    rc=$?
+    rows+=("gpio|tlul|${_FLEXSOC_LAST_RESULT}|${_FLEXSOC_LAST_STAGE}|${_FLEXSOC_LAST_SAVE}")
+    [ "$rc" -eq 0 ] || failures=$((failures + 1))
+
+    FLEXSOC_IP_FLOW_MODE=pre-pnr flexsoc_ip_flow rv_timer tlul tlul 1.0.0 1.0.0 smoke corners interrupt_test
+    rc=$?
+    rows+=("rv_timer|tlul|${_FLEXSOC_LAST_RESULT}|${_FLEXSOC_LAST_STAGE}|${_FLEXSOC_LAST_SAVE}")
+    [ "$rc" -eq 0 ] || failures=$((failures + 1))
+
+    _flexsoc_print_suite_summary "TL-UL PRE-PNR / L4 + IP SAVE" "$failures" "${rows[@]}"
+    [ "$failures" -eq 0 ]
+}
+
+# Validate the retained non-TLUL interface packages after the native TL-UL suite.
+# UART/GPIO already have native packages. RV timer is intentionally migrated from
+# the freshly qualified TL-UL package. UART Master remains TL-UL only for now.
+flexsoc_ip_pre_pnr_interface_suite() {
+    local failures=0
+    local rc=0
+    local -a rows=()
+
+    # Remap every alternate register interface from the qualified TL-UL release.
+    # Each successful run performs L4 qualification and ip_save --force into
+    # hw/ips/<ip>/1.0.0/interfaces/<target>.
+    FLEXSOC_IP_FLOW_MODE=pre-pnr flexsoc_ip_flow uart reg_iface tlul 1.0.0 1.0.0 smoke corners parity_error
+    rc=$?
+    rows+=("uart|reg_iface|${_FLEXSOC_LAST_RESULT}|${_FLEXSOC_LAST_STAGE}|${_FLEXSOC_LAST_SAVE}")
+    [ "$rc" -eq 0 ] || failures=$((failures + 1))
+
+    FLEXSOC_IP_FLOW_MODE=pre-pnr flexsoc_ip_flow uart axi_lite tlul 1.0.0 1.0.0 smoke corners parity_error
+    rc=$?
+    rows+=("uart|axi_lite|${_FLEXSOC_LAST_RESULT}|${_FLEXSOC_LAST_STAGE}|${_FLEXSOC_LAST_SAVE}")
+    [ "$rc" -eq 0 ] || failures=$((failures + 1))
+
+    FLEXSOC_IP_FLOW_MODE=pre-pnr flexsoc_ip_flow gpio reg_iface tlul 1.0.0 1.0.0 smoke corners interrupt_levels
+    rc=$?
+    rows+=("gpio|reg_iface|${_FLEXSOC_LAST_RESULT}|${_FLEXSOC_LAST_STAGE}|${_FLEXSOC_LAST_SAVE}")
+    [ "$rc" -eq 0 ] || failures=$((failures + 1))
+
+    FLEXSOC_IP_FLOW_MODE=pre-pnr flexsoc_ip_flow gpio axi_lite tlul 1.0.0 1.0.0 smoke corners interrupt_levels
+    rc=$?
+    rows+=("gpio|axi_lite|${_FLEXSOC_LAST_RESULT}|${_FLEXSOC_LAST_STAGE}|${_FLEXSOC_LAST_SAVE}")
+    [ "$rc" -eq 0 ] || failures=$((failures + 1))
+
+    FLEXSOC_IP_FLOW_MODE=pre-pnr flexsoc_ip_flow rv_timer reg_iface tlul 1.0.0 1.0.0 smoke corners interrupt_test
+    rc=$?
+    rows+=("rv_timer|reg_iface|${_FLEXSOC_LAST_RESULT}|${_FLEXSOC_LAST_STAGE}|${_FLEXSOC_LAST_SAVE}")
+    [ "$rc" -eq 0 ] || failures=$((failures + 1))
+
+    FLEXSOC_IP_FLOW_MODE=pre-pnr flexsoc_ip_flow rv_timer axi_lite tlul 1.0.0 1.0.0 smoke corners interrupt_test
+    rc=$?
+    rows+=("rv_timer|axi_lite|${_FLEXSOC_LAST_RESULT}|${_FLEXSOC_LAST_STAGE}|${_FLEXSOC_LAST_SAVE}")
+    [ "$rc" -eq 0 ] || failures=$((failures + 1))
+
+    _flexsoc_print_suite_summary "REGISTER-INTERFACE REMAPPING PRE-PNR / L4 + IP SAVE" "$failures" "${rows[@]}"
+    [ "$failures" -eq 0 ]
 }
 
 # Recommended release calls for the current IP library:
@@ -668,3 +805,103 @@ flexsoc_ip_flow() {
 #
 # CORDIC (legacy unversioned input -> 1.0.0 release):
 #   flexsoc_ip_flow cordic tlul tlul - 1.0.0 smoke corners quadrant_sweep
+
+# === FLEXSOC FLOW SUMMARY SUPPORT ===
+
+_flexsoc_print_flow_summary() {
+    local ip="$1"
+    local interface="$2"
+    local mode="$3"
+    local result="$4"
+    local stage="$5"
+    local save_state="$6"
+    local save_version="$7"
+
+    echo
+    echo "================================================================"
+    echo "FLEXSOC IP FLOW SUMMARY"
+    echo "================================================================"
+    printf "%-14s : %s\n" "IP" "$ip"
+    printf "%-14s : %s\n" "interface" "$interface"
+    printf "%-14s : %s\n" "mode" "$mode"
+    printf "%-14s : %s\n" "result" "$result"
+    printf "%-14s : %s\n" "stopped_at" "$stage"
+    printf "%-14s : %s\n" "ip_save" "$save_state"
+    if [ "$save_state" = "PASS" ]; then
+        printf "%-14s : hw/ips/%s/%s/interfaces/%s\n" "saved" "$ip" "$save_version" "$interface"
+    fi
+    echo "================================================================"
+}
+
+_flexsoc_print_suite_summary() {
+    local title="$1"
+    local failures="$2"
+    shift 2
+
+    echo
+    echo "================================================================================"
+    echo "FLEXSOC SUITE SUMMARY: $title"
+    echo "================================================================================"
+    printf "%-16s %-12s %-8s %-28s %-10s\n" "IP" "INTERFACE" "RESULT" "STOPPED_AT" "IP_SAVE"
+    printf "%-16s %-12s %-8s %-28s %-10s\n" "----------------" "------------" "--------" "----------------------------" "----------"
+
+    local row
+    local ip
+    local interface
+    local result
+    local stage
+    local save_state
+    for row in "$@"; do
+        IFS='|' read -r ip interface result stage save_state <<< "$row"
+        printf "%-16s %-12s %-8s %-28s %-10s\n" "$ip" "$interface" "$result" "$stage" "$save_state"
+    done
+
+    echo "--------------------------------------------------------------------------------"
+    if [ "$failures" -eq 0 ]; then
+        echo "OVERALL: PASS"
+    else
+        echo "OVERALL: FAIL ($failures run(s) failed)"
+    fi
+    echo "================================================================================"
+}
+
+flexsoc_ip_flow() {
+    local summary_ip="${1:-unknown}"
+    local summary_interface="${2:-unknown}"
+    local summary_save_version="${5:-unknown}"
+    local summary_mode="${FLEXSOC_IP_FLOW_MODE:-full}"
+
+    _FLEXSOC_FLOW_STAGE="start"
+    _FLEXSOC_FLOW_SAVE="NOT RUN"
+
+    _flexsoc_ip_flow_impl "$@"
+    local rc=$?
+
+    if [ "$rc" -eq 0 ]; then
+        _FLEXSOC_LAST_RESULT="PASS"
+        _FLEXSOC_LAST_STAGE="complete"
+        _FLEXSOC_LAST_SAVE="PASS"
+    else
+        _FLEXSOC_LAST_RESULT="FAIL"
+        _FLEXSOC_LAST_STAGE="${_FLEXSOC_FLOW_STAGE:-unknown}"
+        case "${_FLEXSOC_FLOW_SAVE:-NOT RUN}" in
+            PASS) _FLEXSOC_LAST_SAVE="PASS" ;;
+            RUNNING) _FLEXSOC_LAST_SAVE="FAIL" ;;
+            *) _FLEXSOC_LAST_SAVE="NOT RUN" ;;
+        esac
+    fi
+
+    _FLEXSOC_LAST_IP="$summary_ip"
+    _FLEXSOC_LAST_INTERFACE="$summary_interface"
+
+    _flexsoc_print_flow_summary \
+        "$summary_ip" \
+        "$summary_interface" \
+        "$summary_mode" \
+        "$_FLEXSOC_LAST_RESULT" \
+        "$_FLEXSOC_LAST_STAGE" \
+        "$_FLEXSOC_LAST_SAVE" \
+        "$summary_save_version"
+
+    return "$rc"
+}

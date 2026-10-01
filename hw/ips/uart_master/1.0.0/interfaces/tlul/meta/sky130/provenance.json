@@ -2582,6 +2582,43 @@
         "formal_bmc": "2cd673a0478ea0ac17d49cd3d860573ed9b6435c1023bbf05f34dd8b7cc215e6"
       }
     },
+    "fusion_analysis_all": {
+      "config": {
+        "PDK": "sky130",
+        "POWER_GLS_BACKENDS": "sv",
+        "POWER_TEST_NAMES": "smoke,host_read,host_write",
+        "POWER_TIMING_MODES": "min,typ,max",
+        "TOP": "uart_master"
+      },
+      "fingerprint": "1ed3fd26e8ea06a8c21211f8ab7a0dd34a2d1796473e07387b26291eacedeef6",
+      "generated": [
+        {
+          "effective_sha256": "1499b26804920328168aba7727f4b14590a91a5fd57efc047d57991ebae51e29",
+          "generated_sha256": "1499b26804920328168aba7727f4b14590a91a5fd57efc047d57991ebae51e29",
+          "path": "signoff/sky130/fusion/summary.json"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "signoff/sky130/power/analysis",
+          "sha256": "e23c763840420eee1c396d0afd3dee8580fde551b10d9594c3c465c81d60968f"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "power_analysis_all": "48651239d49c83275f2c29b30e9b7d21bd7b6a7b64015dc4952ab8fbc3f755cc"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
+      }
+    },
     "lint_slang_suite": {
       "config": {
         "TOP": "uart_master"
@@ -2936,28 +2973,31 @@
       ],
       "parents": {}
     },
-    "power_estimate": {
+    "power_analysis_all": {
       "config": {
         "PDK": "sky130",
+        "POWER_GLS_BACKENDS": "sv",
+        "POWER_TEST_NAMES": "smoke,host_read,host_write",
+        "POWER_TIMING_MODES": "min,typ,max",
         "TOP": "uart_master"
       },
-      "fingerprint": "0198c6202f027b9d56c8a905ff916e7ea3992746a474f6c7c90e897527503930",
+      "fingerprint": "48651239d49c83275f2c29b30e9b7d21bd7b6a7b64015dc4952ab8fbc3f755cc",
       "generated": [
         {
-          "effective_sha256": "b8192d6aceabc4aa519e166c0c60e48ac2d85e0b939bc53f5c0a0478862160ff",
-          "generated_sha256": "b8192d6aceabc4aa519e166c0c60e48ac2d85e0b939bc53f5c0a0478862160ff",
-          "path": "signoff/sky130/power/estimate"
+          "effective_sha256": "0b7679f62dad19f4de88f27722a9f4baf271c30d7b28a3edd08bcb9ae5adf200",
+          "generated_sha256": "0b7679f62dad19f4de88f27722a9f4baf271c30d7b28a3edd08bcb9ae5adf200",
+          "path": "signoff/sky130/power/analysis/summary.json"
         }
       ],
       "input_paths_match": true,
       "inputs": [
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "syn/sky130/uart_master_synth.v",
-          "sha256": "b193c9e951a60b6e83db73f66c2f2015bcf955de72fe8f55227ad0571b7c3989"
+          "sha256": "8bced7e257d110ab3c3f7b97f8cd001533db1c98c4929965430e9f6dd24604e2"
         },
         {
           "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib",
@@ -2981,28 +3021,121 @@
         },
         {
           "path": "signoff/sky130/sta/sta.tcl",
-          "sha256": "9cb27183d636efe7919bee9ee7dafba4ca98cd5629835904fc52d68b2f53465c"
+          "sha256": "474c49b719a487ff620ed13f653026464a55cba3bbfa64ac81918b699863de1f"
         },
         {
           "path": "signoff/sky130/sdf/write_sdf.tcl",
-          "sha256": "c224a7d89bcc4f41b3d942bb0d2f6570b714a57708dc8f6caa23a91d253900cf"
+          "sha256": "e398cabd47ca4624d75b9e8252f0546b12e49231edb203b166bd1714275ba771"
         },
         {
           "path": "signoff/sky130/power/estimate/power_estimate.tcl",
-          "sha256": "8f18a331c3db355a9bb9ba856adb73ebe18a739a303870383f1f2af96d9c070a"
+          "sha256": "679c072d4e11511200443a7ccf340b645feab8a9b332c7dccb6dc529d6d534c7"
         },
         {
           "path": "signoff/sky130/power/analysis/power_analysis.tcl",
-          "sha256": "3be795999f650ca32eb8ee9a8b37483970e296aedba1d31fc8a7ed43347ef318"
+          "sha256": "1c82fcbf6479b02d3bfd80ba13f1b1d881619f40fc86967c160401eac6626303"
         },
         {
           "path": "signoff/sky130/fusion/fusion_analysis.tcl",
-          "sha256": "85c2b5e478f03c27b4a6075468edcaf3d71acd4477f6c3a199f08ab49cb92c6d"
+          "sha256": "b649cf30ff0b60ca8c0e8e0e43114f59f917a7cc2e4592475db6ac3091bd009e"
+        },
+        {
+          "path": "dv/functional/sim/post_syn/sky130",
+          "sha256": "6556b3272291ffcda5df895e9fc177e24f3c0c7ac5925c9383dae05c3512a4be"
         }
       ],
+      "outcome": "PASS",
       "parents": {
-        "signoff.setup": "12c02bc09f0d179874646f0280eee3987942cb198f94f4cd5639ab89aa2a3c3e",
-        "syn": "b720e7f8afd4f93c96a94d8bd737e084c941250f2839658e862d03c19f5eaaff"
+        "signoff.setup": "e5f1d578eaeab88184e57c7b060aba2ba193ffd2a35b24e1f4ea55313654cf1d",
+        "sim_post_syn_all": "75810c519b307f155dae814909eb1de44ffaf03dfe34f71d43f7cade426f4f6e"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
+      }
+    },
+    "power_estimate": {
+      "config": {
+        "PDK": "sky130",
+        "TOP": "uart_master"
+      },
+      "fingerprint": "59722033e9c279fa8900bfd27b3ee94927c891caba387d0727e78fa35bf5ef6e",
+      "generated": [
+        {
+          "effective_sha256": "b7045a7ca4a6544f9b92515b58b2ec61e0f78cf6e0c137b43efd6a45726a2015",
+          "generated_sha256": "b7045a7ca4a6544f9b92515b58b2ec61e0f78cf6e0c137b43efd6a45726a2015",
+          "path": "signoff/sky130/power/estimate/summary.json"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "constraints/uart_master.sdc",
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
+        },
+        {
+          "path": "syn/sky130/uart_master_synth.v",
+          "sha256": "8bced7e257d110ab3c3f7b97f8cd001533db1c98c4929965430e9f6dd24604e2"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib",
+          "sha256": "f4f16d4f7040623afb60d0480a035e4128c5c1212361ae3bd13c3a52d9692a84"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib",
+          "sha256": "7c6b9fc62d7e83b8317cdca883d79107d8f2ff1061b04519fda7d3088560015b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib",
+          "sha256": "425315ca7a49debcb1c715daf6e5e5a27bb78587cac6f3b358b1fe114c787132"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/verilog/primitives.v",
+          "sha256": "7d4b1441d06b0f2b9662befa675a0484d77149e04eb42a5f1fa2d4cfded7b2ce"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/verilog/sky130_fd_sc_hd.v",
+          "sha256": "4a183a476baef9abb68d82808d24d8f2907ed7b6cdebff8d03002f45b12e7833"
+        },
+        {
+          "path": "signoff/sky130/sta/sta.tcl",
+          "sha256": "474c49b719a487ff620ed13f653026464a55cba3bbfa64ac81918b699863de1f"
+        },
+        {
+          "path": "signoff/sky130/sdf/write_sdf.tcl",
+          "sha256": "e398cabd47ca4624d75b9e8252f0546b12e49231edb203b166bd1714275ba771"
+        },
+        {
+          "path": "signoff/sky130/power/estimate/power_estimate.tcl",
+          "sha256": "679c072d4e11511200443a7ccf340b645feab8a9b332c7dccb6dc529d6d534c7"
+        },
+        {
+          "path": "signoff/sky130/power/analysis/power_analysis.tcl",
+          "sha256": "1c82fcbf6479b02d3bfd80ba13f1b1d881619f40fc86967c160401eac6626303"
+        },
+        {
+          "path": "signoff/sky130/fusion/fusion_analysis.tcl",
+          "sha256": "b649cf30ff0b60ca8c0e8e0e43114f59f917a7cc2e4592475db6ac3091bd009e"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "signoff.setup": "e5f1d578eaeab88184e57c7b060aba2ba193ffd2a35b24e1f4ea55313654cf1d",
+        "syn": "b9848f59d708019bd0ba94aa314f16980cf9cc86b6bd65f02657693de395f9a3"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
       }
     },
     "regression": {
@@ -3271,11 +3404,11 @@
         "PDK": "sky130",
         "TOP": "uart_master"
       },
-      "fingerprint": "043617c169e03263b5e6a4fd28d8058733c476ad7ac7839fc184680795c999fc",
+      "fingerprint": "14c8d84cdaba4518ec467881dde358b669951abecdf6b102c05d156f2a860df5",
       "generated": [
         {
-          "effective_sha256": "2188e3fe808f3b0a897b489f00221fe3fa7bd0c0e5aeea5db3c8dc7d06454b56",
-          "generated_sha256": "2188e3fe808f3b0a897b489f00221fe3fa7bd0c0e5aeea5db3c8dc7d06454b56",
+          "effective_sha256": "cffdf167455642baee80f3863c4a4e3e617f3f931e637394c6f408c0100b4db8",
+          "generated_sha256": "cffdf167455642baee80f3863c4a4e3e617f3f931e637394c6f408c0100b4db8",
           "path": "signoff/sky130/sdf"
         }
       ],
@@ -3283,11 +3416,11 @@
       "inputs": [
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "syn/sky130/uart_master_synth.v",
-          "sha256": "b193c9e951a60b6e83db73f66c2f2015bcf955de72fe8f55227ad0571b7c3989"
+          "sha256": "8bced7e257d110ab3c3f7b97f8cd001533db1c98c4929965430e9f6dd24604e2"
         },
         {
           "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib",
@@ -3311,28 +3444,38 @@
         },
         {
           "path": "signoff/sky130/sta/sta.tcl",
-          "sha256": "9cb27183d636efe7919bee9ee7dafba4ca98cd5629835904fc52d68b2f53465c"
+          "sha256": "474c49b719a487ff620ed13f653026464a55cba3bbfa64ac81918b699863de1f"
         },
         {
           "path": "signoff/sky130/sdf/write_sdf.tcl",
-          "sha256": "c224a7d89bcc4f41b3d942bb0d2f6570b714a57708dc8f6caa23a91d253900cf"
+          "sha256": "e398cabd47ca4624d75b9e8252f0546b12e49231edb203b166bd1714275ba771"
         },
         {
           "path": "signoff/sky130/power/estimate/power_estimate.tcl",
-          "sha256": "8f18a331c3db355a9bb9ba856adb73ebe18a739a303870383f1f2af96d9c070a"
+          "sha256": "679c072d4e11511200443a7ccf340b645feab8a9b332c7dccb6dc529d6d534c7"
         },
         {
           "path": "signoff/sky130/power/analysis/power_analysis.tcl",
-          "sha256": "3be795999f650ca32eb8ee9a8b37483970e296aedba1d31fc8a7ed43347ef318"
+          "sha256": "1c82fcbf6479b02d3bfd80ba13f1b1d881619f40fc86967c160401eac6626303"
         },
         {
           "path": "signoff/sky130/fusion/fusion_analysis.tcl",
-          "sha256": "85c2b5e478f03c27b4a6075468edcaf3d71acd4477f6c3a199f08ab49cb92c6d"
+          "sha256": "b649cf30ff0b60ca8c0e8e0e43114f59f917a7cc2e4592475db6ac3091bd009e"
         }
       ],
+      "outcome": "PASS",
       "parents": {
-        "signoff.setup": "12c02bc09f0d179874646f0280eee3987942cb198f94f4cd5639ab89aa2a3c3e",
-        "syn": "b720e7f8afd4f93c96a94d8bd737e084c941250f2839658e862d03c19f5eaaff"
+        "signoff.setup": "e5f1d578eaeab88184e57c7b060aba2ba193ffd2a35b24e1f4ea55313654cf1d",
+        "syn": "b9848f59d708019bd0ba94aa314f16980cf9cc86b6bd65f02657693de395f9a3"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
       }
     },
     "signoff.setup": {
@@ -3342,36 +3485,33 @@
         "CLOCK_RELATIONSHIPS": "",
         "N_CLOCKS": "1",
         "PDK": "sky130",
-        "REG_ITF": "tlul",
-        "SDC_CLOCK_PERIOD_NS": "",
-        "SDC_IO_DELAY_PCT": "",
         "TOP": "uart_master"
       },
-      "fingerprint": "12c02bc09f0d179874646f0280eee3987942cb198f94f4cd5639ab89aa2a3c3e",
+      "fingerprint": "e5f1d578eaeab88184e57c7b060aba2ba193ffd2a35b24e1f4ea55313654cf1d",
       "generated": [
         {
-          "effective_sha256": "9cb27183d636efe7919bee9ee7dafba4ca98cd5629835904fc52d68b2f53465c",
-          "generated_sha256": "9cb27183d636efe7919bee9ee7dafba4ca98cd5629835904fc52d68b2f53465c",
+          "effective_sha256": "474c49b719a487ff620ed13f653026464a55cba3bbfa64ac81918b699863de1f",
+          "generated_sha256": "474c49b719a487ff620ed13f653026464a55cba3bbfa64ac81918b699863de1f",
           "path": "signoff/sky130/sta/sta.tcl"
         },
         {
-          "effective_sha256": "c224a7d89bcc4f41b3d942bb0d2f6570b714a57708dc8f6caa23a91d253900cf",
-          "generated_sha256": "c224a7d89bcc4f41b3d942bb0d2f6570b714a57708dc8f6caa23a91d253900cf",
+          "effective_sha256": "e398cabd47ca4624d75b9e8252f0546b12e49231edb203b166bd1714275ba771",
+          "generated_sha256": "e398cabd47ca4624d75b9e8252f0546b12e49231edb203b166bd1714275ba771",
           "path": "signoff/sky130/sdf/write_sdf.tcl"
         },
         {
-          "effective_sha256": "8f18a331c3db355a9bb9ba856adb73ebe18a739a303870383f1f2af96d9c070a",
-          "generated_sha256": "8f18a331c3db355a9bb9ba856adb73ebe18a739a303870383f1f2af96d9c070a",
+          "effective_sha256": "679c072d4e11511200443a7ccf340b645feab8a9b332c7dccb6dc529d6d534c7",
+          "generated_sha256": "679c072d4e11511200443a7ccf340b645feab8a9b332c7dccb6dc529d6d534c7",
           "path": "signoff/sky130/power/estimate/power_estimate.tcl"
         },
         {
-          "effective_sha256": "3be795999f650ca32eb8ee9a8b37483970e296aedba1d31fc8a7ed43347ef318",
-          "generated_sha256": "3be795999f650ca32eb8ee9a8b37483970e296aedba1d31fc8a7ed43347ef318",
+          "effective_sha256": "1c82fcbf6479b02d3bfd80ba13f1b1d881619f40fc86967c160401eac6626303",
+          "generated_sha256": "1c82fcbf6479b02d3bfd80ba13f1b1d881619f40fc86967c160401eac6626303",
           "path": "signoff/sky130/power/analysis/power_analysis.tcl"
         },
         {
-          "effective_sha256": "85c2b5e478f03c27b4a6075468edcaf3d71acd4477f6c3a199f08ab49cb92c6d",
-          "generated_sha256": "85c2b5e478f03c27b4a6075468edcaf3d71acd4477f6c3a199f08ab49cb92c6d",
+          "effective_sha256": "b649cf30ff0b60ca8c0e8e0e43114f59f917a7cc2e4592475db6ac3091bd009e",
+          "generated_sha256": "b649cf30ff0b60ca8c0e8e0e43114f59f917a7cc2e4592475db6ac3091bd009e",
           "path": "signoff/sky130/fusion/fusion_analysis.tcl"
         }
       ],
@@ -3379,11 +3519,11 @@
       "inputs": [
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "syn/sky130/uart_master_synth.v",
-          "sha256": "b193c9e951a60b6e83db73f66c2f2015bcf955de72fe8f55227ad0571b7c3989"
+          "sha256": "8bced7e257d110ab3c3f7b97f8cd001533db1c98c4929965430e9f6dd24604e2"
         },
         {
           "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib",
@@ -3406,22 +3546,23 @@
           "sha256": "4a183a476baef9abb68d82808d24d8f2907ed7b6cdebff8d03002f45b12e7833"
         }
       ],
-      "parents": {}
+      "parents": {},
+      "tools": {}
     },
     "sim_post_syn_all": {
       "config": {
-        "GLS_BACKEND": "cocotb",
+        "GLS_BACKEND": "sv",
         "PDK": "sky130",
         "SDF_STRICT": "1",
-        "TEST_NAMES": "all",
-        "TIMING_MODES": "all",
+        "TEST_NAMES": "smoke,host_read,host_write",
+        "TIMING_MODES": "min,typ,max",
         "TOP": "uart_master"
       },
-      "fingerprint": "f7849c109c930dfce1025c9bc28f9149afc3e52f841155641876b96d8422fa23",
+      "fingerprint": "75810c519b307f155dae814909eb1de44ffaf03dfe34f71d43f7cade426f4f6e",
       "generated": [
         {
-          "effective_sha256": "8c23d30f77e42145d2e6b6570552438d12cc8190bc03e2c73c9af1c5eb210ea2",
-          "generated_sha256": "8c23d30f77e42145d2e6b6570552438d12cc8190bc03e2c73c9af1c5eb210ea2",
+          "effective_sha256": "d0c1a9500964fa56e926402f68b2b0e06358929887a4b8edd9fd7d8e29f1d83d",
+          "generated_sha256": "d0c1a9500964fa56e926402f68b2b0e06358929887a4b8edd9fd7d8e29f1d83d",
           "path": "dv/functional/sim/post_syn/sky130/summary_sv.json"
         }
       ],
@@ -3433,7 +3574,7 @@
         },
         {
           "path": "rtl/rtl_ip.f",
-          "sha256": "a237d60f13eec124e6e151c46ab94aff7783f33b500b0a243d85d2d2983e1941"
+          "sha256": "d9682d28751419adb10749cf2c9d303720573c221e6ed507568e9468611246f7"
         },
         {
           "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
@@ -3561,7 +3702,7 @@
         },
         {
           "path": "rtl/uart_master_reg_top.sv",
-          "sha256": "ab66931501ac25af7155dedd7aca2a8c5a648411e19d48d579c1e52f9622e4ac"
+          "sha256": "a7e4723a3e0ecbbe7452a372b86d5be744b0e57e1264f89f95a06fa8796e212f"
         },
         {
           "path": "rtl/uart_tx.sv",
@@ -3585,7 +3726,7 @@
         },
         {
           "path": "rtl/uart_master.sv",
-          "sha256": "0e28a40fb4d8bd4fe9c0ea7e9ca1090080a527fb082197cab7daaee019b179d0"
+          "sha256": "949b2c8ef2ad4f03b4fef87808087b957190531a668592ca74b06209e6a24a79"
         },
         {
           "path": "dv/functional/tests",
@@ -3597,45 +3738,58 @@
         },
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "dv/functional/tb/sv/drivers/uart_master_reg_driver.svh",
-          "sha256": "bb50a9e1b64bff11a670d6807b72ac2235551e4d1f115a4128f49acdfe6b201b"
+          "sha256": "da6113386626895a4d01694d6ed254105f5e0a8dbd35694b53e10b6f83cd6309"
         },
         {
           "path": "dv/functional/tb/sv/drivers/uart_master_vec_driver.svh",
-          "sha256": "7de93cbb0faf619502ed00c0b9e840ca24111c196cb5741a10e34b510598e503"
+          "sha256": "d504604b1930fb9a563bdc0dd8e25820c6d19e2afcc21509112ef4bf98a5e23d"
         },
         {
           "path": "dv/functional/tb/sv/drivers/uart_master_vec_monitor.svh",
-          "sha256": "199391dc760e763792850fafcd3649e02523e54d28ee0c9aa0a2ec1b697ec6e4"
+          "sha256": "f73f13f4efa9775c646c33daea82a94bcc4b8a822a6648ce3261d5c8cedd0618"
         },
         {
           "path": "dv/functional/tb/sv/include_uart_master_tb.sv",
-          "sha256": "720d64c08197d1b7310444373d61c321817b80b90caaaf0477cb26b6d83f6275"
-        },
-        {
-          "path": "dv/functional/tb/sv/tlul_if.sv",
-          "sha256": "0de6e8e8e539781364fd37b5fb75e2e579ba751ff4ede99a99fd18fa29514c67"
+          "sha256": "0152cd02b6c7e7f7b1b94b0dc8f8dd574cb2c376cd5985e9839ddaff54f1ec54"
         },
         {
           "path": "dv/functional/tb/sv/uart_master_tb.sv",
-          "sha256": "e06088a70ea3f5f16d3180564d955f202fbecb59ef11efa584c4f815b25c9ca8"
+          "sha256": "b5f1a02aed80ff8d80f3a962e654ba1302d8e695fd3e68f976f72a2b762e0c5f"
         },
         {
           "path": "syn/sky130/uart_master_synth.v",
-          "sha256": "b193c9e951a60b6e83db73f66c2f2015bcf955de72fe8f55227ad0571b7c3989"
+          "sha256": "8bced7e257d110ab3c3f7b97f8cd001533db1c98c4929965430e9f6dd24604e2"
         },
         {
           "path": "signoff/sky130/sdf",
-          "sha256": "2188e3fe808f3b0a897b489f00221fe3fa7bd0c0e5aeea5db3c8dc7d06454b56"
+          "sha256": "cffdf167455642baee80f3863c4a4e3e617f3f931e637394c6f408c0100b4db8"
         }
       ],
+      "outcome": "PASS",
       "parents": {
-        "sdf": "043617c169e03263b5e6a4fd28d8058733c476ad7ac7839fc184680795c999fc",
-        "syn": "b720e7f8afd4f93c96a94d8bd737e084c941250f2839658e862d03c19f5eaaff",
-        "tb.setup": "566ac25223aa97e4357ee8d0f1df55f765c603c65eede47a1a30769c65ff37d9"
+        "sdf": "14c8d84cdaba4518ec467881dde358b669951abecdf6b102c05d156f2a860df5",
+        "syn": "b9848f59d708019bd0ba94aa314f16980cf9cc86b6bd65f02657693de395f9a3",
+        "tb.setup": "9985db2ac3b885d3cfbac43f3d4aff01568ae2679b9aff9774e253533adaf794"
+      },
+      "returncode": 0,
+      "tools": {
+        "IVERILOG": {
+          "archive": "tar.gz",
+          "min_version": "13.0",
+          "sha256": "c897bbfa9848688982c6d5c30529fc29d68df0b9ff22ffa73bad89db73a7ce49",
+          "url": "https://codeload.github.com/steveicarus/iverilog/tar.gz/v13_0",
+          "version": "13.0"
+        },
+        "VERILATOR": {
+          "min_version": "5.050",
+          "ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c",
+          "repo": "https://github.com/verilator/verilator.git",
+          "version": "5.050"
+        }
       }
     },
     "sta": {
@@ -3643,23 +3797,23 @@
         "PDK": "sky130",
         "TOP": "uart_master"
       },
-      "fingerprint": "0079d901d51902ddfce36471534d7005276636d91b0226417260bb8df6afc0ae",
+      "fingerprint": "fb25af635a4fe7af10cc86115b0c545390e2afd618cc3a7c47cc7ef5bb837936",
       "generated": [
         {
-          "effective_sha256": "357f1f082ea249c4da6f10084d8117ceb3490b4a9c9a2f712247e7695c2362aa",
-          "generated_sha256": "357f1f082ea249c4da6f10084d8117ceb3490b4a9c9a2f712247e7695c2362aa",
-          "path": "signoff/sky130/sta/sta.json"
+          "effective_sha256": "b78776a68ad3321df2346017642768108283611d96e869c77f872069200afac6",
+          "generated_sha256": "b78776a68ad3321df2346017642768108283611d96e869c77f872069200afac6",
+          "path": "signoff/sky130/sta/summary.json"
         }
       ],
       "input_paths_match": true,
       "inputs": [
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "syn/sky130/uart_master_synth.v",
-          "sha256": "b193c9e951a60b6e83db73f66c2f2015bcf955de72fe8f55227ad0571b7c3989"
+          "sha256": "8bced7e257d110ab3c3f7b97f8cd001533db1c98c4929965430e9f6dd24604e2"
         },
         {
           "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib",
@@ -3683,48 +3837,69 @@
         },
         {
           "path": "signoff/sky130/sta/sta.tcl",
-          "sha256": "9cb27183d636efe7919bee9ee7dafba4ca98cd5629835904fc52d68b2f53465c"
+          "sha256": "474c49b719a487ff620ed13f653026464a55cba3bbfa64ac81918b699863de1f"
         },
         {
           "path": "signoff/sky130/sdf/write_sdf.tcl",
-          "sha256": "c224a7d89bcc4f41b3d942bb0d2f6570b714a57708dc8f6caa23a91d253900cf"
+          "sha256": "e398cabd47ca4624d75b9e8252f0546b12e49231edb203b166bd1714275ba771"
         },
         {
           "path": "signoff/sky130/power/estimate/power_estimate.tcl",
-          "sha256": "8f18a331c3db355a9bb9ba856adb73ebe18a739a303870383f1f2af96d9c070a"
+          "sha256": "679c072d4e11511200443a7ccf340b645feab8a9b332c7dccb6dc529d6d534c7"
         },
         {
           "path": "signoff/sky130/power/analysis/power_analysis.tcl",
-          "sha256": "3be795999f650ca32eb8ee9a8b37483970e296aedba1d31fc8a7ed43347ef318"
+          "sha256": "1c82fcbf6479b02d3bfd80ba13f1b1d881619f40fc86967c160401eac6626303"
         },
         {
           "path": "signoff/sky130/fusion/fusion_analysis.tcl",
-          "sha256": "85c2b5e478f03c27b4a6075468edcaf3d71acd4477f6c3a199f08ab49cb92c6d"
+          "sha256": "b649cf30ff0b60ca8c0e8e0e43114f59f917a7cc2e4592475db6ac3091bd009e"
         }
       ],
+      "outcome": "PASS",
       "parents": {
-        "signoff.setup": "12c02bc09f0d179874646f0280eee3987942cb198f94f4cd5639ab89aa2a3c3e",
-        "syn": "b720e7f8afd4f93c96a94d8bd737e084c941250f2839658e862d03c19f5eaaff"
+        "signoff.setup": "e5f1d578eaeab88184e57c7b060aba2ba193ffd2a35b24e1f4ea55313654cf1d",
+        "syn": "b9848f59d708019bd0ba94aa314f16980cf9cc86b6bd65f02657693de395f9a3"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
       }
     },
     "syn": {
       "config": {
+        "ORS_TECH": "sky130hd",
         "PDK": "sky130",
         "TARGET_OPT": "delay1",
         "TARGET_SYN": "",
         "TOP": "uart_master"
       },
-      "fingerprint": "b720e7f8afd4f93c96a94d8bd737e084c941250f2839658e862d03c19f5eaaff",
+      "fingerprint": "b9848f59d708019bd0ba94aa314f16980cf9cc86b6bd65f02657693de395f9a3",
       "generated": [
         {
-          "effective_sha256": "b193c9e951a60b6e83db73f66c2f2015bcf955de72fe8f55227ad0571b7c3989",
-          "generated_sha256": "b193c9e951a60b6e83db73f66c2f2015bcf955de72fe8f55227ad0571b7c3989",
+          "effective_sha256": "15c964750f144331a7276b5c3d82c6276f9e20db978426452983a020861a4485",
+          "generated_sha256": "15c964750f144331a7276b5c3d82c6276f9e20db978426452983a020861a4485",
+          "path": "syn/sky130/summary.json"
+        },
+        {
+          "effective_sha256": "8bced7e257d110ab3c3f7b97f8cd001533db1c98c4929965430e9f6dd24604e2",
+          "generated_sha256": "8bced7e257d110ab3c3f7b97f8cd001533db1c98c4929965430e9f6dd24604e2",
           "path": "syn/sky130/uart_master_synth.v"
         },
         {
-          "effective_sha256": "fd831f4056738ed41f78ee533a33c38ccc8917f46346bb26a22840eff5beaa9c",
-          "generated_sha256": "fd831f4056738ed41f78ee533a33c38ccc8917f46346bb26a22840eff5beaa9c",
+          "effective_sha256": "e7f2f9a4cf2d23033b9641c6179d16351585a515bae4789b39164c9953802b93",
+          "generated_sha256": "e7f2f9a4cf2d23033b9641c6179d16351585a515bae4789b39164c9953802b93",
           "path": "syn/sky130/uart_master_synth.json"
+        },
+        {
+          "effective_sha256": "c4f51fa2eceb59ea9ad78ee00919d1ffe92d5721f10d066895764238dc105e34",
+          "generated_sha256": "c4f51fa2eceb59ea9ad78ee00919d1ffe92d5721f10d066895764238dc105e34",
+          "path": "syn/sky130/uart_master_synth_repair.json"
         }
       ],
       "input_paths_match": true,
@@ -3735,7 +3910,7 @@
         },
         {
           "path": "rtl/rtl_ip.f",
-          "sha256": "a237d60f13eec124e6e151c46ab94aff7783f33b500b0a243d85d2d2983e1941"
+          "sha256": "d9682d28751419adb10749cf2c9d303720573c221e6ed507568e9468611246f7"
         },
         {
           "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
@@ -3863,7 +4038,7 @@
         },
         {
           "path": "rtl/uart_master_reg_top.sv",
-          "sha256": "ab66931501ac25af7155dedd7aca2a8c5a648411e19d48d579c1e52f9622e4ac"
+          "sha256": "a7e4723a3e0ecbbe7452a372b86d5be744b0e57e1264f89f95a06fa8796e212f"
         },
         {
           "path": "rtl/uart_tx.sv",
@@ -3887,15 +4062,31 @@
         },
         {
           "path": "rtl/uart_master.sv",
-          "sha256": "0e28a40fb4d8bd4fe9c0ea7e9ca1090080a527fb082197cab7daaee019b179d0"
+          "sha256": "949b2c8ef2ad4f03b4fef87808087b957190531a668592ca74b06209e6a24a79"
         },
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib",
           "sha256": "7c6b9fc62d7e83b8317cdca883d79107d8f2ff1061b04519fda7d3088560015b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib",
+          "sha256": "f4f16d4f7040623afb60d0480a035e4128c5c1212361ae3bd13c3a52d9692a84"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib",
+          "sha256": "425315ca7a49debcb1c715daf6e5e5a27bb78587cac6f3b358b1fe114c787132"
+        },
+        {
+          "path": "/home/eneadim/OpenROAD-flow-scripts/flow/Makefile",
+          "sha256": "7b042cf86806f98894045de44c1216776590dcd05ab90dc6bc0a36fc3021a128"
+        },
+        {
+          "path": "/home/eneadim/OpenROAD-flow-scripts/flow/platforms/sky130hd/config.mk",
+          "sha256": "1a36b8fbd58ee4b6b961bc14f3ca44e7b44a4ea47faf6f116f827eb5177509d5"
         },
         {
           "path": "syn/sky130/delay1.abc",
@@ -3906,16 +4097,54 @@
           "sha256": "80ead4181172049036370036fac6470c79e7152149861bbc2905bb45e5886806"
         },
         {
+          "path": "syn/sky130/synth_pre.ys",
+          "sha256": "4db6428b89161ab1346caf9af699130aa6df03de9b8fa578fd887652863a9b9c"
+        },
+        {
+          "path": "syn/sky130/synth_pre_sv.ys",
+          "sha256": "303914f4267134b0b41143a105020dff343f36596585c66a2186112db8ca2b0b"
+        },
+        {
           "path": "syn/sky130/synth.ys",
-          "sha256": "23730f78c5b30f2b64ba2fdeac1c312b588567b0188c1b423f6733d0ffa6d92d"
+          "sha256": "7316aa27dfc1cbd984865415ce28572f269b422c088e4ba733f1ea1866b5e3c6"
         },
         {
           "path": "syn/sky130/synth_sv.ys",
-          "sha256": "f8f4c0b80231f5c6ae525ba45d93e5123bd630a90f45bd5d3c650acf74c07ff0"
+          "sha256": "6a9e6b66bd72eb02787e28037de0c20fdc8cabb145dbc671b1e50323e4fc3dd2"
+        },
+        {
+          "path": "syn/sky130/repair_config.mk",
+          "sha256": "ddefc1d1d5468d3fe65b2b780c00260312f080fbda4cf252dc22d0c5f450d216"
+        },
+        {
+          "path": "syn/sky130/repair.tcl",
+          "sha256": "b91a3c5480118f0b7a218570203e45b6015ef0bd5bc736a955a55bebd3c88b49"
+        },
+        {
+          "path": "syn/sky130/repair_json.ys",
+          "sha256": "7818941d921b0c3e396a8594ada41054e5a9d1dc0be411118d71702d0b74742d"
         }
       ],
+      "outcome": "PASS",
       "parents": {
-        "syn.setup": "f8e170bc1736774d03fe198892b70744bb21bbc480944c30d570ddb79f64bb2a"
+        "syn.setup": "cbb2002ebf0c5ee6ee075eecb5cf3f8ca4efb9b5301cf36aa564eec6c26c7532"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENROAD": {
+          "install_mode": "source-ubuntu24",
+          "ref_prefix": "f552262465b0bfef8f097e258f94bc501d01e19d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenROAD.git"
+        },
+        "ORFS": {
+          "ref_prefix": "6101364b2d7909dd797e1e3e7f80695401cfa4e4",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts.git"
+        },
+        "YOSYS": {
+          "ref": "2d1509d1bcb8df0723f6790057e3b1d21c876683",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.67"
+        }
       }
     },
     "syn.setup": {
@@ -3923,15 +4152,19 @@
         "CLK_PERIOD": "10",
         "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
         "CLOCK_RELATIONSHIPS": "",
+        "LIBS": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib",
+        "LIB_SYN": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib",
         "MIN_BUF_CELL_AND_PORTS": "sky130_fd_sc_hd__buf_4 A X",
         "N_CLOCKS": "1",
+        "ORS": "/home/eneadim/OpenROAD-flow-scripts/flow",
+        "ORS_TECH": "sky130hd",
         "TARGET_OPT": "delay1",
         "TARGET_SYN": "",
         "TIEHI_CELL_AND_PORT": "sky130_fd_sc_hd__conb_1 HI",
         "TIELO_CELL_AND_PORT": "sky130_fd_sc_hd__conb_1 LO",
         "TOP": "uart_master"
       },
-      "fingerprint": "f8e170bc1736774d03fe198892b70744bb21bbc480944c30d570ddb79f64bb2a",
+      "fingerprint": "cbb2002ebf0c5ee6ee075eecb5cf3f8ca4efb9b5301cf36aa564eec6c26c7532",
       "generated": [
         {
           "effective_sha256": "e56ab2f453f5186ab66e64c182d97722a4900f8fbe6534c28a66562d8d9ac56b",
@@ -3944,14 +4177,39 @@
           "path": "syn/sky130/abc.constr"
         },
         {
-          "effective_sha256": "23730f78c5b30f2b64ba2fdeac1c312b588567b0188c1b423f6733d0ffa6d92d",
-          "generated_sha256": "23730f78c5b30f2b64ba2fdeac1c312b588567b0188c1b423f6733d0ffa6d92d",
+          "effective_sha256": "4db6428b89161ab1346caf9af699130aa6df03de9b8fa578fd887652863a9b9c",
+          "generated_sha256": "4db6428b89161ab1346caf9af699130aa6df03de9b8fa578fd887652863a9b9c",
+          "path": "syn/sky130/synth_pre.ys"
+        },
+        {
+          "effective_sha256": "303914f4267134b0b41143a105020dff343f36596585c66a2186112db8ca2b0b",
+          "generated_sha256": "303914f4267134b0b41143a105020dff343f36596585c66a2186112db8ca2b0b",
+          "path": "syn/sky130/synth_pre_sv.ys"
+        },
+        {
+          "effective_sha256": "7316aa27dfc1cbd984865415ce28572f269b422c088e4ba733f1ea1866b5e3c6",
+          "generated_sha256": "7316aa27dfc1cbd984865415ce28572f269b422c088e4ba733f1ea1866b5e3c6",
           "path": "syn/sky130/synth.ys"
         },
         {
-          "effective_sha256": "f8f4c0b80231f5c6ae525ba45d93e5123bd630a90f45bd5d3c650acf74c07ff0",
-          "generated_sha256": "f8f4c0b80231f5c6ae525ba45d93e5123bd630a90f45bd5d3c650acf74c07ff0",
+          "effective_sha256": "6a9e6b66bd72eb02787e28037de0c20fdc8cabb145dbc671b1e50323e4fc3dd2",
+          "generated_sha256": "6a9e6b66bd72eb02787e28037de0c20fdc8cabb145dbc671b1e50323e4fc3dd2",
           "path": "syn/sky130/synth_sv.ys"
+        },
+        {
+          "effective_sha256": "ddefc1d1d5468d3fe65b2b780c00260312f080fbda4cf252dc22d0c5f450d216",
+          "generated_sha256": "ddefc1d1d5468d3fe65b2b780c00260312f080fbda4cf252dc22d0c5f450d216",
+          "path": "syn/sky130/repair_config.mk"
+        },
+        {
+          "effective_sha256": "b91a3c5480118f0b7a218570203e45b6015ef0bd5bc736a955a55bebd3c88b49",
+          "generated_sha256": "b91a3c5480118f0b7a218570203e45b6015ef0bd5bc736a955a55bebd3c88b49",
+          "path": "syn/sky130/repair.tcl"
+        },
+        {
+          "effective_sha256": "7818941d921b0c3e396a8594ada41054e5a9d1dc0be411118d71702d0b74742d",
+          "generated_sha256": "7818941d921b0c3e396a8594ada41054e5a9d1dc0be411118d71702d0b74742d",
+          "path": "syn/sky130/repair_json.ys"
         }
       ],
       "input_paths_match": true,
@@ -3962,7 +4220,7 @@
         },
         {
           "path": "rtl/rtl_ip.f",
-          "sha256": "a237d60f13eec124e6e151c46ab94aff7783f33b500b0a243d85d2d2983e1941"
+          "sha256": "d9682d28751419adb10749cf2c9d303720573c221e6ed507568e9468611246f7"
         },
         {
           "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
@@ -4090,7 +4348,7 @@
         },
         {
           "path": "rtl/uart_master_reg_top.sv",
-          "sha256": "ab66931501ac25af7155dedd7aca2a8c5a648411e19d48d579c1e52f9622e4ac"
+          "sha256": "a7e4723a3e0ecbbe7452a372b86d5be744b0e57e1264f89f95a06fa8796e212f"
         },
         {
           "path": "rtl/uart_tx.sv",
@@ -4114,18 +4372,35 @@
         },
         {
           "path": "rtl/uart_master.sv",
-          "sha256": "0e28a40fb4d8bd4fe9c0ea7e9ca1090080a527fb082197cab7daaee019b179d0"
+          "sha256": "949b2c8ef2ad4f03b4fef87808087b957190531a668592ca74b06209e6a24a79"
         },
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib",
           "sha256": "7c6b9fc62d7e83b8317cdca883d79107d8f2ff1061b04519fda7d3088560015b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib",
+          "sha256": "f4f16d4f7040623afb60d0480a035e4128c5c1212361ae3bd13c3a52d9692a84"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib",
+          "sha256": "425315ca7a49debcb1c715daf6e5e5a27bb78587cac6f3b358b1fe114c787132"
+        },
+        {
+          "path": "/home/eneadim/OpenROAD-flow-scripts/flow/Makefile",
+          "sha256": "7b042cf86806f98894045de44c1216776590dcd05ab90dc6bc0a36fc3021a128"
+        },
+        {
+          "path": "/home/eneadim/OpenROAD-flow-scripts/flow/platforms/sky130hd/config.mk",
+          "sha256": "1a36b8fbd58ee4b6b961bc14f3ca44e7b44a4ea47faf6f116f827eb5177509d5"
         }
       ],
-      "parents": {}
+      "parents": {},
+      "tools": {}
     },
     "tb.setup": {
       "config": {

@@ -21,7 +21,7 @@ from .target import BACKEND_TARGETS, Target as BackendTarget
 DEFAULT_SETTINGS = {
     "TOP": "test", "HOST": "uart", "FORCE": "0", "RUN_ID": "default",
     "N_CLOCKS": "1", "PDK": "sky130", "TARGET_OPT": "delay1",
-    "PNR_HOLD_SLACK_MARGIN": "0.20", "PNR_SLEW_MARGIN": "30", "PNR_CAP_MARGIN": "30",
+    "PNR_HOLD_SLACK_MARGIN": "0.05", "PNR_SLEW_MARGIN": "30", "PNR_CAP_MARGIN": "30",
     "WAVE_FORMAT": "fst",
     "GLS_SIMULATOR": "iverilog", "GLS_BACKEND": "sv", "TIMING_MODE": "zero",
     "GLS_UNIT_DELAY": "1ps", "SDF_STRICT": "1", "FST2VCD": "fst2vcd",

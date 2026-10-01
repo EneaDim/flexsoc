@@ -104,9 +104,14 @@ class PackageFlow:
                 f"maximum is L{qualification.get('maximum_level', 0)}"
             )
 
+        package_level = requested if requested is not None else int(
+            qualification.get("maximum_level", 0)
+        )
         implementation = Reporting.collect_implementation(paths.top, paths.run, paths.pdk)
         impl_available = (
-            isinstance(implementation, dict) and implementation.get("status") == "pass"
+            package_level >= 5
+            and isinstance(implementation, dict)
+            and implementation.get("status") == "pass"
         )
         eqy = context.layout.equivalence_dir
         return self.save(

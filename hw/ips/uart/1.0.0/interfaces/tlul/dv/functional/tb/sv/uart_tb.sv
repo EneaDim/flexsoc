@@ -1,41 +1,100 @@
-// Timescale
 `timescale 1ns/1ps
-// Includes
 `include "include_uart_tb.sv"
+`ifdef SYN
+  `include "uart_synth.v"
+`endif
 
 module uart_tb;
-  // Parameters
-  parameter real CLK_PERIOD = 10; // ns
-  parameter int INITIAL_RESET_CYCLES = 5;
-
-  // Inputs
   logic clk_i;
   logic rst_ni;
-  logic rx_i;
   logic [108:0] tl_i;
+  logic [65:0]  tl_o;
 
-  // Outputs
+
+
+  logic rx_i;
   logic tx_o;
-  logic [65:0] tl_o;
 
-  integer error_count;
-  logic [31:0] rdata;
-  tlul_if tl_if(.clk_i(clk_i), .rst_ni(rst_ni));
+  string cfg_path;
+  string data_in_path;
+  string data_out_path;
+  string wave_path;
+  string sdf_path;
+  integer errors;
+  localparam integer INITIAL_RESET_CYCLES = 5;
+  localparam logic [2:0] FLEXSOC_TL_PUT_FULL    = 3'h0;
+  localparam logic [2:0] FLEXSOC_TL_PUT_PARTIAL = 3'h1;
+  localparam logic [2:0] FLEXSOC_TL_GET         = 3'h4;
 
-  // Verification helpers
-  `include "drivers/uart_reg_driver.svh"
-  `include "drivers/uart_vec_monitor.svh"
-  `include "drivers/uart_vec_driver.svh"
+  function automatic logic [6:0] flexsoc_tlul_data_intg(input logic [31:0] data_i);
+    logic [38:0] data_o;
+    begin
+      data_o = {7'b0, data_i};
+      data_o[32] = ^(data_o & 39'h002606BD25);
+      data_o[33] = ^(data_o & 39'h00DEBA8050);
+      data_o[34] = ^(data_o & 39'h00413D89AA);
+      data_o[35] = ^(data_o & 39'h0031234ED1);
+      data_o[36] = ^(data_o & 39'h00C2C1323B);
+      data_o[37] = ^(data_o & 39'h002DCC624C);
+      data_o[38] = ^(data_o & 39'h0098505586);
+      data_o = data_o ^ 39'h2A00000000;
+      flexsoc_tlul_data_intg = data_o[38:32];
+    end
+  endfunction
 
-  // DUT
-  uart u_uart (
-    .clk_i(clk_i),
-    .rst_ni(rst_ni),
-    .rx_i(rx_i),
-    .tl_i(tl_if.h2d),
-    .tx_o(tx_o),
-    .tl_o(tl_if.d2h)
+  function automatic logic [6:0] flexsoc_tlul_cmd_intg(
+    input logic [2:0] opcode,
+    input logic [31:0] address,
+    input logic [3:0] mask
   );
+    logic [56:0] payload;
+    logic [63:0] data_o;
+    begin
+      payload = {14'b0, 4'h9, address, opcode, mask};
+      data_o = {7'b0, payload};
+      data_o[57] = ^(data_o & 64'h0103FFF800007FFF);
+      data_o[58] = ^(data_o & 64'h017C1FF801FF801F);
+      data_o[59] = ^(data_o & 64'h01BDE1F87E0781E1);
+      data_o[60] = ^(data_o & 64'h01DEEE3B8E388E22);
+      data_o[61] = ^(data_o & 64'h01EF76CDB2C93244);
+      data_o[62] = ^(data_o & 64'h01F7BB56D5525488);
+      data_o[63] = ^(data_o & 64'h01FBDDA769A46910);
+      data_o = data_o ^ 64'h5400000000000000;
+      flexsoc_tlul_cmd_intg = data_o[63:57];
+    end
+  endfunction
+
+  function automatic logic [108:0] flexsoc_tlul_h2d(
+    input logic valid,
+    input logic [2:0] opcode,
+    input logic [2:0] param,
+    input logic [1:0] size,
+    input logic [7:0] source,
+    input logic [31:0] address,
+    input logic [3:0] mask,
+    input logic [31:0] data,
+    input logic ready
+  );
+    logic [108:0] value;
+    begin
+      value = '0;
+      value[108]     = valid;
+      value[107:105] = opcode;
+      value[104:102] = param;
+      value[101:100] = size;
+      value[99:92]   = source;
+      value[91:60]   = address;
+      value[59:56]   = mask;
+      value[55:24]   = data;
+      value[23:19]   = 5'b0;
+      value[18:15]   = 4'h9;
+      value[14:8]    = flexsoc_tlul_cmd_intg(opcode, address, mask);
+      value[7:1]     = flexsoc_tlul_data_intg(data);
+      value[0]       = ready;
+      flexsoc_tlul_h2d = value;
+    end
+  endfunction
+
 
   initial begin
     integer flexsoc_seed;
@@ -65,8 +124,29 @@ module uart_tb;
     end
   end
 
-  string wave_path;
+  uart u_dut (
+    .clk_i                    (clk_i),
+    .rst_ni                   (rst_ni),
+    .rx_i                     (rx_i),
+    .tl_i                     (tl_i),
+    .tx_o                     (tx_o),
+    .tl_o                     (tl_o)
+  );
+
+  // Verification helpers share one structure for all clock topologies.
+  `include "drivers/uart_reg_driver.svh"
+  `include "drivers/uart_vec_monitor.svh"
+  `include "drivers/uart_vec_driver.svh"
+
   initial begin
+    errors = 0;
+    clk_i = 1'b0;
+    rst_ni = 1'b1;
+    apply_defaults();
+
+    if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "dv/functional/tests/smoke/config.regs";
+    if (!$value$plusargs("DATA_IN=%s", data_in_path)) data_in_path = "dv/functional/tests/smoke/data_in.vec";
+    if (!$value$plusargs("DATA_OUT=%s", data_out_path)) data_out_path = "dv/functional/tests/smoke/data_out.vec";
     if (!$value$plusargs("WAVE=%s", wave_path)) begin
       if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
     end
@@ -75,68 +155,23 @@ module uart_tb;
       $dumpfile(wave_path);
       $dumpvars(0, uart_tb);
     end
-  end
 
-  // SDF backannotation
-  `ifdef FLEXSOC_ENABLE_SDF
-    string sdf_path;
-    initial begin
+    `ifdef FLEXSOC_ENABLE_SDF
       if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
       if (sdf_path != "") begin
         `ifdef FLEXSOC_SDF_MIN
           $display("[TB] sdf = %s (MINIMUM)", sdf_path);
-          $sdf_annotate(sdf_path, uart_tb.u_uart);
+          $sdf_annotate(sdf_path, u_dut);
         `elsif FLEXSOC_SDF_TYP
           $display("[TB] sdf = %s (TYPICAL)", sdf_path);
-          $sdf_annotate(sdf_path, uart_tb.u_uart);
+          $sdf_annotate(sdf_path, u_dut);
         `else
           $display("[TB] sdf = %s (MAXIMUM)", sdf_path);
-          $sdf_annotate(sdf_path, uart_tb.u_uart);
+          $sdf_annotate(sdf_path, u_dut);
         `endif
       end
-    end
-  `endif
+    `endif
 
-  string cfg_path;
-  string data_in_path;
-  string data_out_path;
-
-  // Test selection
-  // Use +TEST_NAME=<name> or explicit CFG/DATA_IN/DATA_OUT file paths.
-  // Use +TEST_ROOT=<dir> to relocate generated tests.
-  // Available generated tests from the default model: smoke, corners, random
-  task automatic tb_select_test(output string cfg_path, output string data_in_path, output string data_out_path);
-    string test_name;
-    string test_root;
-
-    test_name = "smoke";
-    test_root = "tests";
-    void'($value$plusargs("TEST_ROOT=%s", test_root));
-    void'($value$plusargs("TEST_NAME=%s", test_name));
-
-    cfg_path      = {test_root, "/", test_name, "/config.regs"};
-    data_in_path  = {test_root, "/", test_name, "/data_in.vec"};
-    data_out_path = {test_root, "/", test_name, "/data_out.vec"};
-
-    void'($value$plusargs("CFG=%s", cfg_path));
-    void'($value$plusargs("DATA_IN=%s", data_in_path));
-    void'($value$plusargs("DATA_OUT=%s", data_out_path));
-
-    $display("[TB] test=%s", test_name);
-    $display("[TB] test_root=%s", test_root);
-    $display("[TB] cfg=%s", cfg_path);
-    $display("[TB] data_in=%s", data_in_path);
-    $display("[TB] data_out=%s", data_out_path);
-  endtask
-
-  initial begin
-    error_count = 0;
-    tb_select_test(cfg_path, data_in_path, data_out_path);
-    rst_ni = '0;
-    rx_i = '1;
-    tl_i = '0;
-    tl_if.init();
-    rst_ni = 1'b1;
     repeat (2) @(posedge clk_i);
     @(negedge clk_i); #1;
     rst_ni = 1'b0;
@@ -144,16 +179,18 @@ module uart_tb;
     repeat (INITIAL_RESET_CYCLES) @(posedge clk_i);
     @(negedge clk_i); #1;
     rst_ni = 1'b1;
-    repeat (2) @(posedge clk_i);
-    $display("\nRunning...\n");
-    #(CLK_PERIOD*10);
-    run_reg_config(cfg_path);
+    repeat (8) @(posedge clk_i);
+
+    load_config(cfg_path);
     run_vectors(data_in_path, data_out_path);
-    #(CLK_PERIOD*10);
-    // INSERT ADDITIONAL TEST-SPECIFIC STIMULUS HERE
-    if (error_count == 0) $display("Coverage: 100%%");
-    $display("\nEnd.\n");
-    if (error_count != 0) $fatal(1, "[TB] %0d vector check(s) failed", error_count);
-    $finish;
+    repeat (10) core_sample_cycle();
+    if (errors == 0) begin
+      $display("[TB] PASS");
+      $finish;
+    end else begin
+      $display("[TB] FAIL errors=%0d", errors);
+      $fatal(1);
+    end
   end
+
 endmodule

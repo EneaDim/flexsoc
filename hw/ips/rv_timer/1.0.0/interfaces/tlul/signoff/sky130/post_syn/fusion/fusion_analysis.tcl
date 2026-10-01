@@ -3,7 +3,7 @@
 #
 # Analysis : fusion_analysis
 # Design   : rv_timer
-# Variant  : dev
+# Variant  : release
 # PDK      : sky130
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/syn/sky130/rv_timer_synth.v
-#   SDC           : /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/constraints/rv_timer.sdc
+#   Netlist       : /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/syn/sky130/rv_timer_synth.v
+#   SDC           : /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/constraints/rv_timer.sdc
 #   SPEF          : not used
-#   VCD or SAIF   : /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd
+#   VCD or SAIF   : /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd
 #   Activity scope: DUT_SCOPE_REQUIRED
-#   GLS report    : /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json
-#   Report dir    : /tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/signoff/sky130/fusion/template_reports
+#   GLS report    : /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json
+#   Report dir    : /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/signoff/sky130/fusion/template_reports
 #
 # Limitations:
 #   - Timing and average power use the same netlist, corner, mode and activity trace.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/signoff/sky130/fusion/template_reports}
+set report_dir {/tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/signoff/sky130/fusion/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/syn/sky130/rv_timer_synth.v}
-set sdc {/tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/constraints/rv_timer.sdc}
+set netlist {/tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/syn/sky130/rv_timer_synth.v}
+set sdc {/tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/constraints/rv_timer.sdc}
 set spef {}
 set top {rv_timer}
 set stage {post_syn}
@@ -92,7 +92,7 @@ if {$spef ne ""} {
 } else {
   puts "spef=not_used"
 }
-if {$stage eq "post_route"} {
+if {$stage eq "post_impl"} {
   # Collect all SDC clocks before switching post-route analysis to propagated clock latency.
   set clocks [get_clocks *]
   if {[llength $clocks] > 0} {
@@ -185,6 +185,8 @@ proc flexsoc_append_activity_coverage {path} {
     }
     if {$in_unannotated && [string trim $line] ne ""} {lappend unannotated_pins [string trim $line]}
   }
+  # Some OpenSTA versions omit zero-count origin rows and report only unannotated N.
+  if {!$have_annotated && $have_unannotated} {set annotated 0; set have_annotated 1}
   if {!$have_annotated || !$have_unannotated} {error {could not parse OpenSTA activity annotation summary}}
   set total [expr {$annotated + $unannotated}]
   set percent [expr {$total > 0 ? 100.0 * $annotated / $total : 0.0}]
@@ -200,7 +202,7 @@ proc flexsoc_append_activity_coverage {path} {
 }
 
 puts "=== Step 7/7: Read activity ==="
-set activity_file {/tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd}
+set activity_file {/tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd}
 set activity_scope {DUT_SCOPE_REQUIRED}
 flexsoc_require_readable "activity VCD/SAIF" $activity_file
 puts "activity_file=$activity_file"
@@ -227,7 +229,7 @@ puts $fp "analysis=fusion_analysis corner=tt mode=setup stage=post_syn"
 puts $fp "workload=GLS_WORKLOAD_REQUIRED"
 puts $fp "methodology=staged_public_opensta"
 puts $fp "path_power_semantics=average_instance_power_in_same_analysis_context"
-puts $fp "activity_file=/tmp/flexsoc-repack/rv_timer/runs/rv_timer/dev/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd"
+puts $fp "activity_file=/tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd"
 puts $fp "activity_scope=DUT_SCOPE_REQUIRED"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"
@@ -246,6 +248,9 @@ flexsoc_section $report {Timing summary}
 flexsoc_append_opensta $report report_wns -$delay_type
 # Record total negative slack for the same mode and corner.
 flexsoc_append_opensta $report report_tns -$delay_type
+flexsoc_section $report {Activity annotation}
+# Fusion is valid only when the aligned GLS activity is actually annotated.
+flexsoc_append_activity_coverage $report
 flexsoc_section $report {Power summary}
 # Report design-average power using the already annotated GLS activity trace.
 flexsoc_append_opensta $report report_power

@@ -1,0 +1,19 @@
+# pre-synthesis structural snapshot; no optimization
+read_liberty -overwrite -setattr liberty_cell -lib /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
+read_slang -I /home/eneadim/github/flexsoc/hw/ips/pkgs \
+           -I /home/eneadim/github/flexsoc/hw/ips/prim \
+           -I /home/eneadim/github/flexsoc/hw/ips/prim_opentitan \
+           -D SYNTHESIS \
+           --ignore-assertions \
+           -f /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/rtl/rtl_common.f \
+           -f /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/rtl/rtl_ip.f \
+           --top rv_timer
+
+hierarchy -check -top rv_timer
+proc
+select -module rv_timer
+# flatten only the structural analysis view so hierarchical reset FFs are visible
+flatten
+check -assert
+write_json -selected /tmp/flexsoc-ip-release/rv_timer-tlul/runs/rv_timer/release/syn/ihp-sg13g2/rv_timer_pre.json
+select -clear

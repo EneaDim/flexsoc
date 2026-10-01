@@ -308,28 +308,68 @@
         "syn.setup": "ff12f3f3d32cee454b4cf711d7acb1ce69b6d66054527a30a429fcbbd4213ad1"
       }
     },
-    "power_estimate": {
+    "fusion_analysis_all": {
       "config": {
         "PDK": "ihp-sg13g2",
+        "POWER_GLS_BACKENDS": "sv",
+        "POWER_TEST_NAMES": "smoke,host_read,host_write",
+        "POWER_TIMING_MODES": "min,typ,max",
         "TOP": "uart_master"
       },
-      "fingerprint": "ea9d36907ba8b7a96f31828dafff06ff310c812642a4c3a3e4f7ed5d16b11a48",
+      "fingerprint": "3001a79eaac247c6428851be6226060bf7021d9617a8d9e337290c8182f81bf0",
       "generated": [
         {
-          "effective_sha256": "70b5200234dfd0cee1a5e40d368470cdf6ddb178857fc66ac4ea4a9e45bdc6f0",
-          "generated_sha256": "70b5200234dfd0cee1a5e40d368470cdf6ddb178857fc66ac4ea4a9e45bdc6f0",
-          "path": "signoff/ihp-sg13g2/power/estimate"
+          "effective_sha256": "3ac30a8c7d577c6d3b0b930ba01782e65da08fa06f77c54ba06f919ea520c488",
+          "generated_sha256": "3ac30a8c7d577c6d3b0b930ba01782e65da08fa06f77c54ba06f919ea520c488",
+          "path": "signoff/ihp-sg13g2/fusion/summary.json"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "signoff/ihp-sg13g2/power/analysis",
+          "sha256": "17bec69195b097a73dafd956b70bbcb17d5b4f9e705fb00a7d510871337aa484"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "power_analysis_all": "28e0a5b0cfa35588305afb57b7216b2063670eae87a6e55b0c5b64c24011e257"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
+      }
+    },
+    "power_analysis_all": {
+      "config": {
+        "PDK": "ihp-sg13g2",
+        "POWER_GLS_BACKENDS": "sv",
+        "POWER_TEST_NAMES": "smoke,host_read,host_write",
+        "POWER_TIMING_MODES": "min,typ,max",
+        "TOP": "uart_master"
+      },
+      "fingerprint": "28e0a5b0cfa35588305afb57b7216b2063670eae87a6e55b0c5b64c24011e257",
+      "generated": [
+        {
+          "effective_sha256": "b084dae44b45bda08db02c508c448aa9421b9ff0af966374bd2271f026071d52",
+          "generated_sha256": "b084dae44b45bda08db02c508c448aa9421b9ff0af966374bd2271f026071d52",
+          "path": "signoff/ihp-sg13g2/power/analysis/summary.json"
         }
       ],
       "input_paths_match": true,
       "inputs": [
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "syn/ihp-sg13g2/uart_master_synth.v",
-          "sha256": "20066840634c01d85079e12fea4a17b63dafd56fb15c8ec22fdbe90d7477d3e4"
+          "sha256": "d5f6081732ee05127e6c79505e28fc0cd464ab184fd807091254ec59ea2af807"
         },
         {
           "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
@@ -353,28 +393,121 @@
         },
         {
           "path": "signoff/ihp-sg13g2/sta/sta.tcl",
-          "sha256": "9a96789ceaa775f4a4a032d42b7a2bdcb9bd3e48b12e27a58b03505877268efc"
+          "sha256": "245c6ee1f7a249ce130c94bce40bcfb7ea0dc031d8b7395b47da8df675e3c505"
         },
         {
           "path": "signoff/ihp-sg13g2/sdf/write_sdf.tcl",
-          "sha256": "04afaf1edc349d440966687b932ca09029c5cceceeab4363bd7c16cefc37c322"
+          "sha256": "f97711c54af2e761ea2e1e0f480d1efab6e4b27a9039f4fb1cbe950344653eb9"
         },
         {
           "path": "signoff/ihp-sg13g2/power/estimate/power_estimate.tcl",
-          "sha256": "4809794dc51042523527ae839c2b3659ce7b7965a1986de3b6cfe3e53dbcf876"
+          "sha256": "b302bbac1cc895ffe9a48d8f421a0774928be6ca98f1373c7577005dbe62d6f5"
         },
         {
           "path": "signoff/ihp-sg13g2/power/analysis/power_analysis.tcl",
-          "sha256": "8e2e494a9209cf123cc6af0ba7c4e29f64ceca5743b5217343af851a5a4be879"
+          "sha256": "cc58fd4e722a46fca8b6c7389b2bd186e5fa0980dcb6e0ce0b9f784c463abc02"
         },
         {
           "path": "signoff/ihp-sg13g2/fusion/fusion_analysis.tcl",
-          "sha256": "044f81e4b3183806a0cd59e0d3e13f5c8aad4a30a3f160be5b6671084fad43c0"
+          "sha256": "3489318b1d2b7352eb39eef13407270045b73358604378a955369a921bd5e6c1"
+        },
+        {
+          "path": "dv/functional/sim/post_syn/ihp-sg13g2",
+          "sha256": "f26e4030bdb9ac27f0ab9eedf67ba7f92015befef25240ae08f646d54526ee2e"
         }
       ],
+      "outcome": "PASS",
       "parents": {
-        "signoff.setup": "b6fff5d2ca107dec11ca71f2acb5236168d9bfad433da49617f6e11013ce58e6",
-        "syn": "4798991a224a068fb656f0dc99e742c8b20c959d7c8eb3d1f881691ef3d66fde"
+        "signoff.setup": "eb8d2861bae9830a5fa0724cb9521017ab1e4faa08701258f83b9998f1ad69d2",
+        "sim_post_syn_all": "a7d3f3b8973cf637412a9981cb5be3e41d597dd99f1a116a1683470a688a76be"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
+      }
+    },
+    "power_estimate": {
+      "config": {
+        "PDK": "ihp-sg13g2",
+        "TOP": "uart_master"
+      },
+      "fingerprint": "ca193ee8391ee49fcb99c8dca566d61c7c0ac94a7b41df47a4e83e219fb94b2f",
+      "generated": [
+        {
+          "effective_sha256": "172612e2ef44609b86a74df798e90f4e3a7963bef5fca485866ddf7dfcb65cfe",
+          "generated_sha256": "172612e2ef44609b86a74df798e90f4e3a7963bef5fca485866ddf7dfcb65cfe",
+          "path": "signoff/ihp-sg13g2/power/estimate/summary.json"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "constraints/uart_master.sdc",
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
+        },
+        {
+          "path": "syn/ihp-sg13g2/uart_master_synth.v",
+          "sha256": "d5f6081732ee05127e6c79505e28fc0cd464ab184fd807091254ec59ea2af807"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
+          "sha256": "e2fe78316f0045003b41b739cf3d7b183b03c97703332b1c046de0e33ea909af"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib",
+          "sha256": "093a80e3677c428c92c9c56d41b61e72ce168164cae73196cc7030c96f2382b5"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib",
+          "sha256": "9baf754c5008eb80fdc6f52b6c414f487831291dbe0166a6771a5f2de675359f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_udp.v",
+          "sha256": "5491a3edf7468792b5222e7abe057e0583a407c01b2086d4fd44a55b6cf88055"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/verilog/sg13g2_stdcell.v",
+          "sha256": "9c91c5311e0b10525b2e02bfd30910927d821c0928aff45cb7f34f3a6a3280f8"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/sta/sta.tcl",
+          "sha256": "245c6ee1f7a249ce130c94bce40bcfb7ea0dc031d8b7395b47da8df675e3c505"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/sdf/write_sdf.tcl",
+          "sha256": "f97711c54af2e761ea2e1e0f480d1efab6e4b27a9039f4fb1cbe950344653eb9"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/power/estimate/power_estimate.tcl",
+          "sha256": "b302bbac1cc895ffe9a48d8f421a0774928be6ca98f1373c7577005dbe62d6f5"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/power/analysis/power_analysis.tcl",
+          "sha256": "cc58fd4e722a46fca8b6c7389b2bd186e5fa0980dcb6e0ce0b9f784c463abc02"
+        },
+        {
+          "path": "signoff/ihp-sg13g2/fusion/fusion_analysis.tcl",
+          "sha256": "3489318b1d2b7352eb39eef13407270045b73358604378a955369a921bd5e6c1"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "signoff.setup": "eb8d2861bae9830a5fa0724cb9521017ab1e4faa08701258f83b9998f1ad69d2",
+        "syn": "03df628b9012aa58c41bc2ce130d99af0d25962269ba3355f225ba4f63f7f8d1"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
       }
     },
     "sdf": {
@@ -382,11 +515,11 @@
         "PDK": "ihp-sg13g2",
         "TOP": "uart_master"
       },
-      "fingerprint": "b0a82b7c0c95068fc06e1d08ca51e25653dc294f047506c053ff36d96ef0a719",
+      "fingerprint": "b9d3cbfc98749db5030da16b4af729a8cfaf3e2e82a76b3e32b0595b06ac01c9",
       "generated": [
         {
-          "effective_sha256": "20dd4ee8acf936cd474114a6f261ce8329c8083e5c56c0e1ad2a0bcfee3b22d7",
-          "generated_sha256": "20dd4ee8acf936cd474114a6f261ce8329c8083e5c56c0e1ad2a0bcfee3b22d7",
+          "effective_sha256": "8000c52b14634732de8554327f5505eeec942ba108775122ad5ab6c723a05fb4",
+          "generated_sha256": "8000c52b14634732de8554327f5505eeec942ba108775122ad5ab6c723a05fb4",
           "path": "signoff/ihp-sg13g2/sdf"
         }
       ],
@@ -394,11 +527,11 @@
       "inputs": [
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "syn/ihp-sg13g2/uart_master_synth.v",
-          "sha256": "20066840634c01d85079e12fea4a17b63dafd56fb15c8ec22fdbe90d7477d3e4"
+          "sha256": "d5f6081732ee05127e6c79505e28fc0cd464ab184fd807091254ec59ea2af807"
         },
         {
           "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
@@ -422,28 +555,38 @@
         },
         {
           "path": "signoff/ihp-sg13g2/sta/sta.tcl",
-          "sha256": "9a96789ceaa775f4a4a032d42b7a2bdcb9bd3e48b12e27a58b03505877268efc"
+          "sha256": "245c6ee1f7a249ce130c94bce40bcfb7ea0dc031d8b7395b47da8df675e3c505"
         },
         {
           "path": "signoff/ihp-sg13g2/sdf/write_sdf.tcl",
-          "sha256": "04afaf1edc349d440966687b932ca09029c5cceceeab4363bd7c16cefc37c322"
+          "sha256": "f97711c54af2e761ea2e1e0f480d1efab6e4b27a9039f4fb1cbe950344653eb9"
         },
         {
           "path": "signoff/ihp-sg13g2/power/estimate/power_estimate.tcl",
-          "sha256": "4809794dc51042523527ae839c2b3659ce7b7965a1986de3b6cfe3e53dbcf876"
+          "sha256": "b302bbac1cc895ffe9a48d8f421a0774928be6ca98f1373c7577005dbe62d6f5"
         },
         {
           "path": "signoff/ihp-sg13g2/power/analysis/power_analysis.tcl",
-          "sha256": "8e2e494a9209cf123cc6af0ba7c4e29f64ceca5743b5217343af851a5a4be879"
+          "sha256": "cc58fd4e722a46fca8b6c7389b2bd186e5fa0980dcb6e0ce0b9f784c463abc02"
         },
         {
           "path": "signoff/ihp-sg13g2/fusion/fusion_analysis.tcl",
-          "sha256": "044f81e4b3183806a0cd59e0d3e13f5c8aad4a30a3f160be5b6671084fad43c0"
+          "sha256": "3489318b1d2b7352eb39eef13407270045b73358604378a955369a921bd5e6c1"
         }
       ],
+      "outcome": "PASS",
       "parents": {
-        "signoff.setup": "b6fff5d2ca107dec11ca71f2acb5236168d9bfad433da49617f6e11013ce58e6",
-        "syn": "4798991a224a068fb656f0dc99e742c8b20c959d7c8eb3d1f881691ef3d66fde"
+        "signoff.setup": "eb8d2861bae9830a5fa0724cb9521017ab1e4faa08701258f83b9998f1ad69d2",
+        "syn": "03df628b9012aa58c41bc2ce130d99af0d25962269ba3355f225ba4f63f7f8d1"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
       }
     },
     "signoff.setup": {
@@ -453,36 +596,33 @@
         "CLOCK_RELATIONSHIPS": "",
         "N_CLOCKS": "1",
         "PDK": "ihp-sg13g2",
-        "REG_ITF": "tlul",
-        "SDC_CLOCK_PERIOD_NS": "",
-        "SDC_IO_DELAY_PCT": "",
         "TOP": "uart_master"
       },
-      "fingerprint": "b6fff5d2ca107dec11ca71f2acb5236168d9bfad433da49617f6e11013ce58e6",
+      "fingerprint": "eb8d2861bae9830a5fa0724cb9521017ab1e4faa08701258f83b9998f1ad69d2",
       "generated": [
         {
-          "effective_sha256": "9a96789ceaa775f4a4a032d42b7a2bdcb9bd3e48b12e27a58b03505877268efc",
-          "generated_sha256": "9a96789ceaa775f4a4a032d42b7a2bdcb9bd3e48b12e27a58b03505877268efc",
+          "effective_sha256": "245c6ee1f7a249ce130c94bce40bcfb7ea0dc031d8b7395b47da8df675e3c505",
+          "generated_sha256": "245c6ee1f7a249ce130c94bce40bcfb7ea0dc031d8b7395b47da8df675e3c505",
           "path": "signoff/ihp-sg13g2/sta/sta.tcl"
         },
         {
-          "effective_sha256": "04afaf1edc349d440966687b932ca09029c5cceceeab4363bd7c16cefc37c322",
-          "generated_sha256": "04afaf1edc349d440966687b932ca09029c5cceceeab4363bd7c16cefc37c322",
+          "effective_sha256": "f97711c54af2e761ea2e1e0f480d1efab6e4b27a9039f4fb1cbe950344653eb9",
+          "generated_sha256": "f97711c54af2e761ea2e1e0f480d1efab6e4b27a9039f4fb1cbe950344653eb9",
           "path": "signoff/ihp-sg13g2/sdf/write_sdf.tcl"
         },
         {
-          "effective_sha256": "4809794dc51042523527ae839c2b3659ce7b7965a1986de3b6cfe3e53dbcf876",
-          "generated_sha256": "4809794dc51042523527ae839c2b3659ce7b7965a1986de3b6cfe3e53dbcf876",
+          "effective_sha256": "b302bbac1cc895ffe9a48d8f421a0774928be6ca98f1373c7577005dbe62d6f5",
+          "generated_sha256": "b302bbac1cc895ffe9a48d8f421a0774928be6ca98f1373c7577005dbe62d6f5",
           "path": "signoff/ihp-sg13g2/power/estimate/power_estimate.tcl"
         },
         {
-          "effective_sha256": "8e2e494a9209cf123cc6af0ba7c4e29f64ceca5743b5217343af851a5a4be879",
-          "generated_sha256": "8e2e494a9209cf123cc6af0ba7c4e29f64ceca5743b5217343af851a5a4be879",
+          "effective_sha256": "cc58fd4e722a46fca8b6c7389b2bd186e5fa0980dcb6e0ce0b9f784c463abc02",
+          "generated_sha256": "cc58fd4e722a46fca8b6c7389b2bd186e5fa0980dcb6e0ce0b9f784c463abc02",
           "path": "signoff/ihp-sg13g2/power/analysis/power_analysis.tcl"
         },
         {
-          "effective_sha256": "044f81e4b3183806a0cd59e0d3e13f5c8aad4a30a3f160be5b6671084fad43c0",
-          "generated_sha256": "044f81e4b3183806a0cd59e0d3e13f5c8aad4a30a3f160be5b6671084fad43c0",
+          "effective_sha256": "3489318b1d2b7352eb39eef13407270045b73358604378a955369a921bd5e6c1",
+          "generated_sha256": "3489318b1d2b7352eb39eef13407270045b73358604378a955369a921bd5e6c1",
           "path": "signoff/ihp-sg13g2/fusion/fusion_analysis.tcl"
         }
       ],
@@ -490,11 +630,11 @@
       "inputs": [
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "syn/ihp-sg13g2/uart_master_synth.v",
-          "sha256": "20066840634c01d85079e12fea4a17b63dafd56fb15c8ec22fdbe90d7477d3e4"
+          "sha256": "d5f6081732ee05127e6c79505e28fc0cd464ab184fd807091254ec59ea2af807"
         },
         {
           "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
@@ -517,22 +657,23 @@
           "sha256": "9c91c5311e0b10525b2e02bfd30910927d821c0928aff45cb7f34f3a6a3280f8"
         }
       ],
-      "parents": {}
+      "parents": {},
+      "tools": {}
     },
     "sim_post_syn_all": {
       "config": {
-        "GLS_BACKEND": "cocotb",
+        "GLS_BACKEND": "sv",
         "PDK": "ihp-sg13g2",
         "SDF_STRICT": "1",
-        "TEST_NAMES": "all",
-        "TIMING_MODES": "all",
+        "TEST_NAMES": "smoke,host_read,host_write",
+        "TIMING_MODES": "min,typ,max",
         "TOP": "uart_master"
       },
-      "fingerprint": "ef362e96c05100276a9630c3e530934aa6f27ce66e9ff900021c89354ac159ec",
+      "fingerprint": "a7d3f3b8973cf637412a9981cb5be3e41d597dd99f1a116a1683470a688a76be",
       "generated": [
         {
-          "effective_sha256": "147094da06ef62cd269ceddbd1ca6fc4f59492aa5b5e18d1286eaf7798c91a8f",
-          "generated_sha256": "147094da06ef62cd269ceddbd1ca6fc4f59492aa5b5e18d1286eaf7798c91a8f",
+          "effective_sha256": "6ddf302001b3ed74db6af78a94e4b4d2e50fd5311c2c4b8e8688b2c6da305c96",
+          "generated_sha256": "6ddf302001b3ed74db6af78a94e4b4d2e50fd5311c2c4b8e8688b2c6da305c96",
           "path": "dv/functional/sim/post_syn/ihp-sg13g2/summary_sv.json"
         }
       ],
@@ -544,7 +685,7 @@
         },
         {
           "path": "rtl/rtl_ip.f",
-          "sha256": "a237d60f13eec124e6e151c46ab94aff7783f33b500b0a243d85d2d2983e1941"
+          "sha256": "d9682d28751419adb10749cf2c9d303720573c221e6ed507568e9468611246f7"
         },
         {
           "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
@@ -672,7 +813,7 @@
         },
         {
           "path": "rtl/uart_master_reg_top.sv",
-          "sha256": "ab66931501ac25af7155dedd7aca2a8c5a648411e19d48d579c1e52f9622e4ac"
+          "sha256": "a7e4723a3e0ecbbe7452a372b86d5be744b0e57e1264f89f95a06fa8796e212f"
         },
         {
           "path": "rtl/uart_tx.sv",
@@ -696,7 +837,7 @@
         },
         {
           "path": "rtl/uart_master.sv",
-          "sha256": "0e28a40fb4d8bd4fe9c0ea7e9ca1090080a527fb082197cab7daaee019b179d0"
+          "sha256": "949b2c8ef2ad4f03b4fef87808087b957190531a668592ca74b06209e6a24a79"
         },
         {
           "path": "dv/functional/tests",
@@ -708,45 +849,58 @@
         },
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "dv/functional/tb/sv/drivers/uart_master_reg_driver.svh",
-          "sha256": "bb50a9e1b64bff11a670d6807b72ac2235551e4d1f115a4128f49acdfe6b201b"
+          "sha256": "da6113386626895a4d01694d6ed254105f5e0a8dbd35694b53e10b6f83cd6309"
         },
         {
           "path": "dv/functional/tb/sv/drivers/uart_master_vec_driver.svh",
-          "sha256": "7de93cbb0faf619502ed00c0b9e840ca24111c196cb5741a10e34b510598e503"
+          "sha256": "d504604b1930fb9a563bdc0dd8e25820c6d19e2afcc21509112ef4bf98a5e23d"
         },
         {
           "path": "dv/functional/tb/sv/drivers/uart_master_vec_monitor.svh",
-          "sha256": "199391dc760e763792850fafcd3649e02523e54d28ee0c9aa0a2ec1b697ec6e4"
+          "sha256": "f73f13f4efa9775c646c33daea82a94bcc4b8a822a6648ce3261d5c8cedd0618"
         },
         {
           "path": "dv/functional/tb/sv/include_uart_master_tb.sv",
-          "sha256": "daef6acc6d7f2d4536a6225bc0cce1bc4fa8a0d6245f97966b5040a37a2b6193"
-        },
-        {
-          "path": "dv/functional/tb/sv/tlul_if.sv",
-          "sha256": "0de6e8e8e539781364fd37b5fb75e2e579ba751ff4ede99a99fd18fa29514c67"
+          "sha256": "0152cd02b6c7e7f7b1b94b0dc8f8dd574cb2c376cd5985e9839ddaff54f1ec54"
         },
         {
           "path": "dv/functional/tb/sv/uart_master_tb.sv",
-          "sha256": "e06088a70ea3f5f16d3180564d955f202fbecb59ef11efa584c4f815b25c9ca8"
+          "sha256": "b5f1a02aed80ff8d80f3a962e654ba1302d8e695fd3e68f976f72a2b762e0c5f"
         },
         {
           "path": "syn/ihp-sg13g2/uart_master_synth.v",
-          "sha256": "20066840634c01d85079e12fea4a17b63dafd56fb15c8ec22fdbe90d7477d3e4"
+          "sha256": "d5f6081732ee05127e6c79505e28fc0cd464ab184fd807091254ec59ea2af807"
         },
         {
           "path": "signoff/ihp-sg13g2/sdf",
-          "sha256": "20dd4ee8acf936cd474114a6f261ce8329c8083e5c56c0e1ad2a0bcfee3b22d7"
+          "sha256": "8000c52b14634732de8554327f5505eeec942ba108775122ad5ab6c723a05fb4"
         }
       ],
+      "outcome": "PASS",
       "parents": {
-        "sdf": "b0a82b7c0c95068fc06e1d08ca51e25653dc294f047506c053ff36d96ef0a719",
-        "syn": "4798991a224a068fb656f0dc99e742c8b20c959d7c8eb3d1f881691ef3d66fde",
-        "tb.setup": "e743e1f8d270f269703ead4dfafa40b9a39dcf8d02467697c9600de7fa28dca5"
+        "sdf": "b9d3cbfc98749db5030da16b4af729a8cfaf3e2e82a76b3e32b0595b06ac01c9",
+        "syn": "03df628b9012aa58c41bc2ce130d99af0d25962269ba3355f225ba4f63f7f8d1",
+        "tb.setup": "9985db2ac3b885d3cfbac43f3d4aff01568ae2679b9aff9774e253533adaf794"
+      },
+      "returncode": 0,
+      "tools": {
+        "IVERILOG": {
+          "archive": "tar.gz",
+          "min_version": "13.0",
+          "sha256": "c897bbfa9848688982c6d5c30529fc29d68df0b9ff22ffa73bad89db73a7ce49",
+          "url": "https://codeload.github.com/steveicarus/iverilog/tar.gz/v13_0",
+          "version": "13.0"
+        },
+        "VERILATOR": {
+          "min_version": "5.050",
+          "ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c",
+          "repo": "https://github.com/verilator/verilator.git",
+          "version": "5.050"
+        }
       }
     },
     "sta": {
@@ -754,23 +908,23 @@
         "PDK": "ihp-sg13g2",
         "TOP": "uart_master"
       },
-      "fingerprint": "3a0092a40a46b9769e9e7a6dc34f6db71c84b4942b44da0cf3c0f70dc3ced9e8",
+      "fingerprint": "81aa63e273d76388b67dacf7c5b9a023b8a04f168dadf0bc80d5f7df58f3266e",
       "generated": [
         {
-          "effective_sha256": "42345df89f98577926d49e0b2485bf548ea5b824d981a58c07738c1926b65e51",
-          "generated_sha256": "42345df89f98577926d49e0b2485bf548ea5b824d981a58c07738c1926b65e51",
-          "path": "signoff/ihp-sg13g2/sta/sta.json"
+          "effective_sha256": "9c80b526ae4350c6a655af1b397a4cb5626769c4280069d669ec8c1f0c335e66",
+          "generated_sha256": "9c80b526ae4350c6a655af1b397a4cb5626769c4280069d669ec8c1f0c335e66",
+          "path": "signoff/ihp-sg13g2/sta/summary.json"
         }
       ],
       "input_paths_match": true,
       "inputs": [
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "syn/ihp-sg13g2/uart_master_synth.v",
-          "sha256": "20066840634c01d85079e12fea4a17b63dafd56fb15c8ec22fdbe90d7477d3e4"
+          "sha256": "d5f6081732ee05127e6c79505e28fc0cd464ab184fd807091254ec59ea2af807"
         },
         {
           "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
@@ -794,48 +948,69 @@
         },
         {
           "path": "signoff/ihp-sg13g2/sta/sta.tcl",
-          "sha256": "9a96789ceaa775f4a4a032d42b7a2bdcb9bd3e48b12e27a58b03505877268efc"
+          "sha256": "245c6ee1f7a249ce130c94bce40bcfb7ea0dc031d8b7395b47da8df675e3c505"
         },
         {
           "path": "signoff/ihp-sg13g2/sdf/write_sdf.tcl",
-          "sha256": "04afaf1edc349d440966687b932ca09029c5cceceeab4363bd7c16cefc37c322"
+          "sha256": "f97711c54af2e761ea2e1e0f480d1efab6e4b27a9039f4fb1cbe950344653eb9"
         },
         {
           "path": "signoff/ihp-sg13g2/power/estimate/power_estimate.tcl",
-          "sha256": "4809794dc51042523527ae839c2b3659ce7b7965a1986de3b6cfe3e53dbcf876"
+          "sha256": "b302bbac1cc895ffe9a48d8f421a0774928be6ca98f1373c7577005dbe62d6f5"
         },
         {
           "path": "signoff/ihp-sg13g2/power/analysis/power_analysis.tcl",
-          "sha256": "8e2e494a9209cf123cc6af0ba7c4e29f64ceca5743b5217343af851a5a4be879"
+          "sha256": "cc58fd4e722a46fca8b6c7389b2bd186e5fa0980dcb6e0ce0b9f784c463abc02"
         },
         {
           "path": "signoff/ihp-sg13g2/fusion/fusion_analysis.tcl",
-          "sha256": "044f81e4b3183806a0cd59e0d3e13f5c8aad4a30a3f160be5b6671084fad43c0"
+          "sha256": "3489318b1d2b7352eb39eef13407270045b73358604378a955369a921bd5e6c1"
         }
       ],
+      "outcome": "PASS",
       "parents": {
-        "signoff.setup": "b6fff5d2ca107dec11ca71f2acb5236168d9bfad433da49617f6e11013ce58e6",
-        "syn": "4798991a224a068fb656f0dc99e742c8b20c959d7c8eb3d1f881691ef3d66fde"
+        "signoff.setup": "eb8d2861bae9830a5fa0724cb9521017ab1e4faa08701258f83b9998f1ad69d2",
+        "syn": "03df628b9012aa58c41bc2ce130d99af0d25962269ba3355f225ba4f63f7f8d1"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENSTA": {
+          "min_version": "3.1.0",
+          "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenSTA.git",
+          "version": "3.1.0"
+        }
       }
     },
     "syn": {
       "config": {
+        "ORS_TECH": "ihp-sg13g2",
         "PDK": "ihp-sg13g2",
         "TARGET_OPT": "delay1",
         "TARGET_SYN": "",
         "TOP": "uart_master"
       },
-      "fingerprint": "4798991a224a068fb656f0dc99e742c8b20c959d7c8eb3d1f881691ef3d66fde",
+      "fingerprint": "03df628b9012aa58c41bc2ce130d99af0d25962269ba3355f225ba4f63f7f8d1",
       "generated": [
         {
-          "effective_sha256": "20066840634c01d85079e12fea4a17b63dafd56fb15c8ec22fdbe90d7477d3e4",
-          "generated_sha256": "20066840634c01d85079e12fea4a17b63dafd56fb15c8ec22fdbe90d7477d3e4",
+          "effective_sha256": "5ec7ae6ad6b0cd207363abd5b64291f40ddc083f673f9c7909320eca2576afbf",
+          "generated_sha256": "5ec7ae6ad6b0cd207363abd5b64291f40ddc083f673f9c7909320eca2576afbf",
+          "path": "syn/ihp-sg13g2/summary.json"
+        },
+        {
+          "effective_sha256": "d5f6081732ee05127e6c79505e28fc0cd464ab184fd807091254ec59ea2af807",
+          "generated_sha256": "d5f6081732ee05127e6c79505e28fc0cd464ab184fd807091254ec59ea2af807",
           "path": "syn/ihp-sg13g2/uart_master_synth.v"
         },
         {
-          "effective_sha256": "cc5777561acd8ff9513b54a5977e8c220fcc4be4bccc47e22348676db78d8deb",
-          "generated_sha256": "cc5777561acd8ff9513b54a5977e8c220fcc4be4bccc47e22348676db78d8deb",
+          "effective_sha256": "878d20119971166dd8c533387f956bfea4ac95b925020a1479d29f4bb38c8478",
+          "generated_sha256": "878d20119971166dd8c533387f956bfea4ac95b925020a1479d29f4bb38c8478",
           "path": "syn/ihp-sg13g2/uart_master_synth.json"
+        },
+        {
+          "effective_sha256": "94465fb2b4fc3f255228a8f0391c08a43448dfe3566b24bb187fe0d838760fb3",
+          "generated_sha256": "94465fb2b4fc3f255228a8f0391c08a43448dfe3566b24bb187fe0d838760fb3",
+          "path": "syn/ihp-sg13g2/uart_master_synth_repair.json"
         }
       ],
       "input_paths_match": true,
@@ -846,7 +1021,7 @@
         },
         {
           "path": "rtl/rtl_ip.f",
-          "sha256": "a237d60f13eec124e6e151c46ab94aff7783f33b500b0a243d85d2d2983e1941"
+          "sha256": "d9682d28751419adb10749cf2c9d303720573c221e6ed507568e9468611246f7"
         },
         {
           "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
@@ -974,7 +1149,7 @@
         },
         {
           "path": "rtl/uart_master_reg_top.sv",
-          "sha256": "ab66931501ac25af7155dedd7aca2a8c5a648411e19d48d579c1e52f9622e4ac"
+          "sha256": "a7e4723a3e0ecbbe7452a372b86d5be744b0e57e1264f89f95a06fa8796e212f"
         },
         {
           "path": "rtl/uart_tx.sv",
@@ -998,15 +1173,31 @@
         },
         {
           "path": "rtl/uart_master.sv",
-          "sha256": "0e28a40fb4d8bd4fe9c0ea7e9ca1090080a527fb082197cab7daaee019b179d0"
+          "sha256": "949b2c8ef2ad4f03b4fef87808087b957190531a668592ca74b06209e6a24a79"
         },
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib",
           "sha256": "093a80e3677c428c92c9c56d41b61e72ce168164cae73196cc7030c96f2382b5"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
+          "sha256": "e2fe78316f0045003b41b739cf3d7b183b03c97703332b1c046de0e33ea909af"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib",
+          "sha256": "9baf754c5008eb80fdc6f52b6c414f487831291dbe0166a6771a5f2de675359f"
+        },
+        {
+          "path": "/home/eneadim/OpenROAD-flow-scripts/flow/Makefile",
+          "sha256": "7b042cf86806f98894045de44c1216776590dcd05ab90dc6bc0a36fc3021a128"
+        },
+        {
+          "path": "/home/eneadim/OpenROAD-flow-scripts/flow/platforms/ihp-sg13g2/config.mk",
+          "sha256": "5705790357ccd37bd71f82397faf8ece7ecf8ce5c97d730915fb56ec8a138c8d"
         },
         {
           "path": "syn/ihp-sg13g2/delay1.abc",
@@ -1017,16 +1208,54 @@
           "sha256": "80ead4181172049036370036fac6470c79e7152149861bbc2905bb45e5886806"
         },
         {
+          "path": "syn/ihp-sg13g2/synth_pre.ys",
+          "sha256": "d790fd6a6302593c449e7ca5820e2256988c016a38d064bede046a7469290dd3"
+        },
+        {
+          "path": "syn/ihp-sg13g2/synth_pre_sv.ys",
+          "sha256": "f5a1a24992d33544dc1dad2f792d8dc88eb45baac758ba58a6e0e859c16c5868"
+        },
+        {
           "path": "syn/ihp-sg13g2/synth.ys",
-          "sha256": "0a729ce9f47e844debb4c9f9d810a52cf7fcfa4255e1aaa506030bb039dd6e58"
+          "sha256": "a3578f6c4713ccd72405a9e14ef1688cd5d801c58eb2d3f2ce4162b924b9d995"
         },
         {
           "path": "syn/ihp-sg13g2/synth_sv.ys",
-          "sha256": "9fae5209d25f45e1bc7027f9146799b231af29d8bd281269b12e853878ae0e06"
+          "sha256": "579689942d1e0d0da63cdc5053a4e78a6d4f18cfd38f7242b92af8b5a988a28a"
+        },
+        {
+          "path": "syn/ihp-sg13g2/repair_config.mk",
+          "sha256": "5579c0b6c2268fa802dd48530099f8de1158fbe333d3ba847ae69b3dbe9838ba"
+        },
+        {
+          "path": "syn/ihp-sg13g2/repair.tcl",
+          "sha256": "b91a3c5480118f0b7a218570203e45b6015ef0bd5bc736a955a55bebd3c88b49"
+        },
+        {
+          "path": "syn/ihp-sg13g2/repair_json.ys",
+          "sha256": "57a5e586ba56d6a692c094a3675df87c3f7d3e3c7d39ee3bce947cc07fa8f487"
         }
       ],
+      "outcome": "PASS",
       "parents": {
-        "syn.setup": "ff12f3f3d32cee454b4cf711d7acb1ce69b6d66054527a30a429fcbbd4213ad1"
+        "syn.setup": "da5d2433a19f10b73533357bf0be2ed59c7fe22f51fe1f32315ba8d708c7735b"
+      },
+      "returncode": 0,
+      "tools": {
+        "OPENROAD": {
+          "install_mode": "source-ubuntu24",
+          "ref_prefix": "f552262465b0bfef8f097e258f94bc501d01e19d",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenROAD.git"
+        },
+        "ORFS": {
+          "ref_prefix": "6101364b2d7909dd797e1e3e7f80695401cfa4e4",
+          "repo": "https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts.git"
+        },
+        "YOSYS": {
+          "ref": "2d1509d1bcb8df0723f6790057e3b1d21c876683",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.67"
+        }
       }
     },
     "syn.setup": {
@@ -1034,15 +1263,19 @@
         "CLK_PERIOD": "10",
         "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
         "CLOCK_RELATIONSHIPS": "",
+        "LIBS": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib",
+        "LIB_SYN": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib",
         "MIN_BUF_CELL_AND_PORTS": "sg13g2_buf_1 A X",
         "N_CLOCKS": "1",
+        "ORS": "/home/eneadim/OpenROAD-flow-scripts/flow",
+        "ORS_TECH": "ihp-sg13g2",
         "TARGET_OPT": "delay1",
         "TARGET_SYN": "",
         "TIEHI_CELL_AND_PORT": "sg13g2_tiehi L_HI",
         "TIELO_CELL_AND_PORT": "sg13g2_tielo L_LO",
         "TOP": "uart_master"
       },
-      "fingerprint": "ff12f3f3d32cee454b4cf711d7acb1ce69b6d66054527a30a429fcbbd4213ad1",
+      "fingerprint": "da5d2433a19f10b73533357bf0be2ed59c7fe22f51fe1f32315ba8d708c7735b",
       "generated": [
         {
           "effective_sha256": "e56ab2f453f5186ab66e64c182d97722a4900f8fbe6534c28a66562d8d9ac56b",
@@ -1055,14 +1288,39 @@
           "path": "syn/ihp-sg13g2/abc.constr"
         },
         {
-          "effective_sha256": "0a729ce9f47e844debb4c9f9d810a52cf7fcfa4255e1aaa506030bb039dd6e58",
-          "generated_sha256": "0a729ce9f47e844debb4c9f9d810a52cf7fcfa4255e1aaa506030bb039dd6e58",
+          "effective_sha256": "d790fd6a6302593c449e7ca5820e2256988c016a38d064bede046a7469290dd3",
+          "generated_sha256": "d790fd6a6302593c449e7ca5820e2256988c016a38d064bede046a7469290dd3",
+          "path": "syn/ihp-sg13g2/synth_pre.ys"
+        },
+        {
+          "effective_sha256": "f5a1a24992d33544dc1dad2f792d8dc88eb45baac758ba58a6e0e859c16c5868",
+          "generated_sha256": "f5a1a24992d33544dc1dad2f792d8dc88eb45baac758ba58a6e0e859c16c5868",
+          "path": "syn/ihp-sg13g2/synth_pre_sv.ys"
+        },
+        {
+          "effective_sha256": "a3578f6c4713ccd72405a9e14ef1688cd5d801c58eb2d3f2ce4162b924b9d995",
+          "generated_sha256": "a3578f6c4713ccd72405a9e14ef1688cd5d801c58eb2d3f2ce4162b924b9d995",
           "path": "syn/ihp-sg13g2/synth.ys"
         },
         {
-          "effective_sha256": "9fae5209d25f45e1bc7027f9146799b231af29d8bd281269b12e853878ae0e06",
-          "generated_sha256": "9fae5209d25f45e1bc7027f9146799b231af29d8bd281269b12e853878ae0e06",
+          "effective_sha256": "579689942d1e0d0da63cdc5053a4e78a6d4f18cfd38f7242b92af8b5a988a28a",
+          "generated_sha256": "579689942d1e0d0da63cdc5053a4e78a6d4f18cfd38f7242b92af8b5a988a28a",
           "path": "syn/ihp-sg13g2/synth_sv.ys"
+        },
+        {
+          "effective_sha256": "5579c0b6c2268fa802dd48530099f8de1158fbe333d3ba847ae69b3dbe9838ba",
+          "generated_sha256": "5579c0b6c2268fa802dd48530099f8de1158fbe333d3ba847ae69b3dbe9838ba",
+          "path": "syn/ihp-sg13g2/repair_config.mk"
+        },
+        {
+          "effective_sha256": "b91a3c5480118f0b7a218570203e45b6015ef0bd5bc736a955a55bebd3c88b49",
+          "generated_sha256": "b91a3c5480118f0b7a218570203e45b6015ef0bd5bc736a955a55bebd3c88b49",
+          "path": "syn/ihp-sg13g2/repair.tcl"
+        },
+        {
+          "effective_sha256": "57a5e586ba56d6a692c094a3675df87c3f7d3e3c7d39ee3bce947cc07fa8f487",
+          "generated_sha256": "57a5e586ba56d6a692c094a3675df87c3f7d3e3c7d39ee3bce947cc07fa8f487",
+          "path": "syn/ihp-sg13g2/repair_json.ys"
         }
       ],
       "input_paths_match": true,
@@ -1073,7 +1331,7 @@
         },
         {
           "path": "rtl/rtl_ip.f",
-          "sha256": "a237d60f13eec124e6e151c46ab94aff7783f33b500b0a243d85d2d2983e1941"
+          "sha256": "d9682d28751419adb10749cf2c9d303720573c221e6ed507568e9468611246f7"
         },
         {
           "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
@@ -1201,7 +1459,7 @@
         },
         {
           "path": "rtl/uart_master_reg_top.sv",
-          "sha256": "ab66931501ac25af7155dedd7aca2a8c5a648411e19d48d579c1e52f9622e4ac"
+          "sha256": "a7e4723a3e0ecbbe7452a372b86d5be744b0e57e1264f89f95a06fa8796e212f"
         },
         {
           "path": "rtl/uart_tx.sv",
@@ -1225,18 +1483,35 @@
         },
         {
           "path": "rtl/uart_master.sv",
-          "sha256": "0e28a40fb4d8bd4fe9c0ea7e9ca1090080a527fb082197cab7daaee019b179d0"
+          "sha256": "949b2c8ef2ad4f03b4fef87808087b957190531a668592ca74b06209e6a24a79"
         },
         {
           "path": "constraints/uart_master.sdc",
-          "sha256": "c1bf3f697ad1fd885e9ba2cdbf89cfefb0433eb3aebd2ac072efb876ad5142ee"
+          "sha256": "dadd2f18be9baa1ef094e763331b7533057721b87f56056062f1514511d70b1b"
         },
         {
           "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib",
           "sha256": "093a80e3677c428c92c9c56d41b61e72ce168164cae73196cc7030c96f2382b5"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib",
+          "sha256": "e2fe78316f0045003b41b739cf3d7b183b03c97703332b1c046de0e33ea909af"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib",
+          "sha256": "9baf754c5008eb80fdc6f52b6c414f487831291dbe0166a6771a5f2de675359f"
+        },
+        {
+          "path": "/home/eneadim/OpenROAD-flow-scripts/flow/Makefile",
+          "sha256": "7b042cf86806f98894045de44c1216776590dcd05ab90dc6bc0a36fc3021a128"
+        },
+        {
+          "path": "/home/eneadim/OpenROAD-flow-scripts/flow/platforms/ihp-sg13g2/config.mk",
+          "sha256": "5705790357ccd37bd71f82397faf8ece7ecf8ce5c97d730915fb56ec8a138c8d"
         }
       ],
-      "parents": {}
+      "parents": {},
+      "tools": {}
     },
     "tb.setup": {
       "config": {

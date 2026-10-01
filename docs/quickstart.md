@@ -185,7 +185,7 @@ The current scaffold qualification baseline generates EQY collateral but deliber
 fx eqy --setup
 ```
 
-`eqy --setup` is **not** equivalence PASS. L3 (`Netlist Qualified`) therefore remains blocked until `fx eqy` is intentionally run and produces acceptable evidence. The automatic scaffold E2E matrix still stops after setup because EQY profiles remain IP/interface-specific:
+`eqy --setup` is **not** equivalence PASS. EQY is optional explicit evidence and is not required by the automatic L3/L4 qualification baseline. The automatic scaffold E2E matrix still stops after setup because EQY profiles remain IP/interface-specific:
 
 ```bash
 ```

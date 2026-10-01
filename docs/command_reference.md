@@ -2,7 +2,7 @@
 
 This is the complete user-facing reference for the `fx` command line and every backend target currently exposed by FlexSoC. It follows the same lifecycle as [Project lifecycle](project_lifecycle.md): configure the run, enter the IP, verify it, synthesize it, prove equivalence, analyze timing and power, implement it, and collect release evidence.
 
-> **Current scaffold policy:** EQY is a supported execution target and part of L3 qualification. The automatic scaffold E2E matrix invokes `fx eqy --setup` only; `fx eqy` remains an explicit per-IP/per-interface run. Generating setup does not count as equivalence PASS.
+> **Current scaffold policy:** EQY is a supported explicit execution target but is not mandatory in the automatic L3/L4 qualification baseline. The automatic scaffold E2E matrix may prepare EQY collateral without treating setup as equivalence PASS.
 
 The reference explains what each command owns. The detailed step-by-step procedure is in [IP development guide](ip_development_guide.md), while repository/backend structure is in [Architecture](architecture.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <command> --help` (also `-h`, `help`, or `info`) for dedicated command help, and `fx commands --json` when a script needs live metadata from the installed checkout.
 

@@ -1,28 +1,30 @@
 `timescale 1ns/1ps
+
 module gpio_tb;
   logic clk_i;
   logic rst_ni;
+  logic [108:0] tl_i;
+  logic [65:0]  tl_o;
+  logic        core_a_valid;
+  logic [2:0]  core_a_opcode;
+  logic [2:0]  core_a_param;
+  logic [1:0]  core_a_size;
+  logic [7:0]  core_a_source;
+  logic [31:0] core_a_address;
+  logic [3:0]  core_a_mask;
+  logic [31:0] core_a_data;
+  logic        core_d_ready;
+  logic        core_a_ready;
+  logic        core_d_valid;
+  logic [31:0] core_d_data;
+  logic        core_d_error;
+
+
+
   logic [3:0] cio_gpio_i;
   logic [3:0] cio_gpio_o;
   logic [3:0] cio_gpio_en_o;
   logic [3:0] intr_gpio_o;
-  logic         tl_i_a_valid;
-  logic [2:0]   tl_i_a_opcode;
-  logic [2:0]   tl_i_a_param;
-  logic [1:0]   tl_i_a_size;
-  logic [7:0]   tl_i_a_source;
-  logic [31:0]  tl_i_a_address;
-  logic [3:0]   tl_i_a_mask;
-  logic [31:0]  tl_i_a_data;
-  logic         tl_i_d_ready;
-  logic         tl_o_d_valid;
-  logic [2:0]   tl_o_d_opcode;
-  logic [31:0]  tl_o_d_data;
-  logic         tl_o_d_error;
-  logic         tl_o_a_ready;
-  logic [108:0] tl_i;
-  logic [65:0]  tl_o;
-
   localparam logic [2:0] FLEXSOC_TL_PUT_FULL    = 3'h0;
   localparam logic [2:0] FLEXSOC_TL_PUT_PARTIAL = 3'h1;
   localparam logic [2:0] FLEXSOC_TL_GET         = 3'h4;
@@ -96,57 +98,42 @@ module gpio_tb;
     end
   endfunction
 
-  initial begin
-    cio_gpio_i = '0;
-  end
+assign tl_i = flexsoc_tlul_h2d(
+  core_a_valid, core_a_opcode, core_a_param, core_a_size,
+  core_a_source, core_a_address, core_a_mask, core_a_data,
+  core_d_ready
+);
+assign core_a_ready = tl_o[0];
+assign core_d_valid = tl_o[65];
+assign core_d_data  = tl_o[47:16];
+assign core_d_error = tl_o[1];
 
-  assign tl_i = flexsoc_tlul_h2d(
-    tl_i_a_valid, tl_i_a_opcode, tl_i_a_param, tl_i_a_size,
-    tl_i_a_source, tl_i_a_address, tl_i_a_mask, tl_i_a_data, tl_i_d_ready
-  );
-  assign tl_o_d_valid  = tl_o[65];
-  assign tl_o_d_opcode = tl_o[64:62];
-  assign tl_o_d_data   = tl_o[47:16];
-  assign tl_o_d_error  = tl_o[1];
-  assign tl_o_a_ready  = tl_o[0];
 
-  string wave_path;
-  initial begin
-    if (!$value$plusargs("WAVE=%s", wave_path)) begin
-      if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
-    end
-    if (wave_path != "") begin
-      `ifdef FLEXSOC_COCOTB_WAVE_OWNER
-        $display("[TB] dumpfile = %s owner=cocotb", wave_path);
-      `else
-        $display("[TB] dumpfile = %s owner=wrapper", wave_path);
-        $dumpfile(wave_path);
-        $dumpvars(0, gpio_tb);
-      `endif
-    end
-    #1;
-  end
+
   `ifdef FLEXSOC_ENABLE_SDF
     string sdf_path;
     initial begin
       if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
       if (sdf_path != "") begin
         `ifdef FLEXSOC_SDF_MIN
-          $display("[TB] sdf = %s scope=u_gpio mode=MINIMUM", sdf_path);
-          $sdf_annotate(sdf_path, u_gpio);
+          $sdf_annotate(sdf_path, u_dut);
         `elsif FLEXSOC_SDF_TYP
-          $display("[TB] sdf = %s scope=u_gpio mode=TYPICAL", sdf_path);
-          $sdf_annotate(sdf_path, u_gpio);
+          $sdf_annotate(sdf_path, u_dut);
         `else
-          $display("[TB] sdf = %s scope=u_gpio mode=MAXIMUM", sdf_path);
-          $sdf_annotate(sdf_path, u_gpio);
+          $sdf_annotate(sdf_path, u_dut);
         `endif
       end
     end
   `endif
-  gpio u_gpio (
-    .clk_i(clk_i),
-    .rst_ni(rst_ni),
-    .*
+
+  gpio u_dut (
+    .clk_i                    (clk_i),
+    .rst_ni                   (rst_ni),
+    .cio_gpio_i               (cio_gpio_i),
+    .tl_i                     (tl_i),
+    .cio_gpio_o               (cio_gpio_o),
+    .cio_gpio_en_o            (cio_gpio_en_o),
+    .intr_gpio_o              (intr_gpio_o),
+    .tl_o                     (tl_o)
   );
 endmodule
