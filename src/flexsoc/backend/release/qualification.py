@@ -732,12 +732,18 @@ class QualificationFlow:
             stage: QualificationFlow.evidence_state(state, outcome=outcomes.get(stage))
             for stage, state in stage_states.items()
         }
+        for stage, outcome in outcomes.items():
+            if stage not in evidence and outcome is not None:
+                evidence[stage] = str(outcome).upper()
         maximum = 1 if contract_ready else 0
         maximum_pass = maximum
         levels: dict[str, object] = {}
         for level in range(1, 6):
             required = QualificationFlow.required_stages(spec, level)
             blocking = [stage for stage in required if evidence.get(stage) not in {"PASS", "WAIVED"}]
+            if level >= 3 and evidence.get("eqy") == "FAILED":
+                blocking.append("eqy")
+            blocking = list(dict.fromkeys(blocking))
             waived = [stage for stage in required if evidence.get(stage) == "WAIVED"]
             satisfied = contract_ready and not blocking and (level == 1 or maximum == level - 1)
             status = "BLOCKED"

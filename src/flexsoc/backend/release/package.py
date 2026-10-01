@@ -351,6 +351,20 @@ class PackageFlow:
             staged = Path(tmp) / reg_interface
             if target.is_dir():
                 shutil.copytree(target, staged, symlinks=True)
+                # Current PDK package data is a snapshot, not an incremental archive.
+                _package_pdk = Path(synth_dir).name
+                if not _package_pdk:
+                    raise ValueError("could not derive PDK from synth_dir")
+                for stale_path in (
+                    staged / "syn" / _package_pdk,
+                    staged / "signoff" / _package_pdk,
+                    staged / "meta" / _package_pdk,
+                    staged / "dv" / "functional" / "sim" / "post_syn" / _package_pdk,
+                    staged / "dv" / "functional" / "sim" / "post_impl" / _package_pdk,
+                    staged / "impl" / _package_pdk,
+                ):
+                    if stale_path.exists():
+                        shutil.rmtree(stale_path)
             else:
                 staged.mkdir(parents=True)
 

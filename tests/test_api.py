@@ -4449,8 +4449,12 @@ def test_e2e_register_transport_matrix_and_vendor_bootstrap_contract() -> None:
     assert 'fx fetch --set VENDOR=lowrisc_ip' in text
     assert 'fx fetch --set VENDOR=pulp_common_cells' in text
     assert 'fx fetch --set VENDOR=pulp_axi' in text
-    assert text.count('fx fetch --set VENDOR=opentitan_reggen') == 1
-    assert text.count('fx fetch --set VENDOR=pulp_register_interface') == 1
+    for vendor in ("opentitan_reggen", "pulp_register_interface"):
+        fetch = f"fx fetch --set VENDOR={vendor}"
+        fetch_lines = [line.strip() for line in text.splitlines() if fetch in line]
+        assert fetch_lines
+        assert all("_run(" in line for line in fetch_lines)
+        assert all("--workdir {workdir}" in line for line in fetch_lines)
     assert text.count('fx systemrdl --force') == 2
     assert text.count('fx ipxact --force') == 2
     assert 'if config.run_signoff and reg_itf == "tlul":' not in text
@@ -8499,15 +8503,21 @@ def test_contract_status_derives_release_level_without_running_eda(
     monkeypatch.setattr(router, "_contract_outcome", lambda stage: "PASS" if stage in rtl_required else None)
     status = router._contract_status()
     assert status["maximum_level"] == 2
-    assert status["evidence"]["eqy"] == "REVIEW"
+    assert status["evidence"]["syn"] == "REVIEW"
+    assert status["evidence"]["sta"] == "REVIEW"
+    assert status["evidence"]["eqy"] == "MISSING"
 
     monkeypatch.setattr(router, "_contract_outcome", lambda stage: "PASS" if stage in netlist_required else None)
     status = router._contract_status()
     assert status["maximum_level"] == 3
     assert status["maximum_qualification"] == "Netlist Qualified"
+    assert status["evidence"]["syn"] == "PASS"
+    assert status["evidence"]["sta"] == "PASS"
+    assert status["evidence"]["eqy"] == "MISSING"
     output = capsys.readouterr().out
-    assert "[evidence] eqy" in output
-    assert "REVIEW" in output
+    assert "[evidence] syn" in output
+    assert "[evidence] sta" in output
+    assert "[evidence] eqy" not in output
 
 
 def test_requirements_traceability_is_always_first_l2_evidence() -> None:
@@ -8569,12 +8579,11 @@ def test_qualification_l1_l5_keeps_waived_review_and_failed_distinct() -> None:
         requested_level=5,
     )
     assert report["maximum_level"] == 5
-    assert report["maximum_pass_level"] == 2
-    assert report["qualification_status"] == "WAIVED"
-    assert report["levels"]["3"]["status"] == "WAIVED"
-    assert report["levels"]["5"]["status"] == "WAIVED"
-    assert report["levels"]["5"]["waived_evidence"] == ["eqy"]
-    assert report["target_status"] == "WAIVED"
+    assert report["maximum_pass_level"] == 5
+    assert report["qualification_status"] == "PASS"
+    assert report["levels"]["3"]["status"] == "PASS"
+    assert report["levels"]["5"]["waived_evidence"] == []
+    assert report["target_status"] == "PASS"
     assert report["target_satisfied"] is True
 
     failed = dict(outcomes)
