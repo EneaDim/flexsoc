@@ -71,6 +71,7 @@ else:
         "--unset",
         "--project-root",
         "--workdir",
+        "--host",
         "--user",
         "--system",
         "--profile",
@@ -1755,6 +1756,14 @@ Use `fx commands` to list every backend target.
                 bool,
                 typer.Option("--setup", help="Run the setup phase for the selected lifecycle keyword.", rich_help_panel="Target options"),
             ] = False,
+            host: Annotated[
+                str | None,
+                typer.Option(
+                    "--host",
+                    help="Select the SoC host profile (ibex or uart).",
+                    rich_help_panel="SoC",
+                ),
+            ] = None,
             rtl: Annotated[
                 bool,
                 typer.Option("--rtl", help="Select RTL simulation (the default for fx sim).", rich_help_panel="Domain selection"),
@@ -1852,6 +1861,13 @@ Use `fx commands` to list every backend target.
                 args, rtl=rtl, post_syn=post_syn, post_impl=post_impl, all_runs=all_runs,
                 csr=csr, bmc=bmc, prove=prove, cover=cover,
             )
+            if host is not None:
+                if args != ("soc",):
+                    raise click.BadParameter("--host is only valid with `fx soc`")
+                selected_host = host.strip().lower()
+                if selected_host not in {"ibex", "uart"}:
+                    raise click.BadParameter("--host must be ibex or uart")
+                set_args = (*set_args, f"HOST={selected_host}")
             if deps_user and deps_system:
                 raise click.BadParameter("choose only one of --user or --system")
             if deps_profile is not None and deps_profile not in {"base", "impl", "riscv"}:
@@ -2011,6 +2027,12 @@ Use `fx commands` to list every backend target.
                             output=str(save_output) if save_output is not None else None,
                             as_json=as_json,
                         )
+                    elif target.domain == "soc":
+                        if summary or debug:
+                            raise click.BadParameter("`fx soc` supports --show, not --summary/--debug")
+                        if save_output is not None:
+                            raise click.BadParameter("--save-output/-o is not supported with `fx soc --show`")
+                        code = flows.design.soc.show(as_json=as_json)
                     else:
                         flow = flows.signoff.post_impl if target.stage == "post_impl" else flows.signoff.post_syn
                         code = flow.show(

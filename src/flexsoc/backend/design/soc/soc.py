@@ -1,4 +1,4 @@
-"""SoC configuration, generation, FuseSoC and software scaffold flow."""
+"""SoC composition, TL-UL fabric generation, and software scaffold flow."""
 
 from __future__ import annotations
 
@@ -10,403 +10,269 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-_cfg_SUPPORTED_HOSTS = {"ibex", "uart"}
+from ...core import BackendContext, CommandRequest, ToolRunner
+
+SUPPORTED_HOSTS = {"ibex", "uart"}
+SUPPORTED_FABRICS = {"tlul"}
+HOST_IPS = {"ibex", "ibex_top_tracing"}
 KNOWN_BASES = {
     "uart": 0x80000000,
     "uart_master": 0x80000000,
-    "pwm": 0x80020000,
     "gpio": 0x80040000,
     "rv_timer": 0x80060000,
     "spi_host": 0x80080000,
 }
-HOST_IPS = {"ibex", "ibex_top_tracing"}
+SRAM_BASE = 0x00100000
+SRAM_SIZE = 128 * 1024
 
 
 @dataclass(frozen=True, slots=True)
 class SoCDevice:
-    """Describe one memory-mapped device used by generated SoC flows."""
+    """One memory-mapped endpoint in the resolved SoC plan."""
 
     name: str
-    base: str
-    size: str = "0x00001000"
-    from_lr: str = "False"
+    base: int
+    size: int = 0x1000
+    builtin: bool = False
 
-    def make_call(self) -> str:
-        """Render this device as one Make `add_device` evaluation."""
+    @property
+    def base_hex(self) -> str:
+        return f"0x{self.base:08X}"
 
-        return f"$(eval $(call add_device,{self.name},{self.base},{self.size},{self.from_lr}))"
+    @property
+    def size_hex(self) -> str:
+        return f"0x{self.size:08X}"
 
-    def args(self) -> tuple[str, str, str, str]:
-        """Return CLI argument fields consumed by SoC backend generators."""
-
-        return self.name, self.base, self.size, self.from_lr
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "name": self.name,
+            "base": self.base_hex,
+            "size": self.size_hex,
+            "builtin": self.builtin,
+        }
 
 
 @dataclass(frozen=True, slots=True)
-class SoCConfig:
-    """Resolved host and memory map emitted for one SoC run."""
+class SoCPlan:
+    """Single source of truth for one resolved SoC composition."""
 
     host: str
+    fabric: str
     devices: tuple[SoCDevice, ...]
 
-    def args(self) -> tuple[str, ...]:
-        """Return flat generator arguments for host and devices."""
-
-        parts = ["--host", self.host]
-        for device in self.devices:
-            parts.extend(("--device", *device.args()))
-        return tuple(parts)
-
-
-@dataclass(frozen=True, slots=True)
-class SoCStartConfig:
-    """Configuration required to initialize a SoC run."""
-
-    workspace: Path
-    run_top: str
-    run_id: str
-
     @property
-    def run_dir(self) -> Path:
-        """Return the canonical run directory for this SoC build."""
+    def external_devices(self) -> tuple[SoCDevice, ...]:
+        return tuple(device for device in self.devices if not device.builtin)
 
-        return self.workspace.expanduser().resolve() / "runs" / self.run_top / self.run_id
-
-    @property
-    def ips_dir(self) -> Path:
-        """Return the directory containing staged IP bundles."""
-
-        return self.run_dir / "ips"
-
-
-@dataclass(frozen=True, slots=True)
-class XbarDevice:
-    """Describe one device node attached to the generated crossbar."""
-
-    name: str
-    base_addr: str
-    size_byte: str
-    from_lr: str = "False"
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": 1,
+            "host": self.host,
+            "fabric": self.fabric,
+            "devices": [device.to_dict() for device in self.devices],
+        }
 
 
-@dataclass(frozen=True, slots=True)
-class XbarConfig:
-    """Group all inputs needed to render one crossbar configuration."""
+@dataclass(slots=True)
+class TlulFabric:
+    """Generate the concrete TL-UL fabric with the vendored OpenTitan tlgen."""
 
-    host: str
-    devices: tuple[XbarDevice, ...]
+    project_root: Path
+    runner: ToolRunner
 
+    @staticmethod
+    def host_name(host: str) -> str:
+        return "uart_host" if host == "uart" else "ibex"
 
-_gen_SUPPORTED_HOSTS = {"ibex", "uart"}
+    @staticmethod
+    def host_node(name: str) -> dict[str, Any]:
+        return {
+            "name": name,
+            "type": "host",
+            "clock": "clk_i",
+            "reset": "rst_ni",
+            "xbar": False,
+            "pipeline": False,
+        }
 
+    @staticmethod
+    def device_node(device: SoCDevice) -> dict[str, Any]:
+        return {
+            "name": device.name,
+            "type": "device",
+            "clock": "clk_i",
+            "reset": "rst_ni",
+            "xbar": False,
+            "addr_range": [{"base_addr": device.base_hex, "size_byte": device.size_hex}],
+        }
 
-@dataclass(frozen=True, slots=True)
-class SoCModule:
-    """Describe one generated SoC device and where its RTL should be resolved."""
+    def payload(self, plan: SoCPlan) -> dict[str, Any]:
+        host = self.host_name(plan.host)
+        return {
+            "name": "main",
+            "type": "xbar",
+            "clock": "clk_i",
+            "clock_connections": {"clk_i": "main"},
+            "reset": "rst_ni",
+            "reset_connections": {"rst_ni": "main"},
+            "nodes": [self.host_node(host), *(self.device_node(device) for device in plan.devices)],
+            "connections": {host: [device.name for device in plan.devices]},
+        }
 
-    name: str
-    base_addr: str
-    size_bytes: str
-    from_lowrisc: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class SoCGenerationConfig:
-    """Collect the inputs needed to generate SoC RTL and simulator files."""
-
-    host: str
-    devices: tuple[SoCModule, ...]
-    root: Path = Path(".")
-    output: Path = Path("soc.sv")
-
-    @property
-    def run_dir(self) -> Path:
-        """Return the run directory inferred from the RTL output path."""
-
-        return self.output.resolve().parent.parent
-
-    @property
-    def tb_dir(self) -> Path:
-        """Return the generated SoC testbench directory."""
-
-        return self.run_dir / "tb"
-
-
-@dataclass(frozen=True, slots=True)
-class SoCSoftwareConfig:
-    """Collect paths and options used to build the SoC software scaffold."""
-
-    workspace: Path
-    run_top: str
-    run_id: str
-    host: str
-
-    @property
-    def _software_run_dir(self) -> Path:
-        """Return the canonical run directory for this software scaffold."""
-
-        return SocFlow._software_run_dir(self.workspace, self.run_top, self.run_id)
+    def generate(self, plan: SoCPlan, run_dir: Path, log: Path, *, on: str = "local") -> object:
+        config = run_dir / "soc" / "xbar.hjson"
+        SocFlow.write_json(config, self.payload(plan))
+        outputs = (
+            run_dir / "rtl" / "autogen" / "tl_main_pkg.sv",
+            run_dir / "rtl" / "autogen" / "xbar_main.sv",
+        )
+        argv = (
+            sys.executable,
+            str(self.project_root / "src" / "util" / "tlgen.py"),
+            "-t", str(config),
+            "-o", str(run_dir),
+        )
+        return self.runner.run(
+            CommandRequest(argv, self.project_root, {}, log, (config,), outputs), on=on
+        )
 
 
 class SocFlow:
-    """Generate SoC integration, FuseSoC metadata and software collateral."""
+    """Resolve and generate one SoC composition for the current backend context."""
 
-    def __init__(self, project_root: Path, runner=None):
-        from ...core import ToolRunner
-        self.project_root = Path(project_root).resolve()
-        self.runner = runner or ToolRunner(project_root=self.project_root)
+    def __init__(self, context: BackendContext, runner: ToolRunner | None = None):
+        self.context = context
+        self.runner = runner or ToolRunner(project_root=context.project_root)
+        self.fabric = TlulFabric(context.project_root, self.runner)
 
-    def resolve_config(self, **kwargs) -> SoCConfig:
-        """Resolve host and device configuration from loaded IP metadata."""
-        return SocFlow.resolve_soc_config(**kwargs)
+    @property
+    def paths(self):
+        return self.context.paths
 
-    def start(self, config: SoCStartConfig) -> Path:
-        """Initialize a SoC run from packaged IPs."""
-        return SocFlow.initialize_soc_run(config)
+    @property
+    def values(self):
+        return self.context.values
 
-    def init_xbar(self, config: XbarConfig, output: Path) -> Path:
-        """Write the tlgen crossbar input configuration."""
-        return SocFlow.write_json(output, SocFlow.build_xbar_config(config))
+    def run_target(self, target, *, on: str = "local"):
+        """Execute the single public SoC target."""
 
-    def generate(self, config: SoCGenerationConfig) -> Path:
-        """Generate the SoC top and simulation wrappers."""
-        return SocFlow.generate_soc(config)
+        if target.action != "soc":
+            raise ValueError(f"unsupported SoC action: {target.action!r}")
+        action = str(self.values.get("SOC_ACTION", "generate")).strip().lower()
+        if action == "show":
+            return self.show()
+        if action != "generate":
+            raise ValueError(f"unsupported SoC option {action!r}; expected generate or show")
+        return self.generate(on=on)
 
-    def generate_fusesoc(self, project: str, top: str, rtl_dir: Path, output_dir: Path) -> Path:
-        """Generate the CAPI2 FuseSoC core metadata."""
-        return SocFlow.write_core(project, top, rtl_dir, output_dir)
+    def prepare_run(self) -> tuple[Path, ...]:
+        """Create canonical SoC run directories and merge staged IP RTL filelists."""
 
-    def generate_software(self, config: SoCSoftwareConfig):
-        """Generate the SoC software workspace from staged IP drivers."""
-        return SocFlow.write_soc_software(config)
+        run = self.paths.run
+        for dirname in ("ips", "rtl", "tb", "sim", "logs", "doc", "tests", "model", "soc"):
+            (run / dirname).mkdir(parents=True, exist_ok=True)
+        ips = self.loaded_ip_dirs()
+        (run / "ips" / "loaded_ips.txt").write_text(
+            "".join(f"{ip.name}\n" for ip in ips), encoding="utf-8"
+        )
+        sources = self.merged_rtl_sources(ips) if ips else ()
+        (run / "rtl" / "rtl_ip.f").write_text(
+            "\n".join(sources) + ("\n" if sources else ""), encoding="utf-8"
+        )
+        (run / "rtl" / "rtl_list.f").unlink(missing_ok=True)
+        self.stage_ip_verification_assets(ips)
+        return ips
 
-
-    def run_target(self, target, context, *, on: str = "local"):
-        """Execute one atomic SoC target from the current backend context."""
-
-        paths, values = context.paths, context.values
-        host = values.get("HOST", "uart")
-        action = target.action or ""
-
-        if action == "start":
-            return self.start(SoCStartConfig(context.workspace, paths.run_top, paths.run_id))
-        if action == "config":
-            config = self.resolve_config(
-                workspace=context.workspace, run_top=paths.run_top, run_id=paths.run_id,
-                default_host=host, mode=values.get("SOC_CFG_MODE", "builtin"),
-            )
-            print(config)
-            return config
-        if action == "software":
-            return self.generate_software(SoCSoftwareConfig(context.workspace, paths.run_top, paths.run_id, host))
-        if action == "fusesoc_init":
-            return self.generate_fusesoc(
-                values.get("PRJ", "flexsoc"), paths.top, paths.rtl,
-                paths.run / "fusesoc" / host / "cores",
-            )
-        if action == "xbar_init":
-            config = self.resolve_config(
-                workspace=context.workspace, run_top=paths.run_top, run_id=paths.run_id,
-                default_host=host, mode=values.get("SOC_CFG_MODE", "builtin"),
-            )
-            devices = tuple(SocFlow.parse_device_rows([list(device.args()) for device in config.devices]))
-            return self.init_xbar(XbarConfig(host, devices), paths.run / "soc" / "xbar.hjson")
-        if action == "xbar_build":
-            config = paths.run / "soc" / "xbar.hjson"
-            output = paths.rtl / "xbar"
-            output.mkdir(parents=True, exist_ok=True)
-            return self.run_tool(
-                (sys.executable, str(context.project_root / "src" / "util" / "tlgen.py"), "-t", str(output), str(config)),
-                cwd=context.project_root, log=paths.logs / "soc" / "xbar.log",
-                inputs=(config,), outputs=(output,), on=on,
-            ).returncode
-        if action in {"generate", "generate_uart", "generate_ibex"}:
-            selected_host = "ibex" if action == "generate_ibex" else "uart" if action == "generate_uart" else host
-            config = self.resolve_config(
-                workspace=context.workspace, run_top=paths.run_top, run_id=paths.run_id,
-                default_host=selected_host, mode=values.get("SOC_CFG_MODE", "builtin"),
-            )
-            devices = tuple(
-                SoCModule(device.name, device.base, device.size, device.from_lr.strip().lower() in {"1", "true", "yes", "on"})
-                for device in config.devices
-            )
-            return self.generate(SoCGenerationConfig(config.host, devices, paths.run, paths.rtl / "soc.sv"))
-        if action in {"fusesoc_build", "prepare", "sim_build"}:
-            root = paths.run / "fusesoc" / host
-            selected = values.get("TARGET", "default" if action == "fusesoc_build" else "sim")
-            argv = (
-                values.get("FUSESOC", "fusesoc"),
-                f"--cores-root={context.project_root}", f"--cores-root={root / 'cores'}",
-                "run", "--setup", "--build", "--target", selected,
-                "--build-root", str(root / "build"), values.get("SOC_CORE_VLNV", "enea:soc:main"),
-            )
-            return self.run_tool(argv, cwd=root, log=paths.logs / "soc" / f"{target.name}.log", on=on).returncode
-        if action == "build_sw":
-            sw = paths.run / "sw"
-            if not (sw / "Makefile").is_file():
-                raise FileNotFoundError(f"missing SoC software scaffold: {sw / 'Makefile'}; run `fx sw_soc` first")
-            return self.run_tool(("make", "-C", str(sw)), cwd=paths.run, log=paths.logs / "soc" / "build_sw.log", inputs=(sw / "Makefile",), on=on).returncode
-        if action == "sim_run":
-            exe = paths.run / "fusesoc" / host / "build" / "sim-verilator" / "Vtop_verilator"
-            return self.run_tool((str(exe),), cwd=exe.parent, log=paths.logs / "soc" / "run.log", inputs=(exe,), on=on).returncode
-        if action == "view":
-            from ...core.flow.session import WorkspaceFlow
-            return WorkspaceFlow(context, self.runner).view("view", on=on)
-        raise ValueError(f"unsupported SoC action: {action!r}")
-
-    def run_tool(self, argv, *, cwd: Path, log: Path, inputs=(), outputs=(), on: str = "local"):
-        """Run one external SoC tool through the shared execution layer."""
-        from ...core import CommandRequest
-        return self.runner.run(CommandRequest(tuple(argv), cwd, {}, log, tuple(inputs), tuple(outputs)), on=on)
-
-    @staticmethod
-    def _cfg_run_dir(workspace: str | Path, run_top: str, run_id: str) -> Path:
-        """Return the canonical run directory for a workspace/run identity."""
-
-        return Path(workspace).expanduser().resolve() / "runs" / run_top / run_id
-
-    @staticmethod
-    def _cfg_loaded_ips(workspace: str | Path, run_top: str, run_id: str) -> tuple[str, ...]:
-        """List IP directories staged under a run workspace."""
-
-        ips_dir = SocFlow._cfg_run_dir(workspace, run_top, run_id) / "ips"
-        if not ips_dir.exists():
+    def loaded_ip_dirs(self) -> tuple[Path, ...]:
+        ips = self.paths.run / "ips"
+        if not ips.is_dir():
             return ()
-        return tuple(sorted(path.name for path in ips_dir.iterdir() if path.is_dir()))
+        return tuple(sorted(path for path in ips.iterdir() if path.is_dir()))
 
-    @staticmethod
-    def builtin_devices(host: str) -> tuple[SoCDevice, ...]:
-        """Return the built-in memory map for a supported host profile."""
+    def resolve_plan(self) -> SoCPlan:
+        """Resolve host infrastructure plus explicitly staged reusable IPs."""
 
-        if host == "ibex":
-            return (
-                SoCDevice("sram", "0x00100000", "0x00100000", "True"),
-                SoCDevice("uart", "0x80000000"),
-                SoCDevice("pwm", "0x80020000"),
-                SoCDevice("gpio", "0x80040000"),
-                SoCDevice("rv_timer", "0x80060000"),
-                SoCDevice("spi_host", "0x80080000"),
-            )
-        if host == "uart":
-            return (
-                SoCDevice("uart", "0x80000000"),
-                SoCDevice("pwm", "0x80020000"),
-                SoCDevice("gpio", "0x80040000"),
-                SoCDevice("rv_timer", "0x80060000"),
-            )
-        raise SystemExit(f"ERROR: Unknown HOST '{host}'. Supported builtin hosts: ibex, uart")
+        host = self.normalize_host(str(self.values.get("HOST", "ibex")))
+        fabric = self.normalize_fabric(str(self.values.get("FABRIC", "tlul")))
+        loaded = tuple(path.name for path in self.loaded_ip_dirs())
 
-    @staticmethod
-    def _cfg_normalize_host(host: str | None) -> str | None:
-        """Normalize and validate an optional host override."""
-
-        if not host:
-            return None
-        normalized = host.strip().lower()
-        if normalized not in _cfg_SUPPORTED_HOSTS:
-            raise SystemExit(f"ERROR: unsupported host '{host}'. Use ibex or uart.")
-        return normalized
-
-    @staticmethod
-    def resolve_host(ip_names: tuple[str, ...], default_host: str | None = None) -> str:
-        """Resolve the host profile from an explicit hint or staged IP names."""
-
-        if default_host:
-            return default_host
-        names = set(ip_names)
-        if names & HOST_IPS:
-            return "ibex"
-        if names & {"uart", "uart_master"}:
-            return "uart"
-        raise SystemExit("ERROR: no loaded IPs found under workspace/runs/<run_top>/<run_id>/ips")
-
-    @staticmethod
-    def workspace_devices(ip_names: tuple[str, ...], host: str) -> tuple[SoCDevice, ...]:
-        """Build a deterministic memory map from staged workspace IP names."""
-
-        devices = [SoCDevice("sram", "0x00100000", "0x00100000", "True")] if host == "ibex" else []
+        devices = list(self.builtin_devices(host))
+        used_names = {device.name for device in devices}
+        used_bases = {device.base for device in devices}
         next_base = 0x800A0000
-        used_bases = set(KNOWN_BASES.values())
 
-        for ip in dict.fromkeys(ip_names):
-            if ip in HOST_IPS:
+        for name in loaded:
+            if name in HOST_IPS or name in used_names:
                 continue
-            base = KNOWN_BASES.get(ip)
+            base = KNOWN_BASES.get(name)
             if base is None:
                 while next_base in used_bases:
                     next_base += 0x00020000
                 base = next_base
-                used_bases.add(base)
                 next_base += 0x00020000
-            devices.append(SoCDevice(ip, f"0x{base:08X}"))
-        return tuple(devices)
+            if base in used_bases:
+                raise ValueError(f"duplicate SoC base address 0x{base:08X} for {name}")
+            devices.append(SoCDevice(name, base))
+            used_names.add(name)
+            used_bases.add(base)
+
+        return SoCPlan(host, fabric, tuple(devices))
 
     @staticmethod
-    def resolve_soc_config(
-        workspace: str | Path,
-        run_top: str,
-        run_id: str,
-        *,
-        default_host: str | None = None,
-        mode: str = "auto",
-    ) -> SoCConfig:
-        """Resolve a SoC config from builtin profiles, workspace IPs, or both."""
-
-        host_hint = SocFlow._cfg_normalize_host(default_host)
-        if mode not in {"workspace", "builtin", "auto"}:
-            raise SystemExit("ERROR: --mode must be workspace, builtin, or auto")
-
-        if mode == "builtin":
-            if not host_hint:
-                raise SystemExit("ERROR: --mode builtin requires --default-host <ibex|uart>")
-            return SoCConfig(host_hint, SocFlow.builtin_devices(host_hint))
-
-        ips = SocFlow._cfg_loaded_ips(workspace, run_top, run_id)
-        if mode == "workspace" or ips:
-            host = SocFlow.resolve_host(ips, host_hint)
-            return SoCConfig(host, SocFlow.workspace_devices(ips, host))
-
-        if host_hint:
-            return SoCConfig(host_hint, SocFlow.builtin_devices(host_hint))
-        raise SystemExit(
-            "ERROR: no loaded IPs found under workspace/runs/<run_top>/<run_id>/ips "
-            "and no supported builtin host selected. Use HOST=ibex or HOST=uart, or load IPs into the run."
-        )
+    def normalize_host(host: str) -> str:
+        host = host.strip().lower()
+        if host not in SUPPORTED_HOSTS:
+            raise ValueError(f"unsupported SoC host {host!r}; expected one of: {', '.join(sorted(SUPPORTED_HOSTS))}")
+        return host
 
     @staticmethod
-    def render_make_config(config: SoCConfig) -> str:
-        """Render a Make fragment containing host and device memory map data."""
-
-        lines = [
-            f"HOST ?= {config.host}",
-            "DEVLIST :=",
-            "define add_device",
-            "DEVLIST += $(1)",
-            "BASE_$(1) := $(2)",
-            "SIZE_$(1) := $(3)",
-            "FROM_LR_$(1) := $(4)",
-            "endef",
-            *(device.make_call() for device in config.devices),
-            "SOC_MEMORY_MAP ?= $(foreach d,$(DEVLIST),--device $(d) $(BASE_$(d)) $(SIZE_$(d)) $(FROM_LR_$(d)))",
-        ]
-        return "\n".join(lines) + "\n"
+    def normalize_fabric(fabric: str) -> str:
+        fabric = fabric.strip().lower()
+        if fabric not in SUPPORTED_FABRICS:
+            raise ValueError("unsupported SoC fabric {!r}; currently supported: tlul".format(fabric))
+        return fabric
 
     @staticmethod
-    def render_args(config: SoCConfig) -> str:
-        """Render flat command-line arguments for SoC generators."""
+    def builtin_devices(host: str) -> tuple[SoCDevice, ...]:
+        """Return only infrastructure intrinsically required by a host."""
 
-        return " ".join(config.args()) + "\n"
+        if host == "ibex":
+            return (SoCDevice("sram", SRAM_BASE, SRAM_SIZE, True),)
+        if host == "uart":
+            return ()
+        raise ValueError(f"unsupported SoC host {host!r}")
+
+    def write_plan(self, plan: SoCPlan) -> Path:
+        return self.write_json(self.paths.run / "soc" / "plan.json", plan.to_dict())
+
+    def show(self) -> Path:
+        """Print the stored plan, or the currently resolved plan when not generated yet."""
+
+        path = self.paths.run / "soc" / "plan.json"
+        payload = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else self.resolve_plan().to_dict()
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return path
+
+    def generate(self, *, on: str = "local") -> object:
+        """Generate the complete hardware composition for the current SoC plan."""
+
+        self.prepare_run()
+        plan = self.resolve_plan()
+        self.write_plan(plan)
+        result = self.fabric.generate(plan, self.paths.run, self.paths.logs / "soc" / "tlgen.log", on=on)
+        if getattr(result, "returncode", 0):
+            return result
+        self.generate_top(plan)
+        return self.paths.run / "soc" / "plan.json"
 
     @staticmethod
-    def _start_loaded_ips(ips_dir: Path) -> tuple[Path, ...]:
-        """Return staged IP bundle directories sorted by name."""
-
-        return tuple(sorted(path for path in ips_dir.iterdir() if path.is_dir()))
+    def write_json(path: Path, payload: dict[str, Any]) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return path.resolve()
 
     @staticmethod
     def _copy_tree(src: Path, dst: Path) -> bool:
-        """Copy one optional verification asset tree."""
-
         if not src.exists():
             return False
         if dst.exists():
@@ -414,26 +280,21 @@ class SocFlow:
         shutil.copytree(src, dst)
         return True
 
-    @staticmethod
-    def stage_ip_verification_assets(config: SoCStartConfig, ips: tuple[Path, ...]) -> Path:
-        """Stage per-IP tests/models into the SoC run root."""
-
-        manifest = config.run_dir / "tests" / "loaded_tests.txt"
+    def stage_ip_verification_assets(self, ips: tuple[Path, ...]) -> Path:
+        manifest = self.paths.run / "tests" / "loaded_tests.txt"
         lines: list[str] = []
         for ip in ips:
-            copied_tests = SocFlow._copy_tree(ip / "tb" / "tests", config.run_dir / "tests" / ip.name)
-            copied_model = SocFlow._copy_tree(ip / "model", config.run_dir / "model" / ip.name)
+            functional = ip / "dv" / "functional"
+            copied_tests = self._copy_tree(functional / "tests", self.paths.run / "tests" / ip.name)
+            copied_model = self._copy_tree(functional / "model", self.paths.run / "model" / ip.name)
             if copied_tests or copied_model:
                 lines.append(f"{ip.name}: tests={int(copied_tests)} model={int(copied_model)}")
-        manifest.parent.mkdir(parents=True, exist_ok=True)
         manifest.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
         return manifest
 
     @staticmethod
     def read_filelists(ip_dir: Path) -> tuple[str, ...]:
-        """Read the canonical staged IP common/IP filelists."""
-
-        files = (ip_dir / "rtl/rtl_common.f", ip_dir / "rtl/rtl_ip.f")
+        files = (ip_dir / "rtl" / "rtl_common.f", ip_dir / "rtl" / "rtl_ip.f")
         missing = [path for path in files if not path.is_file()]
         if missing:
             raise FileNotFoundError("missing canonical IP filelist(s): " + ", ".join(map(str, missing)))
@@ -445,235 +306,77 @@ class SocFlow:
         )
 
     @staticmethod
-    def fallback_rtl_sources(ip_dir: Path) -> tuple[str, ...]:
-        """Discover RTL files when an IP bundle has no explicit filelist."""
-
-        rtl_dir = ip_dir / "rtl"
-        if not rtl_dir.exists():
-            return ()
-        files = sorted(rtl_dir.glob("*.sv")) + sorted(rtl_dir.glob("*.v"))
-        return tuple(path.resolve().as_posix() for path in files if path.is_file())
-
-    @staticmethod
     def merged_rtl_sources(ips: tuple[Path, ...]) -> tuple[str, ...]:
-        """Merge IP RTL sources while preserving first-seen ordering."""
-
         merged: list[str] = []
         seen: set[str] = set()
-        for ip_dir in ips:
-            for source in SocFlow.read_filelists(ip_dir) or SocFlow.fallback_rtl_sources(ip_dir):
+        for ip in ips:
+            for source in SocFlow.read_filelists(ip):
                 if source not in seen:
                     seen.add(source)
                     merged.append(source)
         return tuple(merged)
 
-    @staticmethod
-    def write_soc_start_summary(config: SoCStartConfig, ips: tuple[Path, ...], rtl_ip: Path) -> Path:
-        """Write a compact summary for the initialized SoC run."""
+    def find_sv_file(self, module_name: str) -> Path | None:
+        """Resolve a loaded device only from its frozen staged release."""
 
-        doc_dir = config.run_dir / "doc"
-        doc_dir.mkdir(parents=True, exist_ok=True)
-        path = doc_dir / "soc_start.txt"
-        path.write_text(
-            "\n".join(
-                (
-                    f"run_top={config.run_top}",
-                    f"run_id={config.run_id}",
-                    f"run_dir={config.run_dir}",
-                    f"loaded_ips={len(ips)}",
-                    f"rtl_ip={rtl_ip}",
-                )
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        return path
+        rtl = self.paths.run / "ips" / module_name / "rtl"
+        if not rtl.is_dir():
+            return None
+        exact = rtl / f"{module_name}.sv"
+        if exact.is_file():
+            return exact
+        matches = sorted(rtl.rglob(f"{module_name}.sv"))
+        return matches[0] if len(matches) == 1 else None
 
     @staticmethod
-    def initialize_soc_run(config: SoCStartConfig) -> Path:
-        """Create SoC run folders and write the merged RTL filelist."""
-
-        if not config.ips_dir.exists():
-            raise FileNotFoundError(f"missing ips directory: {config.ips_dir}")
-
-        ips = SocFlow._start_loaded_ips(config.ips_dir)
-        if not ips:
-            raise ValueError(f"no loaded IPs under: {config.ips_dir}")
-
-        for dirname in ("rtl", "tb", "sim", "logs", "doc", "tests", "model"):
-            (config.run_dir / dirname).mkdir(parents=True, exist_ok=True)
-
-        (config.ips_dir / "loaded_ips.txt").write_text("".join(f"{ip.name}\n" for ip in ips), encoding="utf-8")
-        sources = SocFlow.merged_rtl_sources(ips)
-        if not sources:
-            raise ValueError(f"no RTL sources found under loaded IPs in: {config.ips_dir}")
-
-        rtl_ip = config.run_dir / "rtl" / "rtl_ip.f"
-        rtl_ip.write_text("\n".join(sources) + "\n", encoding="utf-8")
-        (config.run_dir / "rtl" / "rtl_list.f").unlink(missing_ok=True)
-        SocFlow.stage_ip_verification_assets(config, ips)
-        SocFlow.write_soc_start_summary(config, ips, rtl_ip)
-        return rtl_ip
-
-    @staticmethod
-    def _xbar_normalize_host(host: str) -> str:
-        """Map user-facing host names to generated crossbar node names."""
-
-        return "uart_host" if host.strip().lower() == "uart" else "ibex"
-
-    @staticmethod
-    def device_node(device: XbarDevice) -> dict[str, Any]:
-        """Render one device as a JSON-ready crossbar node."""
-
-        return {
-            "name": device.name,
-            "type": "device",
-            "clock": "clk_i",
-            "reset": "rst_ni",
-            "xbar": False,
-            "addr_range": [{"base_addr": device.base_addr, "size_byte": device.size_byte}],
-        }
-
-    @staticmethod
-    def host_node(name: str) -> dict[str, Any]:
-        """Render the host node shared by all generated configurations."""
-
-        return {
-            "name": name,
-            "type": "host",
-            "clock": "clk_i",
-            "reset": "rst_ni",
-            "xbar": False,
-            "pipeline": False,
-        }
-
-    @staticmethod
-    def build_xbar_config(config: XbarConfig) -> dict[str, Any]:
-        """Build a JSON-ready crossbar configuration from normalized inputs."""
-
-        host_name = SocFlow._xbar_normalize_host(config.host)
-        nodes = [SocFlow.host_node(host_name), *(SocFlow.device_node(device) for device in config.devices)]
-        return {
-            "name": "main",
-            "type": "xbar",
-            "clock": "clk_i",
-            "clock_connections": {"clk_i": "main"},
-            "reset": "rst_ni",
-            "reset_connections": {"rst_ni": "main"},
-            "nodes": nodes,
-            "connections": {host_name: [device.name for device in config.devices]},
-        }
-
-    @staticmethod
-    def write_json(path: Path, payload: dict[str, Any]) -> Path:
-        """Write a JSON payload to disk and return the resolved path."""
-
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        return path.resolve()
-
-    @staticmethod
-    def parse_device_rows(rows: list[list[str]]) -> tuple[XbarDevice, ...]:
-        """Convert argparse device rows into typed crossbar devices."""
-
-        return tuple(XbarDevice(name, base_addr, size_byte, from_lr) for name, base_addr, size_byte, from_lr in rows)
-
-    @staticmethod
-    def _gen_normalize_host(host: str) -> str:
-        """Normalize and validate the host selected for SoC generation."""
-
-        host = host.strip().lower()
-        if host not in _gen_SUPPORTED_HOSTS:
-            expected = ", ".join(sorted(_gen_SUPPORTED_HOSTS))
-            raise ValueError(f"unsupported host {host!r}; expected one of: {expected}")
-        return host
-
-    @staticmethod
-    def normalize_device(raw: tuple[str, str, str, str] | list[str]) -> SoCModule:
-        """Convert one CLI device tuple into the canonical SoC module model."""
-
-        name, base_addr, size_bytes, from_lowrisc = raw
-        return SoCModule(name, base_addr, size_bytes, from_lowrisc == "True")
-
-    @staticmethod
-    def normalize_devices(devices: list[list[str]] | tuple[SoCModule, ...]) -> tuple[SoCModule, ...]:
-        """Normalize CLI or API device entries into immutable module objects."""
-
-        if all(isinstance(device, SoCModule) for device in devices):
-            return tuple(devices)
-        return tuple(SocFlow.normalize_device(device) for device in devices)
-
-    @staticmethod
-    def find_sv_file(module_name, root_dir=".", from_vendor=False):
-        """Find the SystemVerilog source for one module below canonical roots."""
-
-        root = Path(root_dir)
-        search_roots = [root / "vendor"] if from_vendor else [
-            root / "hw" / "ips" / module_name,
-            root / "rtl",
-            root,
-        ]
-        for search_root in search_roots:
-            if not search_root.exists():
-                continue
-            for path in search_root.rglob(f"{module_name}.sv"):
-                return path
-        return None
-
-    @staticmethod
-    def parse_ports(sv_file):
-        """Parse simple input/output port declarations from a SystemVerilog module."""
-
-        with open(sv_file, "r", encoding="utf-8") as f:
-            content = f.read()
-
+    def parse_ports(sv_file: Path) -> list[tuple[str, str | None, str]]:
+        content = sv_file.read_text(encoding="utf-8")
         content = re.sub(r"//.*?$|/\*.*?\*/", "", content, flags=re.DOTALL | re.MULTILINE)
         content = re.sub(r"\s+", " ", content)
-
-        m = re.search(r"\bmodule\b.*?\((?P<plist>.*?)\)\s*;", content)
-        if not m:
+        match = re.search(r"\bmodule\b.*?\((?P<plist>.*?)\)\s*;", content)
+        if not match:
             return []
-
-        plist = m.group("plist")
-        port_decls = [p.strip() for p in plist.split(",") if p.strip()]
-
         ports = []
-        for decl in port_decls:
-            dm = re.match(r"^\s*(input|output)\b\s+(.*)$", decl)
-            if not dm:
+        for declaration in (part.strip() for part in match.group("plist").split(",")):
+            parsed = re.match(r"^\s*(input|output)\b\s+(.*)$", declaration)
+            if not parsed:
                 continue
-            dir_ = dm.group(1)
-            rest = dm.group(2).strip()
-            nm = re.search(r"([A-Za-z_]\w*)\s*$", rest)
-            if not nm:
+            direction, rest = parsed.group(1), parsed.group(2).strip()
+            name_match = re.search(r"([A-Za-z_]\w*)\s*$", rest)
+            if not name_match:
                 continue
-            name = nm.group(1)
-            dtype = rest[: nm.start(1)].strip() or None
-            ports.append((dir_, dtype, name))
+            ports.append((direction, rest[:name_match.start(1)].strip() or None, name_match.group(1)))
         return ports
 
     @staticmethod
-    def generate_port_decls(all_ports):
-        """Render top-level SoC ports while hiding clocks, TL-UL, and interrupts."""
+    def collect_soc_ports(modules_ports: dict[str, list[tuple[str, str | None, str]]]) -> dict[str, str]:
+        all_ports: dict[str, str] = {}
+        for ports in modules_ports.values():
+            for direction, dtype, name in ports:
+                all_ports.setdefault(name, direction + " " + (dtype or ""))
+        return all_ports
 
+    @staticmethod
+    def add_host_ports(host: str, all_ports: dict[str, str]) -> dict[str, str]:
+        if host == "uart":
+            all_ports.setdefault("cio_rx_i", "input logic")
+            all_ports.setdefault("cio_tx_o", "output logic")
+            all_ports.setdefault("cio_tx_en_o", "output logic")
+        return all_ports
+
+    @staticmethod
+    def generate_port_decls(all_ports: dict[str, str]) -> list[str]:
         lines = []
         for name, direction in all_ports.items():
-            if "tl_" in name:
-                continue
-            if name in {"clk_i", "rst_ni"}:
-                continue
-            if "intr" in name:
+            if "tl_" in name or name in {"clk_i", "rst_ni"} or "intr" in name:
                 continue
             lines.append(f"  {direction} {name},")
         return lines
 
     @staticmethod
-    def generate_module_inst(mod: str, ports) -> str:
-        """Render one peripheral instance from semantic port metadata."""
-
+    def generate_module_inst(module: str, ports: list[tuple[str, str | None, str]]) -> str:
         from flexsoc.backend.core.render.templates import templates
-
-        connections = [".clk_i", ".rst_ni", f".tl_i(tl_{mod}_h2d)", f".tl_o(tl_{mod}_d2h)"]
+        connections = [".clk_i", ".rst_ni", f".tl_i(tl_{module}_h2d)", f".tl_o(tl_{module}_d2h)"]
         connections.extend(
             f".{name}"
             for _direction, _dtype, name in ports
@@ -685,152 +388,51 @@ class SocFlow:
             for _direction, _dtype, name in ports
             if any(token in name for token in ("intr", "alert_rx", "alert_tx"))
         )
-        return templates.render(
-            "design/soc/module_instance.sv.j2", module=mod, connections=connections
-        )
+        return templates.render("design/soc/module_instance.sv.j2", module=module, connections=connections)
 
     @staticmethod
     def defaults(host: str) -> str:
-        """Render host-specific default logic and TileLink adapters."""
-
         from flexsoc.backend.core.render.templates import templates
-
-        host = SocFlow._gen_normalize_host(host)
         return templates.render(f"design/soc/defaults_{host}.sv.j2")
 
     @staticmethod
-    def write_top_verilator_sv(tb_file: Path, host: str, all_ports: dict[str, str]) -> Path:
-        """Write the generated Verilator SystemVerilog wrapper."""
-
+    def render_xbar_connections(plan: SoCPlan) -> str:
         from flexsoc.backend.core.render.templates import templates
-
-        ports = [
-            (name, direction)
-            for name, direction in all_ports.items()
-            if name not in {"clk_i", "rst_ni"} and "tl_" not in name and "intr" not in name
-        ]
-        declarations = [
-            f"{' '.join(direction.split()[1:]).strip() or 'logic'} {name}"
-            for name, direction in ports
-        ]
-        return templates.write(
-            "design/soc/top_verilator.sv.j2", Path(tb_file), force=True,
-            host=host,
-            declarations=declarations,
-            ports=[name for name, _ in ports],
-            has_uart=all(name in all_ports for name in ("cio_rx_i", "cio_tx_o")),
-        )
-
-    @staticmethod
-    def write_top_verilator_cc(tb_file: Path, host: str) -> Path:
-        """Write the generated Verilator C++ harness."""
-
-        from flexsoc.backend.core.render.templates import templates
-
-        return templates.write(
-            "design/soc/top_verilator.cc.j2", Path(tb_file), force=True, host=host
-        )
-
-    @staticmethod
-    def write_soc_core(core_file: Path, host: str, modules: list[str]) -> Path:
-        """Write the FuseSoC core file for the generated SoC."""
-
-        from flexsoc.backend.core.render.templates import templates
-
-        return templates.write(
-            "design/soc/soc.core.j2", Path(core_file), force=True,
-            host=host, modules=modules, merge_key="<<: *default_target",
-        )
-
-    @staticmethod
-    def split_devices(devices: tuple[SoCModule, ...]) -> tuple[list[str], list[str]]:
-        """Split normalized devices into local IPs and lowRISC dependencies."""
-
-        local = [device.name for device in devices if not device.from_lowrisc]
-        lowrisc = [device.name for device in devices if device.from_lowrisc]
-        return local, lowrisc
-
-    @staticmethod
-    def soc_modules(devices: tuple[SoCModule, ...]) -> tuple[list[str], list[str], list[str]]:
-        """Return local, lowRISC, and renderable module lists for SoC generation."""
-
-        local, lowrisc = SocFlow.split_devices(devices)
-        return local, lowrisc, lowrisc[1:] + local
-
-    @staticmethod
-    def collect_module_ports(config: SoCGenerationConfig) -> tuple[dict[str, list[tuple[str, str | None, str]]], list[str]]:
-        """Resolve every renderable module and parse its external ports."""
-
-        local_modules, lowrisc_modules, modules = SocFlow.soc_modules(config.devices)
-        parsed = {}
-        for module in modules:
-            if module == "uart" and config.host == "uart":
-                continue
-            sv_path = SocFlow.find_sv_file(module, config.root, module in lowrisc_modules)
-            if not sv_path:
-                raise FileNotFoundError(f"SystemVerilog file for module {module!r} not found.")
-            parsed[module] = SocFlow.parse_ports(sv_path)
-        return parsed, local_modules
-
-    @staticmethod
-    def collect_soc_ports(modules_ports):
-        """Merge parsed module ports into the generated SoC top-level port map."""
-
-        all_ports = {}
-        for mod_ports in modules_ports.values():
-            for direction, dtype, name in mod_ports:
-                all_ports.setdefault(name, direction + " " + ("" if dtype is None else dtype))
-        return all_ports
-
-    @staticmethod
-    def add_host_ports(host: str, all_ports: dict[str, str]) -> dict[str, str]:
-        """Add host-facing external pins that are not discovered from IP wrappers."""
-
-        if host == "uart":
-            all_ports.setdefault("cio_rx_i", "input logic")
-            all_ports.setdefault("cio_tx_o", "output logic")
-            all_ports.setdefault("cio_tx_en_o", "output logic")
-        return all_ports
-
-    @staticmethod
-    def render_xbar_connections(host: str, modules: list[str]) -> str:
-        """Render xbar connections from the resolved host/device topology."""
-
-        from flexsoc.backend.core.render.templates import templates
-
         connections: list[str] = []
-        if host == "ibex":
+        if plan.host == "ibex":
             connections.extend((
                 ".tl_ibex_i (tl_ibex_h2d)", ".tl_ibex_o (tl_ibex_d2h)",
                 ".tl_sram_o (tl_sram_h2d)", ".tl_sram_i (tl_sram_d2h)",
             ))
-        elif host == "uart":
+        elif plan.host == "uart":
             connections.extend((
                 ".tl_uart_host_i (tl_uart_host_h2d)", ".tl_uart_host_o (tl_uart_host_d2h)",
-                ".tl_uart_o (tl_uart_h2d)", ".tl_uart_i (tl_uart_d2h)",
             ))
-        for module in modules:
-            if module == "uart" and host == "uart":
-                continue
+        for device in plan.external_devices:
             connections.extend((
-                f".tl_{module}_o (tl_{module}_h2d)",
-                f".tl_{module}_i (tl_{module}_d2h)",
+                f".tl_{device.name}_o (tl_{device.name}_h2d)",
+                f".tl_{device.name}_i (tl_{device.name}_d2h)",
             ))
         return templates.render("design/soc/xbar.sv.j2", connections=connections)
 
-    @staticmethod
-    def render_soc_sv(host: str, modules_ports, local_modules: list[str]) -> str:
-        """Render the generated ``soc.sv`` source from semantic port/module data."""
+    def module_ports(self, plan: SoCPlan) -> dict[str, list[tuple[str, str | None, str]]]:
+        parsed = {}
+        for device in plan.external_devices:
+            source = self.find_sv_file(device.name)
+            if source is None:
+                raise FileNotFoundError(
+                    f"loaded SoC device {device.name!r} has no unique rtl/{device.name}.sv"
+                )
+            parsed[device.name] = self.parse_ports(source)
+        return parsed
 
+    def render_soc_sv(self, plan: SoCPlan, modules_ports: dict[str, list[tuple[str, str | None, str]]]) -> str:
         from flexsoc.backend.core.render.templates import templates
-
-        modules = list(modules_ports)
-        all_ports = SocFlow.add_host_ports(host, SocFlow.collect_soc_ports(modules_ports))
-        port_declarations = "\n".join(SocFlow.generate_port_decls(all_ports)) + "\n"
+        all_ports = self.add_host_ports(plan.host, self.collect_soc_ports(modules_ports))
+        port_declarations = "\n".join(self.generate_port_decls(all_ports)) + "\n"
         tl_signals = "\n".join(
             line
-            for module in modules
-            if not (module == "uart" and host == "uart")
+            for module in modules_ports
             for line in (
                 f"  tlul_pkg::tl_h2d_t tl_{module}_h2d;",
                 f"  tlul_pkg::tl_d2h_t tl_{module}_d2h;",
@@ -839,176 +441,93 @@ class SocFlow:
         if tl_signals:
             tl_signals += "\n"
         instances = "\n".join(
-            SocFlow.generate_module_inst(module, ports)
-            for module, ports in modules_ports.items()
+            self.generate_module_inst(module, ports) for module, ports in modules_ports.items()
         )
         return templates.render(
             "design/soc/soc.sv.j2",
             port_declarations=port_declarations,
-            defaults=SocFlow.defaults(host),
+            defaults=self.defaults(plan.host),
             tl_signals=tl_signals,
-            xbar=SocFlow.render_xbar_connections(host, local_modules),
+            xbar=self.render_xbar_connections(plan),
             module_instances=instances,
         )
 
-    @staticmethod
-    def generate_soc(config: SoCGenerationConfig) -> Path:
-        """Generate SoC RTL, Verilator wrappers, and FuseSoC metadata."""
-
-        modules_ports, local_modules = SocFlow.collect_module_ports(config)
-        all_ports = SocFlow.add_host_ports(config.host, SocFlow.collect_soc_ports(modules_ports))
-        config.output.parent.mkdir(parents=True, exist_ok=True)
-        config.tb_dir.mkdir(parents=True, exist_ok=True)
-        config.output.write_text(SocFlow.render_soc_sv(config.host, modules_ports, local_modules), encoding="utf-8")
-        SocFlow.write_top_verilator_sv(config.tb_dir / "top_verilator.sv", config.host, all_ports)
-        SocFlow.write_top_verilator_cc(config.tb_dir / "top_verilator.cc", config.host)
-        SocFlow.write_soc_core(config.run_dir / "soc.core", config.host, local_modules)
-        return config.output
-
-    @staticmethod
-    def generate_soc_sv(host, device, root_dir, output_file):
-        """Generate SoC files from CLI-style arguments."""
-
-        return SocFlow.generate_soc(
-            SoCGenerationConfig(
-                host=SocFlow._gen_normalize_host(host),
-                devices=SocFlow.normalize_devices(device),
-                root=Path(root_dir),
-                output=Path(output_file),
-            )
+    def write_top_verilator_sv(self, path: Path, plan: SoCPlan, all_ports: dict[str, str]) -> Path:
+        from flexsoc.backend.core.render.templates import templates
+        ports = [
+            (name, direction)
+            for name, direction in all_ports.items()
+            if name not in {"clk_i", "rst_ni"} and "tl_" not in name and "intr" not in name
+        ]
+        declarations = [
+            f"{' '.join(direction.split()[1:]).strip() or 'logic'} {name}" for name, direction in ports
+        ]
+        return templates.write(
+            "design/soc/top_verilator.sv.j2", path, force=True,
+            host=plan.host, declarations=declarations, ports=[name for name, _ in ports],
+            has_uart=all(name in all_ports for name in ("cio_rx_i", "cio_tx_o")),
         )
 
     @staticmethod
-    def rtl_sort_key(filename: str, top: str) -> tuple[int, str]:
-        """Return a stable RTL order with packages first and the top module last."""
-
-        if filename.endswith("_pkg.sv") and filename != f"{top}_reg_pkg.sv":
-            return (0, filename)
-        if filename == f"{top}_reg_pkg.sv":
-            return (1, filename)
-        if filename == f"{top}_reg_core.sv":
-            return (2, filename)
-        if filename == f"{top}_reg_top.sv":
-            return (3, filename)
-        if filename.endswith("_core.sv") or filename == "timer_core.sv":
-            return (4, filename)
-        if filename == f"{top}.sv":
-            return (5, filename)
-        return (6, filename)
+    def write_top_verilator_cc(path: Path, plan: SoCPlan) -> Path:
+        from flexsoc.backend.core.render.templates import templates
+        return templates.write("design/soc/top_verilator.cc.j2", path, force=True, host=plan.host)
 
     @staticmethod
-    def list_rtl_sources(rtl_dir: Path, top: str) -> list[str]:
-        """List visible SystemVerilog files in FuseSoC-friendly order."""
-
-        files = [p.name for p in rtl_dir.iterdir() if p.is_file() and not p.name.startswith(".")]
-        return sorted((name for name in files if name.endswith(".sv")), key=lambda name: SocFlow.rtl_sort_key(name, top))
-
-    @staticmethod
-    def render_core(prj: str, top: str, rtl_files: list[str], rtl_ref_dir: str = "rtl") -> str:
-        """Render the CAPI2 core description used by FuseSoC."""
-
-        file_lines = "\n".join(f"      - {rtl_ref_dir}/{name}" for name in rtl_files)
-        if file_lines:
-            file_lines += "\n"
-        return (
-            "CAPI=2:\n"
-            f"name: \"{prj}:ip:{top}:0.1\"\n"
-            f"description: \"{top}\"\n"
-            "filesets:\n"
-            "  files_rtl:\n"
-            "    depend:\n"
-            "      - ips:dependecies:all\n"
-            "    files:\n"
-            f"{file_lines}"
-            "    file_type: systemVerilogSource\n\n"
-            "targets:\n"
-            "  default: &default_target\n"
-            "    filesets:\n"
-            "      - files_rtl\n"
-            f"    toplevel: {top}\n\n"
-            "  lint:\n"
-            "    <<: *default_target\n"
-            "    default_tool: verilator\n"
-            "    tools:\n"
-            "      verilator:\n"
-            "        mode: lint-only\n"
-            "        verilator_options:\n"
-            "          - \"-Wall\"\n"
-            "          - \"-Wno-fatal\"\n"
+    def write_soc_core(path: Path, plan: SoCPlan) -> Path:
+        from flexsoc.backend.core.render.templates import templates
+        return templates.write(
+            "design/soc/soc.core.j2", path, force=True,
+            host=plan.host, modules=[device.name for device in plan.external_devices],
+            merge_key="<<: *default_target",
         )
 
-    @staticmethod
-    def write_core(prj: str, top: str, rtl_dir: Path, output: Path | None = None) -> Path:
-        """Write `<top>.core` and return the generated path."""
-
-        out_dir = output or Path.cwd()
-        out_dir.mkdir(parents=True, exist_ok=True)
-        core_path = out_dir / f"{top}.core"
-        core_path.write_text(SocFlow.render_core(prj, top, SocFlow.list_rtl_sources(rtl_dir, top)), encoding="utf-8")
-        return core_path
-
-    @staticmethod
-    def _software_run_dir(workspace: Path, run_top: str, run_id: str) -> Path:
-        """Build the canonical workspace run directory path."""
-
-        return workspace / "runs" / run_top / run_id
+    def generate_top(self, plan: SoCPlan) -> Path:
+        modules_ports = self.module_ports(plan)
+        all_ports = self.add_host_ports(plan.host, self.collect_soc_ports(modules_ports))
+        output = self.paths.rtl / "soc.sv"
+        output.write_text(self.render_soc_sv(plan, modules_ports), encoding="utf-8")
+        self.paths.tb.mkdir(parents=True, exist_ok=True)
+        self.write_top_verilator_sv(self.paths.tb / "top_verilator.sv", plan, all_ports)
+        self.write_top_verilator_cc(self.paths.tb / "top_verilator.cc", plan)
+        self.write_soc_core(self.paths.run / "soc.core", plan)
+        return output
 
     @staticmethod
     def copy_driver_files(ips_dir: Path, sw_dir: Path) -> list[str]:
-        """Copy staged IP C drivers into the software directory."""
-
         if not ips_dir.exists():
-            raise SystemExit(f"ERROR: missing loaded IP directory: {ips_dir}")
-
+            return []
         modules: list[str] = []
-        for ip_dir in sorted((p for p in ips_dir.iterdir() if p.is_dir()), key=lambda p: p.name):
-            driver_files = sorted((ip_dir / "sw" / "drivers").glob("*.h")) + sorted((ip_dir / "sw" / "drivers").glob("*.c"))
-            if not driver_files:
+        for ip_dir in sorted((path for path in ips_dir.iterdir() if path.is_dir()), key=lambda path: path.name):
+            driver_dir = ip_dir / "sw" / "drivers"
+            files = sorted(driver_dir.glob("*.h")) + sorted(driver_dir.glob("*.c"))
+            if not files:
                 continue
-            for src in driver_files:
-                shutil.copy2(src, sw_dir / src.name)
+            for source in files:
+                shutil.copy2(source, sw_dir / source.name)
             modules.append(ip_dir.name)
         return modules
 
     @staticmethod
     def render_main_c(modules: list[str], host: str) -> str:
-        """Render the generated SoC C entrypoint."""
-
         from flexsoc.backend.core.render.templates import templates
-
-        return templates.render(
-            "design/soc/main.c.j2",
-            modules=modules,
-            uses_uart=host == "uart" and "uart" in modules,
-        )
+        return templates.render("design/soc/main.c.j2", modules=modules, uses_uart=host == "uart" and "uart" in modules)
 
     @staticmethod
     def render_makefile(modules: list[str]) -> str:
-        """Render the generated RISC-V software Makefile."""
-
         from flexsoc.backend.core.render.templates import templates
-
         objects = " ".join(f"$(BUILD_DIR)/{module}.o" for module in ("main", *modules))
-        return templates.render(
-            "design/soc/Makefile.j2",
-            obj_list=f"{objects} $(BUILD_DIR)/boot.o",
-        )
+        return templates.render("design/soc/Makefile.j2", obj_list=f"{objects} $(BUILD_DIR)/boot.o")
 
-    @staticmethod
-    def write_soc_software(config: SoCSoftwareConfig) -> tuple[Path, list[str]]:
-        """Generate the SoC software directory and return its copied modules."""
-
-        sw_dir = config._software_run_dir / "sw"
-        sw_dir.mkdir(parents=True, exist_ok=True)
-
-        modules = SocFlow.copy_driver_files(config._software_run_dir / "ips", sw_dir)
-        if not modules:
-            raise SystemExit(f"ERROR: no driver files found under loaded IPs: {config._software_run_dir / 'ips'}")
+    def generate_software(self, plan: SoCPlan) -> tuple[Path, list[str]]:
+        """Internal software scaffold generation; public CLI wiring follows after M0 boot."""
 
         from flexsoc.backend.core.render.templates import templates
-
-        templates.write("design/soc/boot.S.j2", sw_dir / "boot.S", force=True)
-        templates.write("design/soc/link.ld.j2", sw_dir / "link.ld", force=True)
-        (sw_dir / "main.c").write_text(SocFlow.render_main_c(modules, config.host), encoding="utf-8")
-        (sw_dir / "Makefile").write_text(SocFlow.render_makefile(modules), encoding="utf-8")
-        return sw_dir, modules
+        sw = self.paths.sw
+        sw.mkdir(parents=True, exist_ok=True)
+        modules = self.copy_driver_files(self.paths.run / "ips", sw)
+        templates.write("design/soc/boot.S.j2", sw / "boot.S", force=True)
+        templates.write("design/soc/link.ld.j2", sw / "link.ld", force=True)
+        (sw / "main.c").write_text(self.render_main_c(modules, plan.host), encoding="utf-8")
+        (sw / "Makefile").write_text(self.render_makefile(modules), encoding="utf-8")
+        return sw, modules

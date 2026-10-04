@@ -6764,11 +6764,14 @@ def test_ip_and_experimental_composite_targets_are_not_public() -> None:
         "ip_start", "ip_flow", "ip_flow_noreg", "ip_flow_all",
         "soc_flow", "xbar", "fsm_flow", "fsm2rtl",
         "full_tutorial", "fsm_tutorial", "ip_tutorial", "soc_pless",
+        "soc_cfg", "soc_start", "fsoc_init", "fsoc",
+        "xbar_init", "xbar_build", "soc_uart_gen", "soc_ibex_gen",
+        "sw_soc", "soc_prepare", "soc_build_sw", "soc_sim",
+        "soc_run", "soc_view",
     }
     assert removed.isdisjoint(TARGETS)
     assert removed.isdisjoint(BACKEND_TARGETS)
-    assert BACKEND_TARGETS["soc_start"].domain == "soc"
-    assert BACKEND_TARGETS["xbar_init"].domain == "soc"
+    assert BACKEND_TARGETS["soc"].domain == "soc"
     assert BACKEND_TARGETS["fsm_gen"].domain == "fsm"
     assert BACKEND_TARGETS["setup"].domain == "workspace"
     assert BACKEND_TARGETS["deps"].domain == "toolchain"
@@ -11352,3 +11355,78 @@ def test_multiclock_icarus_stream_vectors_use_shared_token_parser() -> None:
     assert "tb_tokenize9(line_buf" in packed_monitor
     assert "tb_parse_u32(value_raw)" in packed_monitor
     assert '$sscanf(line_buf, "%d %s %h"' not in packed_monitor
+
+def test_soc_refactor_uses_plan_model_not_step_configs() -> None:
+    import flexsoc.backend.design.soc.soc as soc_module
+
+    assert hasattr(soc_module, "SocFlow")
+    assert hasattr(soc_module, "SoCDevice")
+    assert hasattr(soc_module, "SoCPlan")
+    for legacy in (
+        "SoCGenerationConfig",
+        "SoCStartConfig",
+        "SoCSoftwareConfig",
+        "SoCModule",
+        "XbarConfig",
+        "XbarDevice",
+    ):
+        assert not hasattr(soc_module, legacy)
+
+
+def test_soc_ibex_sram_geometry_is_consistent() -> None:
+    template = (
+        ROOT
+        / "src"
+        / "flexsoc"
+        / "templates"
+        / "design"
+        / "soc"
+        / "defaults_ibex.sv.j2"
+    ).read_text(encoding="utf-8")
+
+    assert "MemSize       = 128 * 1024" in template
+    assert ".Depth           ( 2 ** SramAddrWidth" in template
+    assert ".SramAw           ( SramAddrWidth " in template
+    assert "SramAddrWidth - AddrOffset" not in template
+
+
+def test_cli_soc_host_option_and_show_routing(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    from flexsoc.backend.design.soc.soc import SocFlow
+
+    seen: dict[str, object] = {}
+
+    def fake_run(
+        self: FlexSoC, *targets: str, **kwargs: object
+    ) -> tuple[FlexSoCResult, ...]:
+        seen.clear()
+        seen.update({"targets": targets, **kwargs})
+        overrides = {key: value for key, value in kwargs.items() if key.isupper()}
+        command = self.command(targets[0], **overrides)
+        return (FlexSoCResult(command, 0, "", "", tmp_path / "command.log"),)
+
+    monkeypatch.setattr(FlexSoC, "run", fake_run)
+
+    common = ["--project-root", str(tmp_path), "--workdir", str(tmp_path / "work")]
+    assert app(["soc", "--host", "ibex", *common]) == 0
+    assert seen["targets"] == ("soc",)
+    assert seen["HOST"] == "ibex"
+
+    shown: dict[str, object] = {}
+
+    def fake_show(self: SocFlow, *, as_json: bool = False) -> int:
+        shown["as_json"] = as_json
+        return 0
+
+    monkeypatch.setattr(SocFlow, "show", fake_show)
+    assert app(["soc", "--host", "ibex", "--show", *common]) == 0
+    assert shown == {"as_json": False}
+
+    assert app(["soc", "--host", "unknown", *common]) == 2
+    assert "--host must be ibex or uart" in capsys.readouterr().err
+
+    assert app(["lint", "--host", "ibex", *common]) == 2
+    assert "--host is only valid with `fx soc`" in capsys.readouterr().err

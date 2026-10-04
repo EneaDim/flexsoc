@@ -24,4 +24,4 @@ class Design:
         self.runner = self.runner or ToolRunner(project_root=self.context.project_root)
         self.ip = IpDesign(self.context, self.runner)
         self.fsm = FsmFlow(self.context.paths.run, self.runner)
-        self.soc = SocFlow(self.context.project_root, self.runner)
+        self.soc = SocFlow(self.context, self.runner)

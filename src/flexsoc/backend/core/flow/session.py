@@ -661,7 +661,7 @@ class TargetSession:
         if domain == "toolchain":
             return self.backend.core.toolchain.run_target(target, self.values, on=self.on)
         if domain == "soc":
-            return self.backend.design.soc.run_target(target, self.context, on=self.on)
+            return self.backend.design.soc.run_target(target, on=self.on)
         if domain == "fsm":
             return self.backend.design.fsm.run_target(target, self.context, on=self.on)
         if domain == "reporting":

@@ -85,7 +85,7 @@
   prim_ram_2p #(
     .Width           ( DataWidth                         ),
     .DataBitsPerMask ( 8                                 ),
-    .Depth           ( 2 ** (SramAddrWidth - AddrOffset) ),
+    .Depth           ( 2 ** SramAddrWidth                ),
     .MemInitFile     ( SramInitFile                      )
   ) u_ram (
     .clk_a_i (clk_i),
@@ -137,7 +137,7 @@
   );
 
   tlul_adapter_sram #(
-    .SramAw           ( SramAddrWidth - AddrOffset ),
+    .SramAw           ( SramAddrWidth              ),
     .EnableRspIntgGen ( 0                          )
   ) sram_a_device_adapter (
     .clk_i,

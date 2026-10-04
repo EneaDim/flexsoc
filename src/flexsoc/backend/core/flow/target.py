@@ -259,22 +259,9 @@ TOOLCHAIN_TARGETS: dict[str, Target] = {
 
 
 SOC_TARGETS: dict[str, Target] = {
-    "soc_cfg": Target("soc_cfg", "config", domain="soc"),
-    "soc_start": Target("soc_start", "start", domain="soc"),
-    "fsoc_init": Target("fsoc_init", "fusesoc_init", domain="soc"),
-    "fsoc": Target("fsoc", "fusesoc_build", domain="soc"),
-    "xbar_init": Target("xbar_init", "xbar_init", domain="soc"),
-    "xbar_build": Target("xbar_build", "xbar_build", domain="soc"),
-    "soc": Target("soc", "generate", domain="soc"),
-    "soc_uart_gen": Target("soc_uart_gen", "generate_uart", domain="soc"),
-    "soc_ibex_gen": Target("soc_ibex_gen", "generate_ibex", domain="soc"),
-    "sw_soc": Target("sw_soc", "software", domain="soc"),
-    "soc_prepare": Target("soc_prepare", "prepare", domain="soc"),
-    "soc_build_sw": Target("soc_build_sw", "build_sw", domain="soc"),
-    "soc_sim": Target("soc_sim", "sim_build", domain="soc"),
-    "soc_run": Target("soc_run", "sim_run", domain="soc"),
-    "soc_view": Target("soc_view", "view", domain="soc"),
+    "soc": Target("soc", "soc", show="soc", domain="soc"),
 }
+
 
 
 FSM_TARGETS: dict[str, Target] = {

@@ -8,11 +8,11 @@ filesets:
       - lowrisc:prim:onehot
       - lowrisc:prim:alert
       - lowrisc:tlul:adapter_host
-      - lowrisc:tlul:adapter_reg
+      - lowrisc:tlul:adapter_sram
 <<% endif %>><<% for module in modules %>>      - prj:ip:<<: module :>>
 <<% endfor %>>    files:
-      - rtl/tl_main_pkg.sv
-      - rtl/xbar_main.sv
+      - rtl/autogen/tl_main_pkg.sv
+      - rtl/autogen/xbar_main.sv
       - rtl/soc.sv
     file_type: systemVerilogSource
 

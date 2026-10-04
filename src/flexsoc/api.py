@@ -163,7 +163,7 @@ PNR = (
 IP_LOAD = (*COMMON, "REG_ITF", "IP_NAME", "IP_VERSION")
 QUALIFY = (*COMMON, "REG_ITF", "IP_NAME", "IP_VERSION", "QUAL_LEVEL")
 IP_SAVE = tuple(dict.fromkeys((*EQUIV, *SIGNOFF, "REG_ITF", "IP_NAME", "IP_VERSION", "IP_LIBRARY_ROOT", "QUAL_LEVEL")))
-SOC = (*COMMON, "HOST", "SOC_CFG_MODE", "DEVLIST")
+SOC = (*COMMON, "HOST", "FABRIC")
 FSM = (*BASE, "FSM", "FORCE")
 CLEAN = (*BASE, "RUN_TOP")
 PROVENANCE = (*COMMON, "STAGE")
@@ -181,8 +181,6 @@ TARGETS: dict[str, TargetSpec] = {
     "help_doc": ("Help", "Show documentation-flow help", NONE),
     "help_fsm": ("Help", "Show FSM-flow help", NONE),
     "setup": ("Setup", "Create the run directory tree", BASE),
-    "soc_cfg": ("Setup", "Render SoC configuration variables", SOC),
-    "soc_start": ("Setup", "Initialize a SoC run from loaded IPs", SOC),
     "signoff": ("Signoff", "Run SDF, multi-corner STA and estimated power", SIGNOFF),
     "spec": ("IP flow", "Generate the authoritative Digital IP spec/requirements/test-plan scaffold", SPEC),
     "hjson": ("IP flow", "Generate an HJSON register template", IP_DEV),
@@ -283,19 +281,7 @@ TARGETS: dict[str, TargetSpec] = {
         "Save reusable current-PDK collateral and qualification metadata",
         IP_SAVE,
     ),
-    "fsoc_init": ("SoC flow", "Initialize FuseSoC metadata", SOC),
-    "fsoc": ("SoC flow", "Generate FuseSoC core file", SOC),
-    "xbar_init": ("SoC flow", "Generate crossbar input config", SOC),
-    "xbar_build": ("SoC flow", "Run tlgen for crossbar RTL", SOC),
-    "soc": ("SoC flow", "Generate SoC RTL", SOC),
-    "soc_uart_gen": ("SoC flow", "Generate UART-host SoC artifacts", SOC),
-    "soc_ibex_gen": ("SoC flow", "Generate Ibex-host SoC artifacts", SOC),
-    "sw_soc": ("SoC flow", "Generate SoC software scaffold", SOC),
-    "soc_prepare": ("SoC flow", "Prepare SoC build directory", SOC),
-    "soc_build_sw": ("SoC flow", "Build SoC software", SOC),
-    "soc_sim": ("SoC flow", "Build SoC simulator", SOC),
-    "soc_run": ("SoC flow", "Run SoC simulation", SOC),
-    "soc_view": ("SoC flow", "Open SoC waveform", SOC),
+    "soc": ("SoC flow", "Resolve and generate the SoC composition", SOC),
     "fsm_setup": ("FSM flow", "Set up the FSM generator", FSM),
     "fsm_example_load": ("FSM flow", "Load the FSM example inputs", FSM),
     "fsm_gen": ("FSM flow", "Generate FSM RTL", FSM),
