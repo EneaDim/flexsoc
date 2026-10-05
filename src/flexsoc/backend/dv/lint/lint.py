@@ -26,8 +26,18 @@ class Lint:
     verilator: VerilatorLint = field(init=False)
 
     def __post_init__(self) -> None:
+        native = self.context.paths.rtl / "rtl.f"
+        if native.is_file():
+            self.slang = SlangLint(self.context, self.runner, filelists=(native,), top="soc")
+            self.verilator = VerilatorLint(self.context, self.runner, filelists=(native,), top="soc")
+            return
         self.slang = SlangLint(self.context, self.runner)
         self.verilator = VerilatorLint(self.context, self.runner)
+
+    def _lint_top(self) -> str:
+        """Return the design top represented by the active lint source contract."""
+
+        return "soc" if (self.context.paths.rtl / "rtl.f").is_file() else self.context.paths.top
 
     # Execution
 
@@ -175,7 +185,7 @@ class Lint:
             "schema": "flexsoc.lint.v1",
             "stage": "lint",
             "policy": "reporting-only",
-            "top": self.context.paths.top,
+            "top": self._lint_top(),
             "profile": self._profile(),
             "status": status,
             "order": [name for name in ("slang", "verilator") if name in tools],

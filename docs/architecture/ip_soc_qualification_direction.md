@@ -259,7 +259,7 @@ OpenTitan's `tlgen` consumes an HJSON crossbar description containing host/devic
 This is a strong reference model for FlexSoC:
 
 ```text
-FlexSoC SoC manifest
+resolved SoCPlan
         |
         v
 TL-UL fabric projection
@@ -287,12 +287,10 @@ Ibex
                                          v
                                       TL-UL xbar
                                          |
-                    +--------------------+---------------------+
-                    |                    |                     |
-                    v                    v                     v
-                  SRAM                 UART                  GPIO
-                                                               |
-                                                            RV timer
+                                         v
+                                       SRAM
+
+M0 stops here. UART, GPIO, and RV timer are introduced only by later milestones.
 ```
 
 The final topology may use separate instruction/data address spaces or separate host nodes depending on integration requirements.
@@ -312,7 +310,7 @@ PULP's `axi` repository already provides:
 
 FlexSoC should therefore prefer **pinned upstream PULP components** over writing a new AXI-Lite crossbar.
 
-The same semantic SoC manifest should project into an AXI-Lite fabric configuration.
+The same semantic SoC plan should project into an AXI-Lite fabric configuration.
 
 AXI-Lite is appropriate for:
 
@@ -526,76 +524,66 @@ A claim should identify which configuration and wrapper it applies to.
 
 ## 9. SoC description
 
-FlexSoC should converge on one semantic SoC manifest.
+FlexSoC must have one semantic source of truth for a resolved composition. At the current milestone that source of truth is the Python model owned by the SoC subsystem:
 
-Illustrative target:
+- `SoCDevice` describes one resolved memory-mapped endpoint;
+- `SoCPlan` describes the host, concrete fabric, and ordered devices;
+- `SocFlow.resolve_plan()` is the sole resolver for that model.
 
-```yaml
-soc: ibex_min_soc
+Do **not** add a second user-facing YAML/HJSON SoC manifest while this model is sufficient. A declarative input format may be introduced later if a concrete use case requires it, but it must feed the same semantic model rather than create a parallel framework.
 
-clock:
-  name: core
-  period_ns: 10
+The resolved machine-readable artifact is `soc/plan.json` relative to the canonical run root (`workspace/runs/<RUN_TOP>/<RUN_ID>`). There is no additional literal `run/` directory beneath that root.
 
-cpu:
-  ip: ibex
-  variant: flexsoc_ibex_small
-  interface: tlul
+The same `SoCPlan` must drive the address map/fabric projection, top-level RTL, software memory map, FuseSoC metadata, and qualification evidence. Protocol-specific generators consume projections of the plan; they do not become a second source of truth. CPU reset-vector quirks are projections of the same plan rather than additional address constants. For Ibex, `boot_addr_i` is the vector-table base and the architectural reset PC is `boot_addr_i + 0x80`. M0 therefore renders `boot_addr_i = 0x00100000`, places the vector table at the SRAM base, and places the reset jump at `0x00100080`; the linker and RTL both derive these addresses from the same `SoCPlan` SRAM device.
 
-memory:
-  - name: sram
-    kind: sram
-    base: 0x00000000
-    size: 0x00010000
-    interface: tlul
+For the first milestone, the resolved plan is deliberately only:
 
-devices:
-  - name: uart0
-    ip: uart
-    interface: tlul
-    base: 0x40000000
-    size: 0x00001000
-
-  - name: gpio0
-    ip: gpio
-    interface: tlul
-    base: 0x40010000
-    size: 0x00001000
-
-  - name: timer0
-    ip: rv_timer
-    interface: tlul
-    base: 0x40020000
-    size: 0x00001000
-
-fabric:
-  kind: tlul
+```text
+host:   Ibex
+fabric: TL-UL
+device: SRAM @ 0x00100000, size 128 KiB
 ```
 
-This manifest should be protocol-neutral where possible.
-
-Protocol-specific generators derive their own collateral from it.
+UART, GPIO, and RV timer are not implicit members of M0. They are added only in later milestones or when explicitly staged as reusable IP.
 
 ---
 
 ## 10. Generated SoC collateral
 
-From one SoC manifest, FlexSoC should eventually generate or orchestrate generation of:
+`fx soc --host ibex` is the single public generation entry point. `SocFlow` performs the internal sequence atomically from the user's perspective:
 
-- address map;
-- fabric configuration;
-- fabric RTL;
-- top-level RTL;
-- file lists;
-- clock/reset hookup;
+```text
+resolve plan
+  -> <run>/soc/plan.json
+  -> <run>/soc/xbar.hjson
+  -> tlgen -t <xbar.hjson> -o <run>
+  -> <run>/rtl/autogen/...
+  -> <run>/rtl/soc.sv
+  -> <run>/soc.core
+```
+
+The `tlgen` output directory is the SoC run directory. FlexSoC consumes OpenTitan's native `rtl/autogen/` and `dv/autogen/` layout rather than forcing generated files into a custom location. External tool execution continues to use `CommandRequest -> ToolRunner -> Executor`.
+
+The first compile/elaboration milestone remains behind the same public surface: `fx soc --host ibex --build` regenerates the composition and asks FuseSoC to setup/build the generated `soc.core` `lint` target with Verilator in `lint-only` mode. Generated SoC FuseSoC build state is disposable: each build action recreates its build root from the current `soc.core` and generated RTL/DV so a previous simulator binary cannot mask changes to a same-VLNV development design. This proves dependency resolution and RTL elaboration for the M0 integration; it is not by itself a SoC qualification claim and must not be reported as EDA PASS unless the command has actually executed successfully.
+
+The first simulation milestone is likewise an action of the same `SocFlow`: `fx soc --host ibex --sim` regenerates the composition, builds the generated SystemVerilog functional testbench, and runs the selected SoC test (default `smoke`) through Verilator. The simulator emits `<run>/dv/functional/sim/soc_tb_<test>.fst`; `fx soc --host ibex --view` opens the latest waveform through the canonical FlexSoC viewer path.
+
+SoC DV reuses the same generated functional-test contract as IP DV instead of maintaining a parallel simulator harness. The SoC owns `<run>/dv/functional/tb`, `<run>/dv/functional/tests`, `<run>/dv/functional/model`, and `<run>/dv/functional/sim`. Tests belonging to component IPs remain qualification evidence for those IP releases and are not copied into the SoC test namespace. The SoC tests qualify the resolved composition.
+
+Each SoC functional test lives under `dv/functional/tests/<test>/`. Vector-driven tests use `config.regs`, `data_in.vec`, and `data_out.vec` with the shared FlexSoC tokenizer/driver/monitor semantics; `@wait` advances a test to an explicit cycle without inventing a dummy signal drive. CPU-driven tests use the same test directory and may additionally contain a `sw/` source tree (`.c`/`.S` and test-local support sources). Software build outputs such as ELF/bin/VMEM files are generated artifacts, not maintained test inputs. The software build step is owned by the SoC subsystem, derives linker/memory information from the same `SoCPlan`, and presents a simulator-specific VMEM projection to the RTL SRAM while preserving the ELF as the canonical compiled program artifact; compiler invocation and workload policy do not belong in the SystemVerilog testbench. A test may therefore be vector-only, software-driven, or combine software execution with externally driven/checkable vectors without changing the DV layout.
+
+M0 `boot_smoke` reserves one word immediately below the software stack as a test-status location. The C program writes a fixed PASS signature there and then sleeps. The generated SoC TB watches the SoC-owned SRAM request/write signals and requires that signature before declaring PASS. This is stronger than a cycle timeout: it proves reset-vector alignment, instruction fetch, compiled C execution, the Ibex data path through TL-UL, and an SRAM write using the same address map that produced the linker script. The monitor intentionally stops at the SoC-owned SRAM boundary rather than reaching into a vendor RAM implementation hierarchy. The runtime log must emit explicit boot evidence (entry, reset PC, status address, expected/observed magic, and observation cycle) before the generic test PASS line, so CI evidence is understandable without reverse-engineering the testbench.
+
+The generated SoC testbench remains data-driven: it owns clock/reset generation, loads `config.regs`, interprets `.vec` commands, checks expected outputs, and produces the waveform. Simulator-specific mechanics stay behind FuseSoC/Verilator. No standalone legacy `top_verilator.*` harness is part of the canonical SoC package.
+For Verilator, the generated self-contained `soc_tb` is compiled through FuseSoC using the supported `cc` backend mode plus Verilator `--main`; the generated main only runs the SystemVerilog testbench runtime and does not own FlexSoC test semantics. Simulation builds use Verilator `-Wno-fatal`: warnings remain visible diagnostic evidence in the build log, but warning count alone must not fail a SoC simulation build; real tool errors and nonzero execution failures remain blocking. The Verilator simulation target also declares the native libelf link dependency explicitly through Verilator `-LDFLAGS -lelf`, because lowRISC `memutil_dpi` uses libelf to load ELF images; native link dependencies belong in the EDA metadata, not in Python orchestration.
+
+As later milestones mature, the same `SoCPlan` should also drive or constrain:
+
+- software headers and linker memory description;
 - interrupt mapping;
-- memory map documentation;
-- C headers;
-- linker memory description;
-- simulation configuration;
+- simulation/build configuration;
 - synthesis constraints;
-- qualification contract;
-- provenance manifest.
+- qualification contract and release provenance.
 
 The goal is to eliminate divergence between RTL connectivity, documentation, software addresses, and qualification expectations.
 
@@ -654,38 +642,42 @@ System-level qualification must verify integration-specific behavior.
 
 ## 12. First reference SoC
 
-The first architecture proof should be deliberately small.
+The first architecture proof is deliberately staged.
 
-### `ibex_min_soc`
+### M0 — `Ibex -> TL-UL -> SRAM`
 
-```text
-CPU:
-  Ibex
+M0 contains only Ibex, one generated TL-UL fabric, and 128 KiB SRAM at `0x00100000`. Its first acceptance criterion is framework-level reproducibility: one `fx soc --host ibex` invocation must coherently produce `plan.json`, `xbar.hjson`, native `tlgen` RTL, `soc.sv`, and one `soc.core`. `smoke` validates the generated functional-DV infrastructure; `boot_smoke` additionally builds C/assembly with the RISC-V GNU toolchain, derives ELF/bin/VMEM artifacts, boots from the SRAM vector table, and requires the firmware PASS signature. Compile, simulation, and boot remain separate evidence and must not be claimed until the corresponding commands have actually run.
 
-fabric:
-  TL-UL
+IP software drivers are release-owned and base-relative. `fx driver` derives register offsets and field definitions from the IP HJSON/reggen source of truth and emits reusable C collateral under `sw/drivers`; it must not embed a SoC absolute base address or an `<IP>_BASE` macro. Every MMIO operation receives an explicit driver base/context. `ip_save` freezes that driver with the IP release, while SoC composition owns the instance base address and binds it later through SoC-generated software-visible memory-map collateral.
 
-memory:
-  SRAM
+In development, saving the same IP release version atomically replaces the current interface snapshot; `ip_save` does not require a force-only overwrite mode. Qualification evidence stored in a loaded release is durable metadata: when the packaged contract snapshot still validates against the current specification, CSR, authored RTL, constraints, and formal property sources, missing or stale workspace runtime evidence may reuse the frozen qualification outcome. Current modified or invalid evidence always wins and invalidates the frozen baseline.
 
-devices:
-  UART
-  GPIO
-  RV timer
-```
+SoC software binding is generated from `SoCPlan`: `sw/include/soc_memory_map.h` contains only instance base addresses and sizes. IP register offsets and MMIO semantics remain exclusively in the staged release driver. SoC functional firmware compiles directly against `ips/<ip>/sw/drivers` and must not duplicate CSR offsets or rewrite the driver with SoC-specific addresses.
 
-Success criteria:
+### M1 — UART
+
+The M1 functional acceptance test is CPU-driven and pin-observed. `uart_smoke` compiles source-first firmware that programs the UART through MMIO at the address resolved by `SoCPlan`, transmits byte `0x55`, waits for TX idle, and writes a distinct firmware PASS signature to SRAM. The SoC testbench must independently decode the serial frame on the external `tx_o` pin and require both the decoded byte and the firmware signature before declaring PASS. Observing only a software signature or only an internal UART transaction is insufficient M1 evidence.
+
+After M0 compiles and boots reproducibly, add the qualified UART release through the same plan and fabric path. A reusable interface release is self-contained with respect to repository-local RTL: it carries its EDA integration contract (`<ip>.core`) beside `ip.json`, RTL, CSR, drivers, qualification evidence, and frozen repo-local dependencies under `rtl/deps/`. Pinned third-party RTL stays external only through explicit FuseSoC VLNV dependencies recorded in `rtl/fusesoc_deps.txt` and `<ip>.core`. `ip_save` rewrites canonical filelists to release-relative paths and generates the core from that frozen contract; `ip_load` stages the release unchanged into `<run>/ips/<name>/` and rejects filelists that escape the staged package. The SoC gives FuseSoC only the run root plus explicit pinned vendor roots required by the composition; it never scans the global `hw/ips` catalog and never depends on the legacy `ips:dependecies:all` aggregate core. Checkout-local mirrors of pinned third-party RTL are not release-owned sources: `ip_save` maps them back to their owning FuseSoC VLNV dependencies instead of freezing duplicate copies. Only FlexSoC-owned RTL is copied under `rtl/deps/flexsoc/`.
+
+### M2 — GPIO + RV timer
+
+Add the qualified GPIO and RV timer releases without changing the single-source-of-truth model.
+
+### M3 — complete SoC qualification
+
+Qualify the resulting SoC composition using only evidence FlexSoC actually produced.
+
+Success criteria across these milestones are:
 
 1. Ibex source is reproducibly fetched and pinned.
 2. The Ibex configuration is explicit.
 3. Instruction/data host adaptation is explicit and testable.
-4. TL-UL fabric is generated from configuration.
-5. Existing qualified peripheral releases are reused.
-6. Address map is generated once and reused by HW/SW collateral.
-7. A small program boots from SRAM.
-8. Software can access UART/GPIO/timer.
-9. Interrupts can be exercised.
-10. The complete SoC progresses through FlexSoC qualification.
+4. TL-UL fabric is generated from the resolved `SoCPlan`.
+5. The address map is generated once and reused by downstream collateral.
+6. M0 compiles, simulates, and boots from SRAM reproducibly.
+7. M1/M2 reuse qualified peripheral releases rather than hidden demo RTL.
+8. The complete composition progresses through FlexSoC qualification without overstating upstream or unexecuted evidence.
 
 This SoC becomes the reference for later AXI-Lite and multi-CPU work.
 
@@ -710,13 +702,12 @@ This SoC becomes the reference for later AXI-Lite and multi-CPU work.
 
 ### Phase 2 — `ibex_min_soc` TL-UL
 
-- define SoC manifest;
-- generate TL-UL crossbar configuration;
-- generate top integration;
-- add SRAM;
-- reuse UART/GPIO/RV timer releases;
-- add software smoke program;
-- qualify the SoC.
+- M0: generate and qualify the framework contract for `Ibex -> TL-UL -> SRAM`;
+- make M0 compile/sim/boot reproducibly;
+- M1: add UART;
+- M2: add GPIO and RV timer;
+- M3: complete SoC qualification;
+- keep `SoCPlan` as the single semantic source of truth and `plan.json` as its resolved artifact.
 
 ### Phase 3 — AXI-Lite fabric
 
@@ -828,16 +819,104 @@ The next implementation milestone is **not** "support every CPU and every bus".
 It is:
 
 ```text
-FETCH Ibex
-  -> PIN provenance
+FETCH/PIN Ibex
   -> BIND one explicit Ibex configuration
   -> QUALIFY native-to-TLUL host integration
-  -> GENERATE ibex_min_soc TL-UL fabric
-  -> BOOT from SRAM
-  -> ACCESS UART/GPIO/RV timer
-  -> QUALIFY complete SoC
+  -> M0 GENERATE Ibex -> TL-UL -> SRAM
+  -> M0 COMPILE / SIMULATE / BOOT from SRAM
+  -> M1 ADD UART
+  -> M2 ADD GPIO + RV timer
+  -> M3 QUALIFY complete SoC
 ```
 
 Only after that path is reproducible should the same composition model be projected onto AXI-Lite and RegIface.
 
 That sequence proves the central FlexSoC architecture: reusable qualified IP plus pinned external hosts plus generated interconnect plus system-level qualification.
+
+
+### Native SoC source resolution
+
+The authoritative SoC qualification path is converging on the same FlexSoC-owned
+execution model used for reusable IP. FuseSoC core files may remain generated
+interoperability/export artifacts, but they are not the intended authority for
+FlexSoC qualification targets.
+
+SoC RTL source membership must be deterministic and explicit. `SoCPlan`, staged
+release file lists, and generated fabric/top collateral feed a native
+`RtlSourceSet`; recursive directory scanning is not a source-resolution
+contract. The SoC flow first materializes `rtl/rtl_soc.f` for the source closure
+already owned by FlexSoC. A final tool-ready `rtl/rtl.f` is emitted only after
+the host CPU dependency closure (beginning with Ibex) is represented by the
+same explicit release/source contract.
+
+Native FlexSoC targets will then consume that closed source set directly through
+`CommandRequest -> ToolRunner -> Executor` for lint, CDC/RDC, functional
+simulation, formal, synthesis, and later implementation/signoff.
+
+
+
+The complete tool-ready `rtl/rtl.f` is generated by Slang from the generated
+`soc.sv` top and a small set of explicit source roots: staged run-local IP
+releases plus the pinned vendor roots required by the selected host and fabric.
+Slang dependency trimming determines the actually elaborated module/include
+closure; FlexSoC owns the source roots, tool invocation, output file list and
+subsequent qualification targets. FuseSoC is not involved in this resolution.
+
+For the native SoC flow, lowRISC virtual primitives are no longer selected by
+FuseSoC. FlexSoC deterministically materializes the pinned
+`vendor/lowrisc_ip/ip/prim_generic/rtl/prim_generic_*.sv` implementations into
+the run as `rtl/prim_generic/prim_*.sv`, preserving the generic implementation
+body while exposing the abstract module names consumed by Ibex and OpenTitan
+IP. Slang sees that run-local primitive root before the vendor roots and trims
+the actually elaborated primitive closure. Host-specific preprocessor contract
+is explicit as well: the Ibex tracing host enables `RVFI` during source
+resolution, and that define is emitted into the final `rtl/rtl.f`.
+
+Native primitive ownership is centralized in `run/rtl/prim_native`. FlexSoC
+first copies its frozen `hw/ips/prim_opentitan/prim_*.sv` implementations into
+that library; only abstract primitives not provided there are filled from the
+pinned lowRISC `ip/prim_generic/rtl/prim_generic_*.sv` implementations. Staged
+IP-private copies under `rtl/deps/flexsoc/prim_opentitan` are excluded from the
+SoC ownership manifest so every primitive module has exactly one definition in
+the native closure.
+
+Native package ownership is centralized in `run/rtl/pkgs_native`, materialized
+from the frozen FlexSoC `hw/ips/pkgs` library. `top_pkg.sv` is an explicit first
+package seed for Slang and for the final `rtl/rtl.f`, ahead of dependent
+packages such as `tlul_pkg.sv`. Staged release-private copies under
+`rtl/deps/flexsoc/pkgs` are excluded from the SoC ownership manifest so package
+definitions have one canonical owner and deterministic compile order.
+
+### Native SoC Verilator execution
+
+SoC build and functional simulation consume the resolved `rtl/rtl.f` directly.
+`fx soc --build` runs native Verilator lint/elaboration with top `soc`;
+`fx soc --sim` builds the generated `soc_tb` with Verilator `--binary` and then
+runs the existing FlexSoC functional-DV runtime. The Verilator work directory
+is recreated for every SoC simulator build so generated RTL/TB changes cannot
+be hidden by stale compiled collateral. FuseSoC core files may still be emitted
+for interoperability, but FuseSoC is not part of the authoritative SoC build or
+simulation execution path.
+
+Native SoC lint reuses the canonical IP lint evidence pipeline. When a resolved
+`rtl/rtl.f` exists, `fx lint` runs the existing Slang and Verilator lint passes
+against that single native SoC source closure with RTL top `soc`; otherwise the
+IP contract remains `rtl_common.f + rtl_ip.f`. The same normalized diagnostics,
+P0-P3 priority policy, per-tool summaries and aggregated `dv/lint/summary.json`
+are used for both IP and SoC. No SoC-specific lint reporter or severity policy
+exists.
+
+### Active run design state
+
+Persistent `.flexsoc/settings.json` values are user configuration, not the
+authoritative identity of a resolved design. When the selected run contains
+`soc/plan.json`, FlexSoC overlays that resolved design state onto the effective
+settings used by CLI display and target execution:
+
+- `DESIGN=soc`
+- `HOST=<plan.host>`
+- `FABRIC=<plan.fabric>`
+
+The persistent settings file is not rewritten by this overlay. Generic targets
+such as lint, CDC/RDC, formal and synthesis therefore operate on the resolved
+SoC in the current run without turning `HOST` into a second source of truth.

@@ -10,6 +10,7 @@ module <<: tb_module :>>;
 
 <<: signal_decls :>>
 
+  string test_name;
   string cfg_path;
   string data_in_path;
   string data_out_path;
@@ -19,13 +20,16 @@ module <<: tb_module :>>;
   localparam integer INITIAL_RESET_CYCLES = 5;
 <<: bus_helpers :>>
 
-<<: expected_decls :>>
+<<: expected_decls :>><<% if extra_declarations %>>
+<<: extra_declarations :>><<% endif %>>
 <<: clock_drivers :>>
 
-  <<: top :>> u_dut (
+  <<: top :>><<: dut_parameters :>> u_dut (
 <<: dut_pins :>>
   );
-
+<<% if extra_statements %>>
+<<: extra_statements :>>
+<<% endif %>>
   // Verification helpers share one structure for all clock topologies.
   `include "drivers/<<: top :>>_reg_driver.svh"
   `include "drivers/<<: top :>>_vec_monitor.svh"
@@ -36,6 +40,8 @@ module <<: tb_module :>>;
 <<: clock_init :>>
     apply_defaults();
 
+    if (!$value$plusargs("TEST_NAME=%s", test_name)) test_name = "smoke";
+    $display("[TB] test = %s", test_name);
     if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "dv/functional/tests/smoke/config.regs";
     if (!$value$plusargs("DATA_IN=%s", data_in_path)) data_in_path = "dv/functional/tests/smoke/data_in.vec";
     if (!$value$plusargs("DATA_OUT=%s", data_out_path)) data_out_path = "dv/functional/tests/smoke/data_out.vec";
@@ -75,10 +81,10 @@ module <<: tb_module :>>;
 
 <<: vector_body :>>
     if (errors == 0) begin
-      $display("[TB] PASS");
+      $display("[TB] PASS test=%s", test_name);
       $finish;
     end else begin
-      $display("[TB] FAIL errors=%0d", errors);
+      $display("[TB] FAIL test=%s errors=%0d", test_name, errors);
       $fatal(1);
     end
   end

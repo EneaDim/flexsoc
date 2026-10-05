@@ -163,7 +163,7 @@ PNR = (
 IP_LOAD = (*COMMON, "REG_ITF", "IP_NAME", "IP_VERSION")
 QUALIFY = (*COMMON, "REG_ITF", "IP_NAME", "IP_VERSION", "QUAL_LEVEL")
 IP_SAVE = tuple(dict.fromkeys((*EQUIV, *SIGNOFF, "REG_ITF", "IP_NAME", "IP_VERSION", "IP_LIBRARY_ROOT", "QUAL_LEVEL")))
-SOC = (*COMMON, "HOST", "FABRIC")
+SOC = (*COMMON, "HOST", "FABRIC", "SOC_ACTION", "FUSESOC")
 FSM = (*BASE, "FSM", "FORCE")
 CLEAN = (*BASE, "RUN_TOP")
 PROVENANCE = (*COMMON, "STAGE")
@@ -746,7 +746,7 @@ class FlexSoC:
                         "technology",
                         f"pdk={command.values.get('PDK')} syn={command.values.get('SYNDIR')}",
                     )
-                Terminal.print_log(log_path)
+                Terminal.print_log(self._display_log_path(command, log_path))
 
             try:
                 with log_path.open("w", encoding="utf-8") as log, contextlib.ExitStack() as stack:
@@ -834,6 +834,21 @@ class FlexSoC:
         """Return the canonical command log path without executing the target."""
 
         return self._command_log_path(self.command(target, **overrides))
+
+    def _display_log_path(self, command: FlexSoCCommand, command_log: Path) -> Path:
+        """Return the log path that is most useful to show for one command."""
+
+        if command.target == "soc":
+            action = str(command.values.get("SOC_ACTION", "generate")).strip().lower()
+            if action in {"build", "simulate", "view"}:
+                workspace = Path(command.values.get("WORKSPACE", str(self.workdir)))
+                run_top = command.values.get("RUN_TOP") or command.values.get("TOP") or "run"
+                run_id = command.values.get("RUN_ID", "default")
+                if action == "view":
+                    return workspace / "runs" / run_top / run_id / "logs" / "viewer" / "view.log"
+                filename = "build.log" if action == "build" else "sim.log"
+                return workspace / "runs" / run_top / run_id / "logs" / "soc" / filename
+        return command_log
 
     def _command_log_path(self, command: FlexSoCCommand) -> Path:
         """Return the per-target command log path."""

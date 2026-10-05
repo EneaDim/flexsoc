@@ -58,8 +58,7 @@ class IpDesign:
             )
         if action == "driver":
             return self.regs.setup_driver(
-                paths.csr / f"{top}.hjson", paths.drivers,
-                base_address=values.get("BASE_ADDRESS", "0x0"), on=on,
+                paths.csr / f"{top}.hjson", paths.drivers, on=on,
             )
         if action == "regmap_py":
             return self.regs.setup_regmap_py(

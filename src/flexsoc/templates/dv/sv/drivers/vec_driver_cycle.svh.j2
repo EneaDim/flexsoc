@@ -218,6 +218,15 @@ task automatic run_vectors(input string input_path, input string output_path);
 
     cycle = int'(cycle_value);
 
+    if (t0 == "@wait" || t0 == "wait") begin
+      tb_finish_cycle(output_path, now_cycle, cycle_open);
+      tb_wait_before_drive(cycle, output_path, now_cycle);
+      current_cycle = -1;
+      $display("[TB][WAIT] cycle=%0d", cycle);
+      tb_vector_apply_count++;
+      disable tb_input_line;
+    end
+
     if (t0 == "@cfg" || t0 == "cfg" || t0 == "@config" || t0 == "config") begin
       tb_finish_cycle(output_path, now_cycle, cycle_open);
       tb_wait_before_drive(cycle, output_path, now_cycle);

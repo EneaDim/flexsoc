@@ -2,8 +2,9 @@ OUTPUT_ARCH(riscv)
 
 MEMORY
 {
-    ram   : ORIGIN = 0x00100000, LENGTH = 0x1F000
-    stack : ORIGIN = 0x0011F000, LENGTH = 0x01000
+    ram         : ORIGIN = <<: ram_origin :>>, LENGTH = <<: ram_length :>>
+    test_status : ORIGIN = <<: test_status_origin :>>, LENGTH = <<: test_status_length :>>
+    stack       : ORIGIN = <<: stack_origin :>>, LENGTH = <<: stack_length :>>
 }
 
 _min_stack    = 0x1000;
@@ -14,6 +15,7 @@ _entry_point = _vectors_start;
 ENTRY(_entry_point)
 
 PROVIDE(_stext = ORIGIN(ram));
+PROVIDE(__flexsoc_test_status = ORIGIN(test_status));
 PROVIDE(_stack_start = ORIGIN(stack) + LENGTH(stack));
 PROVIDE(_max_hart_id = 0);
 PROVIDE(_hart_stack_size = LENGTH(stack));

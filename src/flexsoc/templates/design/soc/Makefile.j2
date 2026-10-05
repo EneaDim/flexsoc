@@ -1,11 +1,12 @@
 CC = riscv32-unknown-elf-gcc
+OBJCOPY = riscv32-unknown-elf-objcopy
 CFLAGS = -march=rv32imc -mabi=ilp32 -static -mcmodel=medany -Wall -g -fvisibility=hidden -ffreestanding
 LDFLAGS = -nostdlib -nostartfiles -T link.ld
 BUILD_DIR = build
 
 OBJS = <<: obj_list :>>
 
-all: $(BUILD_DIR)/main.elf
+all: $(BUILD_DIR)/main.elf $(BUILD_DIR)/main.bin
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -18,6 +19,9 @@ $(BUILD_DIR)/boot.o: boot.S | $(BUILD_DIR)
 
 $(BUILD_DIR)/main.elf: $(OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) -o $@
+
+$(BUILD_DIR)/main.bin: $(BUILD_DIR)/main.elf
+	$(OBJCOPY) -O binary $< $@
 
 clean:
 	rm -rf $(BUILD_DIR)

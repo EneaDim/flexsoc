@@ -1,0 +1,31 @@
+CAPI=2:
+name: "prj:ip:uart:0.1"
+description: "FlexSoC reusable uart IP release"
+filesets:
+  files_rtl:
+    files:
+      - rtl/deps/flexsoc/prim/prim_ff_2sync.sv
+      - rtl/uart_reg_pkg.sv
+      - rtl/uart_reg_core.sv
+      - rtl/uart_reg_top.sv
+      - rtl/uart_tx.sv
+      - rtl/uart_rx.sv
+      - rtl/uart_core.sv
+      - rtl/uart.sv
+    file_type: systemVerilogSource
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+    toplevel: uart
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-fatal"

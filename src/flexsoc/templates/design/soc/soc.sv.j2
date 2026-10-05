@@ -3,9 +3,10 @@ module soc #(
 ) (
   // Clock and reset.
   input  logic clk_i,
-  input  logic rst_ni,
+  input  logic rst_ni<<% if port_declarations %>>,
   // I/O
-<<: port_declarations :>>);
+<<: port_declarations :>><<% endif %>>
+);
 
 <<: defaults :>>
 <<: tl_signals :>>

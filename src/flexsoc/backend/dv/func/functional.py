@@ -189,6 +189,8 @@ class FunctionalFlow:
         seed: int = 1,
         wave_file: Path | None = None,
         coverage_file: Path | None = None,
+        executable: Path | None = None,
+        extra_inputs: tuple[Path, ...] = (),
         log: Path,
         on: str = "local",
     ):
@@ -211,14 +213,16 @@ class FunctionalFlow:
         if compiler == "iverilog":
             argv = ("vvp", str(sim_dir / f"{testbench}.vvp"), *plusargs)
         elif compiler == "verilator":
-            argv = (str(sim_dir / compiler / f"V{testbench}"), *plusargs, f"+verilator+seed+{seed}")
+            binary = Path(executable) if executable is not None else sim_dir / compiler / f"V{testbench}"
+            argv = (str(binary), *plusargs, f"+verilator+seed+{seed}")
             if coverage_file is not None:
                 coverage_file.parent.mkdir(parents=True, exist_ok=True)
                 argv += (f"+verilator+coverage+file+{coverage_file}",)
         else:
             raise ValueError("compiler must be iverilog or verilator")
         FunctionalFlow._print_command(argv)
-        return runner.run(CommandRequest(tuple(argv), tb_dir, env, log, inputs=required, outputs=(wave,)), on=on)
+        inputs = (*required, *(Path(path) for path in extra_inputs))
+        return runner.run(CommandRequest(tuple(argv), tb_dir, env, log, inputs=inputs, outputs=(wave,)), on=on)
 
     def run_cocotb(
         self,

@@ -230,7 +230,6 @@ class RegsFlow:
         hjson_file: Path,
         output_dir: Path,
         *,
-        base_address: str = "0x0",
         on: str = "local",
     ) -> tuple[Path, Path]:
         """Generate the C register header and FlexSoC driver source."""
@@ -242,7 +241,7 @@ class RegsFlow:
         argv = ["--cdefines", "-o", str(header), str(hjson_file)]
         if self._run_regtool(argv, cwd=self.project_root, log=log, on=on):
             raise self._regtool_failure("C header generation", hjson_file, log)
-        return RegsFlow._generate_driver(hjson_file, output_dir, base_address)
+        return RegsFlow._generate_driver(hjson_file, output_dir)
 
     def setup_regmap_py(
         self,
@@ -405,23 +404,23 @@ class RegsFlow:
             raise
 
     @staticmethod
-    def render_header_declarations(module_name: str, base_address: str) -> str:
-        """Render the C declarations injected into the generated header."""
+    def render_header_declarations(module_name: str) -> str:
+        """Render base-relative C declarations injected into the generated header."""
 
         from flexsoc.backend.core.render.templates import templates
 
         return templates.render(
             "design/registers/driver_header.h.j2",
-            module_name=module_name, upper=module_name.upper(), base_address=base_address,
+            module_name=module_name, upper=module_name.upper(),
         ) + "\n"
 
     @staticmethod
-    def insert_function_declarations(header_path: str | Path, base_address: str, module_name: str) -> Path:
-        """Inject the common driver declarations before the C++ guard when present."""
+    def insert_function_declarations(header_path: str | Path, module_name: str) -> Path:
+        """Inject the base-relative driver declarations before the C++ guard."""
 
         path = Path(header_path)
         lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-        decls = RegsFlow.render_header_declarations(module_name, base_address)
+        decls = RegsFlow.render_header_declarations(module_name)
         index = next((i for i, line in enumerate(lines) if line.strip().startswith("#ifdef __cplusplus")), len(lines))
         path.write_text("".join(lines[:index]) + decls + "".join(lines[index:]), encoding="utf-8")
         return path
@@ -458,13 +457,13 @@ class RegsFlow:
         return path
 
     @staticmethod
-    def _generate_driver(hjson_file: str | Path, output_dir: str | Path, base_address: str) -> tuple[Path, Path]:
-        """Generate header declarations and C source for one decoded IP block."""
+    def _generate_driver(hjson_file: str | Path, output_dir: str | Path) -> tuple[Path, Path]:
+        """Generate a reusable base-relative C driver for one IP block."""
 
         module_name = str(RegsFlow.load_hjson(hjson_file)["name"])
         outdir = Path(output_dir)
         outdir.mkdir(parents=True, exist_ok=True)
-        header = RegsFlow.insert_function_declarations(outdir / f"{module_name}.h", base_address, module_name)
+        header = RegsFlow.insert_function_declarations(outdir / f"{module_name}.h", module_name)
         source = RegsFlow.write_source(module_name, outdir)
         return header, source
 

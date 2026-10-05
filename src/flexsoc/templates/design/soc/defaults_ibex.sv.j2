@@ -1,5 +1,5 @@
 
-  localparam int unsigned MemSize       = 128 * 1024;
+  localparam int unsigned MemSize       = <<: mem_size :>>;
   localparam int unsigned DataWidth     = 32;
   localparam int unsigned AddrOffset    = $clog2(DataWidth / 8);
   localparam int unsigned SramAddrWidth = $clog2(MemSize) - AddrOffset;
@@ -44,7 +44,7 @@
     .scan_rst_ni (1'b1),
     .ram_cfg_i   ('b0),
     .hart_id_i   (32'b0),
-    .boot_addr_i (32'h00100000),
+    .boot_addr_i (<<: boot_addr :>>),
     .instr_req_o        (sram_instr_req),
     .instr_gnt_i        (sram_instr_req),
     .instr_rvalid_i     (sram_instr_rvalid),

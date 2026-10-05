@@ -1,0 +1,18 @@
+#include "soc_memory_map.h"
+#include "uart.h"
+
+extern volatile unsigned int __flexsoc_test_status;
+
+int main(void) {
+  uart_t uart = (uart_t)SOC_UART_BASE_ADDR;
+
+  /* Diagnostic checkpoint: proves the CPU entered uart_smoke main(). */
+  __flexsoc_test_status = <<: pass_magic :>>;
+  __asm__ volatile ("fence rw, rw" ::: "memory");
+
+  uart_init(uart);
+  uart_out(uart, (char)<<: test_byte :>>);
+  for (;;) {
+    __asm__ volatile ("wfi");
+  }
+}

@@ -30,6 +30,10 @@ class TestbenchConfig:
     output: str | Path = "tb"
     devices: tuple[tuple[str, str, str, str], ...] = ()
     force: bool = False
+    dut_parameters: tuple[tuple[str, str], ...] = ()
+    extra_declarations: str = ""
+    extra_statements: str = ""
+    post_checks: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -154,6 +158,11 @@ class SystemVerilogTestbench:
         clocks: ClockConfig,
         signature: dict[str, Any],
         interface: str,
+        *,
+        dut_parameters: tuple[tuple[str, str], ...] = (),
+        extra_declarations: str = "",
+        extra_statements: str = "",
+        post_checks: tuple[str, ...] = (),
     ) -> str:
         """Render one testbench top for any supported clock topology."""
 
@@ -172,6 +181,7 @@ class SystemVerilogTestbench:
                 "    load_config(cfg_path);",
                 "    run_vectors(data_in_path, data_out_path);",
                 f"    repeat (10) {clocks.domains[0].name}_sample_cycle();",
+                *(f"    {line}" for line in post_checks),
             )
         )
 
@@ -211,12 +221,25 @@ class SystemVerilogTestbench:
             expected_decls=expected_decls,
             clock_drivers=clock_drivers,
             dut_pins=TestbenchModel.render_dut_pins(signature),
+            dut_parameters=SystemVerilogTestbench._dut_parameters(dut_parameters),
+            extra_declarations=extra_declarations.rstrip(),
+            extra_statements=extra_statements.rstrip(),
             clock_init=clock_init,
             reset_assert=reset_assert,
             reset_release=reset_release,
             primary_clock=clocks.domains[0].signal,
             vector_body=vector_body,
         )
+
+
+    @staticmethod
+    def _dut_parameters(parameters: tuple[tuple[str, str], ...]) -> str:
+        """Render optional DUT parameter overrides without changing the DUT interface."""
+
+        if not parameters:
+            return ""
+        body = ",\n".join(f"    .{name}({value})" for name, value in parameters)
+        return f" #(\n{body}\n  )"
 
     @staticmethod
     def _write(config: TestbenchConfig, clocks: ClockConfig) -> None:
@@ -248,7 +271,11 @@ class SystemVerilogTestbench:
                 config.top, clocks, signature, config.interface
             ),
             out / f"{config.top}_tb.sv": SystemVerilogTestbench.render_top(
-                config.top, clocks, signature, config.interface
+                config.top, clocks, signature, config.interface,
+                dut_parameters=config.dut_parameters,
+                extra_declarations=config.extra_declarations,
+                extra_statements=config.extra_statements,
+                post_checks=config.post_checks,
             ),
         }
         for path, body in files.items():

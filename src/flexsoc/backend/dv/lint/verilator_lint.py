@@ -17,6 +17,8 @@ class VerilatorLint:
 
     context: BackendContext
     runner: ToolRunner
+    filelists: tuple[Path, ...] | None = None
+    top: str | None = None
 
     _P0 = {
         "BLKANDNBLK", "MULTIDRIVEN", "MULTIDRIVENPROC", "LATCH", "CASEOVERLAP",
@@ -33,14 +35,26 @@ class VerilatorLint:
     }
     _P3 = {"EOFNEWLINE", "DECLFILENAME", "UNUSEDPARAM", "UNUSEDGENVAR", "PINNOCONNECT"}
 
+    def _source_filelists(self) -> tuple[Path, ...]:
+        """Return the explicit lint source contract for this design."""
+
+        paths = self.context.paths
+        files = self.filelists or (paths.rtl_common, paths.rtl_ip)
+        missing = [path for path in files if not path.is_file()]
+        if missing:
+            raise FileNotFoundError(
+                "RTL filelists missing; generate them before lint: "
+                + ", ".join(str(path) for path in missing)
+            )
+        return tuple(files)
+
     # Execution
 
     def run(self, *, profile: str, on: str = "local") -> tuple[object, dict[str, Any]]:
         """Run Verilator once; diagnostics are evidence and never gate lint in development mode."""
 
         paths = self.context.paths
-        if not paths.rtl_common.is_file() or not paths.rtl_ip.is_file():
-            raise FileNotFoundError("RTL filelists missing; generate them before lint")
+        self._source_filelists()
         if profile not in {"critical", "everything"}:
             raise ValueError("LINT_PROFILE must be critical or everything")
 
@@ -70,7 +84,7 @@ class VerilatorLint:
             counts[item["priority"]] += 1
 
         summary = {
-            "schema": "flexsoc.lint.tool.v1", "top": paths.top, "tool": "verilator",
+            "schema": "flexsoc.lint.tool.v1", "top": self.top or paths.top, "tool": "verilator",
             "profile": profile, "status": "PASS" if complete else "FAILED",
             "returncode": result.returncode, "counts": counts, "total": len(diagnostics),
             "command": list(command), "diagnostics": diagnostics,
@@ -91,6 +105,10 @@ class VerilatorLint:
         """Build one portable Verilator 5.050+ lint invocation."""
 
         paths, values = self.context.paths, self.context.values
+        top = self.top or paths.top
+        source_args = tuple(
+            item for path in self._source_filelists() for item in ("-f", str(path))
+        )
         warnings = (
             ("-Wall",)
             if profile == "everything"
@@ -109,7 +127,7 @@ class VerilatorLint:
         return (
             values.get("VERILATOR", "verilator"), "--lint-only", "--sv", "-Wno-fatal",
             *warnings, "--diagnostics-sarif-output", str(sarif), *waiver_args,
-            "-f", str(paths.rtl_common), "-f", str(paths.rtl_ip), "--top-module", paths.top,
+            *source_args, "--top-module", top,
         )
 
     # Diagnostics

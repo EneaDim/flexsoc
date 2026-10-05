@@ -2421,7 +2421,6 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
         clock_gate_model=gate,
         impl_dir=implementation,
         spec_root=spec_root,
-        force=True,
     )
     assert (saved / "impl" / pdk / "config.mk").is_file()
     assert (saved / "impl" / pdk / "summary.json").is_file()
@@ -2458,7 +2457,6 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
         clock_gate_model=gate,
         impl_dir=implementation,
         spec_root=spec_root,
-        force=True,
     )
     assert not stale_runtime.exists()
     saved_tcl = {
@@ -6919,7 +6917,12 @@ def test_ci_toolchain_contract() -> None:
     run_ci = (ROOT / "docker/scripts/run-ci.sh").read_text(encoding="utf-8")
     workflow = (ROOT / ".github/workflows/toolchain-image.yml").read_text(encoding="utf-8")
     assert "IVERILOG_VERSION=13.0" in lock and "IVERILOG_MIN_VERSION=13.0" in lock
+    assert "VERIBLE_VERSION=0.0-4296-g0f262651" in lock
+    assert "VERIBLE_SHA256=8569defb891d2316067613ea00442af28a7a09d405d95b54c0c91f9942d26635" in lock
     assert "iverilog -g2012 -ginterconnect -V" in deps
+    assert "install_verible()" in deps
+    assert "verible-verilog-syntax --version" in deps
+    assert "verible-verilog-lint --version" in deps
     assert "orfs-klayout.version" in dockerfile
     assert 'test "$required_klayout" = "$KLAYOUT_VERSION"' in dockerfile
     assert 'orfs_klayout_required=$(cat /opt/flexsoc/toolchain/.flexsoc/orfs-klayout.version)' in verify
@@ -7014,10 +7017,12 @@ def test_driver_materializes_header_and_uart_master_namespace(
         return 0
 
     monkeypatch.setattr(flow, "_run_regtool", fake_regtool)
-    header, source = flow.setup_driver(hjson, output, base_address="0x40000000")
+    header, source = flow.setup_driver(hjson, output)
     header_text = header.read_text(encoding="utf-8")
     source_text = source.read_text(encoding="utf-8")
-    assert "#define UART_MASTER_BASE 0x40000000" in header_text
+    assert "UART_MASTER_BASE" not in header_text
+    assert "uart_master_putchar(uart_master_t base, int c)" in header_text
+    assert "uart_master_puts(uart_master_t base, const char* str)" in header_text
     assert "typedef uintptr_t uart_master_t;" in header_text
     assert "UART_MASTER_CTRL_REG_OFFSET" in source_text
     assert "UART_MASTER_STATUS_RXEMPTY_BIT" in source_text
@@ -7051,7 +7056,7 @@ def test_static_design_scaffolds_live_in_package_templates() -> None:
         writable_repr="('rw',)",
         domain_literal="",
     )
-    assert "OUTPUT_ARCH(riscv)" in templates.render("design/soc/link.ld.j2")
+    assert "OUTPUT_ARCH(riscv)" in templates.render("design/soc/link.ld.j2", ram_origin="0x00100000", ram_length="0x1EFFC", test_status_origin="0x0011EFFC", test_status_length="0x4", stack_origin="0x0011F000", stack_length="0x1000")
 
 
 def test_workspace_settings_persistence_is_backend_owned(tmp_path: Path) -> None:
@@ -7985,6 +7990,14 @@ def test_toolchain_metadata_tracks_locked_klayout_version() -> None:
     metadata = Toolchain.toolchain_metadata(ROOT)
     assert metadata["expected"]["klayout"]["locked_version"] == "0.30.7"
 
+def test_toolchain_metadata_tracks_locked_verible_tools() -> None:
+    from flexsoc.backend.core.runtime.toolchain import Toolchain
+
+    metadata = Toolchain.toolchain_metadata(ROOT)
+    expected = metadata["expected"]
+    assert expected["verible-verilog-syntax"]["locked_version"] == "0.0-4296-g0f262651"
+    assert expected["verible-verilog-lint"]["locked_version"] == "0.0-4296-g0f262651"
+
 
 def test_physical_signoff_reaches_summary_after_native_orfs_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -8521,6 +8534,64 @@ def test_contract_status_derives_release_level_without_running_eda(
     assert "[evidence] syn" in output
     assert "[evidence] sta" in output
     assert "[evidence] eqy" not in output
+
+
+
+def test_loaded_release_reuses_frozen_qualification_when_contract_is_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
+    router = _target_session(client, values)
+    router.paths.ensure()
+
+    source = router.paths.rtl / "demo.sv"
+    source.write_text("module demo(input clk_i); endmodule\n", encoding="utf-8")
+    router.paths.rtl_common.write_text("", encoding="utf-8")
+    router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
+    router.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
+    (router.paths.csr / "demo.hjson").write_text('{name: "demo"}\n', encoding="utf-8")
+    _write_minimal_ip_spec(router.paths.run, "demo")
+    (router.paths.tests / "smoke").mkdir(parents=True)
+
+    prop = router.paths.formal / "properties" / "prove" / "demo_prove.sv"
+    prop.parent.mkdir(parents=True)
+    prop.write_text("module demo_prove; endmodule\n", encoding="utf-8")
+
+    from flexsoc.backend.release.qualification import QualificationFlow
+
+    QualificationFlow.write_contract_snapshot(
+        staged=router.paths.run,
+        spec_root=router.paths.spec,
+        ip_name="demo",
+        reg_interface="tlul",
+    )
+    spec = QualificationFlow.validate_spec_bundle(router.paths.spec, ip_name="demo")
+    stages = set(QualificationFlow.required_stages(spec, 2)) - {"requirements_traceability"}
+    report = QualificationFlow.build_qualification_report(
+        ip_name="demo",
+        reg_interface="tlul",
+        pdk=router.paths.pdk,
+        spec=spec,
+        stage_states={stage: "CLEAN" for stage in stages},
+        contract_ready=True,
+        stage_outcomes={stage: "PASS" for stage in stages},
+    )
+
+    router.paths.meta.mkdir(parents=True, exist_ok=True)
+    (router.paths.meta / "qualification.json").write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(router, "_contract_state", lambda stage: "MISSING")
+    monkeypatch.setattr(router, "_contract_outcome", lambda stage: None)
+    status = router._contract_status()
+
+    assert status["maximum_level"] == 2
+    assert all(status["evidence"][stage] == "PASS" for stage in stages)
 
 
 def test_requirements_traceability_is_always_first_l2_evidence() -> None:
@@ -11384,10 +11455,424 @@ def test_soc_ibex_sram_geometry_is_consistent() -> None:
         / "defaults_ibex.sv.j2"
     ).read_text(encoding="utf-8")
 
-    assert "MemSize       = 128 * 1024" in template
+    assert "MemSize       = <<: mem_size :>>" in template
+    assert ".boot_addr_i (<<: boot_addr :>>)" in template
+    assert "32'h00100000" not in template
     assert ".Depth           ( 2 ** SramAddrWidth" in template
     assert ".SramAw           ( SramAddrWidth " in template
     assert "SramAddrWidth - AddrOffset" not in template
+
+
+def test_soc_m0_generate_is_one_coherent_plan(
+    tmp_path: Path,
+) -> None:
+    from flexsoc.backend.core import BackendContext, CommandResult
+    from flexsoc.backend.design.soc.soc import SocFlow
+
+    context = BackendContext(
+        ROOT,
+        tmp_path / "work",
+        {
+            "TOP": "test",
+            "RUN_TOP": "test",
+            "RUN_ID": "dev",
+            "HOST": "ibex",
+            "FABRIC": "tlul",
+        },
+    )
+    context.paths.ensure()
+
+    class Runner:
+        def run(self, request, *, on="local"):
+            assert on == "local"
+            assert request.argv[-4:] == (
+                "-t", str(context.paths.run / "soc" / "xbar.hjson"),
+                "-o", str(context.paths.run),
+            )
+            request.log.parent.mkdir(parents=True, exist_ok=True)
+            request.log.write_text("tlgen fixture\n", encoding="utf-8")
+            for output in request.outputs:
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text("// generated by tlgen fixture\n", encoding="utf-8")
+            return CommandResult(0, request.log, 0.1)
+
+    flow = SocFlow(context, Runner())
+    assert flow.generate() == (context.paths.run / "soc" / "plan.json")
+
+    plan = json.loads((context.paths.run / "soc" / "plan.json").read_text(encoding="utf-8"))
+    assert plan == {
+        "schema": 1,
+        "host": "ibex",
+        "fabric": "tlul",
+        "devices": [{
+            "name": "sram",
+            "base": "0x00100000",
+            "size": "0x00020000",
+            "builtin": True,
+        }],
+    }
+
+    xbar = json.loads((context.paths.run / "soc" / "xbar.hjson").read_text(encoding="utf-8"))
+    assert xbar["connections"] == {"ibex": ["sram"]}
+    assert (context.paths.run / "rtl" / "autogen" / "tl_main_pkg.sv").is_file()
+    assert (context.paths.run / "rtl" / "autogen" / "xbar_main.sv").is_file()
+    soc_sv = (context.paths.rtl / "soc.sv").read_text(encoding="utf-8")
+    assert ".boot_addr_i (32'h00100000)" in soc_sv
+    assert "localparam int unsigned MemSize       = 131072;" in soc_sv
+    assert (context.paths.run / "soc.core").is_file()
+    assert not any(device["name"] in {"uart", "gpio", "rv_timer"} for device in plan["devices"])
+
+    sw, _ = flow.generate_software(flow.resolve_plan())
+    link = (sw / "link.ld").read_text(encoding="utf-8")
+    assert "ram         : ORIGIN = 0x00100000, LENGTH = 0x1EFFC" in link
+    assert "test_status : ORIGIN = 0x0011EFFC, LENGTH = 0x4" in link
+    assert "stack       : ORIGIN = 0x0011F000, LENGTH = 0x1000" in link
+    assert "PROVIDE(__flexsoc_test_status = ORIGIN(test_status));" in link
+
+
+def test_soc_m0_build_uses_fusesoc_verilator_lint_target(tmp_path: Path) -> None:
+    from flexsoc.backend.core import BackendContext, CommandResult
+    from flexsoc.backend.design.soc.soc import SocFlow
+
+    project = tmp_path / "project"
+    for name in ("lowrisc_ibex", "lowrisc_ip"):
+        (project / "vendor" / name).mkdir(parents=True)
+    context = BackendContext(
+        project, tmp_path / "work",
+        {
+            "TOP": "test",
+            "RUN_TOP": "test",
+            "RUN_ID": "dev",
+            "HOST": "ibex",
+            "FABRIC": "tlul",
+            "SOC_ACTION": "build",
+            "FUSESOC": "fusesoc-test",
+        },
+    )
+    context.paths.ensure()
+    stale = context.paths.run / "fusesoc" / "sim-verilator" / "Vsoc_tb"
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.write_text("stale legacy simulator\n", encoding="utf-8")
+    requests = []
+
+    class Runner:
+        def run(self, request, *, on="local"):
+            requests.append(request)
+            request.log.parent.mkdir(parents=True, exist_ok=True)
+            request.log.write_text("fixture\n", encoding="utf-8")
+            if request.argv[0] == sys.executable:
+                for output in request.outputs:
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_text("// generated by tlgen fixture\n", encoding="utf-8")
+            else:
+                assert not stale.exists()
+                assert request.argv == (
+                    "fusesoc-test",
+                    "--cores-root", str(context.paths.run),
+                    "--cores-root", str(project / "vendor" / "lowrisc_ibex"),
+                    "--cores-root", str(project / "vendor" / "lowrisc_ip"),
+                    "run",
+                    "--build-root", str(context.paths.run / "fusesoc"),
+                    "--target=lint",
+                    "--tool=verilator",
+                    "--setup",
+                    "--build",
+                    "enea:soc:main",
+                )
+            return CommandResult(0, request.log, 0.1)
+
+    result = SocFlow(context, Runner()).run_target(BACKEND_TARGETS["soc"])
+    assert result.returncode == 0
+    assert len(requests) == 2
+    core = (context.paths.run / "soc.core").read_text(encoding="utf-8")
+    assert "  lint:" in core
+    assert "mode: lint-only" in core
+    assert "toplevel: soc" in core
+    assert "lowrisc:prim:ram_2p" in core
+
+
+def test_soc_m0_simulate_uses_generated_functional_test(tmp_path: Path) -> None:
+    from flexsoc.backend.core import BackendContext, CommandResult
+    from flexsoc.backend.design.soc.soc import SocFlow
+
+    project = tmp_path / "project"
+    for name in ("lowrisc_ibex", "lowrisc_ip"):
+        (project / "vendor" / name).mkdir(parents=True)
+    context = BackendContext(
+        project, tmp_path / "work",
+        {
+            "TOP": "test",
+            "RUN_TOP": "test",
+            "RUN_ID": "dev",
+            "HOST": "ibex",
+            "FABRIC": "tlul",
+            "SOC_ACTION": "simulate",
+            "TEST_NAME": "smoke",
+            "SEED": "7",
+            "FUSESOC": "fusesoc-test",
+        },
+    )
+    context.paths.ensure()
+    requests = []
+
+    class Runner:
+        def run(self, request, *, on="local"):
+            requests.append(request)
+            request.log.parent.mkdir(parents=True, exist_ok=True)
+            request.log.write_text("fixture\n", encoding="utf-8")
+            if request.argv[0] == sys.executable:
+                for output in request.outputs:
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_text("// generated by tlgen fixture\n", encoding="utf-8")
+            elif request.argv[0] == "fusesoc-test":
+                assert "--target=sim" in request.argv
+                simulator = context.paths.run / "fusesoc" / "sim-verilator" / "Vsoc_tb"
+                simulator.parent.mkdir(parents=True, exist_ok=True)
+                simulator.write_text("fixture simulator\n", encoding="utf-8")
+            else:
+                simulator = context.paths.run / "fusesoc" / "sim-verilator" / "Vsoc_tb"
+                smoke = context.paths.tests / "smoke"
+                wave = context.paths.sim / "soc_tb_smoke.fst"
+                assert request.argv == (
+                    str(simulator),
+                    "+TEST_NAME=smoke",
+                    f"+TEST_ROOT={context.paths.tests}",
+                    f"+CFG={smoke / 'config.regs'}",
+                    f"+DATA_IN={smoke / 'data_in.vec'}",
+                    f"+DATA_OUT={smoke / 'data_out.vec'}",
+                    f"+WAVE={wave}",
+                    "+FLEXSOC_SEED=7",
+                    "+verilator+seed+7",
+                )
+                assert request.cwd == context.paths.tb
+            return CommandResult(0, request.log, 0.1)
+
+    result = SocFlow(context, Runner()).run_target(BACKEND_TARGETS["soc"])
+    assert result.returncode == 0
+    assert len(requests) == 3
+    core = (context.paths.run / "soc.core").read_text(encoding="utf-8")
+    assert "  sim:" in core
+    assert "toplevel: soc_tb" in core
+    assert "mode: cc" in core
+    assert "libs:" not in core
+    assert "- '--main'" in core
+    assert "- '-LDFLAGS'" in core
+    assert "- '-lelf'" in core
+    assert "- '-Wno-fatal'" in core
+    assert "dv/functional/tb/sv/soc_tb.sv" in core
+    assert "top_verilator" not in core
+    assert (context.paths.tb / "sv" / "soc_tb.sv").is_file()
+    assert (context.paths.tb / "sv" / "drivers" / "soc_vec_driver.svh").is_file()
+    smoke = context.paths.tests / "smoke"
+    assert (smoke / "config.regs").is_file()
+    assert (smoke / "data_in.vec").is_file()
+    assert (smoke / "data_out.vec").is_file()
+    assert not (context.paths.run / "tb").exists()
+    assert not (context.paths.run / "sim").exists()
+    assert not (context.paths.run / "tests").exists()
+    assert not (context.paths.run / "model").exists()
+
+
+def test_soc_m0_boot_smoke_builds_firmware_and_checks_signature(tmp_path: Path) -> None:
+    from flexsoc.backend.core import BackendContext, CommandResult
+    from flexsoc.backend.design.soc.soc import SocFlow
+
+    project = tmp_path / "project"
+    for name in ("lowrisc_ibex", "lowrisc_ip"):
+        (project / "vendor" / name).mkdir(parents=True)
+    context = BackendContext(
+        project, tmp_path / "work",
+        {
+            "TOP": "test",
+            "RUN_TOP": "test",
+            "RUN_ID": "dev",
+            "HOST": "ibex",
+            "FABRIC": "tlul",
+            "SOC_ACTION": "simulate",
+            "TEST_NAME": "boot_smoke",
+            "SEED": "11",
+            "FUSESOC": "fusesoc-test",
+        },
+    )
+    context.paths.ensure()
+    requests = []
+
+    class Runner:
+        def run(self, request, *, on="local"):
+            requests.append(request)
+            request.log.parent.mkdir(parents=True, exist_ok=True)
+            request.log.write_text("fixture\n", encoding="utf-8")
+            if request.argv[0] == sys.executable:
+                for output in request.outputs:
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    output.write_text("// generated by tlgen fixture\n", encoding="utf-8")
+            elif request.argv[0] == "make":
+                assert request.argv[-2:] == ("clean", "all")
+                elf, binary = request.outputs
+                elf.parent.mkdir(parents=True, exist_ok=True)
+                elf.write_bytes(b"ELF-fixture")
+                binary.write_bytes(bytes.fromhex("13000000 93001000".replace(" ", "")))
+            elif request.argv[0] == "fusesoc-test":
+                assert "--target=sim" in request.argv
+                simulator = context.paths.run / "fusesoc" / "sim-verilator" / "Vsoc_tb"
+                simulator.parent.mkdir(parents=True, exist_ok=True)
+                simulator.write_text("fixture simulator\n", encoding="utf-8")
+            else:
+                simulator = context.paths.run / "fusesoc" / "sim-verilator" / "Vsoc_tb"
+                test = context.paths.tests / "boot_smoke"
+                wave = context.paths.sim / "soc_tb_boot_smoke.fst"
+                assert request.argv == (
+                    str(simulator),
+                    "+TEST_NAME=boot_smoke",
+                    f"+TEST_ROOT={context.paths.tests}",
+                    f"+CFG={test / 'config.regs'}",
+                    f"+DATA_IN={test / 'data_in.vec'}",
+                    f"+DATA_OUT={test / 'data_out.vec'}",
+                    f"+WAVE={wave}",
+                    "+FLEXSOC_SEED=11",
+                    "+verilator+seed+11",
+                )
+                assert request.inputs[-2:] == (
+                    test / "sw" / "build" / "main.elf",
+                    test / "sw" / "build" / "main.vmem",
+                )
+            return CommandResult(0, request.log, 0.1)
+
+    result = SocFlow(context, Runner()).run_target(BACKEND_TARGETS["soc"])
+    assert result.returncode == 0
+    assert len(requests) == 4
+    assert requests[1].argv[0] == "make"
+    assert requests[2].argv[0] == "fusesoc-test"
+
+    sw = context.paths.tests / "boot_smoke" / "sw"
+    assert (sw / "main.c").is_file()
+    assert (sw / "boot.S").is_file()
+    assert (sw / "link.ld").is_file()
+    assert (sw / "build" / "main.elf").is_file()
+    assert (sw / "build" / "main.bin").is_file()
+    assert (sw / "build" / "main.vmem").read_text(encoding="utf-8") == "00000013\n00100093\n"
+
+    tb = (context.paths.tb / "sv" / "soc_tb.sv").read_text(encoding="utf-8")
+    assert '.SramInitFile("' in tb
+    assert "main.vmem" in tb
+    assert "soc_boot_pass_seen" in tb
+    assert "32'h46534F43" in tb
+    assert "u_dut.sram_data_req" in tb
+    assert "[TB][BOOT] FAIL status=" in tb
+    assert "[TB][BOOT] PASS entry=" in tb
+
+    vectors = (context.paths.tests / "boot_smoke" / "data_in.vec").read_text(encoding="utf-8")
+    assert "512 @wait 0" in vectors
+    assert "[TB][WAIT]" in (context.paths.tb / "sv" / "drivers" / "soc_vec_driver.svh").read_text(encoding="utf-8")
+
+    soc_sv = (context.paths.rtl / "soc.sv").read_text(encoding="utf-8")
+    assert ".boot_addr_i (32'h00100000)" in soc_sv
+    assert ".org 0x80" in (sw / "boot.S").read_text(encoding="utf-8")
+    link = (sw / "link.ld").read_text(encoding="utf-8")
+    assert "test_status : ORIGIN = 0x0011EFFC, LENGTH = 0x4" in link
+
+
+def test_soc_dv_does_not_stage_component_ip_tests(tmp_path: Path) -> None:
+    from flexsoc.backend.core import BackendContext
+    from flexsoc.backend.design.soc.soc import SocFlow
+
+    project = tmp_path / "project"
+    ip = tmp_path / "work" / "runs" / "test" / "dev" / "ips" / "uart"
+    (ip / "dv" / "functional" / "tests" / "ip_only").mkdir(parents=True)
+    (ip / "dv" / "functional" / "tests" / "ip_only" / "data_in.vec").write_text("ip\n")
+    (ip / "rtl").mkdir(parents=True)
+    (ip / "rtl" / "rtl_common.f").write_text("", encoding="utf-8")
+    (ip / "rtl" / "rtl_ip.f").write_text("", encoding="utf-8")
+    context = BackendContext(
+        project, tmp_path / "work",
+        {"TOP": "test", "RUN_TOP": "test", "RUN_ID": "dev", "HOST": "ibex", "FABRIC": "tlul"},
+    )
+    context.paths.ensure()
+    SocFlow(context).prepare_run()
+    assert not (context.paths.tests / "ip_only").exists()
+
+def test_soc_view_reuses_canonical_workspace_wave_viewer(tmp_path: Path) -> None:
+    from flexsoc.backend.core import BackendContext, CommandResult
+    from flexsoc.backend.design.soc.soc import SocFlow
+
+    context = BackendContext(
+        ROOT, tmp_path / "work",
+        {
+            "TOP": "test", "RUN_TOP": "test", "RUN_ID": "dev",
+            "HOST": "ibex", "FABRIC": "tlul", "SOC_ACTION": "view",
+            "WAVE_VIEWER": "surfer-test",
+        },
+    )
+    context.paths.ensure()
+    wave = context.paths.sim / "soc_tb_smoke.fst"
+    wave.parent.mkdir(parents=True, exist_ok=True)
+    wave.write_text("fixture wave\n", encoding="utf-8")
+    requests = []
+
+    class Runner:
+        def run(self, request, *, on="local"):
+            requests.append(request)
+            return CommandResult(0, request.log, 0.1)
+
+    result = SocFlow(context, Runner()).run_target(BACKEND_TARGETS["soc"])
+    assert result.returncode == 0
+    assert len(requests) == 1
+    assert requests[0].argv == ("surfer-test", str(wave))
+    assert requests[0].cwd == wave.parent
+    assert requests[0].log == context.paths.logs / "viewer" / "view.log"
+
+
+def test_soc_build_cli_renders_operational_log_path(tmp_path: Path) -> None:
+    client = FlexSoC(project_root=ROOT, workdir=tmp_path / "workspace")
+    command = client.command(
+        "soc",
+        TOP="test", RUN_TOP="test", RUN_ID="dev", HOST="ibex", FABRIC="tlul",
+        SOC_ACTION="build", FUSESOC="fusesoc-test",
+    )
+    command_log = client.log_path("soc", RUN_TOP="test", RUN_ID="dev", SOC_ACTION="build")
+    assert client._display_log_path(command, command_log) == (
+        tmp_path / "workspace" / "runs" / "test" / "dev" / "logs" / "soc" / "build.log"
+    )
+
+    sim_command = client.command(
+        "soc",
+        TOP="test", RUN_TOP="test", RUN_ID="dev", HOST="ibex", FABRIC="tlul",
+        SOC_ACTION="simulate", FUSESOC="fusesoc-test",
+    )
+    assert client._display_log_path(sim_command, command_log) == (
+        tmp_path / "workspace" / "runs" / "test" / "dev" / "logs" / "soc" / "sim.log"
+    )
+
+    view_command = client.command(
+        "soc",
+        TOP="test", RUN_TOP="test", RUN_ID="dev", HOST="ibex", FABRIC="tlul",
+        SOC_ACTION="view", FUSESOC="fusesoc-test",
+    )
+    assert client._display_log_path(view_command, command_log) == (
+        tmp_path / "workspace" / "runs" / "test" / "dev" / "logs" / "viewer" / "view.log"
+    )
+
+def test_soc_show_supports_human_and_json_modes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    from flexsoc.backend.core import BackendContext
+    from flexsoc.backend.design.soc.soc import SocFlow
+
+    context = BackendContext(
+        ROOT, tmp_path / "work",
+        {"TOP": "test", "RUN_TOP": "test", "RUN_ID": "dev", "HOST": "ibex", "FABRIC": "tlul"},
+    )
+    context.paths.ensure()
+    flow = SocFlow(context)
+
+    assert flow.show() == 0
+    human = capsys.readouterr().out
+    assert '\n  "devices": [' in human
+
+    assert flow.show(as_json=True) == 0
+    machine = capsys.readouterr().out
+    assert json.loads(machine)["devices"][0]["name"] == "sram"
+    assert machine.count("\n") == 1
 
 
 def test_cli_soc_host_option_and_show_routing(
@@ -11415,6 +11900,21 @@ def test_cli_soc_host_option_and_show_routing(
     assert seen["targets"] == ("soc",)
     assert seen["HOST"] == "ibex"
 
+    assert app(["soc", "--host", "ibex", "--build", *common]) == 0
+    assert seen["targets"] == ("soc",)
+    assert seen["HOST"] == "ibex"
+    assert seen["SOC_ACTION"] == "build"
+
+    assert app(["soc", "--host", "ibex", "--sim", *common]) == 0
+    assert seen["targets"] == ("soc",)
+    assert seen["HOST"] == "ibex"
+    assert seen["SOC_ACTION"] == "simulate"
+
+    assert app(["soc", "--host", "ibex", "--view", *common]) == 0
+    assert seen["targets"] == ("soc",)
+    assert seen["HOST"] == "ibex"
+    assert seen["SOC_ACTION"] == "view"
+
     shown: dict[str, object] = {}
 
     def fake_show(self: SocFlow, *, as_json: bool = False) -> int:
@@ -11430,3 +11930,41 @@ def test_cli_soc_host_option_and_show_routing(
 
     assert app(["lint", "--host", "ibex", *common]) == 2
     assert "--host is only valid with `fx soc`" in capsys.readouterr().err
+
+    assert app(["lint", "--build", *common]) == 2
+    assert "--build is only valid with `fx soc`" in capsys.readouterr().err
+
+    assert app(["lint", "--sim", *common]) == 2
+    assert "--sim is only valid with `fx soc`" in capsys.readouterr().err
+
+    assert app(["lint", "--view", *common]) == 2
+    assert "--view is only valid with `fx soc`" in capsys.readouterr().err
+
+def test_driver_is_base_relative_and_has_no_absolute_binding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from flexsoc.backend.design.ip.regs import RegsFlow
+
+    hjson = tmp_path / "demo.hjson"
+    hjson.write_text('{ name: "demo" }\n', encoding="utf-8")
+    output = tmp_path / "drivers"
+    flow = RegsFlow(project_root=ROOT)
+
+    def fake_regtool(argv, *, cwd, log, on="local"):
+        Path(argv[2]).write_text(
+            "#define DEMO_CTRL_REG_OFFSET 0x10\n"
+            "#define DEMO_STATUS_REG_OFFSET 0x14\n"
+            "#define DEMO_WDATA_REG_OFFSET 0x1c\n",
+            encoding="utf-8",
+        )
+        return 0
+
+    monkeypatch.setattr(flow, "_run_regtool", fake_regtool)
+    header, source = flow.setup_driver(hjson, output)
+
+    header_text = header.read_text(encoding="utf-8")
+    source_text = source.read_text(encoding="utf-8")
+    assert "_BASE" not in header_text
+    assert "0x80000000" not in header_text + source_text
+    assert "demo_init(demo_t base)" in header_text
+    assert "demo_putchar(demo_t base, int c)" in header_text
+    assert "demo_puts(demo_t base, const char* str)" in header_text
+    assert "base + DEMO_CTRL_REG_OFFSET" in source_text

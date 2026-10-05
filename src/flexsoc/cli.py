@@ -211,7 +211,7 @@ Use `fx commands` to list every backend target.
                 ("fx regmap_py tests_gen regression --setup", "Refresh generator-owned DV collateral."),
                 ("fx tests_gen --check", "Verify config.regs and vector files still match the Python generators."),
                 ("fx lint regression formal syn", "Run the standard reusable gates; run EQY explicitly per IP when its profile is ready."),
-                ("fx soc_start", "Initialize the SoC workspace from loaded IPs; run later SoC steps explicitly."),
+                ("fx soc --host ibex", "Resolve the SoC plan and generate the M0 TL-UL composition atomically."),
             ),
         ),
     )
@@ -1321,7 +1321,8 @@ Use `fx commands` to list every backend target.
                 print(json.dumps(dict(values), indent=2))
                 return
             groups = (
-                ("Run", ("TOP", "RUN_TOP", "RUN_ID", "HOST")),
+                ("Run", ("TOP", "RUN_TOP", "RUN_ID")),
+                ("Design", ("DESIGN", "HOST", "FABRIC")),
                 ("Clocking", ("N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS")),
                 ("Technology", ("PDK", "PDK_ROOT")),
                 ("Verification", ("REG_ITF", "COMPILER", "GLS_SIMULATOR", "WAVE_FORMAT", "TIMING_MODE")),
@@ -1382,7 +1383,7 @@ Use `fx commands` to list every backend target.
                 values.update(ClockConfig.from_values(values).to_settings())
             if reset or unsets or sets or items:
                 WorkspaceFlow.write_settings(root, values, workdir)
-            display = dict(values)
+            display = WorkspaceFlow.effective_settings(root, workdir, values)
             if workdir is not None:
                 display["WORKSPACE"] = str(workdir.expanduser().resolve())
             layout = PDKRunLayout.from_values(root, display)
@@ -1764,6 +1765,30 @@ Use `fx commands` to list every backend target.
                     rich_help_panel="SoC",
                 ),
             ] = None,
+            build: Annotated[
+                bool,
+                typer.Option(
+                    "--build",
+                    help="Generate and elaborate the SoC with FuseSoC/Verilator.",
+                    rich_help_panel="SoC",
+                ),
+            ] = False,
+            soc_sim: Annotated[
+                bool,
+                typer.Option(
+                    "--sim",
+                    help="Build and run the finite-cycle Verilator M0 smoke simulation.",
+                    rich_help_panel="SoC",
+                ),
+            ] = False,
+            soc_view: Annotated[
+                bool,
+                typer.Option(
+                    "--view",
+                    help="Open the waveform from the latest SoC simulation.",
+                    rich_help_panel="SoC",
+                ),
+            ] = False,
             rtl: Annotated[
                 bool,
                 typer.Option("--rtl", help="Select RTL simulation (the default for fx sim).", rich_help_panel="Domain selection"),
@@ -1868,6 +1893,14 @@ Use `fx commands` to list every backend target.
                 if selected_host not in {"ibex", "uart"}:
                     raise click.BadParameter("--host must be ibex or uart")
                 set_args = (*set_args, f"HOST={selected_host}")
+            if build or soc_sim or soc_view:
+                if args != ("soc",):
+                    option = "--build" if build else "--sim" if soc_sim else "--view"
+                    raise click.BadParameter(f"{option} is only valid with `fx soc`")
+                if sum((build, soc_sim, soc_view, show)) > 1:
+                    raise click.BadParameter("choose only one of --build, --sim, --view, or --show")
+                action = "build" if build else "simulate" if soc_sim else "view"
+                set_args = (*set_args, f"SOC_ACTION={action}")
             if deps_user and deps_system:
                 raise click.BadParameter("choose only one of --user or --system")
             if deps_profile is not None and deps_profile not in {"base", "impl", "riscv"}:
@@ -1888,7 +1921,9 @@ Use `fx commands` to list every backend target.
                 if deps_jobs is not None:
                     dep_sets.append(f"DEPS_JOBS={deps_jobs}")
                 set_args = (*set_args, *dep_sets)
-            client = FlexSoC(FlexSoCConfig(root, workdir), **WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS))
+            stored_settings = WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS)
+            effective_settings = WorkspaceFlow.effective_settings(root, workdir, stored_settings)
+            client = FlexSoC(FlexSoCConfig(root, workdir), **effective_settings)
             if not args:
                 self._guide()
                 return

@@ -148,6 +148,43 @@ class QualificationFlow:
             return 0 if report.get("target_satisfied", False) else 1
         raise ValueError(f"unsupported qualification target: {target.name}")
 
+    def _frozen_evidence(
+        self,
+        *,
+        spec_root: Path,
+        spec: Mapping[str, object],
+        ip_name: str,
+        reg_interface: str,
+    ) -> dict[str, str]:
+        """Return reusable evidence from a loaded release whose contract is still valid."""
+
+        paths = self.context.paths
+        report_path = paths.meta / "qualification.json"
+        contract_path = paths.run / "meta" / "contract.json"
+        if not report_path.is_file() or not contract_path.is_file():
+            return {}
+        try:
+            QualificationFlow.validate_contract_snapshot(paths.run, spec_root=spec_root)
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, json.JSONDecodeError):
+            return {}
+        if (
+            report.get("ip") != ip_name
+            or report.get("reg_interface") != reg_interface
+            or str(report.get("pdk", "")) != str(paths.pdk)
+            or report.get("contract_fingerprint") != spec.get("fingerprint")
+        ):
+            return {}
+        evidence = report.get("evidence", {})
+        if not isinstance(evidence, Mapping):
+            return {}
+        durable = {"PASS", "FAILED", "REVIEW", "WAIVED"}
+        return {
+            str(stage): state
+            for stage, value in evidence.items()
+            if (state := str(value).upper()) in durable
+        }
+
     def status(
         self,
         *,
@@ -181,6 +218,12 @@ class QualificationFlow:
 
         states = dict(stage_states)
         outcomes = dict(stage_outcomes)
+        for stage, outcome in self._frozen_evidence(
+            spec_root=spec_root, spec=spec, ip_name=ip_name, reg_interface=reg_interface,
+        ).items():
+            if states.get(stage, "MISSING") in {"MISSING", "STALE"}:
+                states[stage] = "CLEAN"
+                outcomes[stage] = outcome
         available_tests = {
             path.name for path in paths.tests.iterdir() if path.is_dir()
         } if paths.tests.is_dir() else set()

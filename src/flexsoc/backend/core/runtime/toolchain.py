@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -18,6 +19,8 @@ TOOLS = (
     ("uv", "uv", ("--version",), True, None),
     ("Slang", "slang", ("--version",), True, "SLANG"),
     ("Verilator", "verilator", ("--version",), True, "VERILATOR"),
+    ("Verible syntax", "verible-verilog-syntax", ("--version",), True, "VERIBLE"),
+    ("Verible lint", "verible-verilog-lint", ("--version",), True, "VERIBLE"),
     ("Yosys", "yosys", ("-V",), False, "YOSYS"),
     ("SymbiYosys", "sby", ("--version",), False, "SBY"),
     ("EQY", "eqy", ("--version",), False, "EQY"),
@@ -224,7 +227,7 @@ class Toolchain:
             result = runner.run(
                 CommandRequest((str(resolved), *args), root, {}, log, timeout_s=5), on=on
             )
-        except OSError:
+        except (OSError, subprocess.TimeoutExpired):
             return str(resolved), "version unavailable"
         text = log.read_text(encoding="utf-8", errors="replace").strip() if log.is_file() else ""
         if result.returncode != 0 and not text:
@@ -364,7 +367,7 @@ class Toolchain:
         console.print(project)
 
         groups = (
-            ("RTL / lint", {"slang", "verilator", "slang-hier"}),
+            ("RTL / lint", {"slang", "verilator", "verible-verilog-syntax", "verible-verilog-lint", "slang-hier"}),
             ("Formal / equivalence", {"yosys", "sby", "eqy", "bitwuzla", "boolector", "btormc", "btorsim"}),
             ("Simulation / debug", {"iverilog", "gtkwave", "fst2vcd", "surfer", "sv2v", "netlistsvg"}),
             ("Implementation / sign-off", {"sta", "openroad", "klayout"}),

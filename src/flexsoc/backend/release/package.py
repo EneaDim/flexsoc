@@ -130,7 +130,7 @@ class PackageFlow:
             settings_json=paths.meta / "settings.json",
             design_intent_json=paths.run / "meta" / "design_intent.json",
             qualification_json=paths.meta / "qualification.json",
-            version=values.get("IP_VERSION") or None, force=force,
+            version=values.get("IP_VERSION") or None,
         )
 
     def load(
@@ -184,7 +184,7 @@ class PackageFlow:
                     self._replace_tree(post_impl, run_pdk / "post_impl")
             shutil.rmtree(staged_signoff)
         PackageFlow._clean_python_cache(destination)
-        PackageFlow._rebind_filelists(destination, self.project_root)
+        PackageFlow._validate_frozen_filelists(destination)
         return destination
 
     def export_ipxact(
@@ -320,7 +320,6 @@ class PackageFlow:
         qualification_json: Path | None = None,
         spec_root: Path | None = None,
         version: str | None = None,
-        force: bool = False,
     ) -> Path:
         """Atomically update one PDK branch in the reusable interface release."""
 
@@ -336,14 +335,6 @@ class PackageFlow:
             release_root = release_root / version
         interface_root = release_root / "interfaces"
         target = interface_root / reg_interface
-        conflicts = [target / "syn" / pdk, target / "signoff" / pdk / "post_syn"]
-        if impl_dir and Path(impl_dir).is_dir():
-            conflicts.append(target / "impl" / pdk)
-        existing = [path for path in conflicts if path.exists()]
-        if existing and not force:
-            names = ", ".join(str(path.relative_to(target)) for path in existing)
-            raise FileExistsError(f"ip_save would overwrite existing package content: {names}")
-
         interface_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(
             prefix=f".ip-save.{ip_name}.{reg_interface}.", dir=interface_root
@@ -405,9 +396,10 @@ class PackageFlow:
             staged_spec.mkdir()
             for name in SPEC_FILES:
                 shutil.copy2(spec_root / name, staged_spec / name)
-            PackageFlow._portable_filelists(staged, self.project_root, run)
+            PackageFlow._freeze_rtl_dependencies(staged, self.project_root, run)
             PackageFlow._clean_python_cache(staged)
             PackageFlow._clean_hidden_paths(staged)
+            self._write_fusesoc_core(staged, ip_name, top)
             self._write_package_manifest(
                 staged, ip_name, top, reg_interface, version=version
             )
@@ -501,6 +493,106 @@ class PackageFlow:
             destination.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination / "summary.json")
 
+    @staticmethod
+    def _write_fusesoc_core(staged: Path, ip_name: str, top: str) -> Path | None:
+        """Write a self-contained FuseSoC contract using only files inside the release."""
+
+        rtl = staged / "rtl"
+        ip_filelist = rtl / "rtl_ip.f"
+        if not ip_filelist.is_file():
+            return None
+
+        sources: list[str] = []
+        include_dirs: list[str] = []
+        for filelist in (rtl / "rtl_common.f", ip_filelist):
+            if not filelist.is_file():
+                continue
+            for raw in filelist.read_text(encoding="utf-8").splitlines():
+                value = raw.strip()
+                if not value or value.startswith("#"):
+                    continue
+                if value.startswith("+incdir+"):
+                    directory = value[8:]
+                    path = staged / directory
+                    if not path.is_dir():
+                        raise FileNotFoundError(f"IP release include directory not found: {path}")
+                    if directory not in include_dirs:
+                        include_dirs.append(directory)
+                    continue
+                if value.startswith("+") or value.startswith("-"):
+                    continue
+                path = Path(value)
+                if path.is_absolute() or ".." in path.parts:
+                    raise ValueError(f"IP release core source must be release-relative: {value}")
+                if not (staged / path).is_file():
+                    raise FileNotFoundError(f"IP release RTL source not found: {staged / path}")
+                relative = path.as_posix()
+                if relative not in sources:
+                    sources.append(relative)
+        if not sources:
+            raise ValueError(f"IP release has no RTL sources: {staged}")
+
+        include_entries: list[tuple[str, str]] = []
+        source_set = set(sources)
+        for directory in include_dirs:
+            base = staged / directory
+            for path in sorted(item for item in base.rglob("*") if item.is_file()):
+                relative = path.relative_to(staged).as_posix()
+                if relative in source_set:
+                    continue
+                include_entries.append((relative, directory))
+
+        dependency_file = rtl / "fusesoc_deps.txt"
+        dependencies = tuple(
+            line.strip()
+            for line in dependency_file.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ) if dependency_file.is_file() else ()
+
+        lines = [
+            "CAPI=2:",
+            f'name: "prj:ip:{ip_name}:0.1"',
+            f'description: "FlexSoC reusable {ip_name} IP release"',
+            "filesets:",
+            "  files_rtl:",
+        ]
+        if dependencies:
+            lines.extend(("    depend:", *(f"      - {dependency}" for dependency in dependencies)))
+        lines.extend((
+            "    files:",
+            *(f"      - {source}" for source in sources),
+        ))
+        for relative, directory in include_entries:
+            lines.extend((
+                f"      - {relative}:",
+                "          is_include_file: true",
+                f"          include_path: {directory}",
+            ))
+        lines.extend((
+            "    file_type: systemVerilogSource",
+            "",
+            "targets:",
+            "  default: &default_target",
+            "    filesets:",
+            "      - files_rtl",
+            f"    toplevel: {top}",
+            "",
+            "  lint:",
+            "    <<: *default_target",
+            "    default_tool: verilator",
+            "    tools:",
+            "      verilator:",
+            "        mode: lint-only",
+            "        verilator_options:",
+            '          - "-Wall"',
+            '          - "-Wno-fatal"',
+            "",
+        ))
+        output = staged / f"{ip_name}.core"
+        output.write_text("\n".join(lines), encoding="utf-8")
+        return output
+
+
     def _write_package_manifest(
         self, staged: Path, ip_name: str, top: str, reg_interface: str,
         *, version: str | None = None,
@@ -529,6 +621,9 @@ class PackageFlow:
             content["ipxact"] = "component.xml"
         if (staged / "csr" / "systemrdl").is_dir():
             content["systemrdl"] = "csr/systemrdl"
+        core = staged / f"{ip_name}.core"
+        if core.is_file():
+            content["fusesoc_core"] = core.name
         qualification = {}
         meta = staged / "meta"
         if meta.is_dir():
@@ -910,68 +1005,179 @@ class PackageFlow:
         return value
 
     @staticmethod
-    def _portable_filelists(root: Path, project_root: Path, run_root: Path) -> None:
-        """Store operational filelists without checkout/workspace absolute paths."""
+    def _resolve_release_source(
+        value: str, *, root: Path, project_root: Path, run_root: Path | None
+    ) -> Path:
+        """Resolve one filelist path while freezing an RTL release."""
 
-        run_rtl = (run_root / "rtl").resolve()
-        project = project_root.resolve()
+        path = Path(value)
+        if path.is_absolute():
+            resolved = path.resolve()
+        else:
+            candidates = [root / path, project_root / path]
+            if run_root is not None:
+                candidates.insert(1, run_root / path)
+            resolved = next((candidate.resolve() for candidate in candidates if candidate.exists()), None)
+            if resolved is None:
+                raise FileNotFoundError(f"release RTL dependency not found: {value}")
+        return resolved
+
+    @staticmethod
+    def _fusesoc_dependency_for_external_source(source: Path, project_root: Path) -> str | None:
+        """Map pinned third-party RTL, including checkout mirrors, to its owning FuseSoC core."""
+
+        if not (project_root / "vendor" / "lowrisc_ip").is_dir():
+            return None
+
+        try:
+            relative = source.resolve().relative_to(project_root.resolve()).as_posix()
+        except ValueError:
+            return None
+
+        if relative.startswith("vendor/lowrisc_ip/ip/tlul/rtl/"):
+            dedicated = {
+                "tlul_adapter_reg.sv": "lowrisc:tlul:adapter_reg",
+                "tlul_adapter_sram.sv": "lowrisc:tlul:adapter_sram",
+                "tlul_adapter_host.sv": "lowrisc:tlul:adapter_host",
+                "tlul_socket_1n.sv": "lowrisc:tlul:socket_1n",
+                "tlul_socket_m1.sv": "lowrisc:tlul:socket_m1",
+                "sram2tlul.sv": "lowrisc:tlul:sram2tlul",
+            }
+            return dedicated.get(source.name, "lowrisc:tlul:common")
+
+        mirrored = {
+            "hw/ips/pkgs/top_pkg.sv": "lowrisc:constants:top_pkg",
+            "hw/ips/pkgs/prim_mubi_pkg.sv": "lowrisc:prim:mubi",
+            "hw/ips/pkgs/prim_secded_pkg.sv": "lowrisc:prim:secded",
+            "hw/ips/pkgs/prim_util_pkg.sv": "lowrisc:prim:util",
+            "hw/ips/pkgs/prim_subreg_pkg.sv": "lowrisc:prim:subreg",
+            "hw/ips/pkgs/prim_count_pkg.sv": "lowrisc:prim:count",
+            "hw/ips/prim_opentitan/prim_flop.sv": "lowrisc:prim:flop",
+            "hw/ips/prim_opentitan/prim_secded_inv_64_57_enc.sv": "lowrisc:prim:secded",
+            "hw/ips/prim_opentitan/prim_secded_inv_39_32_enc.sv": "lowrisc:prim:secded",
+            "hw/ips/prim_opentitan/prim_secded_inv_64_57_dec.sv": "lowrisc:prim:secded",
+            "hw/ips/prim_opentitan/prim_secded_inv_39_32_dec.sv": "lowrisc:prim:secded",
+            "hw/ips/prim_opentitan/prim_buf.sv": "lowrisc:prim:buf",
+            "hw/ips/prim_opentitan/prim_onehot_check.sv": "lowrisc:prim:onehot_check",
+            "hw/ips/prim_opentitan/prim_reg_we_check.sv": "lowrisc:prim:reg_we_check",
+            "hw/ips/prim_opentitan/prim_subreg_arb.sv": "lowrisc:prim:subreg",
+            "hw/ips/prim_opentitan/prim_subreg.sv": "lowrisc:prim:subreg",
+            "hw/ips/prim_opentitan/prim_subreg_ext.sv": "lowrisc:prim:subreg",
+            "hw/ips/prim_opentitan/prim_count.sv": "lowrisc:prim:count",
+            "hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv": "lowrisc:prim:fifo",
+            "hw/ips/prim_opentitan/prim_fifo_sync.sv": "lowrisc:prim:fifo",
+            "hw/ips/prim_opentitan/prim_flop_2sync.sv": "lowrisc:prim:flop_2sync",
+        }
+        return mirrored.get(relative)
+
+    @staticmethod
+    def _is_external_mirror_include_dir(source: Path, project_root: Path) -> bool:
+        """Return true for checkout-local include directories owned by pinned third-party cores."""
+
+        if not (project_root / "vendor" / "lowrisc_ip").is_dir():
+            return False
+
+        try:
+            relative = source.resolve().relative_to(project_root.resolve()).as_posix()
+        except ValueError:
+            return False
+        return relative == "hw/ips/pkgs"
+
+    @staticmethod
+    def _release_local_dependency_path(source_rel: Path) -> Path:
+        """Map project-local RTL into the release namespace without checkout topology."""
+
+        parts = source_rel.parts
+        if len(parts) >= 2 and parts[:2] == ("hw", "ips"):
+            source_rel = Path(*parts[2:])
+        return Path("flexsoc") / source_rel
+
+    @staticmethod
+    def _freeze_rtl_dependencies(root: Path, project_root: Path, run_root: Path | None = None) -> None:
+        """Freeze repo-local RTL under rtl/deps and record explicit pinned vendor core dependencies."""
+
+        root = Path(root).resolve()
+        project_root = Path(project_root).resolve()
+        run_root = Path(run_root).resolve() if run_root is not None else None
+        deps_root = root / "rtl" / "deps"
+        core_dependencies: list[str] = []
+
         for filelist in (root / "rtl" / "rtl_common.f", root / "rtl" / "rtl_ip.f"):
             if not filelist.is_file():
                 continue
-            lines = []
-            for line in filelist.read_text(encoding="utf-8").splitlines():
-                prefix, value = ("+incdir+", line[8:]) if line.startswith("+incdir+") else ("", line)
-                if not value or value.startswith(("#", "+")):
-                    lines.append(line)
+            frozen: list[str] = []
+            for raw in filelist.read_text(encoding="utf-8").splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    frozen.append(raw)
                     continue
-                path = Path(value)
+                if line.startswith("+") and not line.startswith("+incdir+"):
+                    frozen.append(raw)
+                    continue
+                prefix, value = ("+incdir+", line[8:]) if line.startswith("+incdir+") else ("", line)
+                source = PackageFlow._resolve_release_source(
+                    value, root=root, project_root=project_root, run_root=run_root
+                )
                 try:
-                    value = (Path("rtl") / path.resolve().relative_to(run_rtl)).as_posix()
+                    relative = source.relative_to(root)
+                    frozen.append(prefix + relative.as_posix())
+                    continue
                 except ValueError:
-                    try:
-                        value = path.resolve().relative_to(project).as_posix()
-                    except ValueError:
-                        pass
-                lines.append(prefix + value)
-            filelist.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                    pass
+                if prefix and PackageFlow._is_external_mirror_include_dir(source, project_root):
+                    continue
+                external_core = PackageFlow._fusesoc_dependency_for_external_source(
+                    source, project_root
+                )
+                if external_core:
+                    if external_core not in core_dependencies:
+                        core_dependencies.append(external_core)
+                    continue
+                try:
+                    source_rel = source.relative_to(project_root)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"release RTL dependency must be inside the project or release: {source}"
+                    ) from exc
+                logical_rel = PackageFlow._release_local_dependency_path(source_rel)
+                destination = deps_root / logical_rel
+                if source.is_dir():
+                    if destination.exists():
+                        shutil.rmtree(destination)
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copytree(source, destination, symlinks=False)
+                else:
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source, destination)
+                frozen.append(prefix + destination.relative_to(root).as_posix())
+            filelist.write_text("\n".join(frozen) + "\n", encoding="utf-8")
+
+        dependency_file = root / "rtl" / "fusesoc_deps.txt"
+        if core_dependencies:
+            dependency_file.write_text("\n".join(core_dependencies) + "\n", encoding="utf-8")
+        else:
+            dependency_file.unlink(missing_ok=True)
 
     @staticmethod
-    def _rebind_filelists(destination: Path, project_root: Path) -> None:
-        """Bind copied saved-IP filelists to the current checkout and run."""
+    def _validate_frozen_filelists(root: Path) -> None:
+        """Require staged release filelists to reference only files inside the staged release."""
 
-        rtl = destination / "rtl"
-        for filelist in (rtl / "rtl_common.f", rtl / "rtl_ip.f"):
+        root = Path(root).resolve()
+        for filelist in (root / "rtl" / "rtl_common.f", root / "rtl" / "rtl_ip.f"):
             if not filelist.is_file():
                 continue
-            local = filelist.name == "rtl_ip.f"
-            lines = []
-            for line in filelist.read_text(encoding="utf-8").splitlines():
-                prefix, value = ("+incdir+", line[8:]) if line.startswith("+incdir+") else ("", line)
-                if not value or value.startswith(("#", "+")):
-                    lines.append(line)
+            for raw in filelist.read_text(encoding="utf-8").splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#") or (line.startswith("+") and not line.startswith("+incdir+")):
                     continue
-                normalized = value.replace("\\", "/")
-                rebound = None
-                if local:
-                    if prefix:
-                        rebound = rtl
-                    else:
-                        matches = [path for path in rtl.rglob(Path(value).name) if path.is_file()]
-                        if len(matches) == 1:
-                            rebound = matches[0]
-                else:
-                    relative = normalized.removeprefix("./")
-                    for prefix_path in ("hw/ips/", "vendor/"):
-                        if relative.startswith(prefix_path):
-                            rebound = project_root / relative
-                            break
-                    if rebound is None:
-                        for marker, base in (
-                            ("/hw/ips/", project_root / "hw" / "ips"),
-                            ("/vendor/", project_root / "vendor"),
-                        ):
-                            if marker in normalized:
-                                rebound = base / normalized.split(marker, 1)[1]
-                                break
-                lines.append(prefix + (rebound.resolve().as_posix() if rebound else value))
-            filelist.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                value = line[8:] if line.startswith("+incdir+") else line
+                path = Path(value)
+                if path.is_absolute() or ".." in path.parts:
+                    raise ValueError(f"non-self-contained IP release filelist entry: {line}")
+                resolved = (root / path).resolve()
+                try:
+                    resolved.relative_to(root)
+                except ValueError as exc:
+                    raise ValueError(f"IP release path escapes staged release: {line}") from exc
+                if not resolved.exists():
+                    raise FileNotFoundError(f"staged IP release dependency not found: {resolved}")

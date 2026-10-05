@@ -18,6 +18,8 @@ class SlangLint:
 
     context: BackendContext
     runner: ToolRunner
+    filelists: tuple[Path, ...] | None = None
+    top: str | None = None
 
     _P0 = (
         "width-trunc", "port-width-trunc", "overflow", "out-of-bounds", "outside-range",
@@ -36,14 +38,26 @@ class SlangLint:
         "empty-member", "empty-stmt", "misleading-indentation", "header-guard", "pragma", "dpi",
     )
 
+    def _source_filelists(self) -> tuple[Path, ...]:
+        """Return the explicit lint source contract for this design."""
+
+        paths = self.context.paths
+        files = self.filelists or (paths.rtl_common, paths.rtl_ip)
+        missing = [path for path in files if not path.is_file()]
+        if missing:
+            raise FileNotFoundError(
+                "RTL filelists missing; generate them before lint: "
+                + ", ".join(str(path) for path in missing)
+            )
+        return tuple(files)
+
     # Execution
 
     def run(self, *, profile: str, on: str = "local") -> tuple[object, dict[str, Any]]:
         """Run Slang once; diagnostics are evidence and never gate lint in development mode."""
 
         paths = self.context.paths
-        if not paths.rtl_common.is_file() or not paths.rtl_ip.is_file():
-            raise FileNotFoundError("RTL filelists missing; generate them before lint")
+        self._source_filelists()
         if profile not in {"critical", "everything"}:
             raise ValueError("LINT_PROFILE must be critical or everything")
 
@@ -73,7 +87,7 @@ class SlangLint:
             counts[item["priority"]] += 1
 
         summary = {
-            "schema": "flexsoc.lint.tool.v1", "top": paths.top, "tool": "slang",
+            "schema": "flexsoc.lint.tool.v1", "top": self.top or paths.top, "tool": "slang",
             "profile": profile, "status": "PASS" if complete else "FAILED",
             "returncode": result.returncode, "counts": counts, "total": len(diagnostics),
             "command": list(command), "diagnostics": diagnostics,
@@ -94,6 +108,10 @@ class SlangLint:
         """Build the single full-elaboration Slang invocation."""
 
         paths, values = self.context.paths, self.context.values
+        top = self.top or paths.top
+        source_args = tuple(
+            item for path in self._source_filelists() for item in ("-f", str(path))
+        )
         warnings = (
             ("-Weverything",)
             if profile == "everything"
@@ -112,9 +130,9 @@ class SlangLint:
                 waiver = self.context.project_root / waiver
             waiver_args = ("--waiver-file", str(waiver))
         return (
-            values.get("SLANG", "slang"), "--single-unit", "--top", paths.top, "-DSYNTHESIS",
+            values.get("SLANG", "slang"), "--single-unit", "--top", top, "-DSYNTHESIS",
             "--diag-abs-paths", "--diag-hierarchy", "never", "--diag-json", str(diagnostics),
-            *warnings, *waiver_args, "-f", str(paths.rtl_common), "-f", str(paths.rtl_ip),
+            *warnings, *waiver_args, *source_args,
         )
 
     # Diagnostics

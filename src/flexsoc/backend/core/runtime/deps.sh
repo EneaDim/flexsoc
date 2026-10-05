@@ -244,6 +244,17 @@ install_slang() {
     mark_installed SLANG slang
 }
 
+install_verible() {
+    if installed VERIBLE verible && [[ -x "$PREFIX/bin/verible-verilog-syntax" && -x "$PREFIX/bin/verible-verilog-lint" ]]; then
+        info "verible already installed"; return
+    fi
+    local d; d=$(archive_source VERIBLE verible); info "install verible $(version_var VERIBLE)"
+    mkdir -p "$PREFIX/bin"
+    install -m 0755 "$d/bin/verible-verilog-syntax" "$PREFIX/bin/verible-verilog-syntax"
+    install -m 0755 "$d/bin/verible-verilog-lint" "$PREFIX/bin/verible-verilog-lint"
+    mark_installed VERIBLE verible
+}
+
 install_iverilog() {
     installed IVERILOG iverilog && { info "iverilog already installed"; return; }
     local d; d=$(archive_source IVERILOG iverilog); info "build iverilog $(version_var IVERILOG)"
@@ -396,7 +407,7 @@ install_netlistsvg() {
 
 profile_tools() {
     profile_ready
-    echo "verilator slang iverilog yosys sby eqy bitwuzla boolector opensta gtkwave surfer sv2v netlistsvg"
+    echo "verilator slang verible iverilog yosys sby eqy bitwuzla boolector opensta gtkwave surfer sv2v netlistsvg"
 }
 
 install_tools() {
@@ -448,11 +459,17 @@ doctor() {
     fi
     profile_ready; export PATH="$PREFIX/bin:$PATH"
     export LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-    local out tool linkage
+    local out tool linkage lint_out
     for tool in $(profile_tools); do
         case "$tool" in
             verilator) require_marker VERILATOR verilator; out=$(verilator --version); contains "$out" "${VERILATOR_VERSION}" verilator ;;
             slang) require_marker SLANG slang; out=$(slang --version); contains "$out" "$(version_var SLANG)" slang; command -v slang-hier >/dev/null ;;
+            verible)
+                require_marker VERIBLE verible
+                out=$(verible-verilog-syntax --version 2>&1); contains "$out" "$(version_var VERIBLE)" verible-verilog-syntax
+                lint_out=$(verible-verilog-lint --version 2>&1); contains "$lint_out" "$(version_var VERIBLE)" verible-verilog-lint
+                out="$(first_line "$out") / $(first_line "$lint_out")"
+                ;;
             iverilog)
                 require_marker IVERILOG iverilog
                 out=$(iverilog -V 2>&1); contains "$out" "version $(version_var IVERILOG)" iverilog
@@ -526,7 +543,7 @@ status() {
     echo
     echo "Command resolution (managed first, then other PATH candidates):"
     local tool managed active candidates
-    for tool in verilator slang iverilog yosys sby eqy sta gtkwave fst2vcd; do
+    for tool in verilator slang verible-verilog-syntax verible-verilog-lint iverilog yosys sby eqy sta gtkwave fst2vcd; do
         managed="$PREFIX/bin/$tool"
         active=$(PATH="$PREFIX/bin:$PATH" command -v "$tool" 2>/dev/null || true)
         printf '  %-10s managed=%s\n' "$tool" "${active:-missing}"
@@ -572,7 +589,7 @@ versions() {
     printf 'FlexSoC toolchain %s  lock=%s\n' "$TOOLCHAIN_ID" "$LOCK_HASH"
     echo '  [base]'
     local key
-    for key in VERILATOR SLANG IVERILOG YOSYS SBY EQY BITWUZLA BOOLECTOR CUDD OPENSTA GTKWAVE SURFER SV2V NETLISTSVG; do
+    for key in VERILATOR SLANG VERIBLE IVERILOG YOSYS SBY EQY BITWUZLA BOOLECTOR CUDD OPENSTA GTKWAVE SURFER SV2V NETLISTSVG; do
         printf '    %-12s %-14s %s\n' "${key,,}" "$(version_var "$key")" "$(source_id "$key")"
     done
     printf '    %-12s %-14s %s\n' boost-build "$(version_var BOOST)" "$(source_id BOOST)"

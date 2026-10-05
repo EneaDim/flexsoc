@@ -761,6 +761,47 @@ class WorkspaceFlow:
         return {**(defaults or {}), **values}
 
     @classmethod
+    def effective_settings(
+        cls,
+        root: Path,
+        workdir: Path | None,
+        values: Mapping[str, str],
+    ) -> dict[str, str]:
+        """Overlay resolved run design intent onto persistent user settings."""
+
+        effective = {str(key).upper(): str(value) for key, value in values.items()}
+        top = effective.get("TOP", "test")
+        run_top = effective.get("RUN_TOP") or top
+        run_id = effective.get("RUN_ID", "default")
+        workspace = (
+            workdir.expanduser().resolve()
+            if workdir is not None
+            else root.expanduser().resolve()
+        )
+        run = workspace / "runs" / run_top / run_id
+        plan_path = run / "soc" / "plan.json"
+
+        if not plan_path.is_file():
+            return effective
+
+        try:
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"invalid resolved SoC plan: {plan_path}: {exc}") from exc
+
+        host = str(plan.get("host", "")).strip()
+        fabric = str(plan.get("fabric", "")).strip()
+        if not host or not fabric:
+            raise ValueError(
+                f"resolved SoC plan is missing host/fabric design intent: {plan_path}"
+            )
+
+        effective["DESIGN"] = "soc"
+        effective["HOST"] = host
+        effective["FABRIC"] = fabric
+        return effective
+
+    @classmethod
     def write_settings(cls, root: Path, values: dict[str, object], workdir: Path | None = None) -> Path:
         """Persist normalized settings in the selected workspace/project scope."""
 
@@ -939,7 +980,6 @@ class WorkspaceFlow:
                 (root / name).unlink(missing_ok=True)
             self._remove_globs(root, "sim.fst*")
             self._remove_globs(root / "sw", "*.elf", "*.o", "*.csv")
-            self._remove_globs(root / "tb", "top_verilator.*")
             shutil.rmtree(paths.run / "soc", ignore_errors=True)
             return 0
         if action == "clean_vendor":

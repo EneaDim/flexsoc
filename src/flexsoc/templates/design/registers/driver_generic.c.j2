@@ -28,14 +28,14 @@ void <<: module_name :>>_out(<<: module_name :>>_t base, char c) {
 #endif
 }
 
-int <<: module_name :>>_putchar(int c) {
-  <<: module_name :>>_out((<<: module_name :>>_t)<<: upper :>>_BASE, (char)c);
+int <<: module_name :>>_putchar(<<: module_name :>>_t base, int c) {
+  <<: module_name :>>_out(base, (char)c);
   return c;
 }
 
-int <<: module_name :>>_puts(const char* str) {
+int <<: module_name :>>_puts(<<: module_name :>>_t base, const char* str) {
   while (*str) {
-    <<: module_name :>>_putchar(*str++);
+    <<: module_name :>>_putchar(base, *str++);
   }
   return 0;
 }
