@@ -20,16 +20,15 @@ module <<: tb_module :>>;
   localparam integer INITIAL_RESET_CYCLES = 5;
 <<: bus_helpers :>>
 
-<<: expected_decls :>><<% if extra_declarations %>>
-<<: extra_declarations :>><<% endif %>>
+<<: expected_decls :>>
+<<: event_declarations :>>
 <<: clock_drivers :>>
 
   <<: top :>><<: dut_parameters :>> u_dut (
 <<: dut_pins :>>
   );
-<<% if extra_statements %>>
-<<: extra_statements :>>
-<<% endif %>>
+
+<<: event_statements :>>
   // Verification helpers share one structure for all clock topologies.
   `include "drivers/<<: top :>>_reg_driver.svh"
   `include "drivers/<<: top :>>_vec_monitor.svh"

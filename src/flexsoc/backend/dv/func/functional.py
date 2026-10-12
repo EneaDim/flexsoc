@@ -56,6 +56,47 @@ class FunctionalFlow:
         if result.returncode:
             raise RuntimeError(f"vector generator failed ({result.returncode}): {script}")
 
+    @staticmethod
+    def _log_root(base_dir: Path) -> Path:
+        """Return the owner of functional-DV logs for run or staging paths."""
+
+        base_dir = Path(base_dir)
+        if (
+            base_dir.name == "tests"
+            and base_dir.parent.name == "functional"
+            and base_dir.parent.parent.name == "dv"
+        ):
+            return base_dir.parents[2]
+        return base_dir.parent
+
+    @staticmethod
+    def _local_catalog(base_dir: Path) -> Path | None:
+        """Return a workspace/package-owned functional-test catalogue, if present."""
+
+        script = Path(base_dir).parent / "model" / "tests.py"
+        return script if script.is_file() else None
+
+    def _run_local_catalog(
+        self, script: Path, base_dir: Path, *args: str, on: str = "local"
+    ) -> None:
+        """Run one workspace/package-owned multi-test catalogue."""
+
+        from flexsoc.backend.core import CommandRequest, ToolRunner
+
+        script, base_dir = Path(script), Path(base_dir)
+        runner = self.runner or ToolRunner()
+        log_root = self._log_root(base_dir)
+        inputs = tuple(path for path in sorted(script.parent.rglob("*.py")) if path.is_file())
+        request = CommandRequest(
+            (sys.executable, str(script), "--tests-dir", str(base_dir), *args),
+            script.parent, {},
+            log_root / "logs" / "dv" / "functional" / "generation" / "tests.log",
+            inputs=inputs, outputs=(base_dir,),
+        )
+        result = runner.run(request, on=on)
+        if result.returncode:
+            raise RuntimeError(f"test catalogue failed ({result.returncode}): {script}")
+
     def setup_tests(
         self,
         base_dir: Path,
@@ -63,10 +104,14 @@ class FunctionalFlow:
         *,
         on: str = "local",
     ) -> list[Path]:
-        """Materialize authored scenarios plus generated ``auto_toggle`` vectors."""
+        """Materialize a local SoC catalogue or the established IP catalogues."""
 
-        self._run_generator(base_dir, top, "tests", on=on)
-        self._run_generator(base_dir, top, "regmap_tests", on=on)
+        local = self._local_catalog(base_dir)
+        if local is not None:
+            self._run_local_catalog(local, base_dir, on=on)
+        else:
+            self._run_generator(base_dir, top, "tests", on=on)
+            self._run_generator(base_dir, top, "regmap_tests", on=on)
         return sorted(path for path in Path(base_dir).rglob("*") if path.is_file())
 
     def setup_test(
@@ -79,31 +124,49 @@ class FunctionalFlow:
     ) -> list[Path]:
         """Materialize one scenario without touching unrelated vectors."""
 
-        suffix = "regmap_tests" if name == "auto_toggle" else "tests"
-        self._run_generator(base_dir, top, suffix, "--test", name, on=on)
         root = Path(base_dir) / name
+        local = self._local_catalog(base_dir)
+        if local is not None:
+            self._run_local_catalog(local, base_dir, "--test", name, on=on)
+        else:
+            suffix = "regmap_tests" if name == "auto_toggle" else "tests"
+            self._run_generator(base_dir, top, suffix, "--test", name, on=on)
         return sorted(path for path in root.iterdir() if path.is_file())
 
     def check_tests(self, base_dir: Path, top: str, *, on: str = "local") -> dict[str, object]:
-        """Regenerate vectors in staging and compare them with the checked run catalogue."""
+        """Regenerate generated collateral in staging and compare it with the run."""
 
         root = Path(base_dir)
         model_dir = root.parent / "model"
+        local = self._local_catalog(root)
+        generated = {"config.regs", "data_in.vec", "data_out.vec"}
         with tempfile.TemporaryDirectory(prefix=f"flexsoc-{top}-tests-check-") as temporary:
             staged = Path(temporary) / "tests"
-            self._run_generator(staged, top, "tests", model_dir=model_dir, on=on)
-            self._run_generator(staged, top, "regmap_tests", model_dir=model_dir, on=on)
-
-            expected = {
-                path.relative_to(staged).as_posix(): path.read_bytes()
-                for path in staged.rglob("*")
-                if path.is_file()
-            }
-            actual = {
-                path.relative_to(root).as_posix(): path.read_bytes()
-                for path in root.rglob("*")
-                if path.is_file()
-            } if root.is_dir() else {}
+            if local is not None:
+                self._run_local_catalog(local, staged, on=on)
+                expected = {
+                    path.relative_to(staged).as_posix(): path.read_bytes()
+                    for path in staged.rglob("*")
+                    if path.is_file() and path.name in generated
+                }
+                actual = {
+                    path.relative_to(root).as_posix(): path.read_bytes()
+                    for path in root.rglob("*")
+                    if path.is_file() and path.name in generated
+                } if root.is_dir() else {}
+            else:
+                self._run_generator(staged, top, "tests", model_dir=model_dir, on=on)
+                self._run_generator(staged, top, "regmap_tests", model_dir=model_dir, on=on)
+                expected = {
+                    path.relative_to(staged).as_posix(): path.read_bytes()
+                    for path in staged.rglob("*")
+                    if path.is_file()
+                }
+                actual = {
+                    path.relative_to(root).as_posix(): path.read_bytes()
+                    for path in root.rglob("*")
+                    if path.is_file()
+                } if root.is_dir() else {}
 
         expected_names = set(expected)
         actual_names = set(actual)

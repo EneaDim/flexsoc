@@ -185,15 +185,9 @@ class TargetSession:
 
 
     def _rtl_sources(self) -> tuple[Path, ...]:
-        sources: list[Path] = []
-        for filelist in (self.paths.rtl_common, self.paths.rtl_ip):
-            if not filelist.is_file():
-                continue
-            for line in filelist.read_text(encoding="utf-8").splitlines():
-                item = line.strip()
-                if item and not item.startswith(("#", "+", "-")):
-                    sources.append(Path(item))
-        return tuple(sources)
+        """Return concrete RTL sources from the active run source contract."""
+
+        return self.context.rtl_contract.sources()
 
     @staticmethod
     def _write_json_atomic(path: Path, data: Mapping[str, object]) -> None:
@@ -287,7 +281,8 @@ class TargetSession:
         """Return effective source artifacts consumed by one generated setup."""
 
         p = self.paths
-        rtl = (p.rtl_common, p.rtl_ip, *self._rtl_sources())
+        contract = self.context.rtl_contract
+        rtl = (*contract.filelists, *self._rtl_sources())
         if stage in RUNTIME_STAGES:
             if stage == "lint" or stage.startswith("lint_"):
                 inputs = rtl

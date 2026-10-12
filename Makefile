@@ -85,10 +85,10 @@ E2E_SIGNOFF_ARG := $(if $(filter 1 true yes on,$(SIGNOFF)),,--no-signoff)
 E2E_ORS_ARG := $(if $(strip $(E2E_ORS)),--e2e-ors "$(E2E_ORS)",)
 E2E_TARGET_OPT_ENV := $(if $(strip $(TARGET_OPT)),FLEXSOC_E2E_TARGET_OPT="$(TARGET_OPT)",)
 
-E2E_SCAFFOLD_TESTS := tests/test_e2e_fx.py::test_fx_single_clock_flow_debug tests/test_e2e_fx.py::test_fx_multi_clock_flow_debug
+E2E_SCAFFOLD_TESTS := tests/e2e/test_fx.py::test_fx_single_clock_flow_debug tests/e2e/test_fx.py::test_fx_multi_clock_flow_debug
 
 test: ## Run full E2E closure on SKY130 and IHP (SIGNOFF=1, E2E_ROOT=/tmp)
-	$(E2E_TARGET_OPT_ENV) $(PYTEST) -s -m e2e tests/test_e2e_fx.py $(E2E_TEST_ARG) $(E2E_SIGNOFF_ARG) $(E2E_ORS_ARG) --e2e-root "$(E2E_ROOT)"
+	$(E2E_TARGET_OPT_ENV) $(PYTEST) -s -m e2e tests/e2e/test_fx.py $(E2E_TEST_ARG) $(E2E_SIGNOFF_ARG) $(E2E_ORS_ARG) --e2e-root "$(E2E_ROOT)"
 
 test-scaffolds: ## Run six scaffold E2Es: single/multi × tlul/reg_iface/axi_lite
 	$(E2E_TARGET_OPT_ENV) $(PYTEST) -s -m e2e $(E2E_SCAFFOLD_TESTS) $(E2E_SIGNOFF_ARG) $(E2E_ORS_ARG) --e2e-root "$(E2E_ROOT)"
@@ -97,7 +97,7 @@ test-smoke: ## Run E2E without formal/synthesis/signoff
 	$(MAKE) test SIGNOFF=0 E2E_ROOT="$(E2E_ROOT)"
 
 test-api: ## Run fast Python/API tests only
-	$(PYTEST) -s tests/test_api.py
+	$(PYTEST) -s tests/regression/test_api.py
 
 ##@ Cleanup
 clean: clean-py clean-build ## Remove Python caches and build artifacts

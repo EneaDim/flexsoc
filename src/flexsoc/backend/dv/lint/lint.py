@@ -26,18 +26,23 @@ class Lint:
     verilator: VerilatorLint = field(init=False)
 
     def __post_init__(self) -> None:
-        native = self.context.paths.rtl / "rtl.f"
-        if native.is_file():
-            self.slang = SlangLint(self.context, self.runner, filelists=(native,), top="soc")
-            self.verilator = VerilatorLint(self.context, self.runner, filelists=(native,), top="soc")
+        contract = getattr(self.context, "rtl_contract", None)
+        if contract is None:
+            self.slang = SlangLint(self.context, self.runner)
+            self.verilator = VerilatorLint(self.context, self.runner)
             return
-        self.slang = SlangLint(self.context, self.runner)
-        self.verilator = VerilatorLint(self.context, self.runner)
+        self.slang = SlangLint(
+            self.context, self.runner, filelists=contract.filelists, top=contract.top
+        )
+        self.verilator = VerilatorLint(
+            self.context, self.runner, filelists=contract.filelists, top=contract.top
+        )
 
     def _lint_top(self) -> str:
-        """Return the design top represented by the active lint source contract."""
+        """Return the design top represented by the active RTL source contract."""
 
-        return "soc" if (self.context.paths.rtl / "rtl.f").is_file() else self.context.paths.top
+        contract = getattr(self.context, "rtl_contract", None)
+        return contract.top if contract is not None else self.context.paths.top
 
     # Execution
 
@@ -56,23 +61,25 @@ class Lint:
         self,
         *,
         tool: str | None = None,
+        priority: str | None = None,
         output: str | None = None,
         as_json: bool = False,
     ) -> int:
         """Render canonical lint evidence plus diagnostic hints."""
 
-        return self.show(tool=tool, debug=True, output=output, as_json=as_json)
+        return self.show(tool=tool, priority=priority, debug=True, output=output, as_json=as_json)
 
     def show(
         self,
         *,
         tool: str | None = None,
+        priority: str | None = None,
         debug: bool = False,
         summary: bool = False,
         output: str | None = None,
         as_json: bool = False,
     ) -> int:
-        """Render existing lint evidence, optionally filtered to one tool."""
+        """Render existing lint evidence, optionally filtered by tool and priority."""
 
         summary_path = self.context.paths.lint / "summary.json"
         if not summary_path.is_file():
@@ -97,6 +104,15 @@ class Lint:
                 if isinstance(item, Mapping) and item.get("tool") == tool
             ]
             document = replace(document, data=data)
+
+        priorities = self._selected_priorities(priority)
+        data["selected_priorities"] = list(priorities)
+        data["diagnostics"] = [
+            item for item in data.get("diagnostics", ())
+            if isinstance(item, Mapping) and item.get("priority") in priorities
+        ]
+        data["visible_total"] = len(data["diagnostics"])
+        document = replace(document, data=data)
 
         if summary:
             data["summary_only"] = True
@@ -138,6 +154,22 @@ class Lint:
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(capture.getvalue(), encoding="utf-8")
         return 0
+
+    @staticmethod
+    def _selected_priorities(value: str | None) -> tuple[str, ...]:
+        """Return the diagnostic priorities visible in a lint evidence view."""
+
+        if value is None:
+            return ("P0", "P1")
+        tokens = tuple(part.strip().upper() for part in value.split(",") if part.strip())
+        if not tokens:
+            raise ValueError("--priority must be P0, P1, P2, P3, all, or a comma-separated list")
+        if tokens == ("ALL",):
+            return ("P0", "P1", "P2", "P3")
+        allowed = {"P0", "P1", "P2", "P3"}
+        if any(token not in allowed for token in tokens):
+            raise ValueError("--priority must be P0, P1, P2, P3, all, or a comma-separated list")
+        return tuple(dict.fromkeys(tokens))
 
     # Summary
 

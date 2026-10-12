@@ -13,6 +13,8 @@ task automatic run_inputs(input string path);
   integer code;
   integer step;
   integer cycles;
+  integer event_cursor;
+  bit seen;
 <<% if packed %>>  tb_token_t step_raw;
   tb_token_t token;
   tb_token_t arg0;
@@ -28,10 +30,13 @@ task automatic run_inputs(input string path);
 <<% endif %>>  string reset_selector;
   logic [31:0] value;
   logic [31:0] mask;
+  logic [31:0] expected;
+  logic [31:0] timeout_cycles;
 <<% if packed %>>  tb_line_t line_buf;
 <<% else %>>  string line;
   reg [8*4096-1:0] line_buf;
 <<% endif %>>  begin : run_inputs_body
+  event_cursor = 0;
   fd = $fopen(path, "r");
   if (fd == 0) begin
     $display("[TB][ERROR] input file not found: %s", path);
@@ -55,6 +60,56 @@ task automatic run_inputs(input string path);
 <<% endif %>>
     if (token == "@wait_output" || token == "wait_output") begin
       wait_output_completion();
+    end else if (token == "@wait_event" || token == "wait_event") begin
+<<% if packed %>>      if (code >= 4) begin
+        parsed = tb_parse_u32(arg1);
+        if (!parsed[32]) disable tb_stream_input_line;
+        expected = parsed[31:0];
+        timeout_cycles = 32'd1024;
+        if (code >= 5) begin
+          parsed = tb_parse_u32(arg2);
+          if (parsed[32]) timeout_cycles = parsed[31:0];
+        end
+        seen = 1'b0;
+        tb_wait_event(arg0, expected, int'(timeout_cycles), event_cursor, seen);
+        if (!seen) begin errors++; $display("[TB][ERROR] event timeout name=%s", arg0); end
+      end
+<<% else %>>      code = $sscanf(line, "%d %s %s %h %d", step, token, reg_name, expected, timeout_cycles);
+      if (code < 4) begin
+        errors++;
+        $display("[TB][ERROR] @wait_event format: step @wait_event label value [timeout]");
+      end else begin
+        if (code < 5) timeout_cycles = 1024;
+        seen = 1'b0;
+        tb_wait_event(reg_name, expected, int'(timeout_cycles), event_cursor, seen);
+        if (!seen) begin errors++; $display("[TB][ERROR] event timeout name=%s", reg_name); end
+      end
+<<% endif %>>
+    end else if (token == "@wait_signal" || token == "wait_signal") begin
+<<% if packed %>>      if (code >= 4) begin
+        parsed = tb_parse_u32(arg1);
+        if (!parsed[32]) disable tb_stream_input_line;
+        expected = parsed[31:0];
+        timeout_cycles = 32'd1024;
+        if (code >= 5) begin
+          parsed = tb_parse_u32(arg2);
+          if (parsed[32]) timeout_cycles = parsed[31:0];
+        end
+        seen = 1'b0;
+        tb_wait_signal(arg0, expected, int'(timeout_cycles), seen);
+        if (!seen) begin errors++; $display("[TB][ERROR] signal timeout name=%s", arg0); end
+      end
+<<% else %>>      code = $sscanf(line, "%d %s %s %h %d", step, token, reg_name, expected, timeout_cycles);
+      if (code < 4) begin
+        errors++;
+        $display("[TB][ERROR] @wait_signal format: step @wait_signal signal value [timeout]");
+      end else begin
+        if (code < 5) timeout_cycles = 1024;
+        seen = 1'b0;
+        tb_wait_signal(reg_name, expected, int'(timeout_cycles), seen);
+        if (!seen) begin errors++; $display("[TB][ERROR] signal timeout name=%s", reg_name); end
+      end
+<<% endif %>>
     end else if (token == "@write" || token == "write") begin
 <<% if packed %>>      if (code >= 4) begin
         parsed = tb_parse_u32(arg1);

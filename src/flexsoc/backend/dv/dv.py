@@ -142,15 +142,9 @@ class DvFlow:
         return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
     def _rtl_sources(self) -> tuple[Path, ...]:
-        sources: list[Path] = []
-        for filelist in (self.context.paths.rtl_common, self.context.paths.rtl_ip):
-            if not filelist.is_file():
-                continue
-            for raw in filelist.read_text(encoding="utf-8").splitlines():
-                item = raw.strip()
-                if item and not item.startswith(("#", "+", "-")):
-                    sources.append(Path(item))
-        return tuple(sources)
+        """Return concrete RTL sources from the active run source contract."""
+
+        return self.context.rtl_contract.sources()
 
     def _testbench_configs(self) -> tuple[TestbenchConfig, CocotbConfig]:
         values, paths = self.context.values, self.context.paths

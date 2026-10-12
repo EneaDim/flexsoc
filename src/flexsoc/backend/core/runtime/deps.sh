@@ -13,6 +13,13 @@ JOBS=${FLEXSOC_JOBS:-$(nproc 2>/dev/null || echo 2)}
 FORCE=0
 APPLY=0
 PRUNE_CACHE=0
+ORIGINAL_PATH=$PATH
+
+# Populated by plan_tools(). The planner never downloads or modifies anything.
+declare -A PLAN_ACTION=()
+declare -A PLAN_ORIGIN=()
+declare -A PLAN_PATH=()
+declare -A PLAN_DETAIL=()
 
 usage() {
     cat <<'TXT'
@@ -20,7 +27,8 @@ Usage: deps.sh COMMAND [options]
 
 Commands:
   bootstrap              Check/install host build prerequisites
-  install                Install one pinned FlexSoC tool profile
+  plan                   Inspect the host and show exactly what install would reuse/build
+  install                Install only missing/mismatched tools from one pinned profile
   doctor                 Verify one installed profile
   env                    Print shell exports for the selected toolchain
   versions               Print locked versions grouped by profile
@@ -220,9 +228,11 @@ prepare_git_source() {
 }
 
 installed() {
-    local key=$1 name=$2 marker
+    local key=$1 name=$2 command_name marker
     marker="$MARKERS/$name.source"
-    [[ "$FORCE" == 0 && -f "$marker" && $(cat "$marker") == "$(source_id "$key")" ]]
+    command_name=$(primary_command "$name")
+    [[ "$FORCE" == 0 && -f "$marker" && $(cat "$marker") == "$(source_id "$key")" ]] || return 1
+    probe_tool "$name" "$PREFIX/bin/$command_name"
 }
 mark_installed() { mkdir -p "$MARKERS"; printf '%s\n' "$(source_id "$1")" > "$MARKERS/$2.source"; }
 
@@ -375,7 +385,7 @@ install_gtkwave() {
         info "gtkwave/fst2vcd already installed"; return
     fi
     local d; d=$(archive_source GTKWAVE gtkwave); info "build gtkwave $(version_var GTKWAVE) with GTK3"
-    (cd "$d"; ./configure --enable-gtk3 --prefix="$PREFIX"; make -j"$JOBS"; make install)
+    (cd "$d"; ./configure --enable-gtk3 --disable-mime-update --prefix="$PREFIX"; make -j"$JOBS"; make install)
     [[ -x "$PREFIX/bin/gtkwave" ]] || die "GTKWave install did not provide $PREFIX/bin/gtkwave"
     [[ -x "$PREFIX/bin/fst2vcd" ]] || die "GTKWave install did not provide $PREFIX/bin/fst2vcd"
     mark_installed GTKWAVE gtkwave
@@ -410,19 +420,257 @@ profile_tools() {
     echo "verilator slang verible iverilog yosys sby eqy bitwuzla boolector opensta gtkwave surfer sv2v netlistsvg"
 }
 
+tool_key() { printf '%s' "${1^^}"; }
+
+primary_command() {
+    case "$1" in
+        verible) printf '%s' verible-verilog-syntax ;;
+        opensta) printf '%s' sta ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
+managed_receipts_ok() {
+    local tool=$1 key marker
+    key=$(tool_key "$tool")
+    marker="$MARKERS/$tool.source"
+    [[ -f "$marker" && $(cat "$marker") == "$(source_id "$key")" ]] || return 1
+    case "$tool" in
+        opensta)
+            [[ -f "$MARKERS/cudd.source" && $(cat "$MARKERS/cudd.source") == "$(source_id CUDD)" ]] || return 1
+            ;;
+        gtkwave)
+            [[ -f "$MARKERS/gtkwave.version" && $(cat "$MARKERS/gtkwave.version") == "$(version_var GTKWAVE)" ]] || return 1
+            ;;
+    esac
+}
+
+probe_tool() {
+    local tool=$1 exe=$2 bindir root out lint_out probe_path probe_ld
+    PROBE_OUT=
+    [[ -x "$exe" ]] || return 1
+    bindir=$(dirname "$exe")
+    root=$(dirname "$bindir")
+    probe_path="$bindir:$ORIGINAL_PATH"
+    probe_ld="$root/lib:$root/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+    case "$tool" in
+        verilator)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" --version 2>&1) || return 1
+            [[ "$out" == *"$(version_var VERILATOR)"* ]] || return 1
+            ;;
+        slang)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" --version 2>&1) || return 1
+            [[ "$out" == *"$(version_var SLANG)"* && -x "$bindir/slang-hier" ]] || return 1
+            ;;
+        verible)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" --version 2>&1) || return 1
+            lint_out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$bindir/verible-verilog-lint" --version 2>&1) || return 1
+            [[ "$out" == *"$(version_var VERIBLE)"* && "$lint_out" == *"$(version_var VERIBLE)"* ]] || return 1
+            ;;
+        iverilog)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" -V 2>&1) || return 1
+            [[ "$out" == *"version $(version_var IVERILOG)"* ]] || return 1
+            env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" -g2012 -ginterconnect -V >/dev/null 2>&1 || return 1
+            ;;
+        yosys)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" -V 2>&1) || return 1
+            [[ "$out" == *"Yosys $(version_var YOSYS)"* ]] || return 1
+            [[ "$out" == *"${YOSYS_REF:0:7}"* ]] || return 1
+            [[ -x "$bindir/yosys-config" ]] || return 1
+            env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" -qp 'help read_slang' >/dev/null 2>&1 || return 1
+            ;;
+        sby)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" --version 2>&1) || return 1
+            [[ "$out" == *"SBY v$(version_var SBY)"* ]] || return 1
+            ;;
+        eqy)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" --version 2>&1) || return 1
+            [[ "$out" == *"EQY v$(version_var EQY)"* ]] || return 1
+            [[ -f "$root/share/yosys/plugins/eqy_combine.so" ]] || return 1
+            [[ -f "$root/share/yosys/plugins/eqy_partition.so" ]] || return 1
+            [[ -f "$root/share/yosys/plugins/eqy_recode.so" ]] || return 1
+            ;;
+        bitwuzla)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" --version 2>&1) || return 1
+            [[ "$out" == *"$(version_var BITWUZLA)"* ]] || return 1
+            ;;
+        boolector)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" --version 2>&1) || return 1
+            [[ "$out" == *"$(version_var BOOLECTOR)"* && -x "$bindir/btormc" && -x "$bindir/btorsim" ]] || return 1
+            ;;
+        opensta)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" -version 2>&1) || return 1
+            [[ "$out" == *"$(version_var OPENSTA)"* ]] || return 1
+            ;;
+        gtkwave)
+            if [[ "$exe" == "$PREFIX/bin/gtkwave" && -f "$MARKERS/gtkwave.version" ]]; then
+                out="GTKWave $(cat "$MARKERS/gtkwave.version")"
+            else
+                out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" --version 2>&1) || return 1
+            fi
+            [[ "$out" == *"$(version_var GTKWAVE)"* && -x "$bindir/fst2vcd" ]] || return 1
+            if [[ "$exe" == "$PREFIX/bin/gtkwave" ]]; then
+                lint_out=$(ldd "$exe" 2>&1) || return 1
+                [[ "$lint_out" != *"not found"* ]] || return 1
+            fi
+            ;;
+        surfer)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" --version 2>&1) || return 1
+            [[ "$out" == *"$(version_var SURFER)"* ]] || return 1
+            ;;
+        sv2v)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" --version 2>&1) || return 1
+            [[ "$out" == *"$(version_var SV2V)"* || "$out" == *"${SV2V_REF:0:7}"* ]] || return 1
+            ;;
+        netlistsvg)
+            out=$(env PATH="$probe_path" LD_LIBRARY_PATH="$probe_ld" "$exe" --version 2>&1) || return 1
+            [[ "$out" == *"$(version_var NETLISTSVG)"* ]] || return 1
+            ;;
+        *) return 1 ;;
+    esac
+    PROBE_OUT=$(first_line "$out")
+    return 0
+}
+
+external_candidates() {
+    local tool=$1 command_name candidate
+    command_name=$(primary_command "$tool")
+    while IFS= read -r candidate; do
+        [[ -n "$candidate" ]] || continue
+        case "$candidate" in "$PREFIX/bin/"*) continue ;; esac
+        printf '%s\n' "$candidate"
+    done < <(PATH="$ORIGINAL_PATH" type -a -P "$command_name" 2>/dev/null | awk '!seen[$0]++')
+}
+
+find_external_exact() {
+    local tool=$1 candidate
+    EXTERNAL_PATH=
+    EXTERNAL_OUT=
+    while IFS= read -r candidate; do
+        if probe_tool "$tool" "$candidate"; then
+            EXTERNAL_PATH=$candidate
+            EXTERNAL_OUT=$PROBE_OUT
+            return 0
+        fi
+    done < <(external_candidates "$tool")
+    return 1
+}
+
+first_external_candidate() {
+    local tool=$1
+    external_candidates "$tool" | sed -n '1p'
+}
+
+plan_tools() {
+    profile_ready
+    PLAN_ACTION=()
+    PLAN_ORIGIN=()
+    PLAN_PATH=()
+    PLAN_DETAIL=()
+
+    local tool command_name managed candidate
+    for tool in $(profile_tools); do
+        command_name=$(primary_command "$tool")
+        managed="$PREFIX/bin/$command_name"
+
+        if [[ "$FORCE" == 1 ]]; then
+            PLAN_ACTION[$tool]=install
+            PLAN_ORIGIN[$tool]=forced
+            PLAN_PATH[$tool]="$managed"
+            PLAN_DETAIL[$tool]="--force"
+            continue
+        fi
+
+        if managed_receipts_ok "$tool" && probe_tool "$tool" "$managed"; then
+            PLAN_ACTION[$tool]=reuse
+            PLAN_ORIGIN[$tool]=managed
+            PLAN_PATH[$tool]="$managed"
+            PLAN_DETAIL[$tool]="$PROBE_OUT"
+            continue
+        fi
+
+        if [[ "$MODE" == user ]] && find_external_exact "$tool"; then
+            PLAN_ACTION[$tool]=reuse
+            PLAN_ORIGIN[$tool]=external
+            PLAN_PATH[$tool]="$EXTERNAL_PATH"
+            PLAN_DETAIL[$tool]="$EXTERNAL_OUT"
+            continue
+        fi
+
+        candidate=$(first_external_candidate "$tool")
+        PLAN_ACTION[$tool]=install
+        PLAN_ORIGIN[$tool]=$([[ -n "$candidate" ]] && printf '%s' mismatch || printf '%s' missing)
+        PLAN_PATH[$tool]="${candidate:-$managed}"
+        PLAN_DETAIL[$tool]=$([[ -n "$candidate" ]] && printf 'locked %s' "$(version_var "$(tool_key "$tool")")" || printf 'not found')
+    done
+
+    # Yosys, SBY and EQY form one compatibility family. If one member is not
+    # exact, rebuild all three into the same managed prefix rather than mixing
+    # plugin/script generations across prefixes.
+    local family_needs_install=0 family_root= current_root=
+    for tool in yosys sby eqy; do
+        [[ "${PLAN_ACTION[$tool]}" == reuse ]] || family_needs_install=1
+        if [[ "${PLAN_ACTION[$tool]}" == reuse ]]; then
+            current_root=$(dirname "$(dirname "${PLAN_PATH[$tool]}")")
+            if [[ -z "$family_root" ]]; then family_root=$current_root
+            elif [[ "$family_root" != "$current_root" ]]; then family_needs_install=1
+            fi
+        fi
+    done
+    if [[ "$family_needs_install" == 1 ]]; then
+        for tool in yosys sby eqy; do
+            PLAN_ACTION[$tool]=install
+            PLAN_ORIGIN[$tool]=family
+            PLAN_PATH[$tool]="$PREFIX/bin/$(primary_command "$tool")"
+            PLAN_DETAIL[$tool]="Yosys/SBY/EQY family must move together"
+        done
+    fi
+}
+
+print_plan() {
+    local tool
+    printf 'FlexSoC toolchain plan\n'
+    printf '  mode:    %s\n' "$MODE"
+    printf '  lock id: %s\n' "$TOOLCHAIN_ID"
+    printf '  prefix:  %s\n' "$PREFIX"
+    echo
+    printf '  %-12s %-8s %-9s %s\n' TOOL ACTION ORIGIN PATH
+    for tool in $(profile_tools); do
+        printf '  %-12s %-8s %-9s %s\n' "$tool" "${PLAN_ACTION[$tool]}" "${PLAN_ORIGIN[$tool]}" "${PLAN_PATH[$tool]}"
+        [[ -n "${PLAN_DETAIL[$tool]}" ]] && printf '      %s\n' "${PLAN_DETAIL[$tool]}"
+    done
+}
+
+plan() {
+    paths
+    plan_tools
+    print_plan
+}
+
 install_tools() {
     paths; profile_ready; check_prereqs || die "host prerequisites missing; run bootstrap --$MODE --profile $PROFILE"
     [[ "$MODE" != system || $(id -u) -eq 0 ]] || die "--system install must run as root"
-    mkdir -p "$PREFIX" "$SRC" "$DOWNLOADS" "$MARKERS"; export PATH="$PREFIX/bin:$PATH"
+    mkdir -p "$PREFIX" "$SRC" "$DOWNLOADS" "$MARKERS"
+    plan_tools
+    print_plan
+    export PATH="$PREFIX/bin:$ORIGINAL_PATH"
     export LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-    local tool; for tool in $(profile_tools); do "install_$tool"; done
+    local tool
+    for tool in $(profile_tools); do
+        if [[ "${PLAN_ACTION[$tool]}" == reuse ]]; then
+            info "reuse $tool (${PLAN_ORIGIN[$tool]}): ${PLAN_PATH[$tool]}"
+            continue
+        fi
+        "install_$tool"
+    done
     cp "$LOCK" "$PREFIX/toolchain.lock"; write_env
     mkdir -p "$(dirname "$STABLE_LINK")"
     if [[ -e "$STABLE_LINK" && ! -L "$STABLE_LINK" ]]; then
         die "stable toolchain path exists and is not a symlink: $STABLE_LINK"
     fi
     ln -sfn "$PREFIX" "$STABLE_LINK"
-    info "$PROFILE profile installed in $PREFIX"
+    info "$PROFILE profile resolved in $PREFIX"
     info "activate with: source $PREFIX/env.sh"
 }
 
@@ -457,59 +705,21 @@ doctor() {
         [[ -d "$PREFIX" ]] || die "FLEXSOC_TOOLCHAIN is not a directory: $PREFIX"
         MARKERS="$PREFIX/.flexsoc"
     fi
-    profile_ready; export PATH="$PREFIX/bin:$PATH"
-    export LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-    local out tool linkage lint_out
+    profile_ready
+    plan_tools
+
+    local tool
     for tool in $(profile_tools); do
-        case "$tool" in
-            verilator) require_marker VERILATOR verilator; out=$(verilator --version); contains "$out" "${VERILATOR_VERSION}" verilator ;;
-            slang) require_marker SLANG slang; out=$(slang --version); contains "$out" "$(version_var SLANG)" slang; command -v slang-hier >/dev/null ;;
-            verible)
-                require_marker VERIBLE verible
-                out=$(verible-verilog-syntax --version 2>&1); contains "$out" "$(version_var VERIBLE)" verible-verilog-syntax
-                lint_out=$(verible-verilog-lint --version 2>&1); contains "$lint_out" "$(version_var VERIBLE)" verible-verilog-lint
-                out="$(first_line "$out") / $(first_line "$lint_out")"
-                ;;
-            iverilog)
-                require_marker IVERILOG iverilog
-                out=$(iverilog -V 2>&1); contains "$out" "version $(version_var IVERILOG)" iverilog
-                iverilog -g2012 -ginterconnect -V >/dev/null 2>&1 \
-                    || die "iverilog $(version_var IVERILOG) lacks required -ginterconnect support"
-                ;;
-            yosys) require_marker YOSYS yosys; out=$(yosys -V); contains "$out" "Yosys $(version_var YOSYS)" yosys; yosys -qp 'help read_slang' ;;
-            sby) require_marker SBY sby; out=$(sby --version); contains "$out" "$(version_var SBY)" sby ;;
-            eqy) require_marker EQY eqy; out=$(eqy --version); contains "$out" "$(version_var EQY)" eqy ;;
-            bitwuzla) require_marker BITWUZLA bitwuzla; out=$(bitwuzla --version); contains "$out" "$(version_var BITWUZLA)" bitwuzla ;;
-            boolector) require_marker BOOLECTOR boolector; out=$(boolector --version 2>&1); contains "$out" "$(version_var BOOLECTOR)" boolector; [[ -x "$PREFIX/bin/btormc" && -x "$PREFIX/bin/btorsim" ]] ;;
-            opensta) require_marker CUDD cudd; require_marker OPENSTA opensta; out=$(sta -version 2>&1); contains "$out" "$(version_var OPENSTA)" opensta ;;
-            gtkwave)
-                require_marker GTKWAVE gtkwave
-                [[ -x "$PREFIX/bin/gtkwave" && -x "$PREFIX/bin/fst2vcd" ]] || die "GTKWave install is incomplete in $PREFIX/bin"
-                [[ -f "$MARKERS/gtkwave.version" ]] || die "GTKWave version receipt is missing from $PREFIX"
-                out=$(cat "$MARKERS/gtkwave.version")
-                [[ "$out" == "$(version_var GTKWAVE)" ]] || die "gtkwave version receipt mismatch: $out"
-                linkage=$(ldd "$PREFIX/bin/gtkwave" 2>&1) || die "gtkwave shared-library inspection failed: $linkage"
-                [[ "$linkage" != *"not found"* ]] || die "gtkwave has unresolved shared libraries: $linkage"
-                out="GTKWave $(version_var GTKWAVE) (headless receipt; shared libraries resolved)"
-                ;;
-            surfer) require_marker SURFER surfer; out=$(surfer --version 2>&1); contains "$out" "$(version_var SURFER)" surfer ;;
-            sv2v)
-                require_marker SV2V sv2v
-                out=$(sv2v --version 2>&1)
-                # Source builds report their Git revision (for v0.0.13 this is
-                # e5effb5) rather than the release number. Accept either form,
-                # while require_marker above still validates the full locked ref.
-                [[ "$out" == *"$(version_var SV2V)"* || "$out" == *"${SV2V_REF:0:7}"* ]] \
-                    || die "sv2v version mismatch: $out"
-                ;;
-            netlistsvg) require_marker NETLISTSVG netlistsvg; command -v netlistsvg >/dev/null; out="netlistsvg $(version_var NETLISTSVG)" ;;
-        esac
-        printf '  %-12s %s\n' "$tool" "$(first_line "$out")"
+        [[ "${PLAN_ACTION[$tool]}" == reuse ]] || {
+            die "$tool does not satisfy toolchain.lock (${PLAN_ORIGIN[$tool]}: ${PLAN_PATH[$tool]})"
+        }
+        printf '  %-12s %-8s %s\n' "$tool" "${PLAN_ORIGIN[$tool]}" "${PLAN_DETAIL[$tool]}"
     done
-    command -v dot >/dev/null; command -v xdot >/dev/null
+
+    command -v dot >/dev/null
+    command -v xdot >/dev/null
     info "doctor PASS: $PROFILE @ $PREFIX"
 }
-
 
 
 command_candidates() {
@@ -521,7 +731,8 @@ command_candidates() {
 
 status() {
     paths; profile_ready
-    echo "FlexSoC managed toolchain status"
+    plan_tools
+    echo "FlexSoC toolchain status"
     echo "  mode:          $MODE"
     echo "  lock id:       $TOOLCHAIN_ID"
     echo "  current:       $PREFIX"
@@ -541,15 +752,17 @@ status() {
         echo "  none"
     fi
     echo
-    echo "Command resolution (managed first, then other PATH candidates):"
-    local tool managed active candidates
-    for tool in verilator slang verible-verilog-syntax verible-verilog-lint iverilog yosys sby eqy sta gtkwave fst2vcd; do
-        managed="$PREFIX/bin/$tool"
-        active=$(PATH="$PREFIX/bin:$PATH" command -v "$tool" 2>/dev/null || true)
-        printf '  %-10s managed=%s\n' "$tool" "${active:-missing}"
-        candidates=$(command_candidates "$tool" | grep -Fvx "$managed" || true)
+    print_plan
+    echo
+    echo "PATH candidates:"
+    local tool command_name managed candidates item
+    for tool in $(profile_tools); do
+        command_name=$(primary_command "$tool")
+        managed="$PREFIX/bin/$command_name"
+        printf '  %-12s selected=%s\n' "$tool" "${PLAN_PATH[$tool]}"
+        candidates=$(PATH="$ORIGINAL_PATH" command_candidates "$command_name" | grep -Fvx "$managed" || true)
         if [[ -n "$candidates" ]]; then
-            while IFS= read -r item; do printf '             other=%s\n' "$item"; done <<<"$candidates"
+            while IFS= read -r item; do printf '               candidate=%s\n' "$item"; done <<<"$candidates"
         fi
     done
 }
@@ -603,6 +816,7 @@ COMMAND=${1:-}; [[ -n "$COMMAND" ]] || { usage; exit 2; }; shift || true
 parse_options "$@"
 case "$COMMAND" in
     bootstrap) bootstrap ;;
+    plan) plan ;;
     install) install_tools ;;
     doctor) doctor ;;
     env) print_env ;;

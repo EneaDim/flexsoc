@@ -427,18 +427,18 @@ EQY setup remains separate from runtime evidence. Run `fx eqy` explicitly only f
 ## 13. Project regression
 
 ```bash
-uv run pytest -q tests/test_api.py
-uv run pytest -s tests/test_e2e_fx.py --e2e-mode full --e2e-root ~/flexsoc-e2e
+uv run pytest -q tests/regression/test_api.py
+uv run pytest -s tests/e2e/test_fx.py --e2e-mode full --e2e-root ~/flexsoc-e2e
 ```
 
 Formal-only iteration:
 
 ```bash
-uv run pytest -s tests/test_e2e_fx.py --e2e-mode formal --e2e-root ~/flexsoc-e2e
+uv run pytest -s tests/e2e/test_fx.py --e2e-mode formal --e2e-root ~/flexsoc-e2e
 ```
 
 Stop before PnR:
 
 ```bash
-uv run pytest -s tests/test_e2e_fx.py --e2e-mode pre-pnr --e2e-root ~/flexsoc-e2e
+uv run pytest -s tests/e2e/test_fx.py --e2e-mode pre-pnr --e2e-root ~/flexsoc-e2e
 ```

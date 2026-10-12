@@ -478,9 +478,10 @@ Use `fx commands` to list every backend target.
                 "Evidence views",
                 (
                     ("--summary", "Status, total diagnostics, P0-P3 counts, and per-tool counts only."),
-                    ("--show", "Canonical diagnostics from summary.json; does not rerun or reparse the tool logs."),
+                    ("--show", "Canonical diagnostics from summary.json; defaults to P0/P1 and does not rerun or reparse tool logs."),
                     ("--debug", "Show plus hints, exact tool commands, and native JSON/SARIF/log paths."),
                     ("--tool", "Filter summary/show/debug to slang or verilator; never changes execution."),
+                    ("--priority", "Filter show/debug priorities; default P0,P1, use all for every diagnostic."),
                 ),
             ),
         ),
@@ -1857,6 +1858,10 @@ Use `fx commands` to list every backend target.
                 str | None,
                 typer.Option("--tool", help="Filter lint show/debug to slang or verilator.", rich_help_panel="Output"),
             ] = None,
+            priority: Annotated[
+                str | None,
+                typer.Option("--priority", help="Lint priorities to show: P0,P1 (default), P0/P1/P2/P3, comma-separated, or all.", rich_help_panel="Output"),
+            ] = None,
             save_output: Annotated[
                 Path | None,
                 typer.Option("--save-output", "-o", help="Save filtered --debug output to a file or directory.", rich_help_panel="Output"),
@@ -1908,7 +1913,7 @@ Use `fx commands` to list every backend target.
             if deps_jobs is not None and deps_jobs < 1:
                 raise click.BadParameter("--jobs must be a positive integer")
             if deps_user or deps_system or deps_profile is not None or deps_jobs is not None:
-                dep_targets = {"deps-bootstrap", "deps", "deps-doctor", "deps-versions", "deps-env", "deps-status", "deps-prune"}
+                dep_targets = {"deps-bootstrap", "deps-plan", "deps", "deps-doctor", "deps-versions", "deps-env", "deps-status", "deps-prune"}
                 if not args or any(arg not in dep_targets for arg in args):
                     raise click.BadParameter("--user/--system/--profile/--jobs are only valid for dependency targets")
                 dep_sets = []
@@ -1984,6 +1989,11 @@ Use `fx commands` to list every backend target.
                     raise click.BadParameter("--tool requires `fx lint --show`, `fx lint --summary`, or `fx lint --debug`")
                 if tool not in {"slang", "verilator"}:
                     raise click.BadParameter("--tool must be slang or verilator")
+            if priority is not None:
+                if args != ("lint",):
+                    raise click.BadParameter("--priority is only valid with `fx lint`")
+                if not (show or debug):
+                    raise click.BadParameter("--priority requires `fx lint --show` or `fx lint --debug`")
             if supports_evidence and (show or summary or debug):
                 if sum((show, summary, debug)) > 1:
                     raise click.BadParameter("choose only one of --show, --summary, or --debug")
@@ -1993,12 +2003,12 @@ Use `fx commands` to list every backend target.
                     if target.name == "lint":
                         if debug:
                             code = flows.dv.lint.debug(
-                                tool=tool, as_json=as_json,
+                                tool=tool, priority=priority, as_json=as_json,
                                 output=str(save_output) if save_output is not None else None,
                             )
                         else:
                             code = flows.dv.lint.show(
-                                tool=tool, summary=summary, as_json=as_json,
+                                tool=tool, priority=priority, summary=summary, as_json=as_json,
                                 output=str(save_output) if save_output is not None else None,
                             )
                     elif target.show == "slang_hier":

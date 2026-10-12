@@ -48,7 +48,7 @@ docker run --rm \
 
     make lint
     make test-api
-    uv run --no-sync pytest --collect-only -q tests/test_e2e_fx.py
+    uv run --no-sync pytest --collect-only -q tests/e2e/test_fx.py
 
     if [[ ${FLEXSOC_RUN_E2E:-0} == 1 || ${FLEXSOC_RUN_SCAFFOLD_E2E:-0} == 1 ]]; then
       for pdk in sky130 ihp-sg13g2; do

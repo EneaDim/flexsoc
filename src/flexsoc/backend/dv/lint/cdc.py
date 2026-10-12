@@ -206,20 +206,15 @@ class CdcFlow:
         """Write the deterministic pre-technology structural extraction script."""
 
         paths = self.context.paths
+        contract = self.context.rtl_contract.require()
         script = paths.cdc_rdc / "extract.ys"
         design_json = paths.cdc_rdc / "design.json"
-        filelists = (paths.rtl_common.resolve(), paths.rtl_ip.resolve())
-        missing = [path for path in filelists if not path.is_file()]
-        if missing:
-            raise FileNotFoundError(
-                "missing RTL filelist(s): " + ", ".join(str(path) for path in missing)
-            )
         script.parent.mkdir(parents=True, exist_ok=True)
         design_json.parent.mkdir(parents=True, exist_ok=True)
         script.write_text(
             self.render_extract_script(
-                top=paths.top,
-                filelists=filelists,
+                top=contract.top,
+                filelists=contract.filelists,
                 repo_root=self.context.project_root.resolve(),
                 design_json=design_json.resolve(),
             ),
@@ -235,7 +230,8 @@ class CdcFlow:
         from flexsoc.backend.signoff.sdc import Sdc
 
         paths, values = self.context.paths, self.context.values
-        top = paths.top
+        contract = self.context.rtl_contract.require()
+        top = contract.top
         analysis_dir = paths.cdc_rdc.resolve()
         script = (analysis_dir / "extract.ys").resolve()
         design_json = (analysis_dir / "design.json").resolve()
@@ -258,7 +254,7 @@ class CdcFlow:
 
         request = CommandRequest(
             (values.get("YOSYS", "yosys"), "-ql", str(extract_log), str(script)),
-            script.parent,
+            contract.root,
             {},
             log_dir / "extract_driver.log",
             inputs=tuple(dict.fromkeys((script, *(path.resolve() for path in inputs)))),
@@ -301,11 +297,13 @@ class CdcFlow:
             "ir", lambda: self.load_yosys_json(data, top, clocks), heartbeat
         )
         reset_names = {item.reset_signal for item in ir.sequential if item.reset_signal}
+        assigned = sum(1 for item in ir.sequential if item.clock_domain is not None)
         self._detail(
             live,
             "domains",
             f"clocks={len(ir.clocks)} resets={len(reset_names)} "
-            f"sequential={len(ir.sequential)} · ir={ir_dt:.3f}s",
+            f"sequential={len(ir.sequential)} assigned={assigned} "
+            f"unassigned={len(ir.sequential) - assigned} · ir={ir_dt:.3f}s",
         )
         if live:
             for domain in ir.clocks:
@@ -530,7 +528,7 @@ class CdcFlow:
             repo_root / "hw" / "ips" / "tlul",
         )
         options = [
-            *(f"-I {path}" for path in include_dirs),
+            *(f"-I {path}" for path in include_dirs if path.is_dir()),
             "-D SYNTHESIS",
             "-D FLEXSOC_CDC_ANALYSIS",
             # read_slang flattens hierarchy during frontend elaboration by default.
@@ -538,6 +536,7 @@ class CdcFlow:
             # Yosys can mark only contracted boundaries before the explicit flatten.
             "--keep-hierarchy",
             "--ignore-assertions",
+            "--ignore-initial",
         ]
         options.extend(f"-f {path}" for path in filelists)
         options.append(f"--top {top}")
@@ -558,9 +557,12 @@ class CdcFlow:
             f"hierarchy -check -top {top}",
             "proc",
             "opt",
-            # Contract cells are trusted CDC boundaries. Set keep_hierarchy on the
-            # selected cell objects explicitly; all other hierarchy is flattened.
+            # Explicit CDC contracts remain hierarchy boundaries. Clock-gate modules
+            # are whiteboxes instead of keep_hierarchy cells: this keeps their
+            # clock-port semantics visible while allowing every parent module to
+            # flatten into the top-level analysis graph.
             "setattr -set keep_hierarchy 1 a:flexsoc_cdc_contract",
+            "setattr -mod -set whitebox 1 *prim_clock_gating*",
             "flatten",
             "opt_clean",
             f"write_json {design_json}",
@@ -588,6 +590,15 @@ class CdcFlow:
     @staticmethod
     def _cdc_contract(item: Mapping[str, Any]) -> str | None:
         return (CdcFlow._attribute_text(item, _CDC_CONTRACT_ATTR) or "").lower() or None
+
+    @staticmethod
+    def _builtin_clock_gate_ports(item: Mapping[str, Any]) -> tuple[str, str] | None:
+        """Return clock ports for trusted integration primitives known to FlexSoC."""
+
+        cell_type = str(item.get("type", "")).lstrip("\\")
+        if re.search(r"(?:^|\\)prim_clock_gating(?:$|[\\$])", cell_type):
+            return ("clk_i", "clk_o")
+        return None
 
     @staticmethod
     def _bits(cell: Mapping[str, Any], port: str | None) -> tuple[NetBit, ...]:
@@ -647,15 +658,30 @@ class CdcFlow:
             (name, cell)
             for name, cell in module.get("cells", {}).items()
             if CdcFlow._cdc_contract(cell) == "clock_gate"
+            or CdcFlow._builtin_clock_gate_ports(cell) is not None
         ]
         while pending:
             unresolved: list[tuple[str, Mapping[str, Any]]] = []
             progress = False
             for name, cell in pending:
-                domain = CdcFlow._attribute_text(cell, _CDC_DOMAIN_ATTR)
-                in_port = CdcFlow._attribute_text(cell, _CDC_CLOCK_IN_PORT_ATTR)
-                out_port = CdcFlow._attribute_text(cell, _CDC_CLOCK_OUT_PORT_ATTR)
-                if domain not in known_domains:
+                contract = CdcFlow._cdc_contract(cell)
+                builtin_ports = CdcFlow._builtin_clock_gate_ports(cell)
+                domain = (
+                    CdcFlow._attribute_text(cell, _CDC_DOMAIN_ATTR)
+                    if contract == "clock_gate"
+                    else None
+                )
+                in_port = (
+                    CdcFlow._attribute_text(cell, _CDC_CLOCK_IN_PORT_ATTR)
+                    if contract == "clock_gate"
+                    else (builtin_ports[0] if builtin_ports else None)
+                )
+                out_port = (
+                    CdcFlow._attribute_text(cell, _CDC_CLOCK_OUT_PORT_ATTR)
+                    if contract == "clock_gate"
+                    else (builtin_ports[1] if builtin_ports else None)
+                )
+                if contract == "clock_gate" and domain not in known_domains:
                     raise ValueError(f"clock-gate contract {name!r} references unknown domain {domain!r}")
                 if not in_port or not out_port:
                     raise ValueError(f"clock-gate contract {name!r} is missing clock port metadata")
@@ -667,19 +693,81 @@ class CdcFlow:
                 if parent is None:
                     unresolved.append((name, cell))
                     continue
-                if parent != domain:
+                resolved_domain = domain or parent
+                if domain is not None and parent != domain:
                     raise ValueError(
                         f"clock-gate contract {name!r} declares domain {domain!r} but parent clock belongs to {parent!r}"
                     )
                 previous = result.get(out_bits[0])
-                if previous not in {None, domain}:
+                if previous not in {None, resolved_domain}:
                     raise ValueError(f"clock-gate output for {name!r} has conflicting domain intent")
-                result[out_bits[0]] = domain
+                result[out_bits[0]] = resolved_domain
                 progress = True
             if unresolved and not progress:
                 names_text = ", ".join(name for name, _ in unresolved)
                 raise ValueError(f"clock-gate contract parent clock is unresolved: {names_text}")
             pending = unresolved
+        return result
+
+    @staticmethod
+    def _clock_domain_map(module: Mapping[str, Any], clocks: ClockConfig) -> dict[NetBit, str]:
+        """Map sequential clock nets to logical domains through structural clock ancestry.
+
+        Explicit clock ports and clock-gate contracts remain authoritative. For a
+        flattened structural clock expression, inherit a domain only when its
+        combinational fan-in contains exactly one declared clock input. Sequentially
+        generated clocks therefore stay unassigned until they are declared as their
+        own clock domain, while ordinary clock gating does not create a fake CDC.
+        """
+
+        result = CdcFlow._domain_bit_map(module, clocks)
+        declared = {domain.signal: domain.name for domain in clocks.domains}
+        if not declared:
+            return result
+
+        sources: dict[NetBit, Endpoint] = {}
+        for name, port in module.get("ports", {}).items():
+            if port.get("direction") != "input":
+                continue
+            for index, bit in enumerate(tuple(port.get("bits", ()))):
+                sources[bit] = Endpoint("input", name, index)
+
+        cells = module.get("cells", {})
+        drivers: dict[NetBit, tuple[str, ...]] = {}
+        for name, cell in cells.items():
+            if str(cell.get("type", "")) in _SEQ_PORTS:
+                continue
+            if CdcFlow._cdc_contract(cell) == "async_fifo":
+                continue
+            for port_name, direction in cell.get("port_directions", {}).items():
+                if direction != "output":
+                    continue
+                for bit in cell.get("connections", {}).get(port_name, ()):
+                    drivers[bit] = (name, port_name)
+
+        memo: dict[NetBit, tuple[tuple[Endpoint, tuple[str, ...]], ...]] = {}
+        for cell in cells.values():
+            spec = _SEQ_PORTS.get(str(cell.get("type", "")))
+            if spec is None:
+                continue
+            clock_bits = CdcFlow._bits(cell, spec[0])
+            if len(clock_bits) != 1 or clock_bits[0] in result:
+                continue
+            upstream = CdcFlow._upstream_sources(
+                clock_bits[0],
+                sources=sources,
+                drivers=drivers,
+                cells=cells,
+                memo=memo,
+                active=set(),
+            )
+            domains = {
+                declared[endpoint.name]
+                for endpoint, _ in upstream
+                if endpoint.kind == "input" and endpoint.name in declared
+            }
+            if len(domains) == 1:
+                result[clock_bits[0]] = next(iter(domains))
         return result
 
     @staticmethod
@@ -717,8 +805,27 @@ class CdcFlow:
         if top not in modules:
             raise ValueError(f"top module not found in Yosys JSON: {top}")
         module = modules[top]
+        module_names = {str(name).lstrip("\\") for name in modules}
+        residual_hierarchy: list[str] = []
+        for name, cell in module.get("cells", {}).items():
+            cell_type = str(cell.get("type", ""))
+            if cell_type.lstrip("\\") not in module_names:
+                continue
+            if CdcFlow._builtin_clock_gate_ports(cell) is not None:
+                continue
+            if CdcFlow._cdc_contract(cell) is not None:
+                continue
+            residual_hierarchy.append(f"{name}:{cell_type}")
+        if residual_hierarchy:
+            preview = ", ".join(residual_hierarchy[:8])
+            extra = "" if len(residual_hierarchy) <= 8 else f" (+{len(residual_hierarchy) - 8} more)"
+            raise ValueError(
+                "structural extraction left unflattened hierarchy outside trusted "
+                f"CDC boundaries: {preview}{extra}"
+            )
+
         names = CdcFlow._net_names(module)
-        domain_by_bit = CdcFlow._domain_bit_map(module, clocks)
+        domain_by_bit = CdcFlow._clock_domain_map(module, clocks)
         sequential: list[SequentialElement] = []
 
         for name, cell in module.get("cells", {}).items():
@@ -883,10 +990,55 @@ class CdcFlow:
         return result
 
     @staticmethod
-    def _sequential_dependencies(ir: DesignIR, clocks: ClockConfig) -> tuple[Crossing, ...]:
-        """Return sequential dependencies using a memoized combinational fan-in walk."""
+    def _direct_sequential_dependencies(
+        ir: DesignIR, clocks: ClockConfig
+    ) -> tuple[Crossing, ...]:
+        """Return only direct Q-to-D sequential edges without combinational traversal."""
 
+        sources, _, _ = CdcFlow._graph(ir)
+        result: dict[tuple[Endpoint, Endpoint], Crossing] = {}
+        for dest in ir.sequential:
+            for index, bit in enumerate(dest.data_bits):
+                source = sources.get(bit)
+                if source is None or source.kind != "seq":
+                    continue
+                destination = Endpoint(
+                    "seq", dest.name, index, dest.clock_domain, dest.reset_signal
+                )
+                result[(source, destination)] = Crossing(
+                    source,
+                    destination,
+                    CdcFlow._relationship(
+                        clocks, source.clock_domain, destination.clock_domain
+                    ),
+                    (),
+                )
+        return tuple(
+            sorted(
+                result.values(),
+                key=lambda item: (
+                    CdcFlow._endpoint_key(item.source),
+                    CdcFlow._endpoint_key(item.destination),
+                ),
+            )
+        )
+
+    @staticmethod
+    def _dependencies_from_sources(
+        ir: DesignIR,
+        clocks: ClockConfig,
+        selected: set[Endpoint],
+    ) -> tuple[Crossing, ...]:
+        """Return transitive dependencies originating only at selected endpoints."""
+
+        if not selected:
+            return ()
         sources, drivers, cells = CdcFlow._graph(ir)
+        filtered = {
+            bit: endpoint
+            for bit, endpoint in sources.items()
+            if endpoint in selected
+        }
         memo: dict[NetBit, tuple[tuple[Endpoint, tuple[str, ...]], ...]] = {}
         result: dict[tuple[Endpoint, Endpoint], Crossing] = {}
         for dest in ir.sequential:
@@ -896,18 +1048,18 @@ class CdcFlow:
                 )
                 for source, path in CdcFlow._upstream_sources(
                     bit,
-                    sources=sources,
+                    sources=filtered,
                     drivers=drivers,
                     cells=cells,
                     memo=memo,
                     active=set(),
                 ):
-                    if source.kind != "seq":
-                        continue
                     crossing = Crossing(
                         source,
                         destination,
-                        CdcFlow._relationship(clocks, source.clock_domain, dest.clock_domain),
+                        CdcFlow._relationship(
+                            clocks, source.clock_domain, destination.clock_domain
+                        ),
                         path,
                     )
                     key = (source, destination)
@@ -917,6 +1069,112 @@ class CdcFlow:
                         previous.path,
                     ):
                         result[key] = crossing
+        return tuple(
+            sorted(
+                result.values(),
+                key=lambda item: (
+                    CdcFlow._endpoint_key(item.source),
+                    CdcFlow._endpoint_key(item.destination),
+                    item.path,
+                ),
+            )
+        )
+
+    @staticmethod
+    def _sequential_dependencies(ir: DesignIR, clocks: ClockConfig) -> tuple[Crossing, ...]:
+        """Return only dependencies relevant to CDC/RDC and protocol recognition.
+
+        A full transitive bit-level dependency graph of a CPU datapath is both huge
+        and irrelevant to CDC/RDC when source and destination share a clock and reset
+        family. Keep direct sequential edges for synchronizer/reset-chain structure,
+        then walk combinational fan-in only for sources that can cross a clock or
+        reset family. Finally retain targeted same-domain reachability around
+        possible synchronizer stages for handshake/reconvergence checks.
+        """
+
+        direct = CdcFlow._direct_sequential_dependencies(ir, clocks)
+        reset_families = CdcFlow._reset_family_map(ir, direct)
+        all_sources, drivers, cells = CdcFlow._graph(ir)
+        sequential_sources = {
+            bit: endpoint
+            for bit, endpoint in all_sources.items()
+            if endpoint.kind == "seq"
+        }
+
+        grouped: dict[tuple[str | None, str | None], list[SequentialElement]] = {}
+        for dest in ir.sequential:
+            grouped.setdefault(
+                (
+                    dest.clock_domain,
+                    reset_families.get(dest.name, dest.reset_signal),
+                ),
+                [],
+            ).append(dest)
+
+        result: dict[tuple[Endpoint, Endpoint], Crossing] = {
+            (item.source, item.destination): item for item in direct
+        }
+        for (dest_domain, dest_family), destinations in grouped.items():
+            relevant_sources = {
+                bit: endpoint
+                for bit, endpoint in sequential_sources.items()
+                if (
+                    endpoint.clock_domain != dest_domain
+                    or reset_families.get(endpoint.name, endpoint.reset_signal)
+                    != dest_family
+                )
+            }
+            if not relevant_sources:
+                continue
+            memo: dict[NetBit, tuple[tuple[Endpoint, tuple[str, ...]], ...]] = {}
+            for dest in destinations:
+                for index, bit in enumerate(dest.data_bits):
+                    destination = Endpoint(
+                        "seq", dest.name, index, dest.clock_domain, dest.reset_signal
+                    )
+                    for source, path in CdcFlow._upstream_sources(
+                        bit,
+                        sources=relevant_sources,
+                        drivers=drivers,
+                        cells=cells,
+                        memo=memo,
+                        active=set(),
+                    ):
+                        crossing = Crossing(
+                            source,
+                            destination,
+                            CdcFlow._relationship(
+                                clocks, source.clock_domain, dest.clock_domain
+                            ),
+                            path,
+                        )
+                        key = (source, destination)
+                        previous = result.get(key)
+                        if previous is None or (len(path), path) < (
+                            len(previous.path),
+                            previous.path,
+                        ):
+                            result[key] = crossing
+
+        preliminary = tuple(result.values())
+        first_stages = {
+            item.destination
+            for item in preliminary
+            if item.source.clock_domain != item.destination.clock_domain
+        }
+        first_stage_reach = CdcFlow._dependencies_from_sources(ir, clocks, first_stages)
+        for item in first_stage_reach:
+            result.setdefault((item.source, item.destination), item)
+
+        second_stages = {
+            item.destination
+            for item in first_stage_reach
+            if item.source in first_stages
+            and item.destination.clock_domain == item.source.clock_domain
+        }
+        for item in CdcFlow._dependencies_from_sources(ir, clocks, second_stages):
+            result.setdefault((item.source, item.destination), item)
+
         return tuple(
             sorted(
                 result.values(),
@@ -1841,8 +2099,13 @@ class CdcFlow:
         clock_bits = set(CdcFlow._domain_bit_map(ir.module, ClockConfig(ir.clocks)))
         reset_bits = CdcFlow._declared_port_bits(ir, declared_resets)
 
+        sequential_by_clock = Counter(item.clock_bit for item in ir.sequential)
+        seen_clock_bits: set[NetBit] = set()
+        seen_reset_bits: set[NetBit] = set()
+
         for seq in ir.sequential:
-            if seq.clock_bit not in clock_bits:
+            if seq.clock_bit not in clock_bits and seq.clock_bit not in seen_clock_bits:
+                seen_clock_bits.add(seq.clock_bit)
                 for endpoint, path in CdcFlow._input_paths(ir, seq.clock_bit):
                     if endpoint.name in declared_clocks and path:
                         findings.append(DomainFinding(
@@ -1850,7 +2113,8 @@ class CdcFlow:
                             issues=("potentially_glitching_clock_logic",),
                             evidence=(
                                 f"clock={endpoint.name}",
-                                f"sequential={seq.name}",
+                                f"clock_bit={seq.clock_bit}",
+                                f"sequential_count={sequential_by_clock[seq.clock_bit]}",
                                 f"path={'/'.join(path)}",
                             ),
                         ))
@@ -1861,7 +2125,12 @@ class CdcFlow:
                 if seq.async_reset_bit is not None
                 else seq.sync_reset_bit
             )
-            if reset_bit is not None and reset_bit not in reset_bits:
+            if (
+                reset_bit is not None
+                and reset_bit not in reset_bits
+                and reset_bit not in seen_reset_bits
+            ):
+                seen_reset_bits.add(reset_bit)
                 for endpoint, path in CdcFlow._input_paths(ir, reset_bit):
                     if endpoint.name in declared_resets and path:
                         findings.append(DomainFinding(
@@ -1869,7 +2138,7 @@ class CdcFlow:
                             issues=("potentially_glitching_reset_logic",),
                             evidence=(
                                 f"reset={endpoint.name}",
-                                f"sequential={seq.name}",
+                                f"reset_bit={reset_bit}",
                                 f"path={'/'.join(path)}",
                             ),
                         ))

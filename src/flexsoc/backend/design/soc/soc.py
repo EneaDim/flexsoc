@@ -12,11 +12,12 @@ from pathlib import Path
 from typing import Any
 
 from ...core import BackendContext, CommandRequest, ToolRunner
+from ...dv.soc import SoCSoftware
 from ..ip.rtl import RtlFlow
 
 SUPPORTED_HOSTS = {"ibex", "uart"}
 SUPPORTED_FABRICS = {"tlul"}
-HOST_IPS = {"ibex", "ibex_top_tracing"}
+HOST_IPS = {"ibex", "ibex_top"}
 KNOWN_BASES = {
     "uart": 0x80000000,
     "uart_master": 0x80000000,
@@ -27,13 +28,6 @@ KNOWN_BASES = {
 SRAM_BASE = 0x00100000
 SRAM_SIZE = 128 * 1024
 IBEX_RESET_VECTOR_OFFSET = 0x80
-SOC_STACK_SIZE = 0x1000
-SOC_TEST_STATUS_SIZE = 4
-SOC_BOOT_PASS_MAGIC = 0x46534F43
-SOC_UART_PASS_MAGIC = 0x55415254
-SOC_UART_TEST_BYTE = 0x55
-SOC_UART_BAUD_NCO = 0x8000
-SOC_UART_BIT_CYCLES = 32
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,7 +190,7 @@ class TlulFabric:
 
 @dataclass(slots=True)
 class SoCDv:
-    """Generate SoC-owned functional DV from the shared FlexSoC testbench model."""
+    """Generate the shared SoC testbench around workspace-owned functional tests."""
 
     context: BackendContext
 
@@ -204,391 +198,49 @@ class SoCDv:
     def paths(self):
         return self.context.paths
 
-    def generate(self, plan: SoCPlan) -> tuple[Path, ...]:
-        """Generate the canonical SystemVerilog TB and SoC-owned M0 tests."""
+    def validate(self, test: str) -> Path:
+        test_dir = self.paths.tests / test
+        required = tuple(test_dir / name for name in ("config.regs", "data_in.vec", "data_out.vec"))
+        missing = [path for path in required if not path.is_file()]
+        if missing:
+            raise FileNotFoundError(
+                f"functional test {test!r} is incomplete: " + ", ".join(map(str, missing))
+            )
+        return test_dir
 
-        from flexsoc.backend.core import templates
+    def generate(self, plan: SoCPlan) -> tuple[Path, ...]:
+        """Generate only generic TB infrastructure; test collateral stays in the workspace."""
+
+        from flexsoc.backend.dv.tb.common import TestEventSource
         from flexsoc.backend.dv.tb.sv import SystemVerilogTestbench, TestbenchConfig
 
-        period = max(1, int(float(self.context.values.get("CLK_PERIOD", "10"))))
         test = str(self.context.values.get("TEST_NAME", "smoke")).strip() or "smoke"
+        test_dir = self.paths.tests / test
+        parameters: tuple[tuple[str, str], ...] = ()
+        if test_dir.is_dir() and (test_dir / "sw").is_dir():
+            if plan.host != "ibex":
+                raise ValueError("software functional tests currently require the ibex SoC host")
+            plan.device("sram")
+            vmem = test_dir / "sw" / "build" / "main.vmem"
+            parameters = (("SramInitFile", f'"{vmem.as_posix()}"'),)
+
+        period = max(1, int(float(self.context.values.get("CLK_PERIOD", "10"))))
+        event_source = None
+        if plan.host == "ibex":
+            event_source = TestEventSource(
+                "clk_i",
+                "u_dut.sram_data_req && u_dut.sram_data_we && &u_dut.sram_data_wmask",
+                "u_dut.sram_data_wdata",
+            )
         config = TestbenchConfig(
             top="soc", rtldir=self.paths.rtl, simdir=self.paths.sim,
             syndir=self.paths.syn, prims=(), clk_period_ns=period,
-            compiler="verilator", interface=plan.fabric,
-            output=self.paths.tb / "sv",
+            compiler="verilator", interface=plan.fabric, output=self.paths.tb / "sv",
+            dut_parameters=parameters,
+            event_source=event_source,
         )
-        if test in {"boot_smoke", "uart_smoke"}:
-            if plan.host != "ibex":
-                raise ValueError(f"{test} requires the ibex SoC host")
-            if test == "uart_smoke":
-                plan.device("uart")
-            layout = SoCTestMemoryLayout.from_plan(plan)
-            sram = layout.sram
-            status_addr = layout.status_addr
-            status_word = layout.status_word
-            status_width = layout.status_word_width
-            pass_magic = SOC_UART_PASS_MAGIC if test == "uart_smoke" else SOC_BOOT_PASS_MAGIC
-            evidence_tag = "UARTFW" if test == "uart_smoke" else "BOOT"
-            vmem = self.paths.tests / test / "sw" / "build" / "main.vmem"
-            config = TestbenchConfig(
-                top=config.top,
-                rtldir=config.rtldir,
-                simdir=config.simdir,
-                syndir=config.syndir,
-                prims=config.prims,
-                clk_period_ns=config.clk_period_ns,
-                compiler=config.compiler,
-                interface=config.interface,
-                io_delay_pct=config.io_delay_pct,
-                vsv=config.vsv,
-                output=config.output,
-                devices=config.devices,
-                force=config.force,
-                dut_parameters=(("SramInitFile", f'"{vmem.as_posix()}"'),),
-                extra_declarations=(
-                    "  logic soc_boot_pass_seen = 1'b0;\n"
-                    "  integer soc_boot_cycle = 0;\n"
-                    "  integer soc_boot_pass_cycle = -1;"
-                ),
-                extra_statements=(
-                    "  always_ff @(posedge clk_i) begin\n"
-                    "    if (!rst_ni) begin\n"
-                    "      soc_boot_cycle <= 0;\n"
-                    "    end else begin\n"
-                    "      soc_boot_cycle <= soc_boot_cycle + 1;\n"
-                    "    end\n"
-                    "    if (u_dut.sram_data_req && u_dut.sram_data_we &&\n"
-                    f"        u_dut.sram_data_addr == {status_width}'h{status_word:X} &&\n"
-                    f"        u_dut.sram_data_wdata == 32'h{pass_magic:08X} &&\n"
-                    "        &u_dut.sram_data_wmask && !soc_boot_pass_seen) begin\n"
-                    "      soc_boot_pass_seen <= 1'b1;\n"
-                    "      soc_boot_pass_cycle <= soc_boot_cycle;\n"
-                    f'      $display("[TB][{evidence_tag}] status=0x{status_addr:08X} expected=0x{pass_magic:08X} observed=0x%08X cycle=%0d", u_dut.sram_data_wdata, soc_boot_cycle);\n'
-                    "    end\n"
-                    "  end"
-                ),
-                post_checks=(
-                    "for (integer soc_fw_wait = 0; soc_fw_wait < 1024 && !soc_boot_pass_seen; soc_fw_wait++) begin",
-                    "  @(posedge clk_i);",
-                    "end",
-                    "if (!soc_boot_pass_seen) begin",
-                    f'  $display("[TB][{evidence_tag}] FAIL status=0x{status_addr:08X} expected=0x{pass_magic:08X}");',
-                    "  errors++;",
-                    "end else begin",
-                    f'  $display("[TB][{evidence_tag}] PASS entry=0x{plan.ibex_boot_addr:08X} reset_pc=0x{plan.reset_pc:08X} status=0x{status_addr:08X} magic=0x{pass_magic:08X} cycle=%0d", soc_boot_pass_cycle);',
-                    "end",
-                ),
-            )
-            if test == "uart_smoke":
-                config = TestbenchConfig(
-                    **{field: getattr(config, field) for field in TestbenchConfig.__dataclass_fields__
-                       if field not in {"extra_declarations", "extra_statements", "post_checks"}},
-                    extra_declarations=config.extra_declarations + (
-                        "\n  logic uart_frame_seen = 1'b0;\n"
-                        "  logic [7:0] uart_frame_byte = '0;"
-                    ),
-                    extra_statements=config.extra_statements + (
-                        "\n  initial begin\n"
-                        "    forever begin\n"
-                        "      @(negedge tx_o);\n"
-                        "      if (rst_ni && !uart_frame_seen) begin\n"
-                        f"        repeat ({SOC_UART_BIT_CYCLES + SOC_UART_BIT_CYCLES // 2}) @(posedge clk_i);\n"
-                        "        for (int i = 0; i < 8; i++) begin\n"
-                        "          uart_frame_byte[i] = tx_o;\n"
-                        f"          repeat ({SOC_UART_BIT_CYCLES}) @(posedge clk_i);\n"
-                        "        end\n"
-                        "        if (tx_o !== 1'b1) begin\n"
-                        "          $display(\"[TB][UART] FAIL stop_bit=%b\", tx_o);\n"
-                        "          errors++;\n"
-                        "        end else if (uart_frame_byte !== 8'h55) begin\n"
-                        "          $display(\"[TB][UART] FAIL expected=0x55 observed=0x%02x\", uart_frame_byte);\n"
-                        "          errors++;\n"
-                        "        end else begin\n"
-                        "          uart_frame_seen = 1'b1;\n"
-                        "          $display(\"[TB][UART] PASS byte=0x%02x\", uart_frame_byte);\n"
-                        "        end\n"
-                        "      end\n"
-                        "    end\n"
-                        "  end"
-                    ),
-                    post_checks=config.post_checks + (
-                        "if (!uart_frame_seen) begin",
-                        '  $display("[TB][UART] FAIL no valid TX frame observed");',
-                        "  errors++;",
-                        "end",
-                    ),
-                )
+        return tuple(SystemVerilogTestbench().setup(config, clocks=self.context.clocks))
 
-        generated = SystemVerilogTestbench().setup(config, clocks=self.context.clocks)
-        created: list[Path] = list(generated)
-        catalogue = ("smoke", "boot_smoke", "uart_smoke") if plan.host == "ibex" and any(d.name == "uart" for d in plan.external_devices) else (("smoke", "boot_smoke") if plan.host == "ibex" else ("smoke",))
-        sram = plan.device("sram") if plan.host == "ibex" else SoCDevice("sram", SRAM_BASE, SRAM_SIZE, True)
-        for test_name in catalogue:
-            test_dir = self.paths.tests / test_name
-            test_dir.mkdir(parents=True, exist_ok=True)
-            for name in ("config.regs", "data_in.vec", "data_out.vec"):
-                templates.write(
-                    f"design/soc/dv/{test_name}/{name}.j2", test_dir / name, force=True,
-                    sram_base=f"0x{sram.base:08X}",
-                    sram_size=f"0x{sram.size:08X}",
-                )
-                created.append(test_dir / name)
-        return tuple(created)
-
-
-@dataclass(frozen=True, slots=True)
-class SoCTestMemoryLayout:
-    """Canonical CPU-test view of the SoC SRAM."""
-
-    sram: SoCDevice
-
-    def __post_init__(self) -> None:
-        reserved = SOC_TEST_STATUS_SIZE + SOC_STACK_SIZE
-        if self.sram.size <= reserved:
-            raise ValueError("SoC SRAM is too small for test status plus software stack")
-        if self.sram.base % 4 or self.sram.size % 4:
-            raise ValueError("SoC SRAM base and size must be word aligned")
-        if SOC_TEST_STATUS_SIZE != 4:
-            raise ValueError("SoC test status must be one 32-bit word")
-
-    @classmethod
-    def from_plan(cls, plan: SoCPlan) -> "SoCTestMemoryLayout":
-        return cls(plan.device("sram"))
-
-    @property
-    def ram_size(self) -> int:
-        return self.sram.size - SOC_TEST_STATUS_SIZE - SOC_STACK_SIZE
-
-    @property
-    def status_addr(self) -> int:
-        return self.sram.base + self.ram_size
-
-    @property
-    def stack_addr(self) -> int:
-        return self.status_addr + SOC_TEST_STATUS_SIZE
-
-    @property
-    def status_word(self) -> int:
-        return (self.status_addr - self.sram.base) // 4
-
-    @property
-    def status_word_width(self) -> int:
-        words = self.sram.size // 4
-        return max(1, (words - 1).bit_length())
-
-@dataclass(slots=True)
-class SoCSoftware:
-    """Own SoC test-software sources, build products, and simulator memory images."""
-
-    context: BackendContext
-    runner: ToolRunner
-
-    @property
-    def paths(self):
-        return self.context.paths
-
-    @staticmethod
-    def render_memory_map(plan: SoCPlan) -> str:
-        """Render the software-visible SoC address map from the resolved plan."""
-
-        lines = [
-            "#ifndef FLEXSOC_SOC_MEMORY_MAP_H",
-            "#define FLEXSOC_SOC_MEMORY_MAP_H",
-            "",
-            "#include <stdint.h>",
-            "",
-        ]
-        for device in plan.devices:
-            macro = re.sub(r"[^A-Za-z0-9]+", "_", device.name).upper().strip("_")
-            lines.append(f"#define SOC_{macro}_BASE_ADDR UINT32_C(0x{device.base:08X})")
-            lines.append(f"#define SOC_{macro}_SIZE UINT32_C(0x{device.size:08X})")
-            lines.append("")
-        lines.append("#endif")
-        return "\n".join(lines) + "\n"
-
-    def generate_memory_map(self, plan: SoCPlan) -> Path:
-        """Materialize the canonical software projection of SoCPlan."""
-
-        output = self.paths.sw / "include" / "soc_memory_map.h"
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(self.render_memory_map(plan), encoding="utf-8")
-        return output
-
-    def staged_driver(self, name: str) -> tuple[Path, Path]:
-        """Return one immutable staged IP driver header/source pair."""
-
-        driver_dir = self.paths.run / "ips" / name / "sw" / "drivers"
-        header = driver_dir / f"{name}.h"
-        source = driver_dir / f"{name}.c"
-        missing = [path for path in (header, source) if not path.is_file()]
-        if missing:
-            raise FileNotFoundError(
-                f"staged {name} driver is incomplete: " + ", ".join(str(path) for path in missing)
-            )
-        return header, source
-
-    @staticmethod
-    def _run_relative(path: Path, run: Path, origin: Path) -> str:
-        """Return a stable run-relative path from one generated software directory."""
-
-        target_parts = path.resolve().relative_to(run.resolve()).parts
-        origin_parts = origin.resolve().relative_to(run.resolve()).parts
-        return (Path(*([".."] * len(origin_parts))) / Path(*target_parts)).as_posix()
-
-    def generate_boot_smoke(self, plan: SoCPlan) -> tuple[Path, ...]:
-        """Materialize source-first boot software for the M0 CPU execution test."""
-
-        from flexsoc.backend.core.render.templates import templates
-
-        layout = SoCTestMemoryLayout.from_plan(plan)
-        sram = layout.sram
-        reserved = SOC_STACK_SIZE + SOC_TEST_STATUS_SIZE
-        if sram.size <= reserved:
-            raise ValueError("SoC SRAM is too small for boot test status plus software stack")
-        status_origin = layout.status_addr
-        stack_origin = layout.stack_addr
-        sw = self.paths.tests / "boot_smoke" / "sw"
-        sw.mkdir(parents=True, exist_ok=True)
-        templates.write("design/soc/boot.S.j2", sw / "boot.S", force=True)
-        templates.write(
-            "design/soc/link.ld.j2", sw / "link.ld", force=True,
-            ram_origin=f"0x{sram.base:08X}",
-            ram_length=f"0x{layout.ram_size:X}",
-            test_status_origin=f"0x{status_origin:08X}",
-            test_status_length=f"0x{SOC_TEST_STATUS_SIZE:X}",
-            stack_origin=f"0x{stack_origin:08X}",
-            stack_length=f"0x{SOC_STACK_SIZE:X}",
-        )
-        templates.write(
-            "design/soc/dv/boot_smoke/main.c.j2", sw / "main.c", force=True,
-            pass_magic=f"0x{SOC_BOOT_PASS_MAGIC:08X}u",
-        )
-        (sw / "Makefile").write_text(
-            SocFlow.render_makefile([]), encoding="utf-8"
-        )
-        return tuple(sw / name for name in ("boot.S", "link.ld", "main.c", "Makefile"))
-
-    @staticmethod
-    def binary_to_vmem(binary: Path, output: Path) -> Path:
-        """Convert one little-endian RV32 flat binary into 32-bit readmemh words."""
-
-        payload = binary.read_bytes()
-        if len(payload) % 4:
-            payload += b"\x00" * (4 - len(payload) % 4)
-        words = [
-            f"{int.from_bytes(payload[offset:offset + 4], 'little'):08x}"
-            for offset in range(0, len(payload), 4)
-        ]
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text("\n".join(words) + ("\n" if words else ""), encoding="utf-8")
-        return output
-
-    def build_boot_smoke(self, plan: SoCPlan, *, on: str = "local") -> object:
-        """Compile the M0 C test and derive the VMEM consumed by the RTL SRAM."""
-
-        sources = self.generate_boot_smoke(plan)
-        sw = self.paths.tests / "boot_smoke" / "sw"
-        elf = sw / "build" / "main.elf"
-        binary = sw / "build" / "main.bin"
-        vmem = sw / "build" / "main.vmem"
-        result = self.runner.run(
-            CommandRequest(
-                ("make", "--no-print-directory", "-C", str(sw), "clean", "all"),
-                self.context.project_root,
-                {},
-                self.paths.logs / "soc" / "sw-boot_smoke.log",
-                inputs=sources,
-                outputs=(elf, binary),
-            ),
-            on=on,
-        )
-        if getattr(result, "returncode", 0):
-            return result
-        if not binary.is_file():
-            raise FileNotFoundError(f"boot_smoke binary was not produced: {binary}")
-        self.binary_to_vmem(binary, vmem)
-        return result
-
-    def generate_uart_smoke(self, plan: SoCPlan) -> tuple[Path, ...]:
-        """Generate M1 firmware using only the staged UART driver and SoC memory map."""
-
-        from flexsoc.backend.core.render.templates import templates
-
-        plan.device("uart")
-        layout = SoCTestMemoryLayout.from_plan(plan)
-        sram = layout.sram
-        reserved = SOC_STACK_SIZE + SOC_TEST_STATUS_SIZE
-        if sram.size <= reserved:
-            raise ValueError("SoC SRAM is too small for UART test status plus software stack")
-
-        status_origin = layout.status_addr
-        stack_origin = layout.stack_addr
-        sw = self.paths.tests / "uart_smoke" / "sw"
-        sw.mkdir(parents=True, exist_ok=True)
-
-        memory_map = self.generate_memory_map(plan)
-        driver_header, driver_source = self.staged_driver("uart")
-
-        templates.write("design/soc/boot.S.j2", sw / "boot.S", force=True)
-        templates.write(
-            "design/soc/link.ld.j2", sw / "link.ld", force=True,
-            ram_origin=f"0x{sram.base:08X}",
-            ram_length=f"0x{layout.ram_size:X}",
-            test_status_origin=f"0x{status_origin:08X}",
-            test_status_length=f"0x{SOC_TEST_STATUS_SIZE:X}",
-            stack_origin=f"0x{stack_origin:08X}",
-            stack_length=f"0x{SOC_STACK_SIZE:X}",
-        )
-        templates.write(
-            "design/soc/dv/uart_smoke/main.c.j2", sw / "main.c", force=True,
-            pass_magic=f"0x{SOC_UART_PASS_MAGIC:08X}u",
-            test_byte=f"0x{SOC_UART_TEST_BYTE:02X}",
-        )
-
-        period_ns = float(self.context.values.get("CLK_PERIOD", "10"))
-        if period_ns <= 0:
-            raise ValueError("CLK_PERIOD must be positive")
-        sysclk_hz = int(round(1_000_000_000.0 / period_ns))
-        baud_rate = max(1, (sysclk_hz * SOC_UART_BAUD_NCO) >> 20)
-
-        templates.write(
-            "design/soc/dv/uart_smoke/Makefile.j2", sw / "Makefile", force=True,
-            soc_include=self._run_relative(memory_map.parent, self.paths.run, sw),
-            uart_driver_dir=self._run_relative(driver_source.parent, self.paths.run, sw),
-            sysclk_hz=sysclk_hz,
-            baud_rate=baud_rate,
-        )
-        return (
-            sw / "boot.S", sw / "link.ld", sw / "main.c", sw / "Makefile",
-            memory_map, driver_header, driver_source,
-        )
-
-    def build_uart_smoke(self, plan: SoCPlan, *, on: str = "local") -> object:
-        """Compile M1 firmware against the immutable staged UART driver."""
-
-        sources = self.generate_uart_smoke(plan)
-        sw = self.paths.tests / "uart_smoke" / "sw"
-        elf = sw / "build" / "main.elf"
-        binary = sw / "build" / "main.bin"
-        vmem = sw / "build" / "main.vmem"
-        result = self.runner.run(
-            CommandRequest(
-                ("make", "--no-print-directory", "-C", str(sw), "clean", "all"),
-                self.context.project_root,
-                {},
-                self.paths.logs / "soc" / "sw-uart_smoke.log",
-                inputs=sources,
-                outputs=(elf, binary),
-            ),
-            on=on,
-        )
-        if getattr(result, "returncode", 0):
-            return result
-        if not binary.is_file():
-            raise FileNotFoundError(f"uart_smoke binary was not produced: {binary}")
-        self.binary_to_vmem(binary, vmem)
-        return result
 
 class SocFlow:
     """Resolve and generate one SoC composition for the current backend context."""
@@ -852,32 +504,20 @@ class SocFlow:
     def simulate(self, *, on: str = "local") -> object:
         """Build selected CPU software, then build and run the native SoC simulator."""
 
+        test = str(self.values.get("TEST_NAME", "smoke")).strip() or "smoke"
+        self.dv.validate(test)
         generated = self.generate(on=on)
         if getattr(generated, "returncode", 0):
             return generated
 
         plan = self.resolve_plan()
-        test = str(self.values.get("TEST_NAME", "smoke")).strip() or "smoke"
         runtime_inputs: tuple[Path, ...] = ()
 
-        software_builder = {
-            "boot_smoke": self.software.build_boot_smoke,
-            "uart_smoke": self.software.build_uart_smoke,
-        }.get(test)
-        if software_builder is not None:
-            software = software_builder(plan, on=on)
+        software = self.software.build(test, on=on)
+        if software is not None:
             if getattr(software, "returncode", 0):
                 return software
-            sw_build = self.paths.tests / test / "sw" / "build"
-            elf = sw_build / "main.elf"
-            vmem = sw_build / "main.vmem"
-            missing = [path for path in (elf, vmem) if not path.is_file()]
-            if missing:
-                raise FileNotFoundError(
-                    f"{test} software build is incomplete: "
-                    + ", ".join(str(path) for path in missing)
-                )
-            runtime_inputs = (elf, vmem)
+            runtime_inputs = self.software.runtime_inputs(test)
 
         built, simulator = self.native_verilator_simulator(on=on)
         if getattr(built, "returncode", 0):
@@ -1034,14 +674,16 @@ class SocFlow:
 
 
     def materialize_native_primitives(self) -> Path:
-        """Build one native primitive library, preferring FlexSoC-owned RTL.
+        """Build one native primitive library with deterministic ownership.
 
-        FlexSoC's frozen prim_opentitan sources win. Missing abstract primitives
-        are filled from the pinned lowRISC generic implementations.
+        FlexSoC-owned primitives win. Pinned lowRISC generic and concrete prim
+        RTL only fill missing filenames, so Slang sees one implementation of
+        each primitive instead of overlapping vendor/native libraries.
         """
 
         flexsoc_root = self.context.project_root / "hw" / "ips" / "prim_opentitan"
-        lowrisc_root = (
+        vendor_root = self.context.project_root / "vendor" / "lowrisc_ip" / "ip" / "prim" / "rtl"
+        generic_root = (
             self.context.project_root
             / "vendor"
             / "lowrisc_ip"
@@ -1053,9 +695,9 @@ class SocFlow:
             raise FileNotFoundError(
                 f"missing FlexSoC primitive library required by native SoC flow: {flexsoc_root}"
             )
-        if not lowrisc_root.is_dir():
+        if not generic_root.is_dir():
             raise FileNotFoundError(
-                f"missing lowRISC generic primitive fallback required by native SoC flow: {lowrisc_root}"
+                f"missing lowRISC generic primitive fallback required by native SoC flow: {generic_root}"
             )
 
         shutil.rmtree(self.paths.rtl / "prim_generic", ignore_errors=True)
@@ -1064,28 +706,47 @@ class SocFlow:
         output_root.mkdir(parents=True, exist_ok=True)
 
         count = 0
-        for source in sorted(flexsoc_root.glob("prim_*.sv")):
-            target = output_root / source.name
-            target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+        for source in sorted(flexsoc_root.iterdir()):
+            if not source.is_file() or source.suffix not in {".sv", ".svh"}:
+                continue
+            (output_root / source.name).write_text(
+                source.read_text(encoding="utf-8"), encoding="utf-8"
+            )
             count += 1
 
-        for source in sorted(lowrisc_root.glob("prim_generic_*.sv")):
-            target_name = source.name.replace("prim_generic_", "prim_", 1)
-            target = output_root / target_name
+        for source in sorted(generic_root.glob("prim_generic_*.sv")):
+            target = output_root / source.name.replace("prim_generic_", "prim_", 1)
             if target.exists():
                 continue
-            text = source.read_text(encoding="utf-8").replace("prim_generic_", "prim_")
-            target.write_text(text, encoding="utf-8")
+            target.write_text(
+                source.read_text(encoding="utf-8").replace("prim_generic_", "prim_"),
+                encoding="utf-8",
+            )
             count += 1
+
+        if vendor_root.is_dir():
+            for source in sorted(vendor_root.iterdir()):
+                if (
+                    not source.is_file()
+                    or source.suffix not in {".sv", ".svh"}
+                    or source.name.endswith("_pkg.sv")
+                ):
+                    continue
+                target = output_root / source.name
+                if target.exists():
+                    continue
+                target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+                count += 1
 
         if count == 0:
             raise FileNotFoundError("native primitive library resolved no RTL sources")
         return output_root
 
     def materialize_native_packages(self) -> Path:
-        """Materialize the canonical FlexSoC-owned package/include library."""
+        """Materialize one package library, preferring FlexSoC-owned sources."""
 
         source_root = self.context.project_root / "hw" / "ips" / "pkgs"
+        vendor_root = self.context.project_root / "vendor" / "lowrisc_ip" / "ip" / "prim" / "rtl"
         if not source_root.is_dir():
             raise FileNotFoundError(
                 f"missing FlexSoC package library required by native SoC flow: {source_root}"
@@ -1099,9 +760,18 @@ class SocFlow:
         for source in sorted(source_root.iterdir()):
             if not source.is_file() or source.suffix not in {".sv", ".svh"}:
                 continue
-            target = output_root / source.name
-            target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+            (output_root / source.name).write_text(
+                source.read_text(encoding="utf-8"), encoding="utf-8"
+            )
             count += 1
+
+        if vendor_root.is_dir():
+            for source in sorted(vendor_root.glob("*_pkg.sv")):
+                target = output_root / source.name
+                if target.exists():
+                    continue
+                target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+                count += 1
 
         top_pkg = output_root / "top_pkg.sv"
         if not top_pkg.is_file():
@@ -1135,7 +805,6 @@ class SocFlow:
         search_roots: list[Path] = [primitive_root, package_root]
 
         for relative in (
-            Path("ip/prim/rtl"),
             Path("ip/tlul/rtl"),
             Path("ip/lc_ctrl/rtl"),
         ):
@@ -1152,7 +821,7 @@ class SocFlow:
             search_roots.insert(2, ibex_rtl)
 
         seed_files: list[Path] = []
-        include_dirs: list[Path] = [package_root]
+        include_dirs: list[Path] = [package_root, primitive_root]
         for raw in ownership_file.read_text(encoding="utf-8").splitlines():
             entry = raw.strip()
             if not entry or entry.startswith("#"):
@@ -1184,7 +853,7 @@ class SocFlow:
 
         discovery_args: list[str] = []
         if plan.host == "ibex":
-            discovery_args.extend(("-DSYNTHESIS", "-DRVFI"))
+            discovery_args.append("-DSYNTHESIS")
         for directory in dict.fromkeys(include_dirs):
             discovery_args.extend(("-I", str(directory)))
         discovery_args.extend(str(source) for source in package_files)
@@ -1331,8 +1000,7 @@ class SocFlow:
 
         values: dict[str, object] = {}
         if plan.host == "ibex":
-            layout = SoCTestMemoryLayout.from_plan(plan)
-            sram = layout.sram
+            sram = plan.device("sram")
             values.update(
                 mem_size=sram.size,
                 boot_addr=f"32'h{plan.ibex_boot_addr:08X}",
@@ -1412,61 +1080,5 @@ class SocFlow:
         output.write_text(self.render_soc_sv(plan, modules_ports), encoding="utf-8")
         self.dv.generate(plan)
         self.software.generate_memory_map(plan)
-        if plan.host == "ibex":
-            self.software.generate_boot_smoke(plan)
-            if any(device.name == "uart" for device in plan.external_devices):
-                self.software.generate_uart_smoke(plan)
         self.write_soc_core(self.paths.run / "soc.core", plan)
         return output
-
-    @staticmethod
-    def copy_driver_files(ips_dir: Path, sw_dir: Path) -> list[str]:
-        if not ips_dir.exists():
-            return []
-        modules: list[str] = []
-        for ip_dir in sorted((path for path in ips_dir.iterdir() if path.is_dir()), key=lambda path: path.name):
-            driver_dir = ip_dir / "sw" / "drivers"
-            files = sorted(driver_dir.glob("*.h")) + sorted(driver_dir.glob("*.c"))
-            if not files:
-                continue
-            for source in files:
-                shutil.copy2(source, sw_dir / source.name)
-            modules.append(ip_dir.name)
-        return modules
-
-    @staticmethod
-    def render_main_c(modules: list[str], host: str) -> str:
-        from flexsoc.backend.core.render.templates import templates
-        return templates.render("design/soc/main.c.j2", modules=modules, uses_uart=host == "uart" and "uart" in modules)
-
-    @staticmethod
-    def render_makefile(modules: list[str]) -> str:
-        from flexsoc.backend.core.render.templates import templates
-        objects = " ".join(f"$(BUILD_DIR)/{module}.o" for module in ("main", *modules))
-        return templates.render("design/soc/Makefile.j2", obj_list=f"{objects} $(BUILD_DIR)/boot.o")
-
-    def generate_software(self, plan: SoCPlan) -> tuple[Path, list[str]]:
-        """Generate the reusable SoC software scaffold from the resolved memory map."""
-
-        from flexsoc.backend.core.render.templates import templates
-        sw = self.paths.sw
-        sw.mkdir(parents=True, exist_ok=True)
-        modules = self.copy_driver_files(self.paths.run / "ips", sw)
-        templates.write("design/soc/boot.S.j2", sw / "boot.S", force=True)
-        layout = SoCTestMemoryLayout.from_plan(plan)
-        sram = layout.sram
-        if sram.size <= SOC_STACK_SIZE + SOC_TEST_STATUS_SIZE:
-            raise ValueError("SoC SRAM is too small for the reserved software stack and test status")
-        reserved = SOC_STACK_SIZE + SOC_TEST_STATUS_SIZE
-        status_origin = layout.status_addr
-        stack_origin = layout.stack_addr
-        templates.write(
-            "design/soc/link.ld.j2", sw / "link.ld", force=True,
-            ram_origin=f"0x{sram.base:08X}", ram_length=f"0x{layout.ram_size:X}",
-            test_status_origin=f"0x{status_origin:08X}",
-            test_status_length=f"0x{SOC_TEST_STATUS_SIZE:X}",
-            stack_origin=f"0x{stack_origin:08X}", stack_length=f"0x{SOC_STACK_SIZE:X}",
-        )
-        (sw / "main.c").write_text(self.render_main_c(modules, plan.host), encoding="utf-8")
-        (sw / "Makefile").write_text(self.render_makefile(modules), encoding="utf-8")
-        return sw, modules

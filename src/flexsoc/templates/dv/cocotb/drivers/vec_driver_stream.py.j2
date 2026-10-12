@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import cocotb
+from cocotb.triggers import RisingEdge
 
 from .reg_driver import (
     PRIMARY_CLOCK, _drive_cycle, _sample_cycle,
@@ -20,6 +21,33 @@ STREAM_BY_SIGNAL = {
 
 def _clock(dut, signal: str):
     return getattr(dut, SIGNAL_CLOCKS.get(signal, PRIMARY_CLOCK))
+
+
+async def _wait_event(dut, label, expected, timeout, cursor):
+    clk = getattr(dut, PRIMARY_CLOCK)
+    for _ in range(max(1, int(timeout))):
+        await RisingEdge(clk)
+        sequence = int(dut.flexsoc_event_sequence.value)
+        if sequence != cursor:
+            cursor = sequence
+            if int(dut.flexsoc_event_value.value) & 0xFFFFFFFF == int(expected) & 0xFFFFFFFF:
+                dut._log.info("[TB][EVENT] observed name=%s value=0x%08x", label, expected)
+                return cursor
+    raise AssertionError(f"event timeout name={label} value=0x{int(expected) & 0xffffffff:08x}")
+
+
+async def _wait_signal(dut, name, expected, timeout):
+    if not hasattr(dut, name):
+        raise AssertionError(f"unknown wait signal: {name}")
+    clk = _clock(dut, name)
+    handle = getattr(dut, name)
+    mask = (1 << len(handle)) - 1
+    expected = int(expected) & mask
+    for _ in range(max(1, int(timeout))):
+        await RisingEdge(clk)
+        if int(handle.value) & mask == expected:
+            return
+    raise AssertionError(f"signal timeout name={name} value=0x{expected:x}")
 
 
 async def _send_stream(dut, stream, pending):
@@ -66,12 +94,27 @@ async def _wait_output(dut):
 async def drive_inputs(dut, path: str):
     """Execute generic signal, CSR, reset and stream commands from data_in.vec."""
     pending = {}
+    event_cursor = 0
     for parts in rows(path):
         if len(parts) < 2:
             continue
         token = parts[1]
         if token in {"@wait_output", "wait_output"}:
             await _wait_output(dut)
+            continue
+        if token in {"@wait_event", "wait_event"}:
+            if len(parts) not in (4, 5):
+                raise AssertionError("@wait_event format: step @wait_event label value [timeout]")
+            timeout = int(parts[4], 0) if len(parts) == 5 else 1024
+            event_cursor = await _wait_event(
+                dut, parts[2], int(parts[3], 0), timeout, event_cursor
+            )
+            continue
+        if token in {"@wait_signal", "wait_signal"}:
+            if len(parts) not in (4, 5):
+                raise AssertionError("@wait_signal format: step @wait_signal signal value [timeout]")
+            timeout = int(parts[4], 0) if len(parts) == 5 else 1024
+            await _wait_signal(dut, parts[2], int(parts[3], 0), timeout)
             continue
         if token in {"@write", "write"} and len(parts) >= 4:
             mask = int(parts[4], 0) if len(parts) >= 5 else 0xFFFFFFFF

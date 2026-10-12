@@ -160,125 +160,19 @@ task automatic tb_check_read_one(
   end
 endtask
 
-task automatic tb_last_output_cycle(input string out_path, output int last_cycle);
+
+task automatic run_output_vectors(input string out_path);
   int fd;
   int code;
+  int now_cycle;
+  int cycle;
+  int event_cursor;
   logic [31:0] cycle_value;
+  logic [31:0] expected;
+  logic [31:0] timeout;
   logic [32:0] parsed;
   logic [32:0] sampled;
-<<% if packed %>>  tb_line_t line_buf;
-  tb_token_t cycle_raw;
-  tb_token_t t0;
-  tb_token_t t1;
-  tb_token_t t2;
-  tb_token_t t3;
-  tb_token_t t4;
-  tb_token_t t5;
-  tb_token_t t6;
-  tb_token_t t7;
-<<% else %>>  string line;
-  reg [8*4096-1:0] line_buf;
-  string cycle_raw;
-  string t0;
-  string t1;
-  string t2;
-  string t3;
-  string t4;
-  string t5;
-  string t6;
-  string t7;
-<<% endif %>>
-  begin : tb_last_output_cycle_body
-  last_cycle = -1;
-  fd = $fopen(out_path, "r");
-  if (fd == 0) disable tb_last_output_cycle_body;
-
-  while (!$feof(fd)) begin : tb_last_cycle_line
-<<% if packed %>><<% else %>>    line = "";
-    tb_tokenize9(line, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
-
-<<% endif %>>    line_buf = '0;
-<<% if packed %>>    code = $fgets(line_buf, fd);
-    tb_tokenize9(line_buf, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
-<<% else %>>    void'($fgets(line_buf, fd));
-    line = $sformatf("%0s", line_buf);
-    tb_tokenize9(line, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
-<<% endif %>>
-    if (code < 3) disable tb_last_cycle_line;
-<<% if packed %>>    if (tb_token_comment(cycle_raw)) disable tb_last_cycle_line;
-<<% else %>>    if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") disable tb_last_cycle_line;
-<<% endif %>>
-    sampled = tb_read_output(cycle_raw);
-    if (sampled[32]) disable tb_last_cycle_line;
-    parsed = tb_parse_u32(cycle_raw);
-    if (!parsed[32]) disable tb_last_cycle_line;
-    cycle_value = parsed[31:0];
-
-    if (int'(cycle_value) > last_cycle) last_cycle = int'(cycle_value);
-  end
-
-  $fclose(fd);
-  end
-endtask
-
-task automatic tb_guarded_output_count(input string out_path, output int count);
-  int fd;
-  int code;
-  logic [32:0] sampled;
-<<% if packed %>>  tb_line_t line_buf;
-  tb_token_t first;
-  tb_token_t t0;
-  tb_token_t t1;
-  tb_token_t t2;
-  tb_token_t t3;
-  tb_token_t t4;
-  tb_token_t t5;
-  tb_token_t t6;
-  tb_token_t t7;
-<<% else %>>  string line;
-  reg [8*4096-1:0] line_buf;
-  string first;
-  string t0;
-  string t1;
-  string t2;
-  string t3;
-  string t4;
-  string t5;
-  string t6;
-  string t7;
-<<% endif %>>
-  begin : tb_guarded_output_count_body
-  count = 0;
-  fd = $fopen(out_path, "r");
-  if (fd == 0) disable tb_guarded_output_count_body;
-
-  while (!$feof(fd)) begin : tb_guard_count_line
-<<% if packed %>><<% else %>>    line = "";
-<<% endif %>>    line_buf = '0;
-<<% if packed %>>    code = $fgets(line_buf, fd);
-    tb_tokenize9(line_buf, code, first, t0, t1, t2, t3, t4, t5, t6, t7);
-<<% else %>>    void'($fgets(line_buf, fd));
-    line = $sformatf("%0s", line_buf);
-    tb_tokenize9(line, code, first, t0, t1, t2, t3, t4, t5, t6, t7);
-<<% endif %>>    if (code < 3) disable tb_guard_count_line;
-<<% if packed %>>    if (tb_token_comment(first)) disable tb_guard_count_line;
-<<% else %>>    if (first.len() > 0 && first.substr(0, 0) == "#") disable tb_guard_count_line;
-<<% endif %>>    sampled = tb_read_output(first);
-    if (sampled[32]) count++;
-  end
-
-  $fclose(fd);
-  end
-endtask
-
-task automatic tb_check_outputs(input string out_path, input int cycle);
-  int fd;
-  int code;
-  int expected_cycle;
-  int guarded_index;
-  logic [31:0] expected_cycle_value;
-  logic [32:0] parsed;
-  logic [32:0] sampled;
+  bit seen;
 <<% if packed %>>  tb_token_t cycle_raw;
   tb_line_t line_buf;
   tb_token_t t0;
@@ -301,63 +195,118 @@ task automatic tb_check_outputs(input string out_path, input int cycle);
   string t6;
   string t7;
 <<% endif %>>
-  begin : tb_check_outputs_body
-  fd = $fopen(out_path, "r");
-  if (fd == 0) disable tb_check_outputs_body;
-  guarded_index = 0;
 
-  while (!$feof(fd)) begin : tb_check_output_line
-<<% if packed %>><<% else %>>    line = "";
-<<% endif %>>    line_buf = '0;
-<<% if packed %>>    code = $fgets(line_buf, fd);
-    tb_tokenize9(line_buf, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
-<<% else %>>    void'($fgets(line_buf, fd));
-    line = $sformatf("%0s", line_buf);
-    tb_tokenize9(line, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
-<<% endif %>>
-    if (code < 3) disable tb_check_output_line;
-<<% if packed %>>    if (tb_token_comment(cycle_raw)) disable tb_check_output_line;
-    if (tb_token_comment(t0)) disable tb_check_output_line;
-<<% else %>>    if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") disable tb_check_output_line;
-    if (t0.len() > 0 && t0.substr(0, 0) == "#") disable tb_check_output_line;
-<<% endif %>>
-    sampled = tb_read_output(cycle_raw);
-    if (sampled[32]) begin
-      if (guarded_index == tb_guarded_output_next && sampled[0] === 1'b1) begin
-        tb_check_signal_one(cycle, t0, t1);
-        if (code >= 5) tb_check_signal_one(cycle, t2, t3);
-        if (code >= 7) tb_check_signal_one(cycle, t4, t5);
-        if (code >= 9) tb_check_signal_one(cycle, t6, t7);
-        tb_guarded_output_next++;
-      end
-      guarded_index++;
-      disable tb_check_output_line;
+  begin : run_output_vectors_body
+    now_cycle = -1;
+    event_cursor = 0;
+    fd = $fopen(out_path, "r");
+    if (fd == 0) begin
+      $display("[TB][ERROR] expected file not found: %s", out_path);
+      errors++;
+      disable run_output_vectors_body;
     end
 
-    parsed = tb_parse_u32(cycle_raw);
-    if (!parsed[32]) disable tb_check_output_line;
-    expected_cycle_value = parsed[31:0];
+    while (!$feof(fd)) begin : tb_output_line
+<<% if packed %>><<% else %>>      line = "";
+<<% endif %>>      line_buf = '0;
+<<% if packed %>>      code = $fgets(line_buf, fd);
+      tb_tokenize9(line_buf, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
+<<% else %>>      void'($fgets(line_buf, fd));
+      line = $sformatf("%0s", line_buf);
+      tb_tokenize9(line, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
+<<% endif %>>
+      if (code < 2) disable tb_output_line;
+<<% if packed %>>      if (tb_token_comment(cycle_raw) || tb_token_comment(t0)) disable tb_output_line;
+<<% else %>>      if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") disable tb_output_line;
+      if (t0.len() > 0 && t0.substr(0, 0) == "#") disable tb_output_line;
+<<% endif %>>
 
-    expected_cycle = int'(expected_cycle_value);
-    if (expected_cycle != cycle) disable tb_check_output_line;
-
-    if (t0 == "@read" || t0 == "read" || t0 == "@reg_read" || t0 == "reg_read") begin
-      if (code < 4) begin
-        errors++;
-<<% if packed %>>        $display("[TB][ERROR] malformed @read row: %0s", line_buf);
-<<% else %>>        $display("[TB][ERROR] malformed @read row: %s", line);
-<<% endif %>>      end else begin
-        tb_check_read_one(cycle, t1, t2, t3);
+      parsed = tb_parse_u32(cycle_raw);
+      if (!parsed[32]) begin
+        sampled = tb_read_output(cycle_raw);
+        if (!sampled[32]) begin
+          errors++;
+          $display("[TB][ERROR] invalid output cycle/guard token: %s", cycle_raw);
+          disable tb_output_line;
+        end
+        seen = 1'b0;
+        tb_wait_signal(cycle_raw, 32'd1, 4096, seen);
+        if (!seen) begin
+          errors++;
+          $display("[TB][ERROR] guarded output timeout signal=%s", cycle_raw);
+          disable tb_output_line;
+        end
+        tb_check_signal_one(now_cycle, t0, t1);
+        if (code >= 5) tb_check_signal_one(now_cycle, t2, t3);
+        if (code >= 7) tb_check_signal_one(now_cycle, t4, t5);
+        if (code >= 9) tb_check_signal_one(now_cycle, t6, t7);
+        disable tb_output_line;
       end
-      disable tb_check_output_line;
+
+      cycle_value = parsed[31:0];
+      cycle = int'(cycle_value);
+      while (now_cycle < cycle) begin
+        <<: sample_cycle :>>;
+        now_cycle++;
+      end
+
+      if (t0 == "@wait_event" || t0 == "wait_event") begin
+        if (code < 4) begin
+          errors++;
+          $display("[TB][ERROR] malformed @wait_event row");
+          disable tb_output_line;
+        end
+        parsed = tb_parse_u32(t2);
+        if (!parsed[32]) disable tb_output_line;
+        expected = parsed[31:0];
+        parsed = tb_parse_u32(t3);
+        timeout = parsed[32] ? parsed[31:0] : 32'd1024;
+        seen = 1'b0;
+        tb_wait_event(t1, expected, int'(timeout), event_cursor, seen);
+        if (!seen) begin
+          errors++;
+          $display("[TB][ERROR] event timeout name=%s value=0x%08x", t1, expected);
+        end
+        now_cycle = -1;
+        disable tb_output_line;
+      end
+
+      if (t0 == "@wait_signal" || t0 == "wait_signal") begin
+        if (code < 4) begin
+          errors++;
+          $display("[TB][ERROR] malformed @wait_signal row");
+          disable tb_output_line;
+        end
+        parsed = tb_parse_u32(t2);
+        if (!parsed[32]) disable tb_output_line;
+        expected = parsed[31:0];
+        parsed = tb_parse_u32(t3);
+        timeout = parsed[32] ? parsed[31:0] : 32'd1024;
+        seen = 1'b0;
+        tb_wait_signal(t1, expected, int'(timeout), seen);
+        if (!seen) begin
+          errors++;
+          $display("[TB][ERROR] signal timeout name=%s value=0x%08x", t1, expected);
+        end
+        now_cycle = -1;
+        disable tb_output_line;
+      end
+
+      if (t0 == "@read" || t0 == "read" || t0 == "@reg_read" || t0 == "reg_read") begin
+        if (code < 4) begin
+          errors++;
+          $display("[TB][ERROR] malformed @read row");
+        end else begin
+          tb_check_read_one(cycle, t1, t2, t3);
+        end
+        disable tb_output_line;
+      end
+
+      tb_check_signal_one(cycle, t0, t1);
+      if (code >= 5) tb_check_signal_one(cycle, t2, t3);
+      if (code >= 7) tb_check_signal_one(cycle, t4, t5);
+      if (code >= 9) tb_check_signal_one(cycle, t6, t7);
     end
-
-    tb_check_signal_one(cycle, t0, t1);
-    if (code >= 5) tb_check_signal_one(cycle, t2, t3);
-    if (code >= 7) tb_check_signal_one(cycle, t4, t5);
-    if (code >= 9) tb_check_signal_one(cycle, t6, t7);
-  end
-
-  $fclose(fd);
+    $fclose(fd);
   end
 endtask

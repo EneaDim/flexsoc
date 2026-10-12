@@ -68,6 +68,15 @@ class RegisterTransport:
 
 
 @dataclass(frozen=True, slots=True)
+class TestEventSource:
+    """One design-owned event stream exposed to functional testbenches."""
+
+    clock: str
+    valid: str
+    value: str
+
+
+@dataclass(frozen=True, slots=True)
 class StreamInterface:
     """One conventional ready/valid stream discovered from top-level ports."""
 

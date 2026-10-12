@@ -1241,6 +1241,52 @@ class RtlSources:
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
+class RtlSourceContract:
+    """Resolved RTL source contract for the active run design."""
+
+    design: str
+    top: str
+    root: Path
+    filelists: tuple[Path, ...]
+
+    @classmethod
+    def from_paths(cls, paths: "FlowPaths") -> "RtlSourceContract":
+        """Resolve IP vs SoC sources from authoritative run state."""
+
+        if (paths.run / "soc" / "plan.json").is_file():
+            return cls("soc", "soc", paths.run, (paths.rtl / "rtl.f",))
+        return cls("ip", paths.top, paths.run, (paths.rtl_common, paths.rtl_ip))
+
+    def require(self) -> "RtlSourceContract":
+        """Require every filelist declared by this resolved source contract."""
+
+        missing = tuple(path for path in self.filelists if not path.is_file())
+        if missing:
+            raise FileNotFoundError(
+                f"missing {self.design} RTL filelist(s): "
+                + ", ".join(str(path) for path in missing)
+            )
+        return self
+
+    def sources(self) -> tuple[Path, ...]:
+        """Expand source entries relative to the run root that owns the contract."""
+
+        sources: list[Path] = []
+        for filelist in self.filelists:
+            if not filelist.is_file():
+                continue
+            for raw in filelist.read_text(encoding="utf-8").splitlines():
+                item = raw.strip()
+                if not item or item.startswith(("#", "+", "-")):
+                    continue
+                path = Path(item).expanduser()
+                sources.append(
+                    path.resolve() if path.is_absolute() else (self.root / path).resolve()
+                )
+        return tuple(dict.fromkeys(sources))
+
+
+@dataclass(frozen=True, slots=True)
 class BackendContext:
     """Immutable inputs shared by backend flow objects."""
 
@@ -1260,6 +1306,12 @@ class BackendContext:
     def paths(self) -> "FlowPaths":
         """Return canonical non-technology and technology run paths."""
         return FlowPaths.from_values(self.project_root, self.workspace, self.values)
+
+    @property
+    def rtl_contract(self) -> RtlSourceContract:
+        """Return the resolved RTL contract owned by the active run design."""
+
+        return RtlSourceContract.from_paths(self.paths)
 
 
 class PdkManager:

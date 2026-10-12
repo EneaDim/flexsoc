@@ -140,6 +140,14 @@ optional check FAILED       -> preserved as negative evidence and may block
 
 For EQY specifically, runtime equivalence is not a mandatory automatic L3/L4 gate, but an explicitly executed `FAILED` result remains negative evidence from L3 upward.
 
+### 2.6 Toolchain resolution is inventory-first
+
+The native toolchain lock is the single version contract for FlexSoC-owned EDA tooling. Dependency installation must be inventory-first: before any network access or build, FlexSoC classifies each locked tool as exact in the current managed prefix, exact in an external host prefix, mismatched, or missing. User-mode installation may reuse an exact external tool; system/container installation must materialize the exact lock in the managed prefix. Only missing or mismatched tools may be fetched or rebuilt.
+
+Yosys, SymbiYosys (SBY), and EQY form one compatibility family. They must resolve to the same locked release generation and installation prefix; a mismatch in any member causes the complete family to be installed together. This avoids loading EQY plugins against a different Yosys build or running SBY against an unqualified Yosys generation.
+
+The Docker image consumes the same `toolchain.lock`; it is a reproducible system-mode materialization, not a second tool-version source. A toolchain generation is promoted in two stages: first install and qualify the native user-mode generation, then let `.github/workflows/toolchain-image.yml` build, verify, publish, and freeze the Docker image from the same lock in GitHub Actions. OpenROAD-flow-scripts remains independently pinned by its ORFS/OpenROAD revisions and must not silently inherit the host Yosys merely for version uniformity.
+
 ---
 
 ## 3. Release levels
@@ -570,12 +578,17 @@ The first simulation milestone is likewise an action of the same `SocFlow`: `fx 
 
 SoC DV reuses the same generated functional-test contract as IP DV instead of maintaining a parallel simulator harness. The SoC owns `<run>/dv/functional/tb`, `<run>/dv/functional/tests`, `<run>/dv/functional/model`, and `<run>/dv/functional/sim`. Tests belonging to component IPs remain qualification evidence for those IP releases and are not copied into the SoC test namespace. The SoC tests qualify the resolved composition.
 
-Each SoC functional test lives under `dv/functional/tests/<test>/`. Vector-driven tests use `config.regs`, `data_in.vec`, and `data_out.vec` with the shared FlexSoC tokenizer/driver/monitor semantics; `@wait` advances a test to an explicit cycle without inventing a dummy signal drive. CPU-driven tests use the same test directory and may additionally contain a `sw/` source tree (`.c`/`.S` and test-local support sources). Software build outputs such as ELF/bin/VMEM files are generated artifacts, not maintained test inputs. The software build step is owned by the SoC subsystem, derives linker/memory information from the same `SoCPlan`, and presents a simulator-specific VMEM projection to the RTL SRAM while preserving the ELF as the canonical compiled program artifact; compiler invocation and workload policy do not belong in the SystemVerilog testbench. A test may therefore be vector-only, software-driven, or combine software execution with externally driven/checkable vectors without changing the DV layout.
+Each SoC functional catalogue lives at `dv/functional/model/tests.py`, mirroring the existing IP model where one Python file owns many named scenarios. `fx tests_gen` materializes the catalogue and `fx test_gen --set TEST_NAME=<name>` materializes one scenario under `dv/functional/tests/<name>/`. Python owns only verification intent and generated `config.regs`, `data_in.vec`, and `data_out.vec`; firmware remains real C/assembly under each test's `sw/` directory and is never embedded as Python strings. Test-specific SystemVerilog hooks are not part of the contract: IP and SoC tests reuse the same generated SystemVerilog/cocotb testbench structure and vector engine. All test collateral belongs to the workspace/package, not the backend.
 
-M0 `boot_smoke` reserves one word immediately below the software stack as a test-status location. The C program writes a fixed PASS signature there and then sleeps. The generated SoC TB watches the SoC-owned SRAM request/write signals and requires that signature before declaring PASS. This is stronger than a cycle timeout: it proves reset-vector alignment, instruction fetch, compiled C execution, the Ibex data path through TL-UL, and an SRAM write using the same address map that produced the linker script. The monitor intentionally stops at the SoC-owned SRAM boundary rather than reaching into a vendor RAM implementation hierarchy. The runtime log must emit explicit boot evidence (entry, reset PC, status address, expected/observed magic, and observation cycle) before the generic test PASS line, so CI evidence is understandable without reverse-engineering the testbench.
+Vector-driven tests keep the shared FlexSoC tokenizer/driver/monitor semantics. `@wait` advances to an explicit cycle. CPU-driven tests may additionally use `@wait_event`: the test-owned `tb_wait_event()` hook waits for a named firmware event and the following input-vector cycle numbers restart relative to that barrier. This prevents external stimulus from depending on guessed CPU latency. Fixed-cycle output checks should not span such a barrier; CPU-latency-dependent results use guarded/event-driven checks or a test-owned monitor. A test may therefore be vector-only, software-driven, or combine software execution with externally driven/checkable vectors without creating a second CPU-DV category.
 
-The generated SoC testbench remains data-driven: it owns clock/reset generation, loads `config.regs`, interprets `.vec` commands, checks expected outputs, and produces the waveform. Simulator-specific mechanics stay behind FuseSoC/Verilator. No standalone legacy `top_verilator.*` harness is part of the canonical SoC package.
-For Verilator, the generated self-contained `soc_tb` is compiled through FuseSoC using the supported `cc` backend mode plus Verilator `--main`; the generated main only runs the SystemVerilog testbench runtime and does not own FlexSoC test semantics. Simulation builds use Verilator `-Wno-fatal`: warnings remain visible diagnostic evidence in the build log, but warning count alone must not fail a SoC simulation build; real tool errors and nonzero execution failures remain blocking. The Verilator simulation target also declares the native libelf link dependency explicitly through Verilator `-LDFLAGS -lelf`, because lowRISC `memutil_dpi` uses libelf to load ELF images; native link dependencies belong in the EDA metadata, not in Python orchestration.
+`config.regs` remains the register-setup description generated by the Python scenario. For an IP test the existing verification transport can apply it directly. For a CPU-driven SoC, a non-empty configuration must have an explicit legitimate executor (normally CPU MMIO, or a declared external/debug host); the testbench must not gain an implicit backdoor bus master. The current UART CPU smoke therefore leaves `config.regs` empty and configures UART from firmware. A future CPU-config projection may translate the same symbolic setup into a firmware-consumed table, but it must preserve this ownership rule rather than duplicate configuration intent.
+
+Software build outputs such as ELF/bin/VMEM files are generated artifacts, not maintained test inputs. The software build step is owned by the SoC subsystem, publishes the `SoCPlan` memory map to the test software, and presents a simulator-specific VMEM projection to the RTL SRAM while preserving the ELF as the canonical compiled program artifact; application behavior remains entirely test-owned.
+
+The test-status word immediately below the software stack is a verification mailbox, not a functional CSR. Firmware may publish progress events there (for example `READY_RX`) and a final PASS signature. The SoC design contract exposes writes from the SoC-owned SRAM request boundary as one generic functional-DV event stream (`valid`, `value`, sequence); the shared SystemVerilog and cocotb vector engines consume that event source without knowing firmware event names or test semantics. This event/mailbox protocol makes cause/effect explicit: firmware publishes readiness, external vectors execute, externally visible behavior is checked, then firmware publishes completion.
+
+The generated functional testbench remains data-driven and shared across IP/SoC, single-clock/multi-clock and SystemVerilog/cocotb backends: it owns clock/reset generation, loads `config.regs`, interprets `.vec` commands, checks expected outputs, and produces the waveform. Cycle-vector input and output interpreters run concurrently. `@wait_event <label> <value> [timeout]` and `@wait_signal <signal> <value> [timeout]` are generic barriers that restart the following numeric timeline relative to the observed cause, avoiding guessed CPU latency. Native Verilator compilation consumes the authoritative `run/rtl/rtl.f`; FuseSoC is not part of the runtime-authoritative build/simulation path. Simulation builds use Verilator `-Wno-fatal`: warnings remain visible diagnostic evidence, while real tool errors and nonzero execution failures remain blocking.
 
 As later milestones mature, the same `SoCPlan` should also drive or constrain:
 
@@ -656,7 +669,7 @@ SoC software binding is generated from `SoCPlan`: `sw/include/soc_memory_map.h` 
 
 ### M1 — UART
 
-The M1 functional acceptance test is CPU-driven and pin-observed. `uart_smoke` compiles source-first firmware that programs the UART through MMIO at the address resolved by `SoCPlan`, transmits byte `0x55`, waits for TX idle, and writes a distinct firmware PASS signature to SRAM. The SoC testbench must independently decode the serial frame on the external `tx_o` pin and require both the decoded byte and the firmware signature before declaring PASS. Observing only a software signature or only an internal UART transaction is insufficient M1 evidence.
+The M1 functional acceptance test is CPU-driven and pin-observed. `uart_smoke` compiles source-first firmware that programs the UART through MMIO at the address resolved by `SoCPlan`; the firmware publishes readiness, receives an externally injected UART byte, echoes it through the UART TX path, and publishes completion. The shared vector engine synchronizes to firmware events and to the external `tx_o` start bit, then checks the serialized frame through ordinary `data_out.vec` expectations. Observing only a software signature or only an internal UART transaction is insufficient M1 evidence.
 
 After M0 compiles and boots reproducibly, add the qualified UART release through the same plan and fabric path. A reusable interface release is self-contained with respect to repository-local RTL: it carries its EDA integration contract (`<ip>.core`) beside `ip.json`, RTL, CSR, drivers, qualification evidence, and frozen repo-local dependencies under `rtl/deps/`. Pinned third-party RTL stays external only through explicit FuseSoC VLNV dependencies recorded in `rtl/fusesoc_deps.txt` and `<ip>.core`. `ip_save` rewrites canonical filelists to release-relative paths and generates the core from that frozen contract; `ip_load` stages the release unchanged into `<run>/ips/<name>/` and rejects filelists that escape the staged package. The SoC gives FuseSoC only the run root plus explicit pinned vendor roots required by the composition; it never scans the global `hw/ips` catalog and never depends on the legacy `ips:dependecies:all` aggregate core. Checkout-local mirrors of pinned third-party RTL are not release-owned sources: `ip_save` maps them back to their owning FuseSoC VLNV dependencies instead of freezing duplicate copies. Only FlexSoC-owned RTL is copied under `rtl/deps/flexsoc/`.
 
@@ -708,6 +721,24 @@ This SoC becomes the reference for later AXI-Lite and multi-CPU work.
 - M2: add GPIO and RV timer;
 - M3: complete SoC qualification;
 - keep `SoCPlan` as the single semantic source of truth and `plan.json` as its resolved artifact.
+
+### Cross-cutting DV roadmap — reusable cocotb interface utilities / VIP
+
+The generated cocotb testbench should progressively support reusable protocol utilities and verification IP without turning protocol-specific behavior into a second testbench framework. The current TL-UL flow remains the primary SoC path; this capability is a forward-looking extension for larger systems and additional external interfaces.
+
+The intended model is:
+
+- keep one generated cocotb lifecycle for IP and SoC, single-clock and multi-clock designs;
+- keep `TestbenchModel` as the shared structural source for clocks, resets, ports, register transports, and stream discovery;
+- allow optional Python-side interface helpers to bind reusable master/slave, source/sink, RAM/model, and monitor components to interfaces already represented by the design contract;
+- prefer maintained ecosystem VIP over reimplementing standard protocols inside FlexSoC;
+- keep every external VIP dependency explicit, pinned, optional, and activated only when the corresponding protocol is used;
+- do not require AXI/APB/Ethernet/PCIe packages for the current TL-UL-only flow;
+- preserve the existing vector/regression path as the generic baseline even when richer cocotb VIP is available.
+
+AXI-Lite is the first planned standard-bus integration for this capability because it is also the next fabric profile. A first implementation should evaluate `cocotbext-axi` for AXI/AXI-Lite/AXI-Stream/APB utilities, including bus binding, masters/slaves, stream source/sink components, and memory models. Later protocols such as AHB, UART, Ethernet, and PCIe should be added only when a real FlexSoC design requires them and after selecting maintained compatible libraries.
+
+The generated cocotb scaffold already has the necessary architectural insertion point: FlexSoC emits a local Python testbench package, adds it to `PYTHONPATH`, and generates register-transport-specific helpers separately from the common test lifecycle. Therefore no new public command or parallel testbench hierarchy is required. Future VIP support should extend that package with small optional interface bindings/factories rather than create protocol-specific `*Testbench` classes.
 
 ### Phase 3 — AXI-Lite fabric
 
@@ -804,6 +835,8 @@ The initial architecture is intentionally based on existing maintained open-sour
 - OpenTitan TL-UL documentation: https://opentitan.org/book/hw/ip/tlul/index.html
 - PULP `register_interface` — generic register interface and protocol adapters: https://github.com/pulp-platform/register_interface
 - PULP `axi` — AXI/AXI-Lite interconnect and adapters: https://github.com/pulp-platform/axi
+- cocotb `cocotb-bus` — reusable Python testbench components and bus interfaces: https://github.com/cocotb/cocotb-bus
+- `cocotbext-axi` — cocotb AXI/AXI-Lite/AXI-Stream/APB masters, slaves, streams, and memory models: https://github.com/alexforencich/cocotbext-axi
 - Ibex documentation — native instruction/data memory interface: https://ibex-core.readthedocs.io/
 - CVA6 documentation — AXI-native application-class RISC-V core: https://docs.openhwgroup.org/projects/cva6-user-manual/
 - VexRiscv: https://github.com/SpinalHDL/VexRiscv
@@ -863,29 +896,27 @@ closure; FlexSoC owns the source roots, tool invocation, output file list and
 subsequent qualification targets. FuseSoC is not involved in this resolution.
 
 For the native SoC flow, lowRISC virtual primitives are no longer selected by
-FuseSoC. FlexSoC deterministically materializes the pinned
-`vendor/lowrisc_ip/ip/prim_generic/rtl/prim_generic_*.sv` implementations into
-the run as `rtl/prim_generic/prim_*.sv`, preserving the generic implementation
-body while exposing the abstract module names consumed by Ibex and OpenTitan
-IP. Slang sees that run-local primitive root before the vendor roots and trims
-the actually elaborated primitive closure. Host-specific preprocessor contract
-is explicit as well: the Ibex tracing host enables `RVFI` during source
-resolution, and that define is emitted into the final `rtl/rtl.f`.
+FuseSoC and overlapping primitive libraries are never presented directly to
+Slang. FlexSoC materializes one run-local `rtl/prim_native` library with explicit
+precedence: frozen FlexSoC `hw/ips/prim_opentitan` sources win; pinned lowRISC
+`prim_generic` implementations fill missing abstract primitive names; concrete
+pinned lowRISC `ip/prim/rtl` sources and include headers fill only filenames that
+remain missing. The direct vendor `ip/prim/rtl` directory is therefore not a
+second Slang library root. This guarantees one owner per primitive definition
+while preserving access to lowRISC primitives that FlexSoC does not freeze.
 
-Native primitive ownership is centralized in `run/rtl/prim_native`. FlexSoC
-first copies its frozen `hw/ips/prim_opentitan/prim_*.sv` implementations into
-that library; only abstract primitives not provided there are filled from the
-pinned lowRISC `ip/prim_generic/rtl/prim_generic_*.sv` implementations. Staged
-IP-private copies under `rtl/deps/flexsoc/prim_opentitan` are excluded from the
-SoC ownership manifest so every primitive module has exactly one definition in
-the native closure.
-
-Native package ownership is centralized in `run/rtl/pkgs_native`, materialized
-from the frozen FlexSoC `hw/ips/pkgs` library. `top_pkg.sv` is an explicit first
+Native package ownership follows the same rule in `run/rtl/pkgs_native`.
+FlexSoC-owned `hw/ips/pkgs` files win and missing pinned lowRISC `*_pkg.sv`
+packages are copied from `ip/prim/rtl`. `top_pkg.sv` remains the explicit first
 package seed for Slang and for the final `rtl/rtl.f`, ahead of dependent
 packages such as `tlul_pkg.sv`. Staged release-private copies under
-`rtl/deps/flexsoc/pkgs` are excluded from the SoC ownership manifest so package
-definitions have one canonical owner and deterministic compile order.
+`rtl/deps/flexsoc/prim_opentitan` and `rtl/deps/flexsoc/pkgs` remain excluded
+from the SoC ownership manifest.
+
+The normal Ibex SoC instantiates `ibex_top` and resolves its native closure with
+`SYNTHESIS`; RVFI/tracing is verification/debug collateral to be enabled
+explicitly by a future tracing feature rather than an implicit requirement of
+the production SoC source closure.
 
 ### Native SoC Verilator execution
 
@@ -898,13 +929,63 @@ be hidden by stale compiled collateral. FuseSoC core files may still be emitted
 for interoperability, but FuseSoC is not part of the authoritative SoC build or
 simulation execution path.
 
-Native SoC lint reuses the canonical IP lint evidence pipeline. When a resolved
-`rtl/rtl.f` exists, `fx lint` runs the existing Slang and Verilator lint passes
-against that single native SoC source closure with RTL top `soc`; otherwise the
-IP contract remains `rtl_common.f + rtl_ip.f`. The same normalized diagnostics,
+Generic RTL-consuming flows resolve one active `RtlSourceContract` from run state.
+`run/soc/plan.json` selects the SoC contract (`top=soc`, `rtl/rtl.f`); without a
+resolved SoC plan the IP contract remains (`top=<TOP>`,
+`rtl/rtl_common.f + rtl/rtl_ip.f`). Presence of an unrelated or stale `rtl.f`
+alone never changes design identity. Both contracts own the active run root as
+the base for relative filelist entries. Lint and CDC/RDC already consume this
+shared contract; formal and synthesis should migrate to the same resolver rather
+than grow independent IP/SoC path selection.
+
+Native SoC lint therefore reuses the canonical IP lint evidence pipeline while
+changing only the resolved source contract. The same normalized diagnostics,
 P0-P3 priority policy, per-tool summaries and aggregated `dv/lint/summary.json`
 are used for both IP and SoC. No SoC-specific lint reporter or severity policy
 exists.
+
+Filelist paths are interpreted from the active run root. Slang, Verilator and
+CDC/RDC structural extraction therefore execute with `run/` as their command
+working directory while still flowing through
+`CommandRequest -> ToolRunner -> Executor`. This keeps `rtl/...` and `ips/...`
+entries portable and prevents the repository checkout or `dv/cdc_rdc/` from
+becoming accidental second path roots. Verilator lint, like Slang lint, defines
+`SYNTHESIS` so upstream RTL does not pull verification-only coverage macros into
+the synthesis-oriented lint closure.
+
+For Ibex SoCs the first-class design instantiates upstream `ibex_top`; the
+`ibex_top_tracing` wrapper is simulation/debug collateral and is not part of the
+normal SoC RTL closure. Structural CDC/RDC extraction consumes the same
+authoritative `rtl.f` but applies a tool projection (`SYNTHESIS`, assertions
+ignored, initial procedures ignored) rather than generating a second CDC
+filelist. This keeps simulation-only initialization such as memory loaders out
+of the structural graph without creating another source of truth.
+
+The pinned Ibex checkout remains pristine upstream source. FlexSoC does not patch
+`ibex_top.sv` to accommodate a particular frontend. Tool-specific SystemVerilog
+compatibility belongs to the generated structural/tool projection; any future
+upstream patch must be justified independently and tied explicitly to the pinned
+revision.
+
+### SoC functional-software ownership
+
+CPU-driven functional tests are workspace/package content, not backend content.
+FlexSoC does not own application-specific firmware such as `uart_smoke/main.c`,
+startup code, linker scripts, or test Makefiles. A selected test may provide
+`dv/functional/tests/<test>/sw/`; when present, the generic SoC DV mechanism
+runs that test-owned Makefile through `CommandRequest -> ToolRunner -> Executor`,
+requires `build/main.elf` and `build/main.bin`, derives `build/main.vmem`, and
+passes the ELF/VMEM artifacts to the normal functional simulation. If `sw/` is
+absent, the same functional-DV path runs as a pure external-vector test.
+
+The generated `sw/include/soc_memory_map.h` remains a framework projection of
+`SoCPlan`; it is mechanism, not application policy. Test-specific register
+programming, UART behavior, signatures, linker layout, firmware source, and vectors
+stay with the SoC workspace/package. Test-specific SystemVerilog hooks are not
+part of the contract: observation and synchronization are expressed through the
+shared vector engine and the design-owned event boundary. Development fixtures
+under `tests/fixtures/soc/` are copied explicitly into the run workspace and are
+not staged by production code.
 
 ### Active run design state
 

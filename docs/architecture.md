@@ -187,8 +187,8 @@ Before merging a CLI/backend change, verify at minimum:
 ```bash
 uv run ruff check src tests
 uv run python -m compileall -q src tests
-uv run pytest -q tests/test_api.py
-uv run pytest --collect-only -q tests/test_e2e_fx.py
+uv run pytest -q tests/regression/test_api.py
+uv run pytest --collect-only -q tests/e2e/test_fx.py
 ```
 
 Run real EDA only when the changed contract can affect tool execution or generated collateral. Never infer an EDA PASS from Python tests alone.

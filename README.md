@@ -285,29 +285,29 @@ A run is isolated by `RUN_TOP` and `RUN_ID`:
 Run the public API/CLI contract tests:
 
 ```bash
-uv run pytest -q tests/test_api.py
+uv run pytest -q tests/regression/test_api.py
 ```
 
 Run complete generated flows:
 
 ```bash
-uv run pytest -s tests/test_e2e_fx.py --e2e-mode full
+uv run pytest -s tests/e2e/test_fx.py --e2e-mode full
 ```
 
 Retain E2E workspaces while debugging:
 
 ```bash
-uv run pytest -s tests/test_e2e_fx.py --e2e-mode full --e2e-root ~/flexsoc-e2e
+uv run pytest -s tests/e2e/test_fx.py --e2e-mode full --e2e-root ~/flexsoc-e2e
 ```
 
 Stop after formal checks:
 
 ```bash
-uv run pytest -s tests/test_e2e_fx.py --e2e-mode formal --e2e-root ~/flexsoc-e2e
+uv run pytest -s tests/e2e/test_fx.py --e2e-mode formal --e2e-root ~/flexsoc-e2e
 ```
 
 Run through synthesis/post-synthesis sign-off and stop before PnR:
 
 ```bash
-uv run pytest -s tests/test_e2e_fx.py --e2e-mode pre-pnr --e2e-root ~/flexsoc-e2e
+uv run pytest -s tests/e2e/test_fx.py --e2e-mode pre-pnr --e2e-root ~/flexsoc-e2e
 ```

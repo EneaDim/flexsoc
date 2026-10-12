@@ -1,0 +1,2515 @@
+from __future__ import annotations
+
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+import hashlib
+import json
+import os
+import shlex
+import shutil
+import subprocess
+import tempfile
+from typing import Iterator
+
+import pytest
+
+from flexsoc.backend.design.ip.model import SHARED_VECTOR_TESTS
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_RUN_ID = "dev"
+DEFAULT_HOST = "uart"
+SINGLE_CLOCK_DOMAINS = "core:clk_i:rst_ni:10:low"
+MULTI_CLOCK_DOMAINS = (
+    "cfg:cfg_clk_i:cfg_rst_ni:20:low,"
+    "rx:rx_clk_i:rx_rst_ni:16:low,"
+    "dsp:dsp_clk_i:dsp_rst_ni:30:low"
+)
+MULTI_CLOCK_RELATIONSHIPS = "async:cfg:rx,async:cfg:dsp,async:rx:dsp"
+RTL_SOURCE_SUFFIXES = {".sv", ".svh", ".v", ".vh"}
+SDF_GLS_MODES = {"min", "typ", "max"}
+SAVED_IP_CUSTOM_TESTS = {
+    "cordic": ("smoke_zero", "rotate_45deg", "quadrant_sweep", "random_small"),
+    "uart": ("line_loopback", "rx_fifo", "noise_filter", "parity_reconfig"),
+}
+SAVED_IP_VERSIONS = {"uart": "1.0.0"}
+AMBIENT_FX_SETTING_KEYS = (
+    "TOP", "RUN_TOP", "RUN_ID", "HOST", "WORKSPACE", "RUN_ROOT", "PDK",
+    "N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS", "REG_ITF", "IP_VERSION", "CLK_PERIOD", "FORCE",
+    "GLS_SIMULATOR", "WAVE_FORMAT", "TIMING_MODE", "FST2VCD", "GLS_BACKEND",
+    "GLS_UNIT_DELAY", "SDF_STRICT", "SIGNOFF_STAGE", "SYN_DIR", "EQUIV_DIR", "IMPL_DIR",
+)
+
+REG_ITFS = ("tlul", "reg_iface", "axi_lite")
+
+SCAFFOLD_GLS_BACKEND = "sv"
+SCAFFOLD_GLS_TIMING_MODES = ("min", "typ", "max")
+SINGLE_CLOCK_GLS_TESTS = ("smoke", "corners", "reconfig")
+MULTI_CLOCK_GLS_TESTS = ("mac_smoke", "corners", "clock_gate")
+
+
+@dataclass(frozen=True, slots=True)
+class E2EConfig:
+    """E2E depth and technology controls shared by both technology branches."""
+
+    run_signoff: bool
+    run_post_syn: bool
+    run_pnr: bool
+    gls_mode: str
+    gls_backend: str
+    ors: Path | None
+
+
+def _one_value(
+    request: pytest.FixtureRequest,
+    option: str,
+    environment: str,
+    default: str,
+) -> str:
+    """Resolve one scalar E2E option and reject hidden comma-separated sweeps."""
+
+    raw = str(request.config.getoption(option) or os.environ.get(environment, default))
+    values = [value.strip() for value in raw.split(",") if value.strip()]
+    if len(values) != 1:
+        raise pytest.UsageError(
+            f"{option} accepts exactly one value per pytest run; use the CI matrix "
+            "to run multiple configurations"
+        )
+    return values[0]
+
+
+def _e2e_config(request: pytest.FixtureRequest) -> E2EConfig:
+    """Return technology-dependent E2E controls for the selected qualifying flows."""
+
+    mode = _one_value(request, "e2e_gls_modes", "FLEXSOC_E2E_GLS_MODES", "typ")
+    backend = _one_value(request, "e2e_gls_backends", "FLEXSOC_E2E_GLS_BACKENDS", "sv")
+    if mode not in {"zero", "unit", "min", "typ", "max"}:
+        raise pytest.UsageError(f"unsupported E2E GLS timing mode: {mode}")
+    if backend not in {"sv", "cocotb"}:
+        raise pytest.UsageError(f"unsupported E2E GLS backend: {backend}")
+    e2e_mode = _one_value(request, "e2e_mode", "FLEXSOC_E2E_MODE", "full")
+    if e2e_mode not in {"formal", "pre-pnr", "full"}:
+        raise pytest.UsageError(f"unsupported E2E mode: {e2e_mode}")
+    run_signoff = e2e_mode != "formal"
+    run_post_syn = run_signoff and not bool(request.config.getoption("--no-post-syn-gls"))
+    run_pnr = e2e_mode == "full"
+    ors = _e2e_ors(request) if run_pnr else None
+    return E2EConfig(run_signoff, run_post_syn, run_pnr, mode, backend, ors)
+
+
+def _e2e_ors(request: pytest.FixtureRequest) -> Path:
+    """Return the configured ORFS flow root without touching external tools."""
+
+    configured = request.config.getoption("--e2e-ors") or os.environ.get("FLEXSOC_E2E_ORS")
+    if configured:
+        return Path(configured).expanduser().resolve()
+
+    embedded = os.environ.get("ORFS_ROOT")
+    if embedded:
+        root = Path(embedded).expanduser().resolve()
+        for candidate in (root, root / "flow"):
+            if (candidate / "Makefile").is_file():
+                return candidate
+        return root
+
+    return (Path.home() / "OpenROAD-flow-scripts" / "flow").resolve()
+
+
+def _e2e_root(request: pytest.FixtureRequest) -> Path:
+    """Return the base directory used for isolated E2E workspaces."""
+
+    configured = request.config.getoption("--e2e-root") or os.environ.get("FLEXSOC_E2E_ROOT")
+    root = Path(configured or "/tmp").expanduser().resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _require_active_venv() -> None:
+    """Require E2E commands to use the explicitly activated project virtualenv."""
+
+    venv = os.environ.get("VIRTUAL_ENV")
+    fx = shutil.which("fx")
+    expected = Path(venv) / "bin" / "fx" if venv else None
+    if expected is None or fx is None or Path(fx).resolve() != expected.resolve():
+        pytest.fail("FlexSoC E2E requires an active venv; run: source .venv/bin/activate")
+
+
+def _fx_subprocess_env() -> dict[str, str]:
+    """Return an environment that cannot override workspace-local fx settings."""
+
+    environment = os.environ.copy()
+    for key in AMBIENT_FX_SETTING_KEYS:
+        environment.pop(key, None)
+        environment.pop(f"FLEXSOC_{key}", None)
+    return environment
+
+
+def _recent_logs(top: str, run_id: str, workspace: Path, limit: int = 8) -> list[Path]:
+    """Return the most recently modified logs for one run."""
+
+    root = workspace / "runs" / top / run_id / "logs"
+    if not root.exists():
+        return []
+    logs = [path for path in root.rglob("*") if path.is_file()]
+    return sorted(logs, key=lambda path: path.stat().st_mtime)[-limit:]
+
+
+def _dump_recent_logs(top: str, run_id: str, workspace: Path) -> None:
+    """Print recent log paths and the tail of the newest log after a failure."""
+
+    logs = _recent_logs(top, run_id, workspace)
+    print(f"\n[debug] recent logs for TOP={top} RUN_ID={run_id}", flush=True)
+    if not logs:
+        print("[debug] no logs found", flush=True)
+        return
+    for log in logs:
+        print(f"  {log}", flush=True)
+    latest = logs[-1]
+    print(f"\n[debug] tail -120 {latest}", flush=True)
+    try:
+        lines = latest.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        print(f"[debug] could not read {latest}: {exc}", flush=True)
+        return
+    for line in lines[-120:]:
+        print(line, flush=True)
+
+
+def _assert_e2e_ip_save_isolated(argv: list[str]) -> None:
+    """Require every E2E ip_save to target a non-repository library root."""
+
+    if "ip_save" not in argv:
+        return
+    settings = [
+        argv[index + 1]
+        for index, token in enumerate(argv[:-1])
+        if token == "--set"
+    ]
+    roots = [item.split("=", 1)[1] for item in settings if item.startswith("IP_LIBRARY_ROOT=")]
+    assert len(roots) == 1, "E2E ip_save must set exactly one IP_LIBRARY_ROOT"
+    target = Path(roots[0]).expanduser().resolve()
+    repository_library = (REPO_ROOT / "hw" / "ips").resolve()
+    assert target != repository_library and not target.is_relative_to(repository_library), (
+        f"E2E ip_save must not write repository IPs: {target}"
+    )
+
+
+def _run(
+    command: str,
+    *,
+    workspace: Path,
+    top: str | None = None,
+    run_id: str = DEFAULT_RUN_ID,
+    required: bool = True,
+    expected_error: str | None = None,
+) -> bool:
+    """Print and execute exactly one complete command written in the test body."""
+
+    print(f"\n>>> {command}", flush=True)
+    argv = shlex.split(command)
+    if argv and argv[0] == "fx":
+        _require_active_venv()
+    _assert_e2e_ip_save_isolated(argv)
+    completed = subprocess.run(
+        argv,
+        cwd=REPO_ROOT,
+        check=False,
+        env=_fx_subprocess_env(),
+        capture_output=expected_error is not None,
+        text=expected_error is not None,
+    )
+    if expected_error is not None:
+        output = (completed.stdout or "") + (completed.stderr or "")
+        print(output, end="" if output.endswith("\n") else "\n", flush=True)
+        if completed.returncode != 0 and expected_error in output:
+            return True
+        pytest.fail(f"{command} did not fail with expected diagnostic: {expected_error}")
+    if completed.returncode == 0:
+        return True
+    if top is not None:
+        _dump_recent_logs(top, run_id, workspace)
+    message = f"{command} failed with exit code {completed.returncode}"
+    if required:
+        pytest.fail(message)
+    print(f"[non-blocking] {message}", flush=True)
+    return False
+
+
+def _assert_provenance_metric(run: Path, stage: str, expected: str) -> None:
+    metrics_paths = list((run / "meta").glob("*/metrics.json"))
+    assert len(metrics_paths) == 1, f"expected one active PDK metrics file: {metrics_paths}"
+    metrics = json.loads(metrics_paths[0].read_text(encoding="utf-8"))
+    assert metrics["provenance"]["stages"][stage] == expected
+
+
+def _assert_saved_scaffold_ip(
+    library_root: Path, top: str, reg_interface: str, pdk: str, *, run_pnr: bool,
+) -> None:
+    root = _saved_ip_interface(library_root, top, reg_interface)
+    spec = library_root / top / "spec"
+    assert all((spec / name).is_file() for name in ("ip.md", "requirements.yaml", "testplan.yaml")), (
+        f"missing common saved spec: {spec}"
+    )
+    assert (root / "meta" / pdk / "qualification.json").is_file(), (
+        f"missing saved qualification branch: {pdk}"
+    )
+    assert (root / "syn" / pdk).is_dir(), f"missing saved synthesis branch: {pdk}"
+    if run_pnr:
+        assert (root / "impl" / pdk).is_dir(), f"missing saved implementation branch: {pdk}"
+
+
+
+def _known_orfs_sky130_lvs_parser_failure(
+    *, summary: dict[str, object], ors_flow: Path, platform: str
+) -> bool:
+    """Return true only for the known upstream SKY130 CDL parser failure.
+
+    This is deliberately an E2E-only classifier.  Production physical sign-off keeps
+    returning non-zero and keeps LVS as missing; the E2E may continue collecting later
+    stages only when the exact upstream ORFS/KLayout failure is present.
+    """
+
+    if platform != "sky130hd":
+        return False
+    checks = summary.get("checks")
+    if not isinstance(checks, dict):
+        return False
+    lvs = checks.get("lvs")
+    if not isinstance(lvs, dict) or lvs.get("status") != "missing":
+        return False
+    log_value = lvs.get("log")
+    if not isinstance(log_value, str) or not log_value:
+        return False
+    log = Path(log_value)
+    if not log.is_file():
+        return False
+    text = log.read_text(encoding="utf-8", errors="replace")
+    signature = (
+        "Pin count mismatch between circuit definition and circuit call: "
+        "6 expected, got 7"
+    )
+    if signature not in text or "sky130hd.lylvs" not in text:
+        return False
+
+    platform_cdl = ors_flow / "platforms" / platform / "cdl" / f"{platform}.cdl"
+    if not platform_cdl.is_file():
+        return False
+    cdl = platform_cdl.read_text(encoding="utf-8", errors="replace")
+    return (
+        ".SUBCKT sky130_fd_sc_hd__macro_sparecell VGND VNB VPB VPWR LO" in cdl
+        and "XI1 VGND VNB VPB VPWR net59 LO / sky130_fd_sc_hd__conb_1" in cdl
+    )
+
+
+@contextmanager
+def _preserve_project_settings() -> Iterator[None]:
+    """Restore project-local settings after an E2E run."""
+
+    path = REPO_ROOT / ".flexsoc" / "settings.json"
+    existed = path.is_file()
+    original = path.read_bytes() if existed else b""
+    try:
+        yield
+    finally:
+        if existed:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(original)
+        else:
+            path.unlink(missing_ok=True)
+
+
+@contextmanager
+def _temporary_scaffold_ip_source(top: str) -> Iterator[None]:
+    """Remove repository-local scaffold source material after an E2E run."""
+
+    root = REPO_ROOT / "hw" / "ips" / top
+    assert not root.exists(), (
+        f"refusing to overwrite repository IP while running scaffold E2E: {root}"
+    )
+    try:
+        yield
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+@contextmanager
+def _temporary_workspace(prefix: str, root: Path) -> Iterator[Path]:
+    """Create one isolated workspace and always preserve it for inspection."""
+
+    workspace = Path(tempfile.mkdtemp(prefix=prefix, dir=root))
+    try:
+        yield workspace
+    finally:
+        print(f"[debug] retained workspace: {workspace}", flush=True)
+
+
+def _sha256(path: Path) -> str:
+    """Hash one source artifact used by an ip_load regression."""
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _repo_ip_interface(top: str, reg_interface: str) -> Path:
+    """Return one repository-owned frozen register-interface release root."""
+
+    root = REPO_ROOT / "hw" / "ips" / top
+    version = SAVED_IP_VERSIONS.get(top)
+    return (root / version if version else root) / "interfaces" / reg_interface
+
+
+def _saved_ip_interface(library_root: Path, top: str, reg_interface: str) -> Path:
+    """Return one saved frozen register-interface release root."""
+
+    root = library_root / top
+    version = SAVED_IP_VERSIONS.get(top)
+    return (root / version if version else root) / "interfaces" / reg_interface
+
+
+def _ip_protected_sources(top: str, profile: str) -> tuple[Path, ...]:
+    """Return authored HJSON, RTL, and model artifacts that must stay immutable."""
+
+    root = _repo_ip_interface(top, profile)
+    csr = root / "csr"
+    protected = [*sorted(csr.rglob("*.hjson"))]
+    protected.extend(
+        sorted(
+            path
+            for path in (root / "rtl").rglob("*")
+            if path.is_file() and path.suffix.lower() in RTL_SOURCE_SUFFIXES
+        )
+    )
+    model = root / "dv" / "functional" / "model"
+    derived_model = model / f"{top}_regmap.py"
+    protected.extend(
+        sorted(
+            path
+            for path in model.rglob("*")
+            if path.is_file()
+            and path != derived_model
+            and "__pycache__" not in path.parts
+            and path.suffix not in {".pyc", ".pyo"}
+        )
+    )
+    if not protected:
+        raise AssertionError(f"invalid {top} source layout: no protected sources")
+    return tuple(protected)
+
+
+def _validate_ip_layout(top: str, profile: str) -> None:
+    """Check one saved interface release without launching a hidden subprocess."""
+
+    root = _repo_ip_interface(top, profile)
+    csr_dir = "csr"
+    manifest = json.loads((root / "ip.json").read_text(encoding="utf-8"))
+    assert "profile" not in manifest
+    assert manifest["reg_interface"] == profile
+    required_dirs = (
+        csr_dir, "doc", "sw/drivers", "rtl", "dv/functional/model",
+        "dv/functional/tests", "dv/functional/tb/sv", "dv/functional/tb/cocotb",
+        "dv/formal/properties/prove", "dv/formal/properties/cover",
+        "constraints", "syn/sky130", "signoff/sky130/post_syn/equivalence",
+    )
+    required_files = (
+        f"{csr_dir}/{top}.hjson", f"doc/{top}.md", f"doc/{top}_interfaces.md",
+        f"sw/drivers/{top}.c", f"sw/drivers/{top}.h", f"rtl/{top}.sv",
+        f"rtl/{top}_core.sv", "rtl/rtl_common.f", "rtl/rtl_ip.f",
+        f"dv/functional/model/{top}_model.py",
+        f"dv/functional/model/{top}_regmap.py",
+        f"dv/functional/model/{top}_tests.py",
+        "dv/functional/model/README.md",
+        f"dv/formal/properties/prove/{top}_prove.sv",
+        f"dv/formal/properties/cover/{top}_cover.sv",
+        "syn/sky130/synth.ys", "syn/sky130/synth_sv.ys",
+        "syn/sky130/abc.constr", "syn/sky130/delay1.abc",
+        f"constraints/{top}.sdc",
+    )
+    missing = [
+        path
+        for path in (
+            *(root / item for item in required_dirs),
+            *(root / item for item in required_files),
+        )
+        if not path.exists()
+    ]
+    assert not missing, f"invalid {top} IP structure; missing: {missing}"
+    implementation = root / "impl" / "sky130"
+    if implementation.exists():
+        assert implementation.is_dir()
+        assert (implementation / "config.mk").is_file(), (
+            f"invalid optional {top} implementation branch: {implementation}"
+        )
+    vector_names = {
+        path.name for path in (root / "dv" / "functional" / "tests").iterdir()
+        if path.is_dir()
+    }
+    expected = {*SHARED_VECTOR_TESTS, *SAVED_IP_CUSTOM_TESTS[top]}
+    assert vector_names == expected, f"unexpected saved {top} vectors: {sorted(vector_names)}"
+
+
+@contextmanager
+def _protect_ip_sources(top: str, profile: str) -> Iterator[dict[Path, str]]:
+    """Fail if ip_load/ip_save changes the repository-owned IP package."""
+
+    _validate_ip_layout(top, profile)
+    package_root = REPO_ROOT / "hw" / "ips" / top
+    snapshot = {path: _sha256(path) for path in _ip_protected_sources(top, profile)}
+    package_snapshot = {
+        path.relative_to(package_root): _sha256(path)
+        for path in sorted(package_root.rglob("*"))
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
+    }
+    yield snapshot
+    changed = [path for path, digest in snapshot.items() if _sha256(path) != digest]
+    current_package = {
+        path.relative_to(package_root): _sha256(path)
+        for path in sorted(package_root.rglob("*"))
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
+    }
+    assert current_package == package_snapshot, (
+        f"{top} package changed during E2E; ip_save must use IP_LIBRARY_ROOT"
+    )
+    assert not changed, f"{top} source artifacts changed during ip_load E2E: {changed}"
+
+
+def _seed_saved_ip_library(library_root: Path, top: str) -> None:
+    """Clone the package so ip_save updates only a disposable E2E library."""
+
+    shutil.copytree(REPO_ROOT / "hw" / "ips" / top, library_root / top)
+
+
+def _assert_loaded_sources_match(
+    top: str, profile: str, run_id: str, workspace: Path, snapshot: dict[Path, str]
+) -> None:
+    """Verify loaded authored HJSON, RTL, and model files remain byte-identical."""
+
+    source_root = _repo_ip_interface(top, profile)
+    run_root = workspace / "runs" / top / run_id
+    changed = []
+    for source, digest in snapshot.items():
+        loaded = run_root / source.relative_to(source_root)
+        if not loaded.is_file() or _sha256(loaded) != digest:
+            changed.append(loaded)
+    assert not changed, f"{top} loaded authored sources changed: {changed}"
+
+
+def _assert_loaded_ip_tests(top: str, run_id: str, workspace: Path) -> None:
+    """Require the shared tests plus every saved-IP custom scenario."""
+
+    root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
+    expected = {*SHARED_VECTOR_TESTS, *SAVED_IP_CUSTOM_TESTS[top]}
+    actual = {path.name for path in root.iterdir() if path.is_dir()}
+    assert actual == expected, f"unexpected generated {top} tests: {sorted(actual)}"
+    for name in expected:
+        missing = [
+            file
+            for file in ("config.regs", "data_in.vec", "data_out.vec")
+            if not (root / name / file).is_file()
+        ]
+        assert not missing, f"incomplete {top}/{name} vectors: {missing}"
+
+
+def _seed_stale_tb_scaffold(run: Path) -> tuple[Path, Path]:
+    """Plant stale files that complete setup must remove from both backends."""
+
+    sv = run / "dv" / "functional" / "tb" / "sv" / "stale_loaded_ip.marker"
+    cocotb = run / "dv" / "functional" / "tb" / "cocotb" / "stale_loaded_ip.marker"
+    sv.write_text("stale\n", encoding="utf-8")
+    cocotb.write_text("stale\n", encoding="utf-8")
+    return sv, cocotb
+
+
+def _assert_tb_scaffolds_recreated(
+    markers: tuple[Path, Path], run: Path, top: str
+) -> None:
+    """Require both setup commands to replace their complete generated trees."""
+
+    assert not any(path.exists() for path in markers), (
+        f"stale loaded-IP scaffold survived setup: {markers}"
+    )
+    required = (
+        run / "dv" / "functional" / "tb" / "sv" / f"{top}_tb.sv",
+        run / "dv" / "functional" / "tb" / "sv" / "tlul_if.sv",
+        run / "dv" / "functional" / "tb" / "sv" / "drivers" /
+        f"{top}_vec_driver.svh",
+        run / "dv" / "functional" / "tb" / "cocotb" / f"{top}_tb.py",
+        run / "dv" / "functional" / "tb" / "cocotb" / f"{top}_tb.sv",
+        run / "dv" / "functional" / "tb" / "cocotb" / "drivers" /
+        "vec_driver.py",
+    )
+    missing = [path for path in required if not path.is_file()]
+    assert not missing, f"incomplete regenerated {top} testbench scaffold: {missing}"
+
+
+def _assert_functional_clock_driver(run: Path, top: str) -> None:
+    """Require both generated functional testbench frontends to exist."""
+
+    for path in (
+        run / "dv" / "functional" / "tb" / "sv" / f"{top}_tb.sv",
+        run / "dv" / "functional" / "tb" / "cocotb" / f"{top}_tb.py",
+    ):
+        assert path.is_file() and path.stat().st_size > 0, f"missing testbench artifact: {path}"
+
+def _assert_reset_driver_parity(run: Path, top: str, *, multiclock: bool) -> None:
+    """Require generated reset-driver collateral without inspecting implementation text."""
+
+    del top, multiclock
+    roots = (
+        run / "dv" / "functional" / "tb" / "sv" / "drivers",
+        run / "dv" / "functional" / "tb" / "cocotb" / "drivers",
+    )
+    for root in roots:
+        assert root.is_dir() and any(path.is_file() for path in root.iterdir()), (
+            f"missing reset-driver collateral: {root}"
+        )
+
+def _assert_coverage_outputs(coverage: Path) -> None:
+    """Require the canonical functional coverage outputs."""
+
+    for path in (coverage / "merged.dat", coverage / "summary.json"):
+        assert path.is_file() and path.stat().st_size > 0, f"missing coverage artifact: {path}"
+
+def _gls_scenario(mode: str) -> str:
+    """Return the scenario label used in SDF-backed GLS artifact names."""
+
+    return {"min": "ff", "typ": "tt", "max": "ss"}.get(mode, mode)
+
+
+def _assert_post_syn_report(
+    path: Path,
+    *,
+    top: str,
+    pdk: str,
+    test: str,
+    backend: str,
+    mode: str,
+) -> None:
+    """Require one selected post-synthesis GLS workload to pass."""
+
+    del top, pdk, test, backend, mode
+    assert path.is_file() and path.stat().st_size > 0, f"missing GLS report: {path}"
+    report = json.loads(path.read_text(encoding="utf-8"))
+    assert report.get("status") == "pass", f"GLS failed: {path}"
+
+def _scaffold_execution_settings(config: E2EConfig, tests: tuple[str, ...]) -> str:
+    """Return persistent settings matching the scaffold qualification policy."""
+
+    values = [
+        f"GLS_BACKEND={SCAFFOLD_GLS_BACKEND}",
+        f"TEST_NAMES={','.join(tests)}",
+        f"TIMING_MODES={','.join(SCAFFOLD_GLS_TIMING_MODES)}",
+        "SDF_STRICT=1",
+        f"POWER_TEST_NAMES={','.join(tests)}",
+        f"POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND}",
+        f"POWER_TIMING_MODES={','.join(SCAFFOLD_GLS_TIMING_MODES)}",
+    ]
+    if config.ors is not None:
+        values.append(shlex.quote(f"ORS={config.ors}"))
+    return " ".join(values)
+
+
+def _assert_scaffold_qualification(
+    *, run: Path, pdk: str, config: E2EConfig,
+) -> None:
+    """Check only user-visible scaffold qualification contracts."""
+
+    path = run / "meta" / pdk / "qualification.json"
+    assert path.is_file() and path.stat().st_size > 0, f"missing qualification report: {path}"
+    report = json.loads(path.read_text(encoding="utf-8"))
+    evidence = report.get("evidence", {})
+
+    assert report.get("contract") == "VALID", f"{pdk}: invalid scaffold contract"
+    assert report.get("levels", {}).get("2", {}).get("status") == "PASS", (
+        f"{pdk}: scaffold did not reach RTL qualification"
+    )
+    assert evidence.get("requirements_traceability") == "PASS"
+    assert evidence.get("cdc_rdc") == "PASS"
+
+    # Automatic scaffold E2E intentionally materializes EQY only; runtime is exercised per IP.
+    assert evidence.get("eqy") == "MISSING"
+
+    required = {"syn", "sdf", "sta", "power_estimate"}
+    if config.run_post_syn:
+        required.update({"sim_post_syn_all", "power_analysis_all", "fusion_analysis_all"})
+    if config.run_pnr:
+        required.update({"pnr", "sdf_post_impl", "sta_post_impl", "power_estimate_post_impl"})
+        if config.run_post_syn:
+            required.update({
+                "sim_post_impl_all",
+                "power_analysis_post_impl_all",
+                "fusion_analysis_post_impl_all",
+            })
+
+    missing = sorted(stage for stage in required if evidence.get(stage) != "PASS")
+    assert not missing, f"{pdk}: required scaffold flow stages not PASS: {missing}"
+
+    # Physical sign-off is reported but does not redefine STA/PnR closure.
+    physical = evidence.get("physical_signoff")
+    if config.run_pnr:
+        assert physical in {"PASS", "REVIEW", "FAILED"}, (
+            f"{pdk}: physical sign-off outcome missing: {physical}"
+        )
+    print(
+        f"[e2e] {pdk}: qualification L{report.get('maximum_level', 0)} "
+        f"EQY={evidence.get('eqy')} physical_signoff={physical}",
+        flush=True,
+    )
+
+def _slang_values(top: str, run: Path) -> tuple[str, str, str]:
+    """Return quoted Slang overrides; dependency roots come from generated filelists."""
+
+    rtl = run / "rtl"
+    return (
+        shlex.quote(f"SLANG_ROOT={rtl}"),
+        shlex.quote(f"SLANG_TOP_FILE={rtl / f'{top}.sv'}"),
+        shlex.quote("SLANG_SEARCH_ARGS="),
+    )
+
+
+def _assert_ast(run: Path) -> None:
+    """Require the AST emitted by the earlier visible slang_hier command."""
+
+    ast = run / "dv" / "slang_hier" / "ast.json"
+    assert ast.is_file() and ast.stat().st_size > 0, f"missing or empty Slang AST: {ast}"
+
+def _assert_cdc_rdc_outputs(top: str, run: Path) -> None:
+    """Require a closed CDC/RDC happy path from canonical summary evidence."""
+
+    del top
+    analysis = run / "dv" / "cdc_rdc"
+    for name in ("summary.json", "cdc_rdc.rpt"):
+        path = analysis / name
+        assert path.is_file() and path.stat().st_size > 0, f"missing CDC/RDC artifact: {path}"
+
+    summary = json.loads((analysis / "summary.json").read_text(encoding="utf-8"))
+    assert summary.get("status") == "pass", f"CDC/RDC did not close: {summary}"
+    for scope in ("cdc", "rdc", "setup", "glitch"):
+        counts = summary.get(scope, {})
+        blocking = {
+            key: int(counts.get(key, 0))
+            for key in ("review", "warnings", "errors")
+            if int(counts.get(key, 0))
+        }
+        assert not blocking, f"CDC/RDC {scope} findings require closure: {blocking}"
+    assert int(summary.get("verification_obligations", 0)) == 0, (
+        f"CDC/RDC verification obligations remain: {summary.get('verification_obligations')}"
+    )
+
+
+def _assert_design_formal_sources(top: str, run: Path) -> None:
+    """Require real designer-owned prove and cover sources."""
+
+    prove = run / "dv" / "formal" / "properties" / "prove" / f"{top}_prove.sv"
+    cover = run / "dv" / "formal" / "properties" / "cover" / f"{top}_cover.sv"
+    assert prove.is_file() and prove.stat().st_size > 0, f"missing formal prove scaffold: {prove}"
+    assert cover.is_file() and cover.stat().st_size > 0, f"missing formal cover scaffold: {cover}"
+
+
+def _assert_formal_complete(run: Path) -> None:
+    """Require CSR and design properties to close all formal stages."""
+
+    summary = json.loads((run / "dv" / "formal" / "summary.json").read_text(encoding="utf-8"))
+    counts = summary.get("counts", {})
+    assert summary.get("status") == "PASS", f"formal did not close: {summary}"
+    assert counts.get("passed") == counts.get("total") == 6, f"expected 6/6 formal PASS: {counts}"
+
+
+def _assert_pre_impl_ip_branch(top: str, run: Path, pdk: str) -> None:
+    """Require IP-load qualification to stop before EQY execution and PnR."""
+
+    assert (run / "syn" / pdk / f"{top}_synth.v").is_file()
+    assert (run / "signoff" / pdk / "sdf").is_dir()
+    assert (run / "signoff" / pdk / "sta").is_dir()
+    assert (run / "signoff" / pdk / "power").is_dir()
+    assert not (run / "logs" / "signoff" / pdk / "equivalence" / f"{top}_rtl_vs_syn.log").exists()
+    assert not (run / "logs" / "pnr" / pdk / f"{top}_pnr.log").exists()
+    metrics_path = run / "meta" / pdk / "metrics.json"
+    manifest_path = run / "meta" / pdk / "manifest.json"
+    assert metrics_path.is_file() and manifest_path.is_file()
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    flow = metrics.get("flow", {}).get("stages", {})
+    assert flow.get("pre_implementation_signoff") == "pass"
+    # A loaded package may carry prior EQY metrics; the missing current-run EQY
+    # log above is the source of truth that this qualification branch skipped it.
+    assert flow.get("implementation") == "missing"
+    assert flow.get("post_implementation_signoff") == "incomplete"
+    assert metrics.get("technical_status") == "REVIEW"
+    provenance = metrics.get("provenance", {})
+    assert isinstance(provenance, dict) and provenance.get("status") == "CLEAN"
+
+
+def _assert_saved_signoff_scripts(
+    library_root: Path, top: str, profile: str, pdk: str, *, activity_count: int
+) -> None:
+    """Require one canonical Tcl per sign-off family in the saved PDK branch."""
+
+    del activity_count  # Workload/corner multiplicity belongs to reports, not Tcl files.
+    root = _saved_ip_interface(library_root, top, profile)
+    syn = root / "syn" / pdk
+    assert syn.is_dir()
+    debug_checkpoints = [syn / f"{top}_{stage}.il" for stage in ("generic", "dffmap", "abc", "clean")]
+    assert not any(path.exists() for path in debug_checkpoints), (
+        f"diagnostic RTLIL checkpoints leaked into saved {top}/{pdk}: {debug_checkpoints}"
+    )
+    meta = root / "meta" / pdk
+    assert (meta / "manifest.json").is_file()
+    assert (meta / "metrics.json").is_file()
+    assert (meta / "check.rpt").is_file() and (meta / "check.rpt").stat().st_size > 0
+    assert not any(path.name == "__pycache__" for path in root.rglob("__pycache__"))
+    assert not any(path.suffix in {".pyc", ".pyo"} for path in root.rglob("*"))
+    assert (root / "impl").is_dir()
+    pnr = root / "impl" / pdk
+    assert not pnr.exists() or pnr.is_dir()
+    signoff = root / "signoff" / pdk
+    assert (root / "constraints" / f"{top}.sdc").is_file()
+    assert not any(signoff.glob("*.sdc")), "SDC must not be duplicated in a PDK branch"
+    assert (signoff / "equivalence" / "rtl_vs_syn").is_dir()
+    canonical = {
+        signoff / "sta" / "sta.tcl",
+        signoff / "sdf" / "write_sdf.tcl",
+        signoff / "power" / "estimate" / "power_estimate.tcl",
+        signoff / "power" / "analysis" / "power_analysis.tcl",
+        signoff / "fusion" / "fusion_analysis.tcl",
+    }
+    assert all(path.is_file() for path in canonical)
+    assert (signoff / "sta" / "sta.rpt").is_file()
+    assert (signoff / "sta" / "summary.json").is_file()
+    assert not any(signoff.glob("sta/*/*/timing.rpt")), "scenario-local timing reports must not be packaged"
+    all_tcl = {path for path in signoff.rglob("*.tcl")}
+    assert all_tcl == canonical, (
+        f"expected only five canonical OpenSTA Tcl files for {pdk}, "
+        f"got {sorted(str(path.relative_to(signoff)) for path in all_tcl)}"
+    )
+    assert not (signoff / "power" / "activity" / "scripts").exists()
+    forbidden = [
+        path for path in signoff.rglob("*")
+        if path.is_file()
+        and "equivalence" not in path.parts
+        and (
+            path.name.startswith(".")
+            or path.suffix not in {".tcl", ".sdc", ".rpt", ".json", ".sdf"}
+        )
+    ]
+    assert not forbidden, f"unexpected saved sign-off artifacts for {pdk}: {forbidden}"
+
+
+def _assert_saved_multitech_layout(library_root: Path, top: str, profile: str) -> None:
+    """Require load -> two complete technology flows -> save to preserve both branches."""
+
+    root = _saved_ip_interface(library_root, top, profile)
+    package_index = json.loads((root / "ip.json").read_text(encoding="utf-8"))
+    assert "profile" not in package_index
+    assert package_index["reg_interface"] == profile
+    for common in ("csr", "doc", "sw/drivers", "rtl", "dv"):
+        assert (root / common).is_dir(), f"missing saved {top}/{common}"
+    assert (root / "dv" / "lint" / "summary.json").is_file(), f"missing saved {top} lint summary"
+    assert not (root / "dv" / "lint" / "slang").exists(), "per-tool lint logs must not be packaged"
+    assert not (root / "dv" / "lint" / "verilator").exists(), "per-tool lint logs must not be packaged"
+    assert (root / "dv" / "cdc_rdc" / "summary.json").is_file(), f"missing saved {top} CDC/RDC summary"
+    assert not (root / "dv" / "cdc_rdc" / "cdc_rdc.rpt").exists(), "human CDC/RDC report must not be packaged"
+    assert not (root / "logs" / "dv" / "cdc_rdc").exists(), "CDC/RDC raw logs must not be packaged"
+    assert not (root / "logs" / "dv" / "lint").exists(), "raw lint logs must not be packaged"
+    assert not (root / "analysis").exists(), "legacy top-level analysis directory must not be packaged"
+    contract = root / "meta" / "contract.json"
+    assert contract.is_file(), f"missing saved {top} contract metadata"
+    assert not (root / "contract").exists(), f"legacy contract directory retained for {top}"
+    intent = json.loads(contract.read_text(encoding="utf-8"))["design_intent"]
+    assert (root / "constraints" / f"{top}.sdc").is_file(), f"missing saved {top} canonical SDC"
+    settings_by_pdk = {}
+    for pdk in ("sky130", "ihp-sg13g2"):
+        assert (root / "syn" / pdk).is_dir(), f"missing saved {top} synthesis for {pdk}"
+        assert not any((root / "signoff" / pdk).glob("*.sdc"))
+        meta = root / "meta" / pdk
+        assert (meta / "manifest.json").is_file(), f"missing saved {top} manifest for {pdk}"
+        assert (meta / "metrics.json").is_file(), f"missing saved {top} metrics for {pdk}"
+        assert (meta / "settings.json").is_file(), f"missing saved {top} settings for {pdk}"
+        assert (meta / "check.rpt").is_file(), f"missing saved {top} closure report for {pdk}"
+        settings_by_pdk[pdk] = json.loads((meta / "settings.json").read_text(encoding="utf-8"))
+        assert settings_by_pdk[pdk]["pdk"] == pdk
+        assert settings_by_pdk[pdk]["effective"]["PDK"] == pdk
+        assert settings_by_pdk[pdk]["design_intent"] == intent
+        equivalence = root / "signoff" / pdk / "post_syn" / "equivalence" / "rtl_vs_syn"
+        assert (equivalence / f"{top}_rtl_vs_syn.eqy").is_file()
+        assert (equivalence / f"{top}_eqy_view.sv").is_file()
+    assert (root / "impl").is_dir()
+    for implementation in (root / "impl").iterdir():
+        if implementation.is_dir():
+            assert (implementation / "config.mk").is_file()
+    assert not any(path.name == "__pycache__" for path in root.rglob("__pycache__"))
+    assert not any(path.suffix in {".pyc", ".pyo"} for path in root.rglob("*"))
+
+
+# Every test below keeps its ordered fx flow explicit; vendor bootstrap is shared above.
+
+@pytest.mark.e2e
+@pytest.mark.parametrize("reg_itf", REG_ITFS, ids=REG_ITFS)
+def test_fx_single_clock_flow_debug(
+    request: pytest.FixtureRequest, reg_itf: str
+) -> None:
+    """Qualify each register transport through the full single-clock lifecycle."""
+    print(f"\n=== E2E · single-clock scaffold · REG_ITF={reg_itf} ===", flush=True)
+
+    config = _e2e_config(request)
+    gls_tests = SINGLE_CLOCK_GLS_TESTS
+    top = os.environ.get("FLEXSOC_SINGLE_TOP", "test")
+    run_id = os.environ.get("FLEXSOC_RUN_ID", DEFAULT_RUN_ID)
+    host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
+    n_clocks = 1
+    clock_domains = SINGLE_CLOCK_DOMAINS
+    clock_relationships = ""
+
+    with _preserve_project_settings(), _temporary_scaffold_ip_source(top), _temporary_workspace(
+        f"flexsoc-single-{reg_itf}-e2e-", _e2e_root(request)
+    ) as workspace:
+        workdir = shlex.quote(str(workspace))
+        saved_library = workspace / "saved-ip"
+        run = workspace / "runs" / top / run_id
+        slang_root, slang_top, slang_search = _slang_values(top, run)
+        _run(f'fx settings --reset TOP={top} RUN_TOP={top} RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} REG_ITF={reg_itf} CLOCK_DOMAINS={clock_domains} CLOCK_RELATIONSHIPS={clock_relationships} {_scaffold_execution_settings(config, gls_tests)} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx doctor --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx fetch --set VENDOR=opentitan_reggen --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        if reg_itf == "tlul":
+            _run(f'fx fetch --set VENDOR=lowrisc_ip --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        elif reg_itf == "axi_lite":
+            _run(f'fx fetch --set VENDOR=pulp_register_interface --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx fetch --set VENDOR=pulp_common_cells --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx fetch --set VENDOR=pulp_axi --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        elif reg_itf != "reg_iface":
+            raise AssertionError(f"unsupported E2E REG_ITF: {reg_itf}")
+        _run(f'fx setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx spec --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx hjson --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx reg --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx doc --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx systemrdl --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx rtl_stub --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx top_from_core --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx flist --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx ipxact --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx lint --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx lint --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx slang_hier --set {slang_root} --set {slang_top} --set {slang_search} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx sdc --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx cdc_rdc --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx cdc_rdc --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, required=False)
+        _run(f'fx cdc_rdc --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, required=False)
+        _assert_cdc_rdc_outputs(top, run)
+        _run(f'fx model --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx tests_gen --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx tests --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx tb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx cocotb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx regression --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx regression --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx regression --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx regression --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx coverage --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx coverage --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+
+        _assert_design_formal_sources(top, run)
+        _run(f'fx formal --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx formal --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx formal --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _assert_formal_complete(run)
+        _run(f'fx formal --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx formal --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+
+        if config.run_signoff:
+            # sky130: rerun only technology-bound synthesis/sign-off stages.
+            _run(f'fx pdk use sky130 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx settings --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx pdk info sky130 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx eqy --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx signoff --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sdf --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            if config.run_post_syn:
+                _scaffold_tests = ",".join(gls_tests)
+                _scaffold_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                _run(f'fx sim --post-syn --all --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --set TIMING_MODES={_scaffold_modes} --set TEST_NAMES={_scaffold_tests} --set SDF_STRICT=1 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sim --post-syn --all --summary --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sim --post-syn --all --show --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sim --post-syn --all --debug --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _power_tests = ",".join(gls_tests)
+                _power_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                _run(f'fx power-analysis --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-analysis --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-analysis --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-analysis --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            if config.run_pnr:
+                assert config.ors is not None
+                if not (config.ors / "Makefile").is_file():
+                    raise pytest.UsageError(f"ORFS flow not found: {config.ors}; use --e2e-ors <flow> or --e2e-mode pre-pnr")
+                ors = shlex.quote(f"ORS={config.ors}")
+                _run(f'fx pnr --setup --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --summary --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --show --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --debug --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                physical_ok = _run(f'fx physical_signoff --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, required=False)
+                if not physical_ok:
+                    print("[e2e] physical sign-off is non-PASS; qualification records the outcome", flush=True)
+                if (run / "signoff" / 'sky130' / "post_impl" / "physical" / "summary.json").is_file():
+                    _run(f'fx physical_signoff --summary --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx physical_signoff --show --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx physical_signoff --debug --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx signoff_post_impl --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sdf_post_impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                if config.run_post_syn:
+                    _scaffold_tests = ",".join(gls_tests)
+                    _scaffold_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                    _run(f'fx sim --post-impl --all --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --set TIMING_MODES={_scaffold_modes} --set TEST_NAMES={_scaffold_tests} --set SDF_STRICT=1 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx sim --post-impl --all --summary --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx sim --post-impl --all --show --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx sim --post-impl --all --debug --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                if config.run_post_syn:
+                    _power_tests = ",".join(gls_tests)
+                    _power_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                    _run(f'fx power-analysis --post-impl --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx power-analysis --post-impl --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx power-analysis --post-impl --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx power-analysis --post-impl --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx manifest --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx manifest_show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx qualify --set IP_NAME={top} --set REG_ITF={reg_itf} --set QUAL_LEVEL=auto --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_scaffold_qualification(run=run, pdk="sky130", config=config)
+            _saved_library_arg = shlex.quote(str(saved_library))
+            _run(f'fx ip_save --force --set IP_NAME={top} --set IP_LIBRARY_ROOT={_saved_library_arg} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_saved_scaffold_ip(saved_library, top, reg_itf, 'sky130', run_pnr=config.run_pnr)
+
+            # ihp-sg13g2: rerun only technology-bound synthesis/sign-off stages.
+            _run(f'fx pdk use ihp-sg13g2 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx settings PNR_HOLD_SLACK_MARGIN=0.05 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx pdk info ihp-sg13g2 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx eqy --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx signoff --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sdf --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            if config.run_post_syn:
+                _scaffold_tests = ",".join(gls_tests)
+                _scaffold_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                _run(f'fx sim --post-syn --all --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --set TIMING_MODES={_scaffold_modes} --set TEST_NAMES={_scaffold_tests} --set SDF_STRICT=1 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sim --post-syn --all --summary --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sim --post-syn --all --show --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sim --post-syn --all --debug --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _power_tests = ",".join(gls_tests)
+                _power_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                _run(f'fx power-analysis --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-analysis --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-analysis --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-analysis --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            if config.run_pnr:
+                assert config.ors is not None
+                if not (config.ors / "Makefile").is_file():
+                    raise pytest.UsageError(f"ORFS flow not found: {config.ors}; use --e2e-ors <flow> or --e2e-mode pre-pnr")
+                ors = shlex.quote(f"ORS={config.ors}")
+                _run(f'fx pnr --setup --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --summary --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --show --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --debug --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                physical_ok = _run(f'fx physical_signoff --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, required=False)
+                if not physical_ok:
+                    print("[e2e] physical sign-off is non-PASS; qualification records the outcome", flush=True)
+                if (run / "signoff" / 'ihp-sg13g2' / "post_impl" / "physical" / "summary.json").is_file():
+                    _run(f'fx physical_signoff --summary --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx physical_signoff --show --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx physical_signoff --debug --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx signoff_post_impl --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sdf_post_impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                if config.run_post_syn:
+                    _scaffold_tests = ",".join(gls_tests)
+                    _scaffold_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                    _run(f'fx sim --post-impl --all --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --set TIMING_MODES={_scaffold_modes} --set TEST_NAMES={_scaffold_tests} --set SDF_STRICT=1 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx sim --post-impl --all --summary --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx sim --post-impl --all --show --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx sim --post-impl --all --debug --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                if config.run_post_syn:
+                    _power_tests = ",".join(gls_tests)
+                    _power_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                    _run(f'fx power-analysis --post-impl --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx power-analysis --post-impl --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx power-analysis --post-impl --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx power-analysis --post-impl --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx manifest --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx manifest_show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx qualify --set IP_NAME={top} --set REG_ITF={reg_itf} --set QUAL_LEVEL=auto --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_scaffold_qualification(run=run, pdk="ihp-sg13g2", config=config)
+            _saved_library_arg = shlex.quote(str(saved_library))
+            _run(f'fx ip_save --force --set IP_NAME={top} --set IP_LIBRARY_ROOT={_saved_library_arg} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_saved_scaffold_ip(saved_library, top, reg_itf, 'ihp-sg13g2', run_pnr=config.run_pnr)
+
+@pytest.mark.e2e
+@pytest.mark.parametrize("reg_itf", REG_ITFS, ids=REG_ITFS)
+def test_fx_multi_clock_flow_debug(
+    request: pytest.FixtureRequest, reg_itf: str
+) -> None:
+    """Qualify each register transport through the full multi-clock lifecycle."""
+    print(f"\n=== E2E · multi-clock scaffold · REG_ITF={reg_itf} ===", flush=True)
+
+    config = _e2e_config(request)
+    gls_tests = MULTI_CLOCK_GLS_TESTS
+    top = os.environ.get("FLEXSOC_MULTI_TOP", "tri_stream_dsp")
+    run_id = os.environ.get("FLEXSOC_RUN_ID", DEFAULT_RUN_ID)
+    host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
+    n_clocks = 3
+    clock_domains = MULTI_CLOCK_DOMAINS
+    clock_relationships = MULTI_CLOCK_RELATIONSHIPS
+
+    with _preserve_project_settings(), _temporary_scaffold_ip_source(top), _temporary_workspace(
+        f"flexsoc-multiclock-{reg_itf}-e2e-", _e2e_root(request)
+    ) as workspace:
+        workdir = shlex.quote(str(workspace))
+        saved_library = workspace / "saved-ip"
+        run = workspace / "runs" / top / run_id
+        slang_root, slang_top, slang_search = _slang_values(top, run)
+        _run(f'fx settings --reset TOP={top} RUN_TOP={top} RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} REG_ITF={reg_itf} CLOCK_DOMAINS={clock_domains} CLOCK_RELATIONSHIPS={clock_relationships} {_scaffold_execution_settings(config, gls_tests)} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx doctor --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx fetch --set VENDOR=opentitan_reggen --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        if reg_itf == "tlul":
+            _run(f'fx fetch --set VENDOR=lowrisc_ip --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        elif reg_itf == "axi_lite":
+            _run(f'fx fetch --set VENDOR=pulp_register_interface --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx fetch --set VENDOR=pulp_common_cells --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx fetch --set VENDOR=pulp_axi --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        elif reg_itf != "reg_iface":
+            raise AssertionError(f"unsupported E2E REG_ITF: {reg_itf}")
+        _run(f'fx setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx spec --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx hjson --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx reg --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx doc --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx systemrdl --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx rtl_stub --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx top_from_core --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx flist --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx ipxact --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx lint --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx lint --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx slang_hier --set {slang_root} --set {slang_top} --set {slang_search} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx sdc --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx cdc_rdc --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx cdc_rdc --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, required=False)
+        _run(f'fx cdc_rdc --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, required=False)
+        _assert_cdc_rdc_outputs(top, run)
+        _run(f'fx model --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx tests_gen --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx tests --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx tb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx cocotb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx regression --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx regression --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx regression --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx regression --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx coverage --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx coverage --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+
+        _assert_design_formal_sources(top, run)
+        _run(f'fx formal --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx formal --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx formal --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _assert_formal_complete(run)
+        _run(f'fx formal --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx formal --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+
+        if config.run_signoff:
+            # sky130: rerun only technology-bound synthesis/sign-off stages.
+            _run(f'fx pdk use sky130 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx settings --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx pdk info sky130 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx eqy --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx signoff --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sdf --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            if config.run_post_syn:
+                _scaffold_tests = ",".join(gls_tests)
+                _scaffold_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                _run(f'fx sim --post-syn --all --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --set TIMING_MODES={_scaffold_modes} --set TEST_NAMES={_scaffold_tests} --set SDF_STRICT=1 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sim --post-syn --all --summary --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sim --post-syn --all --show --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sim --post-syn --all --debug --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _power_tests = ",".join(gls_tests)
+                _power_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                _run(f'fx power-analysis --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-analysis --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-analysis --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-analysis --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            if config.run_pnr:
+                assert config.ors is not None
+                if not (config.ors / "Makefile").is_file():
+                    raise pytest.UsageError(f"ORFS flow not found: {config.ors}; use --e2e-ors <flow> or --e2e-mode pre-pnr")
+                ors = shlex.quote(f"ORS={config.ors}")
+                _run(f'fx pnr --setup --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --summary --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --show --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --debug --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                physical_ok = _run(f'fx physical_signoff --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, required=False)
+                if not physical_ok:
+                    print("[e2e] physical sign-off is non-PASS; qualification records the outcome", flush=True)
+                if (run / "signoff" / 'sky130' / "post_impl" / "physical" / "summary.json").is_file():
+                    _run(f'fx physical_signoff --summary --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx physical_signoff --show --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx physical_signoff --debug --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx signoff_post_impl --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sdf_post_impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                if config.run_post_syn:
+                    _scaffold_tests = ",".join(gls_tests)
+                    _scaffold_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                    _run(f'fx sim --post-impl --all --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --set TIMING_MODES={_scaffold_modes} --set TEST_NAMES={_scaffold_tests} --set SDF_STRICT=1 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx sim --post-impl --all --summary --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx sim --post-impl --all --show --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx sim --post-impl --all --debug --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                if config.run_post_syn:
+                    _power_tests = ",".join(gls_tests)
+                    _power_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                    _run(f'fx power-analysis --post-impl --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx power-analysis --post-impl --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx power-analysis --post-impl --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx power-analysis --post-impl --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx manifest --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx manifest_show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx qualify --set IP_NAME={top} --set REG_ITF={reg_itf} --set QUAL_LEVEL=auto --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_scaffold_qualification(run=run, pdk="sky130", config=config)
+            _saved_library_arg = shlex.quote(str(saved_library))
+            _run(f'fx ip_save --force --set IP_NAME={top} --set IP_LIBRARY_ROOT={_saved_library_arg} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_saved_scaffold_ip(saved_library, top, reg_itf, 'sky130', run_pnr=config.run_pnr)
+
+            # ihp-sg13g2: rerun only technology-bound synthesis/sign-off stages.
+            _run(f'fx pdk use ihp-sg13g2 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx settings PNR_HOLD_SLACK_MARGIN=0.05 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx pdk info ihp-sg13g2 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx syn --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx eqy --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx signoff --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sdf --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sta --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx power-estimate --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            if config.run_post_syn:
+                _scaffold_tests = ",".join(gls_tests)
+                _scaffold_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                _run(f'fx sim --post-syn --all --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --set TIMING_MODES={_scaffold_modes} --set TEST_NAMES={_scaffold_tests} --set SDF_STRICT=1 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sim --post-syn --all --summary --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sim --post-syn --all --show --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sim --post-syn --all --debug --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _power_tests = ",".join(gls_tests)
+                _power_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                _run(f'fx power-analysis --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-analysis --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-analysis --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-analysis --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fusion --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            if config.run_pnr:
+                assert config.ors is not None
+                if not (config.ors / "Makefile").is_file():
+                    raise pytest.UsageError(f"ORFS flow not found: {config.ors}; use --e2e-ors <flow> or --e2e-mode pre-pnr")
+                ors = shlex.quote(f"ORS={config.ors}")
+                _run(f'fx pnr --setup --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --summary --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --show --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pnr --debug --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                physical_ok = _run(f'fx physical_signoff --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, required=False)
+                if not physical_ok:
+                    print("[e2e] physical sign-off is non-PASS; qualification records the outcome", flush=True)
+                if (run / "signoff" / 'ihp-sg13g2' / "post_impl" / "physical" / "summary.json").is_file():
+                    _run(f'fx physical_signoff --summary --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx physical_signoff --show --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx physical_signoff --debug --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx signoff_post_impl --setup --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sdf_post_impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --post-impl --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                if config.run_post_syn:
+                    _scaffold_tests = ",".join(gls_tests)
+                    _scaffold_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                    _run(f'fx sim --post-impl --all --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --set TIMING_MODES={_scaffold_modes} --set TEST_NAMES={_scaffold_tests} --set SDF_STRICT=1 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx sim --post-impl --all --summary --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx sim --post-impl --all --show --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx sim --post-impl --all --debug --set GLS_BACKEND={SCAFFOLD_GLS_BACKEND} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --post-impl --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                if config.run_post_syn:
+                    _power_tests = ",".join(gls_tests)
+                    _power_modes = ",".join(SCAFFOLD_GLS_TIMING_MODES)
+                    _run(f'fx power-analysis --post-impl --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx power-analysis --post-impl --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx power-analysis --post-impl --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx power-analysis --post-impl --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --summary --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --show --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    _run(f'fx fusion --post-impl --all --debug --set POWER_TEST_NAMES={_power_tests} --set POWER_GLS_BACKENDS={SCAFFOLD_GLS_BACKEND} --set POWER_TIMING_MODES={_power_modes} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx manifest --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx manifest_show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx qualify --set IP_NAME={top} --set REG_ITF={reg_itf} --set QUAL_LEVEL=auto --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_scaffold_qualification(run=run, pdk="ihp-sg13g2", config=config)
+            _saved_library_arg = shlex.quote(str(saved_library))
+            _run(f'fx ip_save --force --set IP_NAME={top} --set IP_LIBRARY_ROOT={_saved_library_arg} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_saved_scaffold_ip(saved_library, top, reg_itf, 'ihp-sg13g2', run_pnr=config.run_pnr)
+
+@pytest.mark.e2e
+def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
+    """Load CORDIC once and qualify the unchanged IP on SKY130 and IHP."""
+    print("\n=== E2E 3/5 · CORDIC payload ===", flush=True)
+
+    config = _e2e_config(request)
+    top = os.environ.get("FLEXSOC_CORDIC_TOP", "cordic")
+    run_id = os.environ.get("FLEXSOC_RUN_ID", DEFAULT_RUN_ID)
+    host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
+    reg_itf = "tlul"
+    n_clocks = 1
+    clock_domains = SINGLE_CLOCK_DOMAINS
+    clock_relationships = ""
+    target_opt = os.environ.get("FLEXSOC_E2E_TARGET_OPT", "delay1")
+
+    with _preserve_project_settings(), _temporary_workspace(
+        "flexsoc-cordic-e2e-", _e2e_root(request)
+    ) as workspace:
+        workdir = shlex.quote(str(workspace))
+        run = workspace / "runs" / top / run_id
+        saved_library = workspace / "saved_ip_library"
+        saved_library_arg = shlex.quote(str(saved_library))
+        _seed_saved_ip_library(saved_library, top)
+        slang_root, slang_top, slang_search = _slang_values(top, run)
+        with _protect_ip_sources("cordic", reg_itf) as source_snapshot:
+            _run(f'fx settings --reset TOP={top} RUN_TOP={top} RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} REG_ITF={reg_itf} TARGET_OPT={target_opt} CLOCK_DOMAINS={clock_domains} CLOCK_RELATIONSHIPS={clock_relationships} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx doctor --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx fetch --set VENDOR=opentitan_reggen --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            if reg_itf == "tlul":
+                _run(f'fx fetch --set VENDOR=lowrisc_ip --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            elif reg_itf == "axi_lite":
+                _run(f'fx fetch --set VENDOR=pulp_register_interface --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fetch --set VENDOR=pulp_common_cells --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fetch --set VENDOR=pulp_axi --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            elif reg_itf != "reg_iface":
+                raise AssertionError(f"unsupported E2E REG_ITF: {reg_itf}")
+            _run(f'fx ip_load --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_loaded_sources_match(top, reg_itf, run_id, workspace, source_snapshot)
+            _assert_loaded_ip_tests(top, run_id, workspace)
+
+            # Rebuild machine-owned collateral with the current package contract.
+            _run(f'fx top_from_core --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx flist --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx lint --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx lint --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx slang_hier --set {slang_root} --set {slang_top} --set {slang_search} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sdc --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx cdc_rdc --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx cdc_rdc --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx cdc_rdc --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_cdc_rdc_outputs(top, run)
+
+            _run(f'fx regmap_py --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx tests_gen --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            stale_tb_markers = _seed_stale_tb_scaffold(run)
+            _run(f'fx tb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx cocotb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_tb_scaffolds_recreated(stale_tb_markers, run, top)
+            _assert_reset_driver_parity(run, top, multiclock=False)
+            _assert_loaded_ip_tests(top, run_id, workspace)
+            _run(f'fx tests --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_ast(run)
+            _run(f'fx regression --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx regression --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx regression --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx regression --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_loaded_ip_tests(top, run_id, workspace)
+            _run(f'fx coverage --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx coverage --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_coverage_outputs(run / "dv" / "functional" / "coverage")
+
+            _assert_design_formal_sources(top, run)
+            _run(f'fx formal --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx formal --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx formal --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx formal --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx formal --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+
+            if config.run_signoff:
+                # sky130: rerun only technology-bound synthesis/sign-off stages.
+                _run(f'fx pdk use sky130 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx settings --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pdk info sky130 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx tb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx cocotb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx eqy --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx signoff --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sdf --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                if config.run_post_syn:
+                    _other_gls_backend = "cocotb" if config.gls_backend == "sv" else "sv"
+                    for _gls_backend in (config.gls_backend, _other_gls_backend):
+                        _run(f'fx sim --post-syn --all --set GLS_BACKEND={_gls_backend} --set TIMING_MODES=all --set TEST_NAMES=all --set SDF_STRICT=1 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                        _run(f'fx sim --post-syn --all --summary --set GLS_BACKEND={_gls_backend} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                        _run(f'fx sim --post-syn --all --show --set GLS_BACKEND={_gls_backend} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                        _run(f'fx sim --post-syn --all --debug --set GLS_BACKEND={_gls_backend} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    sky130_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "sky130"
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_smoke_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="smoke",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_corners_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="corners",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="random_seed_1",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="random_seed_2",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_reconfig_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="reconfig",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="auto_toggle",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_smoke_zero_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="smoke_zero",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_rotate_45deg_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="rotate_45deg",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_quadrant_sweep_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="quadrant_sweep",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_random_small_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="random_small",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx manifest --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx manifest_show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _assert_pre_impl_ip_branch(top, run, "sky130")
+                _run(f'fx ip_save --force --set IP_NAME={top} --set IP_LIBRARY_ROOT={saved_library_arg} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _assert_saved_signoff_scripts(
+                    saved_library, top, reg_itf, "sky130", activity_count=30
+                )
+
+                # ihp-sg13g2: rerun only technology-bound synthesis/sign-off stages.
+                _run(f'fx pdk use ihp-sg13g2 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx settings --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pdk info ihp-sg13g2 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx tb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx cocotb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx eqy --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx signoff --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sdf --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                if config.run_post_syn:
+                    _other_gls_backend = "cocotb" if config.gls_backend == "sv" else "sv"
+                    for _gls_backend in (config.gls_backend, _other_gls_backend):
+                        _run(f'fx sim --post-syn --all --set GLS_BACKEND={_gls_backend} --set TIMING_MODES=all --set TEST_NAMES=all --set SDF_STRICT=1 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                        _run(f'fx sim --post-syn --all --summary --set GLS_BACKEND={_gls_backend} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                        _run(f'fx sim --post-syn --all --show --set GLS_BACKEND={_gls_backend} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                        _run(f'fx sim --post-syn --all --debug --set GLS_BACKEND={_gls_backend} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    ihp_sg13g2_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "ihp-sg13g2"
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_smoke_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="smoke",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_corners_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="corners",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="random_seed_1",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="random_seed_2",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_reconfig_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="reconfig",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="auto_toggle",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_smoke_zero_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="smoke_zero",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'smoke_zero'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_rotate_45deg_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="rotate_45deg",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'rotate_45deg'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_quadrant_sweep_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="quadrant_sweep",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'quadrant_sweep'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_random_small_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="random_small",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'random_small'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx manifest --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx manifest_show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _assert_pre_impl_ip_branch(top, run, "ihp-sg13g2")
+                _run(f'fx ip_save --force --set IP_NAME={top} --set IP_LIBRARY_ROOT={saved_library_arg} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _assert_saved_signoff_scripts(
+                    saved_library, top, reg_itf, "ihp-sg13g2", activity_count=30
+                )
+                _assert_saved_multitech_layout(saved_library, top, reg_itf)
+            _assert_loaded_sources_match(top, reg_itf, run_id, workspace, source_snapshot)
+
+@pytest.mark.e2e
+def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
+    """Load UART once and qualify the unchanged IP on SKY130 and IHP."""
+    print("\n=== E2E 4/5 · UART payload ===", flush=True)
+
+    config = _e2e_config(request)
+    top = os.environ.get("FLEXSOC_UART_TOP", "uart")
+    run_id = os.environ.get("FLEXSOC_RUN_ID", DEFAULT_RUN_ID)
+    host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
+    reg_itf = "tlul"
+    n_clocks = 1
+    clock_domains = SINGLE_CLOCK_DOMAINS
+    clock_relationships = ""
+    target_opt = os.environ.get("FLEXSOC_E2E_TARGET_OPT", "delay1")
+
+    with _preserve_project_settings(), _temporary_workspace(
+        "flexsoc-uart-e2e-", _e2e_root(request)
+    ) as workspace:
+        workdir = shlex.quote(str(workspace))
+        run = workspace / "runs" / top / run_id
+        saved_library = workspace / "saved_ip_library"
+        saved_library_arg = shlex.quote(str(saved_library))
+        _seed_saved_ip_library(saved_library, top)
+        slang_root, slang_top, slang_search = _slang_values(top, run)
+        with _protect_ip_sources("uart", reg_itf) as source_snapshot:
+            _run(f'fx settings --reset TOP={top} RUN_TOP={top} RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} REG_ITF={reg_itf} TARGET_OPT={target_opt} IP_VERSION={SAVED_IP_VERSIONS[top]} CLOCK_DOMAINS={clock_domains} CLOCK_RELATIONSHIPS={clock_relationships} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx doctor --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx fetch --set VENDOR=opentitan_reggen --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            if reg_itf == "tlul":
+                _run(f'fx fetch --set VENDOR=lowrisc_ip --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            elif reg_itf == "axi_lite":
+                _run(f'fx fetch --set VENDOR=pulp_register_interface --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fetch --set VENDOR=pulp_common_cells --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx fetch --set VENDOR=pulp_axi --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            elif reg_itf != "reg_iface":
+                raise AssertionError(f"unsupported E2E REG_ITF: {reg_itf}")
+            _run(f'fx ip_load --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_loaded_sources_match(top, reg_itf, run_id, workspace, source_snapshot)
+            _assert_loaded_ip_tests(top, run_id, workspace)
+            run_ihp_eqy = Path("signoff/ihp-sg13g2/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy")
+            pkg_ihp_eqy = Path("technology/ihp-sg13g2/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy")
+            assert _sha256(run / run_ihp_eqy) == _sha256(_repo_ip_interface(top, reg_itf) / pkg_ihp_eqy)
+
+            # Rebuild machine-owned collateral with the current package contract.
+            _run(f'fx top_from_core --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx flist --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx lint --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx lint --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx slang_hier --set {slang_root} --set {slang_top} --set {slang_search} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx sdc --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx cdc_rdc --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx cdc_rdc --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx cdc_rdc --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_cdc_rdc_outputs(top, run)
+
+            _run(f'fx regmap_py --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx tests_gen --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            stale_tb_markers = _seed_stale_tb_scaffold(run)
+            _run(f'fx tb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx cocotb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_tb_scaffolds_recreated(stale_tb_markers, run, top)
+            _assert_reset_driver_parity(run, top, multiclock=False)
+            _assert_loaded_ip_tests(top, run_id, workspace)
+            _run(f'fx tests --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_ast(run)
+            _run(f'fx regression --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx regression --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx regression --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx regression --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_loaded_ip_tests(top, run_id, workspace)
+            _run(f'fx coverage --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx coverage --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_coverage_outputs(run / "dv" / "functional" / "coverage")
+
+            _assert_design_formal_sources(top, run)
+            _run(f'fx formal --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx formal --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx formal --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx formal --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx formal --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+
+            if config.run_signoff:
+                # sky130: rerun only technology-bound synthesis/sign-off stages.
+                _run(f'fx pdk use sky130 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx settings --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pdk info sky130 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx tb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx cocotb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx eqy --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx signoff --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sdf --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                if config.run_post_syn:
+                    _other_gls_backend = "cocotb" if config.gls_backend == "sv" else "sv"
+                    for _gls_backend in (config.gls_backend, _other_gls_backend):
+                        _run(f'fx sim --post-syn --all --set GLS_BACKEND={_gls_backend} --set TIMING_MODES=all --set TEST_NAMES=all --set SDF_STRICT=1 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                        _run(f'fx sim --post-syn --all --summary --set GLS_BACKEND={_gls_backend} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                        _run(f'fx sim --post-syn --all --show --set GLS_BACKEND={_gls_backend} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                        _run(f'fx sim --post-syn --all --debug --set GLS_BACKEND={_gls_backend} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    sky130_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "sky130"
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_smoke_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="smoke",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_corners_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="corners",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="random_seed_1",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="random_seed_2",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_reconfig_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="reconfig",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="auto_toggle",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_line_loopback_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="line_loopback",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_rx_fifo_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="rx_fifo",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_noise_filter_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="noise_filter",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_parity_reconfig_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="sky130", test="parity_reconfig",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx manifest --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx manifest_show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _assert_pre_impl_ip_branch(top, run, "sky130")
+                _run(f'fx ip_save --force --set IP_NAME={top} --set IP_LIBRARY_ROOT={saved_library_arg} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _assert_saved_signoff_scripts(
+                    saved_library, top, reg_itf, "sky130", activity_count=30
+                )
+
+                # ihp-sg13g2: rerun only technology-bound synthesis/sign-off stages.
+                _run(f'fx pdk use ihp-sg13g2 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx settings --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx pdk info ihp-sg13g2 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx tb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx cocotb --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --summary --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx syn --debug --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx eqy --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx signoff --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sdf --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx sta --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx power-estimate --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                if config.run_post_syn:
+                    _other_gls_backend = "cocotb" if config.gls_backend == "sv" else "sv"
+                    for _gls_backend in (config.gls_backend, _other_gls_backend):
+                        _run(f'fx sim --post-syn --all --set GLS_BACKEND={_gls_backend} --set TIMING_MODES=all --set TEST_NAMES=all --set SDF_STRICT=1 --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                        _run(f'fx sim --post-syn --all --summary --set GLS_BACKEND={_gls_backend} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                        _run(f'fx sim --post-syn --all --show --set GLS_BACKEND={_gls_backend} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                        _run(f'fx sim --post-syn --all --debug --set GLS_BACKEND={_gls_backend} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                    ihp_sg13g2_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "ihp-sg13g2"
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_smoke_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="smoke",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'smoke'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_corners_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="corners",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'corners'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="random_seed_1",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'random_seed_1'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="random_seed_2",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'random_seed_2'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_reconfig_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="reconfig",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="auto_toggle",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'auto_toggle'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_line_loopback_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="line_loopback",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'line_loopback'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_rx_fifo_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="rx_fifo",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'rx_fifo'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_noise_filter_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="noise_filter",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'noise_filter'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_parity_reconfig_{config.gls_backend}_"
+                            f"{_gls_scenario(config.gls_mode)}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="parity_reconfig",
+                        backend=config.gls_backend, mode=config.gls_mode,
+                    )
+                    _run(f"fx power-analysis --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --summary --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --show --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx power-analysis --debug --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --summary --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --show --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                    _run(f"fx fusion --debug --set POWER_TEST_NAME={'parity_reconfig'} --set POWER_GLS_BACKEND={config.gls_backend} --set POWER_TIMING_MODE={config.gls_mode} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx manifest --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx manifest_show --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _assert_pre_impl_ip_branch(top, run, "ihp-sg13g2")
+                _run(f'fx ip_save --force --set IP_NAME={top} --set IP_LIBRARY_ROOT={saved_library_arg} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+                _assert_saved_signoff_scripts(
+                    saved_library, top, reg_itf, "ihp-sg13g2", activity_count=30
+                )
+                _assert_saved_multitech_layout(saved_library, top, reg_itf)
+            _assert_loaded_sources_match(top, reg_itf, run_id, workspace, source_snapshot)
+
+
+@pytest.mark.e2e
+def test_fx_provenance_lifecycle_debug(request: pytest.FixtureRequest) -> None:
+    """Qualify modify/block/validate/consume/restore across setup provenance."""
+
+    print("\n=== E2E 5/5 · setup provenance lifecycle ===", flush=True)
+
+    config = _e2e_config(request)
+    top = "test"
+    run_id = DEFAULT_RUN_ID
+    with _preserve_project_settings(), _temporary_workspace(
+        "flexsoc-provenance-e2e-", _e2e_root(request)
+    ) as workspace:
+        workdir = shlex.quote(str(workspace))
+        run = workspace / "runs" / top / run_id
+        for command in (
+            f"fx settings --reset TOP={top} RUN_TOP={top} RUN_ID={run_id} "
+            f"HOST={DEFAULT_HOST} N_CLOCKS=1 CLOCK_DOMAINS={SINGLE_CLOCK_DOMAINS} "
+            f"CLOCK_RELATIONSHIPS= --workdir {workdir}",
+            f"fx setup --force --workdir {workdir}",
+            f"fx hjson --force --workdir {workdir}",
+            f"fx reg --force --workdir {workdir}",
+            f"fx rtl_stub --force --workdir {workdir}",
+            f"fx top_from_core --force --workdir {workdir}",
+            f"fx flist --force --workdir {workdir}",
+            f"fx sdc --setup --force --workdir {workdir}",
+            f"fx model --setup --force --workdir {workdir}",
+            f"fx tests_gen --workdir {workdir}",
+            f"fx pdk use sky130 --workdir {workdir}",
+        ):
+            _run(command, workspace=workspace, top=top, run_id=run_id)
+
+        cases = (
+            (
+                "tb.setup", "tb",
+                run / "dv/functional/tb/sv" / f"{top}_tb.sv",
+                f"fx compile --set TEST_NAME=smoke --workdir {workdir}",
+                True,
+            ),
+            (
+                "cocotb.setup", "cocotb",
+                run / "dv/functional/tb/cocotb" / f"{top}_tb.py",
+                f"fx cocotb --set TEST_NAME=smoke --workdir {workdir}",
+                True,
+            ),
+            (
+                "cdc_rdc.setup", "cdc_rdc",
+                run / "dv/cdc_rdc/extract.ys",
+                f"fx cdc_rdc --workdir {workdir}",
+                True,
+            ),
+        )
+        for _, keyword, _, _, _ in cases:
+            _run(f'fx {keyword} --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        for stage, _, artifact, command, required in cases:
+            _artifact = artifact
+            assert _artifact.is_file(), f"missing generated override artifact: {_artifact}"
+            _canonical = _artifact.read_bytes()
+            _comment = b"//" if _artifact.suffix.lower() in {".v", ".vh", ".sv", ".svh"} else b"#"
+            print(f"\n[provenance] {stage}: MODIFY generated artifact", flush=True)
+            _artifact.write_bytes(_canonical + b"\n" + _comment + b" FlexSoC E2E validated override\n")
+            print(f"[provenance] {stage}: BLOCK unvalidated consumer", flush=True)
+            _run(command, workspace=workspace, top=top, run_id=run_id, expected_error=f'{stage} provenance is MODIFIED')
+            print(f"[provenance] {stage}: VALIDATE designer override", flush=True)
+            _run(f'fx validate_override --set STAGE={stage} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            print(f"[provenance] {stage}: CONSUME validated override", flush=True)
+            _run(command, workspace=workspace, top=top, run_id=run_id, required=required)
+            _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_provenance_metric(run, stage, "VALIDATED_OVERRIDE")
+            print(f"[provenance] {stage}: RESTORE generated artifact", flush=True)
+            _artifact.write_bytes(_canonical)
+            _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_provenance_metric(run, stage, "CLEAN")
+
+        _run(f'fx status --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+
+        _run(f'fx formal --csr --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        formal_cases = (
+            (
+                "formal.csr_prove.setup",
+                run / "dv/formal/runs/csr/prove" / f"{top}_csr_prove.sby",
+                f"fx formal --csr --bmc --workdir {workdir}",
+            ),
+            (
+                "formal.csr_cover.setup",
+                run / "dv/formal/runs/csr/cover" / f"{top}_csr_cover.sby",
+                f"fx formal --csr --cover --workdir {workdir}",
+            ),
+        )
+        for stage, artifact, command in formal_cases:
+            _artifact = artifact
+            assert _artifact.is_file(), f"missing generated override artifact: {_artifact}"
+            _canonical = _artifact.read_bytes()
+            _comment = b"//" if _artifact.suffix.lower() in {".v", ".vh", ".sv", ".svh"} else b"#"
+            print(f"\n[provenance] {stage}: MODIFY generated artifact", flush=True)
+            _artifact.write_bytes(_canonical + b"\n" + _comment + b" FlexSoC E2E validated override\n")
+            print(f"[provenance] {stage}: BLOCK unvalidated consumer", flush=True)
+            _run(command, workspace=workspace, top=top, run_id=run_id, expected_error=f'{stage} provenance is MODIFIED')
+            print(f"[provenance] {stage}: VALIDATE designer override", flush=True)
+            _run(f'fx validate_override --set STAGE={stage} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            print(f"[provenance] {stage}: CONSUME validated override", flush=True)
+            _run(command, workspace=workspace, top=top, run_id=run_id, required=True)
+            _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_provenance_metric(run, stage, "VALIDATED_OVERRIDE")
+            print(f"[provenance] {stage}: RESTORE generated artifact", flush=True)
+            _artifact.write_bytes(_canonical)
+            _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+            _assert_provenance_metric(run, stage, "CLEAN")
+
+        if not config.run_signoff:
+            return
+
+        _run(f'fx syn --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _artifact = run / 'syn/sky130/synth_sv.ys'
+        assert _artifact.is_file(), f"missing generated override artifact: {_artifact}"
+        _canonical = _artifact.read_bytes()
+        _comment = b"//" if _artifact.suffix.lower() in {".v", ".vh", ".sv", ".svh"} else b"#"
+        print(f"\n[provenance] {'syn.setup'}: MODIFY generated artifact", flush=True)
+        _artifact.write_bytes(_canonical + b"\n" + _comment + b" FlexSoC E2E validated override\n")
+        print(f"[provenance] {'syn.setup'}: BLOCK unvalidated consumer", flush=True)
+        _run(f'fx syn --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, expected_error=f"{'syn.setup'} provenance is MODIFIED")
+        print(f"[provenance] {'syn.setup'}: VALIDATE designer override", flush=True)
+        _run(f"fx validate_override --set STAGE={'syn.setup'} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+        print(f"[provenance] {'syn.setup'}: CONSUME validated override", flush=True)
+        _run(f'fx syn --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, required=True)
+        _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _assert_provenance_metric(run, 'syn.setup', "VALIDATED_OVERRIDE")
+        print(f"[provenance] {'syn.setup'}: RESTORE generated artifact", flush=True)
+        _artifact.write_bytes(_canonical)
+        _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _assert_provenance_metric(run, 'syn.setup', "CLEAN")
+
+        _run(f'fx eqy --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        assert (
+            run / "signoff/sky130/equivalence/rtl_vs_syn" / f"{top}_rtl_vs_syn.eqy"
+        ).is_file()
+
+        _run(f'fx signoff --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _artifact = run / 'signoff/sky130/sta/sta.tcl'
+        assert _artifact.is_file(), f"missing generated override artifact: {_artifact}"
+        _canonical = _artifact.read_bytes()
+        _comment = b"//" if _artifact.suffix.lower() in {".v", ".vh", ".sv", ".svh"} else b"#"
+        print(f"\n[provenance] {'signoff.setup'}: MODIFY generated artifact", flush=True)
+        _artifact.write_bytes(_canonical + b"\n" + _comment + b" FlexSoC E2E validated override\n")
+        print(f"[provenance] {'signoff.setup'}: BLOCK unvalidated consumer", flush=True)
+        _run(f'fx sdf --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, expected_error=f"{'signoff.setup'} provenance is MODIFIED")
+        print(f"[provenance] {'signoff.setup'}: VALIDATE designer override", flush=True)
+        _run(f"fx validate_override --set STAGE={'signoff.setup'} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+        print(f"[provenance] {'signoff.setup'}: CONSUME validated override", flush=True)
+        _run(f'fx sdf --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, required=True)
+        _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _assert_provenance_metric(run, 'signoff.setup', "VALIDATED_OVERRIDE")
+        print(f"[provenance] {'signoff.setup'}: RESTORE generated artifact", flush=True)
+        _artifact.write_bytes(_canonical)
+        _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _assert_provenance_metric(run, 'signoff.setup', "CLEAN")
+
+        if not config.run_pnr:
+            return
+        assert config.ors is not None
+        ors = shlex.quote(f"ORS={config.ors}")
+        _run(f'fx pnr --setup --force --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _artifact = run / 'impl/sky130/config.mk'
+        assert _artifact.is_file(), f"missing generated override artifact: {_artifact}"
+        _canonical = _artifact.read_bytes()
+        _comment = b"//" if _artifact.suffix.lower() in {".v", ".vh", ".sv", ".svh"} else b"#"
+        print(f"\n[provenance] {'pnr.setup'}: MODIFY generated artifact", flush=True)
+        _artifact.write_bytes(_canonical + b"\n" + _comment + b" FlexSoC E2E validated override\n")
+        print(f"[provenance] {'pnr.setup'}: BLOCK unvalidated consumer", flush=True)
+        _run(f'fx pnr --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, expected_error=f"{'pnr.setup'} provenance is MODIFIED")
+        print(f"[provenance] {'pnr.setup'}: VALIDATE designer override", flush=True)
+        _run(f"fx validate_override --set STAGE={'pnr.setup'} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+        print(f"[provenance] {'pnr.setup'}: CONSUME validated override", flush=True)
+        _run(f'fx pnr --set {ors} --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, required=True)
+        _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _assert_provenance_metric(run, 'pnr.setup', "VALIDATED_OVERRIDE")
+        print(f"[provenance] {'pnr.setup'}: RESTORE generated artifact", flush=True)
+        _artifact.write_bytes(_canonical)
+        _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _assert_provenance_metric(run, 'pnr.setup', "CLEAN")
+        _run(f'fx signoff_post_impl --setup --force --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _artifact = run / 'signoff/sky130/post_impl/sdf/write_sdf.tcl'
+        assert _artifact.is_file(), f"missing generated override artifact: {_artifact}"
+        _canonical = _artifact.read_bytes()
+        _comment = b"//" if _artifact.suffix.lower() in {".v", ".vh", ".sv", ".svh"} else b"#"
+        print(f"\n[provenance] {'signoff_post_impl.setup'}: MODIFY generated artifact", flush=True)
+        _artifact.write_bytes(_canonical + b"\n" + _comment + b" FlexSoC E2E validated override\n")
+        print(f"[provenance] {'signoff_post_impl.setup'}: BLOCK unvalidated consumer", flush=True)
+        _run(f'fx sdf_post_impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, expected_error=f"{'signoff_post_impl.setup'} provenance is MODIFIED")
+        print(f"[provenance] {'signoff_post_impl.setup'}: VALIDATE designer override", flush=True)
+        _run(f"fx validate_override --set STAGE={'signoff_post_impl.setup'} --workdir {workdir}", workspace=workspace, top=top, run_id=run_id)
+        print(f"[provenance] {'signoff_post_impl.setup'}: CONSUME validated override", flush=True)
+        _run(f'fx sdf_post_impl --workdir {workdir}', workspace=workspace, top=top, run_id=run_id, required=True)
+        _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _assert_provenance_metric(run, 'signoff_post_impl.setup', "VALIDATED_OVERRIDE")
+        print(f"[provenance] {'signoff_post_impl.setup'}: RESTORE generated artifact", flush=True)
+        _artifact.write_bytes(_canonical)
+        _run(f'fx metrics --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _run(f'fx check --workdir {workdir}', workspace=workspace, top=top, run_id=run_id)
+        _assert_provenance_metric(run, 'signoff_post_impl.setup', "CLEAN")

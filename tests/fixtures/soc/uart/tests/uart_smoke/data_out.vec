@@ -1,0 +1,13 @@
+# UART TX expectations are synchronized by generic vector barriers.
+0 @wait_event READY_TX 0x54584459 2048
+0 @wait_signal tx_o 0x00000000 2048
+48 tx_o 0x00000001
+80 tx_o 0x00000000
+112 tx_o 0x00000001
+144 tx_o 0x00000000
+176 tx_o 0x00000000
+208 tx_o 0x00000001
+240 tx_o 0x00000000
+272 tx_o 0x00000001
+304 tx_o 0x00000001
+336 @wait_event PASS 0x55415254 2048

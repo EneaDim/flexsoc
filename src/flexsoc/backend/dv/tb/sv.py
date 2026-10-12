@@ -10,7 +10,7 @@ from typing import Any, Sequence
 from flexsoc.backend.core import ClockConfig, ClockDomain, Files, RtlSources, templates
 from flexsoc.backend.design.ip.regs import RegsFlow
 from ..func.functional import FunctionalFlow
-from .common import RegisterTransport, TestbenchModel
+from .common import RegisterTransport, TestbenchModel, TestEventSource
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,9 +31,7 @@ class TestbenchConfig:
     devices: tuple[tuple[str, str, str, str], ...] = ()
     force: bool = False
     dut_parameters: tuple[tuple[str, str], ...] = ()
-    extra_declarations: str = ""
-    extra_statements: str = ""
-    post_checks: tuple[str, ...] = ()
+    event_source: TestEventSource | None = None
 
 
 @dataclass(slots=True)
@@ -160,9 +158,7 @@ class SystemVerilogTestbench:
         interface: str,
         *,
         dut_parameters: tuple[tuple[str, str], ...] = (),
-        extra_declarations: str = "",
-        extra_statements: str = "",
-        post_checks: tuple[str, ...] = (),
+        event_source: TestEventSource | None = None,
     ) -> str:
         """Render one testbench top for any supported clock topology."""
 
@@ -181,9 +177,9 @@ class SystemVerilogTestbench:
                 "    load_config(cfg_path);",
                 "    run_vectors(data_in_path, data_out_path);",
                 f"    repeat (10) {clocks.domains[0].name}_sample_cycle();",
-                *(f"    {line}" for line in post_checks),
             )
         )
+        event_boundary = SystemVerilogTestbench._event_boundary(event_source, signature, clocks)
 
         clock_decls = "\n".join(
             f"  logic {domain.signal};\n  logic {domain.reset};"
@@ -222,8 +218,8 @@ class SystemVerilogTestbench:
             clock_drivers=clock_drivers,
             dut_pins=TestbenchModel.render_dut_pins(signature),
             dut_parameters=SystemVerilogTestbench._dut_parameters(dut_parameters),
-            extra_declarations=extra_declarations.rstrip(),
-            extra_statements=extra_statements.rstrip(),
+            event_declarations=event_boundary[0],
+            event_statements=event_boundary[1],
             clock_init=clock_init,
             reset_assert=reset_assert,
             reset_release=reset_release,
@@ -231,6 +227,102 @@ class SystemVerilogTestbench:
             vector_body=vector_body,
         )
 
+
+    @staticmethod
+    def _event_boundary(
+        source: TestEventSource | None,
+        signature: dict[str, Any],
+        clocks: ClockConfig,
+    ) -> tuple[str, str]:
+        """Render the common event/signal synchronization boundary."""
+
+        declarations = (
+            "  logic flexsoc_event_valid = 1'b0;\n"
+            "  logic [31:0] flexsoc_event_value = 32'b0;\n"
+            "  integer flexsoc_event_sequence = 0;"
+        )
+        statements = []
+        if source is not None:
+            statements.extend(
+                (
+                    f"  always @(posedge {source.clock}) begin",
+                    f"    flexsoc_event_valid <= {source.valid};",
+                    f"    if ({source.valid}) begin",
+                    f"      flexsoc_event_value <= {source.value};",
+                    "      flexsoc_event_sequence <= flexsoc_event_sequence + 1;",
+                    "    end",
+                    "  end",
+                )
+            )
+
+        primary = clocks.domains[0].signal
+        statements.extend(
+            (
+                "",
+                "  task automatic tb_wait_event(",
+                "    input string label,",
+                "    input logic [31:0] expected,",
+                "    input integer timeout_cycles,",
+                "    inout integer cursor,",
+                "    output bit seen",
+                "  );",
+                "    integer i;",
+                "    seen = 1'b0;",
+                "    for (i = 0; i < timeout_cycles && !seen; i++) begin",
+                f"      @(posedge {primary}); #1;",
+                "      if (flexsoc_event_sequence != cursor) begin",
+                "        cursor = flexsoc_event_sequence;",
+                "        if (flexsoc_event_value === expected) seen = 1'b1;",
+                "      end",
+                "    end",
+                "    if (seen)",
+                '      $display("[TB][EVENT] observed name=%s value=0x%08x", label, expected);',
+                "  endtask",
+                "",
+                "  task automatic tb_wait_signal(",
+                "    input string name,",
+                "    input logic [31:0] expected,",
+                "    input integer timeout_cycles,",
+                "    output bit seen",
+                "  );",
+                "    integer i;",
+                "    seen = 1'b0;",
+                "    if (1'b0) begin",
+                "      seen = 1'b0;",
+                "    end",
+            )
+        )
+        ports = [
+            name
+            for name, _ in [
+                *signature.get("ports_in", []),
+                *signature.get("ports_out", []),
+            ]
+            if all(name not in {domain.signal, domain.reset} for domain in clocks.domains)
+        ]
+        for name in ports:
+            domain = TestbenchModel.signal_domain(name, clocks)
+            clock = next(item.signal for item in clocks.domains if item.name == domain)
+            statements.extend(
+                (
+                    f'    else if (name == "{name}") begin',
+                    "      for (i = 0; i < timeout_cycles && !seen; i++) begin",
+                    f"        @(posedge {clock}); #1;",
+                    f"        if ($unsigned({name}) === expected) seen = 1'b1;",
+                    "      end",
+                    "    end",
+                )
+            )
+        statements.extend(
+            (
+                "    else begin",
+                '      $display("[TB][ERROR] unknown wait signal: %s", name);',
+                "      errors++;",
+                "    end",
+                "  endtask",
+            )
+        )
+        return declarations, "\n".join(statements)
 
     @staticmethod
     def _dut_parameters(parameters: tuple[tuple[str, str], ...]) -> str:
@@ -273,9 +365,7 @@ class SystemVerilogTestbench:
             out / f"{config.top}_tb.sv": SystemVerilogTestbench.render_top(
                 config.top, clocks, signature, config.interface,
                 dut_parameters=config.dut_parameters,
-                extra_declarations=config.extra_declarations,
-                extra_statements=config.extra_statements,
-                post_checks=config.post_checks,
+                event_source=config.event_source,
             ),
         }
         for path, body in files.items():
@@ -518,6 +608,7 @@ class SystemVerilogTestbench:
             "top": top,
             "tokenizer": templates.render("dv/sv/common/tokenizer.svh.j2"),
             "checks_text": "\n".join(checks),
+            "sample_cycle": f"{clocks.domains[0].name}_sample_cycle()",
         }
 
     @staticmethod

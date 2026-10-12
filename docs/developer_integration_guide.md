@@ -171,8 +171,8 @@ src/flexsoc/cli.py
 src/flexsoc/api.py
 src/flexsoc/backend/core/flow/target.py
 owner del dominio
-tests/test_api.py
-tests/test_e2e_fx.py
+tests/regression/test_api.py
+tests/e2e/test_fx.py
 docs/command_reference.md
 ```
 
@@ -834,6 +834,40 @@ RegIfaceTestbench
 
 se la differenza è solo register transport.
 
+## 16.1 Utility e VIP riutilizzabili per cocotb
+
+Anche i VIP cocotb devono estendere il testbench comune, non creare una gerarchia parallela.
+
+Il generatore corrente ha già il punto di estensione necessario:
+
+```text
+TestbenchModel
+    ↓
+generatore cocotb
+    ↓
+package Python locale del TB
+    ├── lifecycle comune
+    ├── vector/register driver
+    └── utility di interfaccia opzionali
+```
+
+La directory del testbench cocotb generato entra già nel `PYTHONPATH`, quindi future utility possono essere generate/importate come normali moduli Python senza modificare il lifecycle pubblico. Gli adapter di register transport (`tlul`, `axi_lite`, `reg_iface`) restano separati dalla struttura del testbench.
+
+Per aggiungere un VIP standard:
+
+1. parti da una necessità reale del design, non da una lista astratta di protocolli;
+2. verifica se esiste una libreria cocotb mantenuta con master/slave, source/sink, RAM/model o monitor adatti;
+3. mantieni la dipendenza opzionale e pinned;
+4. aggiungi un binding minimale tra il contract FlexSoC dell'interfaccia e l'API del VIP;
+5. non nascondere nel backend nomi o comportamento specifici del test;
+6. mantieni vector e register flow come baseline generica;
+7. testa single-clock e multi-clock sullo stesso `TestbenchModel`;
+8. verifica parità di ownership/reporting con il backend SystemVerilog dove applicabile.
+
+AXI-Lite è il primo candidato naturale quando verrà introdotto il secondo fabric. `cocotbext-axi` è un candidato da valutare perché offre già componenti AXI, AXI-Lite, AXI-Stream e APB, inclusi master/slave e modelli RAM. Non aggiungere però oggi queste dipendenze al flow TL-UL solo per anticipare uso futuro.
+
+Per protocolli successivi (per esempio AHB, UART, Ethernet o PCIe), seleziona il VIP soltanto quando esiste un'integrazione concreta da qualificare. Se una libreria esterna non è sufficientemente mantenuta o non rappresenta il contract richiesto, un helper FlexSoC-owned può essere giustificato, ma deve restare piccolo e protocol-owned.
+
 ---
 
 # 17. Aggiungere summary / show / debug
@@ -1312,8 +1346,8 @@ Qualification, package, reporting, release lifecycle.
 git diff --check
 uv run python -m compileall -q src tests
 uv run ruff check src tests
-uv run pytest -q tests/test_api.py
-uv run pytest --collect-only -q tests/test_e2e_fx.py
+uv run pytest -q tests/regression/test_api.py
+uv run pytest --collect-only -q tests/e2e/test_fx.py
 uv build --wheel
 ```
 

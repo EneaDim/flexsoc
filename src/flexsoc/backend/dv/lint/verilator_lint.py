@@ -71,7 +71,7 @@ class VerilatorLint:
         command = self._command(profile, sarif)
         result = self.runner.run(
             CommandRequest(
-                command, self.context.project_root, {}, log, outputs=(sarif,),
+                command, paths.run, {}, log, outputs=(sarif,),
             ),
             on=on,
         )
@@ -125,7 +125,7 @@ class VerilatorLint:
                 waiver = self.context.project_root / waiver
             waiver_args = (str(waiver),)
         return (
-            values.get("VERILATOR", "verilator"), "--lint-only", "--sv", "-Wno-fatal",
+            values.get("VERILATOR", "verilator"), "--lint-only", "--sv", "-DSYNTHESIS", "-Wno-fatal",
             *warnings, "--diagnostics-sarif-output", str(sarif), *waiver_args,
             *source_args, "--top-module", top,
         )

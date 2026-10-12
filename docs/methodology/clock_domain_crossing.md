@@ -109,6 +109,45 @@ Therefore:
 same clock != same reset domain
 ```
 
+### Structural graph scaling
+
+The CDC/RDC dependency graph is intentionally **domain-relevant**, not a full
+bit-level transitive dependency graph of the datapath. A processor or DSP can
+have millions of ordinary same-clock register dependencies that carry no CDC
+meaning. Materializing those paths wastes memory and can turn classification
+into a combinatorial search.
+
+FlexSoC therefore retains:
+
+```text
+direct sequential edges needed for synchronizer/reset-chain recognition
++ transitive dependencies that cross a logical clock domain
++ transitive dependencies that cross a reset family
++ targeted same-domain reachability around synchronization endpoints
+```
+
+Flattened clock gating does not by itself create an unknown clock domain. If a
+sequential clock has combinational ancestry to exactly one declared clock, it
+inherits that logical domain for CDC classification. The combinational clock
+path remains independent **glitch evidence** and is still reported unless it is
+represented by an explicit trusted clock-gate contract. A clock generated from
+sequential state does not inherit the parent domain implicitly; declare it as a
+separate domain when that is intentional.
+
+This distinction keeps a single-clock SoC single-domain without hiding unsafe
+clock logic and keeps graph size proportional to actual CDC/RDC structure rather
+than CPU datapath complexity.
+
+Known integration clock-gate primitives are treated differently from arbitrary
+combinational clock logic. The pinned lowRISC `prim_clock_gating` implementation
+is represented as a Yosys whitebox during structural extraction: its ports remain
+visible as an explicit trusted boundary while every ordinary parent hierarchy is
+still flattened into the analysis top. The gate output inherits the logical domain
+of its `clk_i` input. Its latch-based enable behavior is therefore recognized as an
+intentional clock gate rather than reported once per downstream flip-flop. Unknown
+combinational clock logic remains an ERROR; repeated downstream users of the same
+derived clock are aggregated into one finding per clock path.
+
 ---
 
 ## 3. Multi-clock methodology
@@ -477,9 +516,16 @@ The extraction policy is:
 
 ```text
 preserve explicitly contracted cell boundaries
-flatten ordinary hierarchy
+whitebox trusted integration primitives such as prim_clock_gating
+flatten every other hierarchy into the analysis top
+reject residual untrusted hierarchy
 analyze the resulting structural graph
 ```
+
+`load_yosys_json()` must never silently analyze only `modules[top]` while an
+ordinary design module remains instantiated below it. Residual hierarchy outside
+an explicit CDC contract or trusted primitive is a setup/extraction error, because
+accepting it can produce a false PASS by omitting internal sequential elements.
 
 If the RTL contains CDC contracts but `design.json` contains none, do **not**
 interpret the resulting thousands of internal FIFO/gate findings independently.

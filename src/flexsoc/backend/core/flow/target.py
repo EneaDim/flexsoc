@@ -249,6 +249,7 @@ WORKSPACE_TARGETS: dict[str, Target] = {
 
 TOOLCHAIN_TARGETS: dict[str, Target] = {
     "deps-bootstrap": Target("deps-bootstrap", "bootstrap", domain="toolchain"),
+    "deps-plan": Target("deps-plan", "plan", domain="toolchain"),
     "deps": Target("deps", "install", domain="toolchain"),
     "deps-doctor": Target("deps-doctor", "doctor", domain="toolchain"),
     "deps-versions": Target("deps-versions", "versions", domain="toolchain"),

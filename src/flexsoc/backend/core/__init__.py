@@ -2,7 +2,7 @@
 
 from .core import (
     BackendContext, ClockConfig, ClockDomain, ClockRelationship, Core, Files,
-    FlowPaths, PDKRunLayout, PDKSpec, PDKViews, PdkManager, RtlSources,
+    FlowPaths, PDKRunLayout, PDKSpec, PDKViews, PdkManager, RtlSourceContract, RtlSources,
 )
 from .runtime.execution import (
     CommandRequest, CommandResult, ExecutionTarget, LocalExecutor, SshExecutor,
@@ -19,7 +19,7 @@ from .flow.session import TargetSession, WorkspaceFlow
 __all__ = [
     "BackendContext", "ClockConfig", "ClockDomain", "ClockRelationship", "Core",
     "Files", "FlowPaths", "PDKRunLayout", "PDKSpec", "PDKViews", "PdkManager",
-    "RtlSources", "CommandRequest", "CommandResult", "ExecutionTarget", "LocalExecutor",
+    "RtlSourceContract", "RtlSources", "CommandRequest", "CommandResult", "ExecutionTarget", "LocalExecutor",
     "SshExecutor", "Terminal", "ToolRunner", "Toolchain", "Lifecycle", "Provenance",
     "StageContract", "Target", "BACKEND_TARGETS", "TargetSession", "WorkspaceFlow", "ShowDocument",
     "ShowRenderer", "ShowSpec", "Templates", "templates",

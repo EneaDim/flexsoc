@@ -74,7 +74,7 @@ class SlangLint:
         command = self._command(profile, diagnostics_path)
         result = self.runner.run(
             CommandRequest(
-                command, self.context.project_root, {}, log, outputs=(diagnostics_path,),
+                command, paths.run, {}, log, outputs=(diagnostics_path,),
             ),
             on=on,
         )

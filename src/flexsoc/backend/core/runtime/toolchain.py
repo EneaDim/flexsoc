@@ -442,6 +442,7 @@ class Toolchain:
         action = target.action or ""
         return self.deps(
             action,
+            mode=values.get("DEPS_MODE", "user"),
             profile=values.get("DEPS_PROFILE", "base"),
             jobs=int(values.get("DEPS_JOBS", "2")),
             apply=str(values.get("DEPS_PRUNE_APPLY", "0")).strip().lower() in {"1", "true", "yes", "on"},
@@ -453,6 +454,7 @@ class Toolchain:
         self,
         action: str,
         *,
+        mode: str = "user",
         profile: str = "base",
         jobs: int | None = None,
         apply: bool = False,
@@ -463,18 +465,40 @@ class Toolchain:
 
         from .execution import CommandRequest
 
-        allowed = {"bootstrap", "install", "doctor", "versions", "env", "status", "prune"}
+        allowed = {"bootstrap", "plan", "install", "doctor", "versions", "env", "status", "prune"}
         if action not in allowed:
             raise ValueError(f"unsupported dependency action: {action}")
+        if mode not in {"user", "system"}:
+            raise ValueError(f"unsupported dependency mode: {mode}")
         script = Path(__file__).with_name("deps.sh")
-        argv = ["bash", str(script), action, "--profile", profile]
+        argv = ["bash", str(script), action, f"--{mode}", "--profile", profile]
         if jobs is not None:
             argv += ["--jobs", str(jobs)]
         if action == "prune" and apply:
             argv.append("--apply")
         if action == "prune" and prune_cache:
-            argv.append("--prune-cache")
+            argv.append("--cache")
         log = self.project_root / ".flexsoc" / "logs" / f"deps-{action}.log"
-        request = CommandRequest(tuple(argv), self.project_root, {}, log)
+        reporting = {"plan", "doctor", "versions", "env", "status"}
+        callback = self._stream_dependency_line if action in reporting else None
+        if action in {"bootstrap", "install"}:
+            callback = self._stream_dependency_progress
+        request = CommandRequest(tuple(argv), self.project_root, {}, log, line_callback=callback)
         return self.runner.run(request, on=on).returncode
+
+    @staticmethod
+    def _stream_dependency_line(line: str) -> None:
+        """Mirror dependency reports through the public command stream."""
+
+        sys.stdout.write(line)
+        sys.stdout.flush()
+
+    @staticmethod
+    def _stream_dependency_progress(line: str) -> None:
+        """Show concise progress for long dependency builds while preserving full logs."""
+
+        stripped = line.lstrip()
+        if stripped.startswith("[deps]") or "***" in line or stripped.lower().startswith(("error:", "fatal:")):
+            sys.stdout.write(line)
+            sys.stdout.flush()
 

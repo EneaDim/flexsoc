@@ -283,16 +283,23 @@ Prepare and inspect the pinned toolchain before running design targets.
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx deps-bootstrap` | Check/install prerequisites for a dependency profile. | `DEPS_MODE`, `DEPS_PROFILE`, `DEPS_JOBS` | Use `--info` for accepted overrides. |
-| `fx deps` | Install pinned base, impl, or riscv profile. | `DEPS_MODE`, `DEPS_PROFILE`, `DEPS_JOBS` | Use `--info` for accepted overrides. |
+| `fx deps-plan` | Inventory the host and show exactly which locked tools will be reused or installed. | `DEPS_MODE`, `DEPS_PROFILE`, `DEPS_JOBS` | Read-only; performs no download or build. |
+| `fx deps` | Resolve the pinned profile, reusing exact compatible tools and installing only missing/mismatched tools. | `DEPS_MODE`, `DEPS_PROFILE`, `DEPS_JOBS` | Yosys/SBY/EQY move as one compatibility family. |
 | `fx deps-doctor` | Verify the selected pinned dependency profile. | `DEPS_MODE`, `DEPS_PROFILE`, `DEPS_JOBS` | Use `--info` for accepted overrides. |
 | `fx deps-versions` | Show pinned tool versions and revisions. | Common run/clock settings only | Use `--info` for accepted overrides. |
 | `fx deps-env` | Print shell exports for the pinned toolchain. | `DEPS_MODE`, `DEPS_PROFILE`, `DEPS_JOBS` | Prefer `eval "$(fx deps-env)"`; installs also maintain the stable `~/.local/share/flexsoc/toolchain` symlink. |
 | `fx deps-status` | Show current/obsolete managed prefixes, disk use, and duplicate command candidates. | `DEPS_MODE`, `DEPS_PROFILE` | Read-only; it does not remove system packages. |
 | `fx deps-prune` | Preview or remove obsolete managed prefixes and optional build caches. | `DEPS_MODE`, `DEPS_PROFILE`, `DEPS_PRUNE_APPLY`, `DEPS_PRUNE_CACHE` | Dry-run by default; only FlexSoC-managed directories are eligible. |
 
-#### One clean host toolchain
+#### One resolved host toolchain
 
-`fx deps` deliberately installs the exact lock under a versioned user prefix even when another `verilator`, `yosys`, or `iverilog` exists in `/usr/bin` or an OSS CAD Suite directory. The base profile also pins the official static Verible release and installs both `verible-verilog-syntax` and `verible-verilog-lint`; lowRISC generators can therefore use the real Verible parser instead of their regex fallback. Verible availability does not silently add a third qualification pass to `fx lint`, whose canonical evidence remains Slang + Verilator. It never overwrites unrelated host installations. Activate the managed prefix with:
+`fx deps-plan` is the mandatory inventory step behind `fx deps`: it classifies each locked tool as `managed` exact, `external` exact, mismatched, or missing without downloading anything. User mode may reuse an exact compatible host installation; system mode (used by the container build) requires the lock to be materialized inside the managed prefix. A mismatched or missing tool is the only case that may trigger source/archive fetch and installation. Yosys, SBY, and EQY are treated as one compatibility family: if one member is not exact, all three are rebuilt into the same managed prefix. The base profile also pins the official static Verible release and installs both `verible-verilog-syntax` and `verible-verilog-lint`; lowRISC generators can therefore use the real Verible parser instead of their regex fallback. Verible availability does not silently add a third qualification pass to `fx lint`, whose canonical evidence remains Slang + Verilator. FlexSoC never overwrites unrelated host installations. Inspect the resolution plan first:
+
+```bash
+fx deps-plan --user --profile base
+```
+
+Then resolve only what is necessary and activate the lock-specific prefix:
 
 ```bash
 eval "$(fx deps-env)"
@@ -396,9 +403,12 @@ Inspect the existing evidence without rerunning either frontend:
 ```bash
 fx lint --summary
 fx lint --summary --tool slang
-fx lint --show
-fx lint --show --tool slang
-fx lint --show --tool verilator
+fx lint --show                         # P0/P1, grouped by tool
+fx lint --show --tool slang            # P0/P1 from Slang only
+fx lint --show --tool verilator        # P0/P1 from Verilator only
+fx lint --show --priority all          # P0-P3
+fx lint --show --priority P0           # P0 only
+fx lint --show --priority P0,P1,P2     # selected priorities
 fx lint --debug
 ```
 
@@ -474,8 +484,8 @@ Generate the reference-model environment, vectors, testbenches, simulations, reg
 | `fx cocotb --setup` | Generate a cocotb scaffold. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx model --setup` | Generate Python model, CSR regmap, and test scaffolds. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx regmap_py` | Regenerate only `<top>_regmap.py` from HJSON. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx tests_gen` | Generate all vector tests from `<top>_tests.py`. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | `fx tests_gen --check` verifies the generated tree against the Python source without rewriting it. |
-| `fx test_gen` | Generate one vector test selected by TEST_NAME. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+| `fx tests_gen` | Generate all vector tests from workspace/package `model/tests.py` when present, otherwise from `<top>_tests.py`. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | `fx tests_gen --check` verifies the generated tree against the Python source without rewriting it. |
+| `fx test_gen` | Generate one TEST_NAME from workspace/package `model/tests.py` when present, otherwise from the IP model catalogue. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx tests` | List generated vector tests. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx compile` | Compile the current testbench. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx compile_v` | Compile Verilog simulation. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_SHOW_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
@@ -816,12 +826,12 @@ Resolve one semantic SoC plan and generate the fabric and top-level collateral t
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx soc --host ibex` | Resolve and generate the SoC composition. | `HOST`, `FABRIC` | M0 is `Ibex -> TL-UL -> SRAM`; use `--show` to inspect the resolved plan without regenerating. |
-| `fx soc --host ibex --build` | Regenerate M0 and compile/elaborate it through FuseSoC + Verilator. | `HOST`, `FABRIC`, `FUSESOC` | Uses the generated `soc.core` `lint` target in Verilator `lint-only` mode. This is M0 integration compile evidence, not IP lifecycle qualification evidence. |
-| `fx soc --host ibex --sim` | Regenerate M0, build the generated SoC functional testbench, and run the selected test. | `HOST`, `FABRIC`, `FUSESOC`, `TEST_NAME`, `SEED` | Defaults to `TEST_NAME=smoke`; uses `dv/functional/tests/<test>/config.regs`, `data_in.vec`, and `data_out.vec`, producing `dv/functional/sim/soc_tb_<test>.fst`. CPU-driven tests may later add a test-local `sw/` source tree; ELF/bin outputs are generated by the SoC software step, not maintained as source inputs. |
+| `fx soc --host ibex --build` | Regenerate M0 and compile/elaborate it directly from `rtl/rtl.f` with native Verilator. | `HOST`, `FABRIC` | `soc.core` remains an interoperability artifact; FuseSoC is not the authoritative runtime build path. |
+| `fx soc --host ibex --sim` | Regenerate M0, optionally build test-owned software, build the SoC functional testbench, and run the selected test. | `HOST`, `FABRIC`, `TEST_NAME`, `SEED` | Defaults to `TEST_NAME=smoke`; if `dv/functional/tests/<test>/sw/` exists its Makefile must produce `build/main.elf` and `build/main.bin`; FlexSoC derives `main.vmem`. |
 
-`fx soc --host ibex --sim --set TEST_NAME=boot_smoke` runs the CPU-driven M0 boot test, including RISC-V software build and SRAM PASS-signature checking.
+`fx soc --host ibex --sim --set TEST_NAME=<test>` runs the selected workspace/package-owned functional test. If `<test>/sw/` exists, FlexSoC builds it generically and loads its generated VMEM. Test-specific checking remains in `data_out.vec`; CPU-dependent synchronization uses the same generic `@wait_event` / `@wait_signal` vector barriers as the generated functional testbench.
 
-Fabric initialization, `tlgen`, top RTL, functional-TB generation, FuseSoC core generation, and FuseSoC invocation remain internal `SocFlow` steps rather than separate public targets. Boot/software workload compilation will be added behind the same `fx soc` surface and will reuse the same SoC test directories and `SoCPlan` memory map.
+Fabric initialization, `tlgen`, top RTL, native source closure, functional-TB generation, and interoperability core generation remain internal `SocFlow` steps rather than separate public targets. CPU software compilation is generic and test-owned: the backend knows how to build an authored `sw/` tree, not what a UART or boot workload should do.
 
 ### 3.16 FSM flow
 
@@ -994,7 +1004,7 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 
 ## 5. End-to-end pytest qualification
 
-`tests/test_e2e_fx.py` contains five literal, ordered qualification pipelines:
+`tests/e2e/test_fx.py` contains five literal, ordered qualification pipelines:
 
 ```text
 test_fx_single_clock_flow_debug

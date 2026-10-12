@@ -1291,32 +1291,39 @@ class ShowRenderer:
             self.console.print("[green]No diagnostics.[/green]")
             return
 
-        self.console.print("[bold]Diagnostics[/bold]")
-        details = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70", expand=True)
-        details.add_column("Pri", no_wrap=True)
-        details.add_column("Tool", no_wrap=True)
-        details.add_column("Code", no_wrap=True)
-        details.add_column("Line", justify="right", no_wrap=True)
-        details.add_column("Message", ratio=4)
-        details.add_column("File", ratio=3, overflow="fold")
+        priorities = "/".join(map(str, data.get("selected_priorities", ("P0", "P1"))))
+        self.console.print(
+            f"[bold]Diagnostics[/bold]  [grey70]showing {priorities} · {data.get('visible_total', len(diagnostics))}[/grey70]"
+        )
         colors = {"P0": "red", "P1": "orange1", "P2": "bright_cyan", "P3": "grey70"}
-        for item in diagnostics:
-            priority = str(item.get("priority", "P3"))
-            color = colors.get(priority, "white")
-            line = str(item.get("line") or "-")
-            if item.get("column"):
-                line += f":{item.get('column')}"
-            message = str(item.get("message") or "-").splitlines()[0].strip() or "-"
-            file = str(item.get("file") or "<unknown>")
-            details.add_row(
-                f"[{color}]{priority}[/{color}]",
-                str(item.get("tool", "-")),
-                str(item.get("code", "-")),
-                line,
-                message,
-                f"[bright_blue]{file}[/bright_blue]",
-            )
-        self.console.print(details)
+        order = data.get("order", ()) if isinstance(data, Mapping) else ()
+        for tool in order:
+            items = [item for item in diagnostics if item.get("tool") == tool]
+            if not items:
+                continue
+            self.console.print(f"[bold bright_cyan]{tool}[/bold bright_cyan]  [grey70]{len(items)}[/grey70]")
+            details = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70", expand=True)
+            details.add_column("Pri", no_wrap=True)
+            details.add_column("Code", no_wrap=True)
+            details.add_column("Line", justify="right", no_wrap=True)
+            details.add_column("Message", ratio=4)
+            details.add_column("File", ratio=3, overflow="fold")
+            for item in items:
+                priority = str(item.get("priority", "P3"))
+                color = colors.get(priority, "white")
+                line = str(item.get("line") or "-")
+                if item.get("column"):
+                    line += f":{item.get('column')}"
+                message = str(item.get("message") or "-").splitlines()[0].strip() or "-"
+                file = str(item.get("file") or "<unknown>")
+                details.add_row(
+                    f"[{color}]{priority}[/{color}]",
+                    str(item.get("code", "-")),
+                    line,
+                    message,
+                    f"[bright_blue]{file}[/bright_blue]",
+                )
+            self.console.print(details)
 
     def _show_cdc_rdc(self, document: Any) -> None:
         """Render canonical CDC/RDC counts, executed checks and open obligations."""

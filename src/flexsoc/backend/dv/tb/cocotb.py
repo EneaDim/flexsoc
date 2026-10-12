@@ -9,7 +9,7 @@ from typing import Sequence
 from flexsoc.backend.core import ClockConfig, Files, RtlSources, templates
 from flexsoc.backend.design.ip.regs import RegsFlow
 from ..func.functional import FunctionalFlow
-from .common import RegisterTransport, TestbenchModel
+from .common import RegisterTransport, TestbenchModel, TestEventSource
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +31,7 @@ class CocotbConfig:
     n_op: int = 10
     vsv: str = "sv"
     force: bool = False
+    event_source: TestEventSource | None = None
 
 
 @dataclass(slots=True)
@@ -57,6 +58,7 @@ class CocotbTestbench:
         clocks: ClockConfig,
         signature: dict[str, object],
         interface: str,
+        event_source: TestEventSource | None = None,
     ) -> str:
         """Render the common SV wrapper and protocol-specific bus proxies."""
 
@@ -69,6 +71,7 @@ class CocotbTestbench:
             f"  logic {domain.signal};\n  logic {domain.reset};"
             for domain in clocks.domains
         )
+        event_declarations, event_statements = CocotbTestbench._event_boundary(event_source)
         return templates.render(
             "dv/cocotb/testbench/wrapper.sv.j2",
             top=top,
@@ -79,7 +82,33 @@ class CocotbTestbench:
             ),
             bus_helpers=bus_helpers,
             dut_pins=TestbenchModel.render_dut_pins(signature),
+            event_declarations=event_declarations,
+            event_statements=event_statements,
         )
+
+    @staticmethod
+    def _event_boundary(source: TestEventSource | None) -> tuple[str, str]:
+        """Render the common event proxy visible to cocotb."""
+
+        declarations = (
+            "  logic flexsoc_event_valid = 1'b0;\n"
+            "  logic [31:0] flexsoc_event_value = 32'b0;\n"
+            "  integer flexsoc_event_sequence = 0;"
+        )
+        if source is None:
+            return declarations, ""
+        statements = "\n".join(
+            (
+                f"  always @(posedge {source.clock}) begin",
+                f"    flexsoc_event_valid <= {source.valid};",
+                f"    if ({source.valid}) begin",
+                f"      flexsoc_event_value <= {source.value};",
+                "      flexsoc_event_sequence <= flexsoc_event_sequence + 1;",
+                "    end",
+                "  end",
+            )
+        )
+        return declarations, statements
 
     @staticmethod
     def render_reg_driver(
@@ -166,7 +195,10 @@ class CocotbTestbench:
         """Render cycle or stream vector semantics from the DUT contract."""
 
         if not TestbenchModel.uses_stream_handshake(signature, clocks):
-            return templates.render("dv/cocotb/drivers/vec_driver_cycle.py.j2")
+            return templates.render(
+                "dv/cocotb/drivers/vec_driver_cycle.py.j2",
+                signal_clocks=repr(CocotbTestbench._signal_clocks(signature, clocks)),
+            )
         inputs = TestbenchModel.stream_interfaces(
             signature, clocks, direction="input"
         )
@@ -202,7 +234,10 @@ class CocotbTestbench:
         """Render the matching cycle or stream monitor."""
 
         if not TestbenchModel.uses_stream_handshake(signature, clocks):
-            return templates.render("dv/cocotb/drivers/vec_monitor_cycle.py.j2")
+            return templates.render(
+                "dv/cocotb/drivers/vec_monitor_cycle.py.j2",
+                signal_clocks=repr(CocotbTestbench._signal_clocks(signature, clocks)),
+            )
         outputs = TestbenchModel.stream_interfaces(
             signature, clocks, direction="output"
         )
@@ -252,7 +287,7 @@ class CocotbTestbench:
         files = {
             out / "Makefile": CocotbTestbench.render_makefile(config, sources),
             out / f"{config.top}_tb.sv": CocotbTestbench.render_wrapper(
-                config.top, clocks, signature, config.interface
+                config.top, clocks, signature, config.interface, config.event_source
             ),
             out / f"{config.top}_tb.py": CocotbTestbench.render_test(config.top, clocks),
             drivers / "__init__.py": "",
