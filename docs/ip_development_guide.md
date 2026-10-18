@@ -946,7 +946,7 @@ For an intentional experiment:
 ```bash
 fx syn --setup
 # manually edit generated setup
-fx validate_override --set STAGE=syn --setup
+fx validate --set STAGE=syn.setup
 fx syn
 ```
 

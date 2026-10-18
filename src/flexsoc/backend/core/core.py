@@ -1874,7 +1874,9 @@ class FlowPaths:
     @property
     def functional(self) -> Path: return self.dv / "functional"
     @property
-    def model(self) -> Path: return self.functional / "model"
+    def model(self) -> Path: return self.functional / "model"  # SoC-owned catalogue
+    @property
+    def py(self) -> Path: return self.functional / "py"
     @property
     def tests(self) -> Path: return self.functional / "tests"
     @property

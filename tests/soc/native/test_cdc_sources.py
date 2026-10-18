@@ -76,3 +76,46 @@ def test_cdc_extraction_executes_from_source_contract_root(tmp_path: Path) -> No
     assert flow.run() == 1
     assert requests[0].cwd == context.rtl_contract.root
     assert requests[0].cwd == context.paths.run
+
+
+def test_cdc_yosys_projection_preserves_vendor_and_canonical_filelist(tmp_path: Path) -> None:
+    context = _context(tmp_path, soc=True)
+    vendor = context.project_root / "vendor/lowrisc_ibex/rtl/ibex_top.sv"
+    vendor.parent.mkdir(parents=True)
+    original = (
+        "module ibex_top;\n"
+        "  logic unused_scramble_inputs = scramble_key_valid_i &\n"
+        "      (|scramble_key_i);\n"
+        "endmodule\n"
+    )
+    vendor.write_text(original, encoding="utf-8")
+    canonical = context.paths.rtl / "rtl.f"
+    canonical.write_text(f"{vendor}\nrtl/soc.sv\n", encoding="utf-8")
+
+    script = CdcFlow(context).setup().read_text(encoding="utf-8")
+    projected = context.paths.cdc_rdc / "yosys_projection"
+    source = (projected / "ibex_top.sv").read_text(encoding="utf-8")
+    sources = (projected / "sources_0.f").read_text(encoding="utf-8")
+
+    assert "assign unused_scramble_inputs = scramble_key_valid_i" in source
+    assert "logic unused_scramble_inputs =" not in source
+    assert vendor.read_text(encoding="utf-8") == original
+    assert canonical.read_text(encoding="utf-8") == f"{vendor}\nrtl/soc.sv\n"
+    assert str(projected / "ibex_top.sv") in sources
+    assert f"-f {projected / 'sources_0.f'}" in script
+    assert CdcFlow(context).setup().read_text(encoding="utf-8") == script
+
+
+def test_cdc_yosys_projection_rejects_changed_vendor_initializer(tmp_path: Path) -> None:
+    import pytest
+
+    context = _context(tmp_path, soc=True)
+    vendor = context.project_root / "vendor/lowrisc_ibex/rtl/ibex_top.sv"
+    vendor.parent.mkdir(parents=True)
+    vendor.write_text("module ibex_top; endmodule\n", encoding="utf-8")
+    canonical = context.paths.rtl / "rtl.f"
+    canonical.write_text(f"{vendor}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="projection refused"):
+        CdcFlow(context).setup()
+    assert vendor.read_text(encoding="utf-8") == "module ibex_top; endmodule\n"

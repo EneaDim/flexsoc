@@ -14,12 +14,13 @@ from pathlib import Path
 
 import <<: top :>>_model as model
 import <<: top :>>_regmap as regmap
+from scenarios import SCENARIOS
 
 
 TOP = '<<: top :>>'
 SHARED_TESTS = ('smoke', 'corners', 'random_seed_1', 'random_seed_2', 'reconfig')
 DESIGN_TESTS = ('mac_smoke', 'absdiff', 'energy', 'clock_gate')
-TESTS = (*SHARED_TESTS, *DESIGN_TESTS)
+TESTS = tuple(case.id for case in SCENARIOS)
 CFG = regmap.domain("cfg")
 DSP = regmap.domain("dsp")
 

@@ -83,7 +83,7 @@ class PackageFlow:
                 ip_name=ip_name, reg_interface=interface,
                 run_top=paths.run_top, run_id=paths.run_id,
                 workspace=context.workspace, load_as=values.get("LOAD_AS") or None,
-                version=values.get("IP_VERSION") or None,
+                version=values.get("IP_VERSION") or None, requalify=force,
             )
         if target.action == "ipxact":
             return self.export_ipxact(
@@ -130,6 +130,7 @@ class PackageFlow:
             settings_json=paths.meta / "settings.json",
             design_intent_json=paths.run / "meta" / "design_intent.json",
             qualification_json=paths.meta / "qualification.json",
+            release_level=package_level,
             version=values.get("IP_VERSION") or None,
         )
 
@@ -143,8 +144,9 @@ class PackageFlow:
         workspace: Path,
         load_as: str | None = None,
         version: str | None = None,
+        requalify: bool = False,
     ) -> Path:
-        """Load one frozen register-interface release into a canonical run workspace."""
+        """Load a frozen release, or explicitly stage its sources for new qualification."""
 
         reg_interface = PackageFlow._package_interface(reg_interface)
         release_root = self.project_root / "hw" / "ips" / ip_name
@@ -156,9 +158,32 @@ class PackageFlow:
         PackageFlow._validate_package_manifest(
             source, ip_name=ip_name, reg_interface=reg_interface, version=version
         )
-        QualificationFlow.validate_release_package(source)
+        if requalify:
+            snapshot = QualificationFlow.validate_contract_snapshot(source, allow_spec_drift=True)
+            if snapshot["contract"].get("ip") != ip_name:
+                raise ValueError("release contract IP identity differs from requested source")
+            if snapshot["contract"].get("reg_interface") != reg_interface:
+                raise ValueError("release contract interface differs from requested source")
+        else:
+            QualificationFlow.validate_release_package(source)
         run = Path(workspace) / "runs" / run_top / run_id
         destination = run if run_top == ip_name else run / "ips" / (load_as or ip_name)
+        if requalify:
+            # Do not merge a new qualification baseline with previous RTL or evidence.
+            if destination.exists() and any((destination / name).exists() for name in ("csr", "rtl", "ip.json")):
+                raise ValueError("ip_load --force needs a fresh run; use a new RUN_ID or --workdir")
+            with tempfile.TemporaryDirectory(prefix=".ip-requalify.", dir=run.parent if run.parent.is_dir() else None) as temp:
+                staged = Path(temp) / "source"
+                shutil.copytree(source, staged, symlinks=True)
+                common_spec = source.parent.parent / "spec"
+                self._replace_tree(common_spec, staged / "spec")
+                self._discard_frozen_evidence(staged)
+                PackageFlow._clean_python_cache(staged)
+                # Historical source snapshots may reference checkout-level RTL mirrors.
+                # `fx flist` regenerates the canonical closure for this new run.
+                PackageFlow._copy_contents(staged, destination)
+            print("[ip_load] UNQUALIFIED source baseline: previous qualification and PDK evidence discarded")
+            return destination
         if destination.exists() and destination != run:
             shutil.rmtree(destination)
         PackageFlow._copy_contents(source, destination)
@@ -319,14 +344,38 @@ class PackageFlow:
         design_intent_json: Path | None = None,
         qualification_json: Path | None = None,
         spec_root: Path | None = None,
+        release_level: int | None = None,
         version: str | None = None,
     ) -> Path:
         """Atomically update one PDK branch in the reusable interface release."""
 
-        required = (synth_dir, signoff_dir, sdc_file, eqy_config, eqy_view, netlist, liberty)
-        missing = [path for path in required if not Path(path).exists()]
+        # IP_SAVE_LEVELS_M18: an L1 contract release, like L2, has no netlist.
+        rtl_only = release_level in (1, 2)
+        required = ((sdc_file, qualification_json) if rtl_only else
+                    (synth_dir, signoff_dir, sdc_file, eqy_config, eqy_view, netlist, liberty))
+        missing = [path for path in required if path is None or not Path(path).is_file()] if rtl_only else [path for path in required if not Path(path).exists()]
         if missing:
             raise FileNotFoundError("required ip_save input not found: " + ", ".join(map(str, missing)))
+        if rtl_only:
+            report = json.loads(Path(qualification_json).read_text(encoding="utf-8"))
+            levels = report.get("levels", {})
+            if (report.get("ip") != ip_name or report.get("reg_interface") != reg_interface
+                    or report.get("pdk") != pdk
+                    or levels.get(str(release_level), {}).get("status") != "PASS"
+                    or int(report.get("maximum_level", 0)) < release_level):
+                raise ValueError(
+                    f"ip_save L{release_level} requires a matching L{release_level} PASS qualification report"
+                )
+
+        run = Path(synth_dir).parents[1]
+        if spec_root is None:
+            live_spec = run / "spec"
+            frozen_spec = run / "contract"
+            spec_root = live_spec if live_spec.is_dir() else frozen_spec
+        spec_root = Path(spec_root)
+        spec_contract = QualificationFlow.validate_spec_bundle(spec_root, ip_name=ip_name)
+        if rtl_only and report.get("contract_fingerprint") != spec_contract["fingerprint"]:
+            raise ValueError("ip_save L2 qualification report is stale against current specifications")
 
         library_root = Path(library_root)
         reg_interface = PackageFlow._package_interface(reg_interface)
@@ -342,34 +391,46 @@ class PackageFlow:
             staged = Path(tmp) / reg_interface
             if target.is_dir():
                 shutil.copytree(target, staged, symlinks=True)
-                # Current PDK package data is a snapshot, not an incremental archive.
-                _package_pdk = Path(synth_dir).name
-                if not _package_pdk:
-                    raise ValueError("could not derive PDK from synth_dir")
-                for stale_path in (
-                    staged / "syn" / _package_pdk,
-                    staged / "signoff" / _package_pdk,
-                    staged / "meta" / _package_pdk,
-                    staged / "dv" / "functional" / "sim" / "post_syn" / _package_pdk,
-                    staged / "dv" / "functional" / "sim" / "post_impl" / _package_pdk,
-                    staged / "impl" / _package_pdk,
-                ):
-                    if stale_path.exists():
-                        shutil.rmtree(stale_path)
+                previous_contract = staged / "meta" / "contract.json"
+                previous_fingerprint = (
+                    json.loads(previous_contract.read_text(encoding="utf-8")).get("spec_fingerprint")
+                    if previous_contract.is_file() else None
+                )
+                # A new normative baseline invalidates *all* earlier PDK evidence,
+                # not only the PDK being saved. Preserve matching sibling branches.
+                if previous_fingerprint != spec_contract["fingerprint"]:
+                    previous_meta = staged / "meta"
+                    if previous_meta.is_dir():
+                        for branch in previous_meta.iterdir():
+                            if branch.is_dir():
+                                self._discard_pdk_branch(staged, branch.name)
+                self._discard_pdk_branch(staged, pdk)
             else:
                 staged.mkdir(parents=True)
 
-            run = Path(synth_dir).parents[1]
             self._stage_sources(staged, run)
             self._stage_dv_evidence(staged, run, top)
-            self._stage_synthesis(staged, pdk, synth_dir, top)
-            self._stage_post_syn_signoff(staged, pdk, signoff_dir, sdc_file)
-            self._stage_equivalence(
-                staged, pdk, top, eqy_config, eqy_view, filelists,
-                netlist, liberty, cell_models, clock_gate_model,
-            )
+            # These run summaries are replaced from the current run when present;
+            # never retain an earlier run's formal/RTL regression results.
+            for relative in (
+                "dv/formal/summary.json",
+                "dv/functional/regression/summary.json",
+                "dv/functional/coverage/summary.json",
+            ):
+                (staged / relative).unlink(missing_ok=True)
+            if rtl_only:
+                constraints = staged / "constraints"
+                constraints.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(sdc_file, constraints / Path(sdc_file).name)
+            else:
+                self._stage_synthesis(staged, pdk, synth_dir, top)
+                self._stage_post_syn_signoff(staged, pdk, signoff_dir, sdc_file)
+                self._stage_equivalence(
+                    staged, pdk, top, eqy_config, eqy_view, filelists,
+                    netlist, liberty, cell_models, clock_gate_model,
+                )
             packaged_impl = staged / "impl" / pdk
-            if impl_dir and Path(impl_dir).is_dir():
+            if not rtl_only and impl_dir and Path(impl_dir).is_dir():
                 self._stage_implementation(staged, pdk, Path(impl_dir))
                 self._stage_physical_signoff(staged, pdk, Path(signoff_dir) / "post_impl")
             else:
@@ -379,22 +440,17 @@ class PackageFlow:
                     impl_root.rmdir()
                 shutil.rmtree(staged / "signoff" / pdk / "post_impl", ignore_errors=True)
             self._stage_optional_reports(
-                staged, pdk, post_syn_sim_dir, coverage_dir,
+                staged, pdk, None if rtl_only else post_syn_sim_dir, coverage_dir,
                 manifest_json, metrics_json, run / "meta" / pdk / "provenance.json",
                 settings_json, design_intent_json, qualification_json,
             )
-            if spec_root is None:
-                live_spec = run / "spec"
-                frozen_spec = run / "contract"
-                spec_root = live_spec if live_spec.is_dir() else frozen_spec
-            spec_root = Path(spec_root)
             QualificationFlow.write_contract_snapshot(
                 staged=staged, spec_root=spec_root, ip_name=ip_name,
                 reg_interface=reg_interface, version=version,
             )
             staged_spec = Path(tmp) / "spec"
             staged_spec.mkdir()
-            for name in SPEC_FILES:
+            for name in spec_contract["hashes"]:
                 shutil.copy2(spec_root / name, staged_spec / name)
             PackageFlow._freeze_rtl_dependencies(staged, self.project_root, run)
             PackageFlow._clean_python_cache(staged)
@@ -431,6 +487,47 @@ class PackageFlow:
         return target
 
     @staticmethod
+    def _discard_pdk_branch(staged: Path, pdk: str) -> None:
+        """Drop technology evidence in a temporary package, not in the published release."""
+        for relative in (
+            Path("syn") / pdk,
+            Path("signoff") / pdk,
+            Path("meta") / pdk,
+            Path("impl") / pdk,
+            Path("dv/functional/sim/post_syn") / pdk,
+            Path("dv/functional/sim/post_impl") / pdk,
+        ):
+            shutil.rmtree(staged / relative, ignore_errors=True)
+
+    @staticmethod
+    def _discard_frozen_evidence(staged: Path) -> None:
+        """Preserve authored IP inputs, never import frozen execution outcomes."""
+        for name in ("meta", "syn", "signoff", "impl", "logs", "analysis", "manifest.json", "report.json", "ip.json"):
+            path = staged / name
+            if path.is_dir() and not path.is_symlink():
+                shutil.rmtree(path)
+            else:
+                path.unlink(missing_ok=True)
+        dv = staged / "dv"
+        for name in ("lint", "slang_hier", "cdc_rdc"):
+            shutil.rmtree(dv / name, ignore_errors=True)
+        formal = dv / "formal"
+        if formal.is_dir():
+            for child in formal.iterdir():
+                if child.name != "properties":
+                    if child.is_dir():
+                        shutil.rmtree(child)
+                    else:
+                        child.unlink()
+        functional = dv / "functional"
+        for name in ("model_tests", "regression", "coverage", "sim", "summary.json"):
+            path = functional / name
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink(missing_ok=True)
+
+    @staticmethod
     def _replace_tree(source: Path, destination: Path) -> None:
         if destination.exists():
             shutil.rmtree(destination)
@@ -443,7 +540,7 @@ class PackageFlow:
         for relative in (
             "csr", "rtl", "doc", "sw/drivers",
             "dv/formal/properties",
-            "dv/functional/model", "dv/functional/tests", "dv/functional/tb",
+            "dv/functional/py", "dv/functional/model", "dv/functional/tests", "dv/functional/tb",
         ):
             source = run / relative
             if source.is_dir():
@@ -463,7 +560,7 @@ class PackageFlow:
                         path.unlink()
 
     def _stage_dv_evidence(self, staged: Path, run: Path, top: str) -> None:
-        """Retain only machine-readable lint and CDC/RDC QoR below dv/."""
+        """Retain compact, independently recorded RTL and model evidence."""
 
         shutil.rmtree(staged / "logs", ignore_errors=True)
         shutil.rmtree(staged / "analysis", ignore_errors=True)
@@ -492,6 +589,20 @@ class PackageFlow:
         if source.is_file():
             destination.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination / "summary.json")
+
+        functional = run / "dv" / "functional"
+        for relative in ("model_tests/summary.json", "summary.json"):
+            source = functional / relative
+            destination = staged / "dv" / "functional" / relative
+            destination.unlink(missing_ok=True)
+            if source.is_file():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if relative == "model_tests/summary.json":
+                    data = PackageFlow._portable_qor(json.loads(source.read_text(encoding="utf-8")))
+                    data.pop("junit", None)  # Runtime-only path; logs/JUnit are not packaged.
+                    destination.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+                else:
+                    shutil.copy2(source, destination)
 
     @staticmethod
     def _write_fusesoc_core(staged: Path, ip_name: str, top: str) -> Path | None:
@@ -602,7 +713,8 @@ class PackageFlow:
         content = {}
         for key, relative in (
             ("registers", "csr"), ("rtl", "rtl"), ("documentation", "doc"),
-            ("drivers", "sw/drivers"), ("functional_model", "dv/functional/model"),
+            ("drivers", "sw/drivers"), ("functional_python", "dv/functional/py"),
+            ("functional_model", "dv/functional/model"),
             ("functional_tests", "dv/functional/tests"),
             ("functional_tb", "dv/functional/tb"),
             ("formal_properties", "dv/formal/properties"),

@@ -31,11 +31,11 @@ class FunctionalFlow:
         model_dir: Path | None = None,
         on: str = "local",
     ) -> None:
-        """Run one model-owned vector generator through the shared executor."""
+        """Run one IP-owned vector generator through the shared executor."""
 
         from flexsoc.backend.core import CommandRequest, ToolRunner
 
-        model_dir = Path(model_dir) if model_dir is not None else Path(base_dir).parent / "model"
+        model_dir = Path(model_dir) if model_dir is not None else Path(base_dir).parent / "py"
         script = model_dir / f"{top}_{suffix}.py"
         if not script.is_file():
             raise FileNotFoundError(f"missing vector generator: {script}")
@@ -56,6 +56,93 @@ class FunctionalFlow:
         if result.returncode:
             raise RuntimeError(f"vector generator failed ({result.returncode}): {script}")
 
+    def run_model_tests(self, *, model_dir: Path, top: str, output_dir: Path, log_dir: Path | None = None, on: str = "local") -> dict[str, object]:
+        """Execute package-owned model assertions via the canonical tool executor.
+
+        JUnit gives actual testcase outcomes; no RTL/EDA qualification is inferred.
+        """
+
+        import hashlib
+        import time
+        from datetime import datetime, timezone
+        from xml.etree import ElementTree
+        from flexsoc.backend.core import CommandRequest, ToolRunner
+
+        model_dir, output_dir = Path(model_dir), Path(output_dir)
+        test_file = model_dir / f"{top}_model_tests.py"
+        model_file = model_dir / f"{top}_model.py"
+        if not test_file.is_file() or not model_file.is_file():
+            raise FileNotFoundError(f"missing model regression source: {test_file} or {model_file}")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        junit = output_dir / "junit.xml"
+        log = (Path(log_dir) if log_dir is not None else output_dir) / "model_tests.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        summary = output_dir / "summary.json"
+        sources = tuple(sorted(path for path in model_dir.glob("*.py") if path.is_file()))
+        fingerprints = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
+        runner = self.runner or ToolRunner()
+        request = CommandRequest(
+            (sys.executable, "-m", "pytest", "-q", str(test_file), "--junitxml", str(junit)),
+            model_dir, {}, log, inputs=sources, outputs=(junit,),
+        )
+        # Do not interpret an old JUnit report as current evidence on failure.
+        junit.unlink(missing_ok=True)
+        started = datetime.now(timezone.utc)
+        t0 = time.perf_counter()
+        result = runner.run(request, on=on)
+        finished = datetime.now(timezone.utc)
+        duration = time.perf_counter() - t0
+        cases: dict[str, str] = {}
+        if junit.is_file():
+            tree = ElementTree.parse(junit)
+            for case in tree.findall(".//testcase"):
+                name = case.attrib.get("name", "")
+                if not name.startswith("test_model_case[") or not name.endswith("]"):
+                    continue
+                case_id = name[len("test_model_case["):-1]
+                cases[case_id] = (
+                    "FAILED" if case.find("failure") is not None or case.find("error") is not None
+                    else "NOT_RUN" if case.find("skipped") is not None else "PASS"
+                )
+        payload = {
+            "schema": 1, "ip": top, "status": ("FAILED" if result.returncode != 0 or not cases or "FAILED" in cases.values()
+                       else "NOT_RUN" if any(v != "PASS" for v in cases.values()) else "PASS"),
+            "returncode": result.returncode, "cases": dict(sorted(cases.items())),
+            "started_at_utc": started.isoformat(), "finished_at_utc": finished.isoformat(),
+            "duration_seconds": round(duration, 3),
+            "inputs_sha256": fingerprints, "log": str(log), "junit": str(junit) if junit.is_file() else None,
+            "note": "Model-only evidence; this is not RTL simulation or EDA qualification.",
+        }
+        summary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        if output_dir.parent.name == "functional":
+            self.refresh_summary(output_dir.parent)
+        return payload
+
+    @staticmethod
+    def refresh_summary(functional: Path) -> dict[str, object]:
+        """Index stage evidence without claiming a PASS for a missing stage."""
+
+        functional = Path(functional)
+        stages = {}
+        for stage in ("model_tests", "regression", "coverage"):
+            source = functional / stage / "summary.json"
+            status = "NOT_RUN"
+            if source.is_file():
+                try:
+                    result = json.loads(source.read_text(encoding="utf-8"))
+                    status = result.get("status", "UNKNOWN")
+                except (OSError, ValueError, TypeError):
+                    status = "INVALID"
+            stages[stage] = {"status": status, "summary": f"{stage}/summary.json" if source.is_file() else None}
+        statuses = [entry["status"] for entry in stages.values()]
+        overall = ("FAILED" if any(s in {"FAILED", "FAIL", "INVALID"} for s in statuses)
+                   else "REVIEW_REQUIRED" if all(s == "PASS" for s in statuses)
+                   else "PARTIAL" if any(s == "PASS" for s in statuses) else "NOT_RUN")
+        data = {"schema": 1, "status": overall, "stages": stages,
+                "note": "Index only. Stage PASS is not qualification; validate lineage and freshness before release."}
+        (functional / "summary.json").write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return data
+
     @staticmethod
     def _log_root(base_dir: Path) -> Path:
         """Return the owner of functional-DV logs for run or staging paths."""
@@ -73,7 +160,7 @@ class FunctionalFlow:
     def _local_catalog(base_dir: Path) -> Path | None:
         """Return a workspace/package-owned functional-test catalogue, if present."""
 
-        script = Path(base_dir).parent / "model" / "tests.py"
+        script = Path(base_dir).parent / "py" / "tests.py"
         return script if script.is_file() else None
 
     def _run_local_catalog(
@@ -137,7 +224,7 @@ class FunctionalFlow:
         """Regenerate generated collateral in staging and compare it with the run."""
 
         root = Path(base_dir)
-        model_dir = root.parent / "model"
+        model_dir = root.parent / "py"
         local = self._local_catalog(root)
         generated = {"config.regs", "data_in.vec", "data_out.vec"}
         with tempfile.TemporaryDirectory(prefix=f"flexsoc-{top}-tests-check-") as temporary:
@@ -646,18 +733,20 @@ class FunctionalFlow:
         }
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        if output.parent.parent.name == "functional":
+            FunctionalFlow.refresh_summary(output.parent.parent)
         return data
 
     @staticmethod
     def _print_command(argv: Sequence[str]) -> None:
         """Print the exact external command before handing it to the runner."""
-    
+
         Terminal.print_label("command", shlex.join(str(item) for item in argv))
 
     @staticmethod
     def _print_failure_tail(log: Path, *, lines: int = 40) -> None:
         """Print a compact tail immediately when one regression command fails."""
-    
+
         if not log.is_file():
             return
         content = log.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -668,9 +757,9 @@ class FunctionalFlow:
     @staticmethod
     def register_entries_for_top(rtldir: str | Path, top: str) -> list[dict[str, Any]]:
         """Return canonical register metadata for flat or named-domain HJSON maps."""
-    
+
         from flexsoc.backend.design.ip.regs import RegsFlow
-    
+
         rtl = Path(rtldir).resolve()
         for data_dir in (rtl.parent / "csr", rtl.parent.parent / "csr"):
             if not data_dir.is_dir():

@@ -652,6 +652,77 @@ class ShowRenderer:
         self.render(document)
         return 0
 
+    def qualification_summary(
+        self, run: Path, *, top: str, pdk: str, as_json: bool = False,
+    ) -> int:
+        """Summarize the recorded PDK qualification, never signoff/post-syn evidence."""
+
+        try:
+            document = ShowRenderer.load(run, top=top, pdk=pdk, key="qualification")
+        except (FileNotFoundError, KeyError, ValueError) as exc:
+            self.error_console.print(f"[red]{exc}[/red]")
+            return 2
+        data = document.data
+        if not isinstance(data, Mapping) or not isinstance(data.get("levels"), Mapping):
+            self.error_console.print(f"[red]invalid qualification report: {document.path}[/red]")
+            return 2
+        if data.get("pdk") != pdk:
+            self.error_console.print(
+                f"[red]qualification PDK mismatch: requested {pdk}, "
+                f"report declares {data.get('pdk')}[/red]"
+            )
+            return 2
+        try:
+            level = int(data["maximum_level"])
+        except (KeyError, ValueError, TypeError) as exc:
+            self.error_console.print(f"[red]invalid qualification maximum_level: {exc}[/red]")
+            return 2
+        if not 0 <= level <= 5:
+            self.error_console.print(f"[red]invalid qualification maximum_level: {level}[/red]")
+            return 2
+        levels = data["levels"]
+        maximum = levels.get(str(level), {}) if level else {}
+        if level and (not isinstance(maximum, Mapping) or maximum.get("status") not in {"PASS", "WAIVED"}):
+            self.error_console.print(f"[red]inconsistent qualification levels: {document.path}[/red]")
+            return 2
+        summary = {
+            "source": str(document.path),
+            "ip": data.get("ip"),
+            "reg_interface": data.get("reg_interface"),
+            "pdk": pdk,
+            "maximum_level": level,
+            "maximum_qualification": data.get("maximum_qualification"),
+            "qualification_status": data.get("qualification_status"),
+            "requirements": data.get("requirements", {}),
+            "levels": {str(k): v.get("status") for k, v in levels.items()
+                       if isinstance(v, Mapping)},
+        }
+        if as_json:
+            print(json.dumps(summary, indent=2, sort_keys=True))
+            return 0
+        self.console.print(
+            f"[bold]Qualification (recorded)[/bold] · "
+            f"{summary['ip']}/{summary['reg_interface']} · {pdk}"
+        )
+        self.console.print(
+            f"Maximum: L{level} {summary['maximum_qualification']} · "
+            f"{self._state_markup(summary['qualification_status'])}"
+        )
+        req = summary["requirements"]
+        if isinstance(req, Mapping):
+            self.console.print(
+                f"Requirements: {req.get('covered', '-')}/{req.get('total', '-')} "
+                f"({req.get('status', '-')})"
+            )
+        self.console.print(
+            "Levels: " + "  ".join(
+                f"L{k}={v}" for k, v in summary["levels"].items()
+            )
+        )
+        self.console.print(f"Source: {document.path}")
+        self.console.print("[grey70]Stored report only; no EDA or freshness recheck performed.[/grey70]")
+        return 0
+
     def requirements(self, run: Path, *, less: bool = False, as_json: bool = False) -> int:
         """Render the authoritative requirements document."""
 

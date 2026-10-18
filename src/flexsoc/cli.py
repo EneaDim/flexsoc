@@ -51,7 +51,7 @@ else:
     console = Console()
     error_console = Console(stderr=True)
     PSEUDO_COMMANDS = (
-        "help", "settings", "commands", "show", "requirements", "testplan", "meta",
+        "help", "settings", "commands", "show", "requirements", "testplan", "trace", "mtest", "meta",
         "doctor", "pdk", "shell",
     )
     PRIVATE_CLI_TARGETS = frozenset({
@@ -154,6 +154,8 @@ Use `fx commands` to list every backend target.
                 ("fx model --setup --force", "Create the model, RegMap API, and scenario source."),
                 ("fx tests_gen | fx test_gen --set TEST_NAME=smoke", "Generate all tests or one named test."),
                 ("fx tests", "List the generated test catalogue."),
+                ("fx trace hw/ips/uart/1.0.0 --json", "Validate CRS→TDS→requirements→testplan↔tests."),
+                ("fx mtest --setup | fx mtest | fx mtest --show", "Author, run and inspect model tests."),
                 ("fx regression --setup", "Generate SV and cocotb drivers from the current interfaces."),
                 ("fx sim --set TEST_NAME=smoke", "Run one SystemVerilog vector test."),
                 ("fx cocotb --set TEST_NAME=smoke", "Run the same vectors through cocotb."),
@@ -385,10 +387,13 @@ Use `fx commands` to list every backend target.
             "fx fusion --post-impl --all",
         ),
         "validate_override": (
-            "fx validate_override --set STAGE=syn.setup",
+            "fx validate --set STAGE=syn.setup",
             "fx check",
         ),
-        "ip_load": ("fx ip_load --set IP_NAME=uart --set IP_VERSION=1.0.0 --set REG_ITF=tlul",),
+        "ip_load": (
+            "fx ip_load --set IP_NAME=uart --set IP_VERSION=1.0.0 --set REG_ITF=tlul",
+            "fx ip_load --force --set IP_NAME=uart --set IP_VERSION=1.0.0 --set REG_ITF=tlul  # unqualified rebaseline",
+        ),
         "ip_save": (
             "fx ip_save --set IP_NAME=uart --set IP_VERSION=1.0.0 --set REG_ITF=tlul --set QUAL_LEVEL=auto",
             "fx ip_save --force --set IP_NAME=uart --set IP_VERSION=1.0.0 --set REG_ITF=tlul --set QUAL_LEVEL=netlist",
@@ -421,6 +426,16 @@ Use `fx commands` to list every backend target.
             "Render the authoritative testplan.yaml for the configured run.",
             ("fx testplan", "fx testplan --less", "fx testplan --json"),
             ("--less", "--set KEY=VALUE", "--workdir PATH", "--json"),
+        ),
+        "trace": (
+            "Validate and display bidirectional CRS/TDS/requirements/testplan/test links.",
+            ("fx trace", "fx trace --summary", "fx trace --show", "fx trace --json"),
+            ("--summary", "--show", "--json", "--workdir PATH"),
+        ),
+        "mtest": (
+            "Create, run and inspect independent Python model tests; no RTL EDA is implied.",
+            ("fx mtest --setup", "fx mtest", "fx mtest --summary", "fx mtest --show", "fx mtest --check"),
+            ("--setup", "--summary", "--show", "--check", "--json", "--workdir PATH"),
         ),
         "meta": (
             "Render design intent, qualification, provenance, and the configured run metadata inventory.",
@@ -622,7 +637,7 @@ Use `fx commands` to list every backend target.
             (
                 "When to use it",
                 (
-                    ("MODIFIED", "Use validate_override only after intentionally editing a generated setup artifact by hand."),
+                    ("MODIFIED", "Use fx validate only after intentionally editing a generated setup artifact by hand."),
                     ("STALE", "Configuration, source, or parent lineage changed. Rerun the setup phase with the intended settings; do not validate."),
                     ("INVALID", "Required files/provenance are missing or inconsistent. Repair inputs and rerun setup."),
                     ("CLEAN", "Nothing to validate; the generated collateral already matches its canonical setup."),
@@ -633,7 +648,7 @@ Use `fx commands` to list every backend target.
                 "Typical flows",
                 (
                     ("change TARGET_OPT", "`fx settings TARGET_OPT=delay1` → `fx syn --setup --force` → `fx syn`."),
-                    ("manual .abc edit", "Run `fx syn --setup`, edit the generated .abc, then validate_override STAGE=syn.setup before `fx syn`."),
+                    ("manual .abc edit", "Run `fx syn --setup`, edit the generated .abc, then `fx validate --set STAGE=syn.setup` before `fx syn`."),
                 ),
             ),
         ),
@@ -920,6 +935,7 @@ Use `fx commands` to list every backend target.
                 "power_estimate": "power-estimate",
                 "power_analysis": "power-analysis",
                 "fusion_analysis": "fusion",
+                "validate_override": "validate",
             }.get(target, target)
 
         def _guide(self) -> None:
@@ -982,7 +998,7 @@ Use `fx commands` to list every backend target.
             """Resolve one public lifecycle keyword to its backend run target."""
 
             name = value.replace("-", "_")
-            target = "fusion_analysis" if name == "fusion" else name
+            target = {"fusion": "fusion_analysis", "validate": "validate_override"}.get(name, name)
             if target in SETUP_ONLY and not allow_setup_only:
                 raise ValueError(f"{name} is setup-only; use `fx {name} --setup`")
             return self._target_name(target)
@@ -1300,6 +1316,10 @@ Use `fx commands` to list every backend target.
                 len(rows),
             )
             rows.insert(insert_at, fusion)
+            rows.extend((
+                {"name": "trace", "group": "IP specification", "description": "Validate and inspect specification and test matrices", "params": []},
+                {"name": "mtest", "group": "DV functional", "description": "Setup/run/check model tests and view results", "params": []},
+            ))
             if as_json:
                 print(json.dumps(rows, indent=2))
                 return
@@ -1426,6 +1446,212 @@ Use `fx commands` to list every backend target.
 
             run, _ = self._configured_run(client, sets)
             return ShowRenderer(console, error_console).testplan(run, less=less, as_json=as_json)
+
+        def _spec_source(self, client: FlexSoC, sets: tuple[str, ...], source: str | None) -> Path:
+            """Resolve an explicit IP package or the configured run without mutation."""
+
+            base = Path(source).expanduser().resolve() if source else self._configured_run(client, sets)[0]
+            return base.parent if base.name == "spec" else base
+
+        def _traceability(self, client: FlexSoC, sets: tuple[str, ...], source: str | None,
+                          *, as_json: bool, compact: bool = False) -> int:
+            """Validate and render derived CRS↔TDS↔REQ↔TP↔TEST relationships."""
+
+            import yaml
+            from .backend.release.qualification import QualificationFlow
+            from .backend.release.traceability import TraceabilityFlow
+
+            base = self._spec_source(client, sets, source)
+            spec = base / "spec" if (base / "spec").is_dir() else base / "contract"
+            try:
+                contract = QualificationFlow.validate_spec_bundle(spec)
+                report = contract["spec_traceability"]
+            except (OSError, ValueError, KeyError, yaml.YAMLError) as exc:
+                error_console.print(f"[red]Traceability FAIL: {exc}[/red]")
+                return 2
+            if report["status"] == "NOT_CONFIGURED":
+                error_console.print("[yellow]Traceability NOT_CONFIGURED: no customer.md[/yellow]")
+                return 2
+            interface = self._assignments(sets).get("REG_ITF", client.settings.get("REG_ITF", "tlul"))
+            ip = str(contract["ip"])
+            packaged = base / "interfaces" / interface / "dv" / "functional" / "py"
+            model = packaged if packaged.is_dir() else base / "dv" / "functional" / "py"
+            summary = (client.workdir / "model_tests" / ip / interface / "summary.json") if source else (base / "dv" / "functional" / "model_tests" / "summary.json")
+            report["model_execution"] = TraceabilityFlow.model_evidence(
+                report=report, summary=summary, fingerprint=str(contract["fingerprint"]),
+                model_dir=model, ip=ip,
+            )
+            # Package sources can carry frozen regression reports whose RTL and
+            # specification fingerprints no longer match. Only inspect the run.
+            rtl_summary = None if source else base / "dv" / "functional" / "regression" / "summary.json"
+            report["rtl_execution"] = TraceabilityFlow.rtl_evidence(
+                report=report, summary=rtl_summary, ip=ip,
+            )
+            report["execution_matrix"] = TraceabilityFlow.execution_matrix(
+                report=report, model=report["model_execution"], rtl=report["rtl_execution"],
+            )
+            if as_json:
+                console.print_json(data=report)
+            else:
+                console.print(f"Traceability: {report['status']} ({base})")
+                for name, count in report["summary"].items():
+                    console.print(f"  {name}: {count}")
+                console.print(f"Model: {report['model_execution']['status']} · "
+                              f"RTL recorded: {report['rtl_execution']['status']}")
+                if report["model_execution"].get("log"):
+                    console.print(f"Model log: {report['model_execution']['log']}")
+                if report["model_execution"].get("started_at_utc"):
+                    console.print(f"Model run (UTC): {report['model_execution']['started_at_utc']}")
+                if compact:
+                    return 0
+                model_table = Table(title="Model tests → testplan", box=box.SIMPLE)
+                model_table.add_column("Case")
+                model_table.add_column("Testplan")
+                model_table.add_column("Status")
+                for case, plans in sorted(report["model_cases_to_testplan"].items()):
+                    model_table.add_row(case, ", ".join(plans),
+                                        report["model_execution"]["cases"].get(case, "NOT_RUN"))
+                console.print(model_table)
+                rtl_table = Table(title="RTL tests → testplan", box=box.SIMPLE)
+                rtl_table.add_column("Test")
+                rtl_table.add_column("Testplan")
+                rtl_table.add_column("Recorded by backend")
+                for test, plans in sorted(report["tests_to_testplan"].items()):
+                    runs = report["rtl_execution"]["tests"].get(test, {})
+                    states = ", ".join(f"{backend}={entry['reported']}" for backend, entry in runs.items())
+                    rtl_table.add_row(test, ", ".join(plans), states or "NOT_RUN")
+                console.print(rtl_table)
+                console.print("RTL results above are *recorded* statuses, not validated EDA provenance; "
+                              "use `fx qualify` for qualification.")
+                console.print("Use --json for forward/reverse and per-testplan execution matrices.")
+            return 0
+
+        def _model_test_context(self, client: FlexSoC, sets: tuple[str, ...], source: str | None):
+            """Resolve one package or loaded run; preserve canonical evidence paths."""
+
+            from .backend.release.qualification import QualificationFlow
+
+            base = self._spec_source(client, sets, source)
+            spec = base / "spec" if (base / "spec").is_dir() else base / "contract"
+            contract = QualificationFlow.validate_spec_bundle(spec)
+            if contract["spec_traceability"]["status"] == "NOT_CONFIGURED":
+                raise ValueError("customer/TDS traceability is not configured")
+            top = str(contract["ip"])
+            interface = self._assignments(sets).get("REG_ITF", client.settings.get("REG_ITF", "tlul"))
+            packaged = base / "interfaces" / interface / "dv" / "functional" / "py"
+            model = packaged if packaged.is_dir() else base / "dv" / "functional" / "py"
+            output = (client.workdir / "model_tests" / top / interface) if source else (base / "dv" / "functional" / "model_tests")
+            log_dir = (client.workdir / "logs" / "dv" / "functional" / "model_tests" / top / interface) if source else (base / "logs" / "dv" / "functional" / "model_tests")
+            return contract, top, interface, model, output, log_dir
+
+        def _model_tests(self, client: FlexSoC, sets: tuple[str, ...], source: str | None,
+                         *, as_json: bool, setup: bool = False, show: bool = False,
+                         summary: bool = False, check: bool = False) -> int:
+            """Author, execute or inspect model-test evidence without triggering RTL EDA."""
+
+            from .backend.design.ip.model import ModelFlow
+            from .backend.dv.func.functional import FunctionalFlow
+            from .backend.release.traceability import TraceabilityFlow
+            import yaml
+
+            if sum((setup, show, summary, check)) > 1:
+                error_console.print("[red]Choose one of --setup, --show, --summary or --check[/red]")
+                return 2
+            try:
+                contract, top, interface, model, output, log_dir = self._model_test_context(client, sets, source)
+                report = contract["spec_traceability"]
+                if setup:
+                    if source:
+                        raise ValueError("--setup only applies to a loaded run, not an immutable IP package source")
+                    if not (model / f"{top}_model.py").is_file():
+                        raise ValueError(f"missing {top}_model.py: run `fx model --setup` first")
+                    if not model.is_dir() or model.is_symlink():
+                        raise ValueError(f"invalid model Python directory: {model}")
+                    files = {
+                        "scenarios.py": ModelFlow._scenarios_text(top),
+                        f"{top}_model_tests.py": ModelFlow._model_tests_text(top),
+                    }
+                    for name, content in files.items():
+                        path = model / name
+                        if path.is_symlink() or (path.exists() and not path.is_file()):
+                            raise ValueError(f"refusing non-file/symlink model test source: {path}")
+                    created = []
+                    for name, content in files.items():
+                        path = model / name
+                        if not path.exists():
+                            path.write_text(content, encoding="utf-8")
+                            created.append(name)
+                    payload = {"status": "SETUP", "created": created, "preserved": sorted(set(files) - set(created)), "path": str(model)}
+                    if as_json:
+                        console.print_json(data=payload)
+                    else:
+                        console.print(f"Model test setup: {model}")
+                        console.print(f"Created: {', '.join(created) if created else 'none'}; existing authored sources preserved")
+                        console.print("Edit scenarios.py and the model tests before `fx mtest`.")
+                    return 0
+                if show or summary or check:
+                    evidence = TraceabilityFlow.model_evidence(
+                        report=report, summary=output / "summary.json",
+                        fingerprint=str(contract["fingerprint"]), model_dir=model, ip=top,
+                    )
+                    status = evidence["status"]
+                    payload = {**evidence, "path": str(output / "summary.json"), "reg_interface": interface}
+                    if as_json:
+                        console.print_json(data=payload)
+                    else:
+                        console.print(f"Model tests: {status} ({top}/{interface})")
+                        console.print(f"Summary: {output / 'summary.json'}")
+                        if evidence.get("started_at_utc"):
+                            console.print(f"Run (UTC): {evidence['started_at_utc']}")
+                        if evidence.get("log"):
+                            console.print(f"Log: {evidence['log']}")
+                        if evidence.get("junit"):
+                            console.print(f"JUnit: {evidence['junit']}")
+                        cases = evidence["cases"]
+                        counts = {state: list(cases.values()).count(state) for state in ("PASS", "FAILED", "NOT_RUN")}
+                        console.print("Cases: " + ", ".join(f"{state}={count}" for state, count in counts.items()))
+                        if show:
+                            table = Table(title="Model cases → testplan", box=box.SIMPLE)
+                            table.add_column("Case")
+                            table.add_column("Testplan")
+                            table.add_column("Status")
+                            for case, state in sorted(cases.items()):
+                                table.add_row(case, ", ".join(report["model_cases_to_testplan"][case]), state)
+                            console.print(table)
+                        if check and status != "PASS":
+                            console.print("Evidence not current/PASS: run `fx mtest` after editing the model or scenarios.")
+                    return 0 if not check or status == "PASS" else 1
+                if not model.is_dir():
+                    raise ValueError(f"missing model Python sources: {model}")
+                outcome = FunctionalFlow().run_model_tests(model_dir=model, top=top, output_dir=output, log_dir=log_dir)
+                outcome["contract_fingerprint"] = contract["fingerprint"]
+                outcome["reg_interface"] = interface
+                expected = set(report["model_cases_to_testplan"])
+                actual = set(outcome["cases"])
+                missing = sorted(expected - actual)
+                extra = sorted(actual - expected)
+                if missing or extra:
+                    outcome["status"] = "FAILED"
+                    outcome["missing_cases"] = missing
+                    outcome["unexpected_cases"] = extra
+                (output / "summary.json").write_text(json.dumps(outcome, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+                if not source and output.parent.name == "functional":
+                    FunctionalFlow.refresh_summary(output.parent)
+                if as_json:
+                    console.print_json(data=outcome)
+                else:
+                    console.print(f"Model tests: {outcome['status']} (model only; EDA NOT RUN)")
+                    console.print(f"Summary: {output / 'summary.json'}")
+                    console.print(f"Log: {outcome['log']}")
+                    console.print(f"JUnit: {outcome['junit'] or 'NOT_AVAILABLE'}")
+                    console.print(f"Started (UTC): {outcome['started_at_utc']}")
+                    console.print(f"Finished (UTC): {outcome['finished_at_utc']}")
+                    for case, status in outcome["cases"].items():
+                        console.print(f"  {case}: {status}")
+                return 0 if outcome["status"] == "PASS" else 1
+            except (OSError, ValueError, KeyError, RuntimeError, yaml.YAMLError) as exc:
+                error_console.print(f"[red]Model tests FAILED: {exc}[/red]")
+                return 2
 
         def _meta(self, client: FlexSoC, sets: tuple[str, ...], *, less: bool, as_json: bool) -> int:
             """Render release-critical metadata for the configured run."""
@@ -1891,6 +2117,9 @@ Use `fx commands` to list every backend target.
                 args, rtl=rtl, post_syn=post_syn, post_impl=post_impl, all_runs=all_runs,
                 csr=csr, bmc=bmc, prove=prove, cover=cover,
             )
+            # Existing scripts use these spellings; only one CLI implementation is kept.
+            if args and args[0] in {"traceability", "model_tests"}:
+                args = ({"traceability": "trace", "model_tests": "mtest"}[args[0]], *args[1:])
             if host is not None:
                 if args != ("soc",):
                     raise click.BadParameter("--host is only valid with `fx soc`")
@@ -1950,6 +2179,23 @@ Use `fx commands` to list every backend target.
                 if len(args) != 1:
                     raise click.BadParameter("fx testplan accepts no positional arguments")
                 raise typer.Exit(self._testplan(client, set_args, less=less, as_json=as_json))
+            if args[0] in {"trace", "mtest"}:
+                if len(args) > 2:
+                    raise click.BadParameter(f"fx {args[0]} accepts at most one IP package path")
+                source = args[1] if len(args) == 2 else None
+                if args[0] == "trace":
+                    if setup or check_generated:
+                        raise click.BadParameter("fx trace is a read-only validation/view; --setup/--check are not supported")
+                    if show and summary:
+                        raise click.BadParameter("choose --show or --summary")
+                    raise typer.Exit(self._traceability(client, set_args, source, as_json=as_json, compact=summary))
+                if check_generated and (setup or show or summary):
+                    raise click.BadParameter("choose only one mtest mode")
+                if force and setup:
+                    raise click.BadParameter("mtest --setup preserves authored sources; --force is not allowed")
+                raise typer.Exit(self._model_tests(client, set_args, source, as_json=as_json,
+                                                   setup=setup, show=show, summary=summary,
+                                                   check=check_generated))
             if args[0] == "meta":
                 if len(args) != 1:
                     raise click.BadParameter("fx meta accepts no positional arguments")
@@ -1958,7 +2204,7 @@ Use `fx commands` to list every backend target.
                 raise click.BadParameter("--less is only valid with requirements, testplan, or meta")
             if check_generated:
                 if args != ("tests_gen",):
-                    raise click.BadParameter("--check is only valid with `fx tests_gen`")
+                    raise click.BadParameter("--check is only valid with `fx tests_gen` or `fx mtest`")
                 raise typer.Exit(self._tests_gen_check(client, set_args, as_json=as_json))
             if args[0] in {"doctor", "pdk"}:
                 from .backend.core import ToolRunner
@@ -2010,6 +2256,24 @@ Use `fx commands` to list every backend target.
                             code = flows.dv.lint.show(
                                 tool=tool, priority=priority, summary=summary, as_json=as_json,
                                 output=str(save_output) if save_output is not None else None,
+                            )
+                    elif target.show == "qualification":
+                        if save_output is not None:
+                            raise click.BadParameter(
+                                "--save-output is not supported with qualification views"
+                            )
+                        run, values = self._configured_run(client, set_args)
+                        renderer = ShowRenderer(console, error_console)
+                        pdk = values.get("PDK", DEFAULT_SETTINGS["PDK"])
+                        if summary:
+                            code = renderer.qualification_summary(
+                                run, top=values.get("TOP", "test"), pdk=pdk,
+                                as_json=as_json,
+                            )
+                        else:
+                            code = renderer.command(
+                                run, top=values.get("TOP", "test"), pdk=pdk,
+                                args=("qualification",), as_json=as_json,
                             )
                     elif target.show == "slang_hier":
                         if debug:

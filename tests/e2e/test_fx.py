@@ -379,7 +379,7 @@ def _ip_protected_sources(top: str, profile: str) -> tuple[Path, ...]:
             if path.is_file() and path.suffix.lower() in RTL_SOURCE_SUFFIXES
         )
     )
-    model = root / "dv" / "functional" / "model"
+    model = root / "dv" / "functional" / "py"
     derived_model = model / f"{top}_regmap.py"
     protected.extend(
         sorted(
@@ -405,7 +405,7 @@ def _validate_ip_layout(top: str, profile: str) -> None:
     assert "profile" not in manifest
     assert manifest["reg_interface"] == profile
     required_dirs = (
-        csr_dir, "doc", "sw/drivers", "rtl", "dv/functional/model",
+        csr_dir, "doc", "sw/drivers", "rtl", "dv/functional/py",
         "dv/functional/tests", "dv/functional/tb/sv", "dv/functional/tb/cocotb",
         "dv/formal/properties/prove", "dv/formal/properties/cover",
         "constraints", "syn/sky130", "signoff/sky130/post_syn/equivalence",
@@ -414,10 +414,10 @@ def _validate_ip_layout(top: str, profile: str) -> None:
         f"{csr_dir}/{top}.hjson", f"doc/{top}.md", f"doc/{top}_interfaces.md",
         f"sw/drivers/{top}.c", f"sw/drivers/{top}.h", f"rtl/{top}.sv",
         f"rtl/{top}_core.sv", "rtl/rtl_common.f", "rtl/rtl_ip.f",
-        f"dv/functional/model/{top}_model.py",
-        f"dv/functional/model/{top}_regmap.py",
-        f"dv/functional/model/{top}_tests.py",
-        "dv/functional/model/README.md",
+        f"dv/functional/py/{top}_model.py",
+        f"dv/functional/py/{top}_regmap.py",
+        f"dv/functional/py/{top}_tests.py",
+        "dv/functional/py/README.md",
         f"dv/formal/properties/prove/{top}_prove.sv",
         f"dv/formal/properties/cover/{top}_cover.sv",
         "syn/sky130/synth.ys", "syn/sky130/synth_sv.ys",

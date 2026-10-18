@@ -103,6 +103,7 @@ EVIDENCE_GROUPS: Mapping[str, tuple[str, ...]] = {
 }
 
 SPEC_FILES = ("ip.md", "requirements.yaml", "testplan.yaml")
+OPTIONAL_SPEC_FILES = ("customer.md",)
 GLS_QUALIFICATION_SCENARIOS = ("ss", "tt", "ff")
 GLS_SCENARIO_TO_TIMING_MODE = {"ss": "max", "tt": "typ", "ff": "min"}
 GLS_QUALIFICATION_BACKEND = "sv"
@@ -680,7 +681,11 @@ class QualificationFlow:
         ]
         gls_policy = QualificationFlow._validated_gls_policy(qualification, planned_tests=test_names)
 
-        hashes = {name: QualificationFlow.sha256_file(root / name) for name in SPEC_FILES}
+        from .traceability import TraceabilityFlow
+
+        extended_trace = TraceabilityFlow(root).validate(requirements_doc, testplan_doc)
+        files = (*SPEC_FILES, *(name for name in OPTIONAL_SPEC_FILES if (root / name).is_file()))
+        hashes = {name: QualificationFlow.sha256_file(root / name) for name in files}
         fingerprint = hashlib.sha256(
             json.dumps(hashes, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
@@ -695,6 +700,7 @@ class QualificationFlow:
             "tests": sorted(test_names),
             "properties": sorted(properties),
             "traceability": traceability,
+            "spec_traceability": extended_trace,
             "required_evidence": [str(item) for item in required_evidence],
             "gls_policy": gls_policy,
             "hashes": hashes,
@@ -860,7 +866,7 @@ class QualificationFlow:
                     "source": f"spec/{name}",
                     "sha256": spec["hashes"][name],
                 }
-                for name in SPEC_FILES
+                for name in spec["hashes"]
             }
         }
         csr = []
@@ -919,6 +925,7 @@ class QualificationFlow:
     @staticmethod
     def validate_contract_snapshot(
         package_root: Path, *, spec_root: Path | None = None,
+        allow_spec_drift: bool = False,
     ) -> dict[str, object]:
         """Validate the current interface release contract and common specification."""
 
@@ -929,8 +936,10 @@ class QualificationFlow:
         contract = json.loads(contract_file.read_text(encoding="utf-8"))
         effective_spec_root = Path(spec_root) if spec_root is not None else root.parent.parent / "spec"
         spec = QualificationFlow.validate_spec_bundle(effective_spec_root, ip_name=str(contract.get("ip", "")))
-        if contract.get("spec_fingerprint") != spec["fingerprint"]:
+        if contract.get("spec_fingerprint") != spec["fingerprint"] and not allow_spec_drift:
             raise ValueError("IP-level spec fingerprint does not match packaged contract snapshot")
+        if allow_spec_drift and str(contract.get("version", "")) != str(spec.get("version", "")):
+            raise ValueError("IP-level specification version differs from source release")
 
         source_of_truth = contract.get("source_of_truth", {}) or {}
         if not isinstance(source_of_truth, dict):
@@ -1009,7 +1018,9 @@ class QualificationFlow:
             else (interfaces_root.parent / "spec" if interfaces_root is not None else root.parent.parent / "spec")
         )
         common_spec = QualificationFlow.validate_spec_bundle(common_spec_root, ip_name=str(manifest.get("name", "")))
-        if version and common_spec.get("version") != version:
+        # IP_SAVE_VERSIONLESS_COMMON_SPEC_M18: versionless specs are reusable
+        # across releases; an explicitly versioned spec must still match.
+        if version and common_spec.get("version") not in (None, version):
             raise ValueError("release manifest and common spec disagree on version")
         if common_spec.get("fingerprint") != contract.get("spec_fingerprint"):
             raise ValueError("IP-level spec fingerprint does not match packaged contract snapshot")

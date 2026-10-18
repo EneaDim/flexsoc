@@ -23,9 +23,10 @@ NCLOCK_DESIGN_TESTS = ("mac_smoke", "absdiff", "energy", "clock_gate")
 
 
 class ModelFlow:
+    """Create reference-model and authored model-test scaffolds."""
+
     def __init__(self, project_root: Path):
         self.project_root = Path(project_root).resolve()
-    """Create reference-model and authored model-test scaffolds."""
 
     def init_reference(
         self,
@@ -98,7 +99,34 @@ class ModelFlow:
         model = self.init_reference(top, output, rtl_dir, force=force, clocks=clocks)
         tests = self.init_model_tests(top, output, force=force, clocks=clocks)
         regmap_tests = self.setup_regmap_tests(top, output, clocks=clocks)
+        ModelFlow._write_text(output / "scenarios.py", ModelFlow._scenarios_text(top, multiclock=clocks.multiclock), force=False)
+        ModelFlow._write_text(output / f"{top}_model_tests.py", ModelFlow._model_tests_text(top), force=False)
         return regmap, model, tests, regmap_tests
+
+    @staticmethod
+    def _scenarios_text(top: str, *, multiclock: bool = False) -> str:
+        return (
+            f'"""Authored functional scenarios for {top}; no bus/CSR implementation details."""\n'
+            'from dataclasses import dataclass\n\n'
+            '@dataclass(frozen=True)\n'
+            'class Scenario:\n'
+            '    id: str\n'
+            '    # Add typed functional configuration, stimulus and expected behavior.\n\n'
+            'SCENARIOS = tuple(Scenario(name) for name in ' + repr((*SHARED_SCENARIO_TESTS, *NCLOCK_DESIGN_TESTS) if multiclock else SHARED_SCENARIO_TESTS) + ')\n'
+        )
+
+    @staticmethod
+    def _model_tests_text(top: str) -> str:
+        return (
+            f'"""Independent known-answer assertions for {top}.\n\n'
+            'Implement expected results independently of the model before qualification.\n'
+            '"""\n'
+            'import pytest\n'
+            'from scenarios import SCENARIOS\n\n'
+            '@pytest.mark.parametrize("case_id", [item.id for item in SCENARIOS])\n'
+            'def test_model_case(case_id):\n'
+            '    pytest.skip("TODO: author independent expected behavior for " + case_id)\n'
+        )
 
     @staticmethod
     def _ports(rtl_dir: Path | None, top: str) -> tuple[list[str], list[str]]:

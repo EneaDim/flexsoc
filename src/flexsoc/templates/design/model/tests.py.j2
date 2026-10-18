@@ -20,11 +20,12 @@ from pathlib import Path
 
 import <<: top :>>_model as model
 import <<: top :>>_regmap as regmap
+from scenarios import SCENARIOS
 
 
 TOP = '<<: top :>>'
 CSR = regmap.PRIMARY
-TESTS = <<: tests_repr :>>
+TESTS = tuple(case.id for case in SCENARIOS)
 INPUTS = model.INPUTS
 OUTPUTS = model.OUTPUTS
 

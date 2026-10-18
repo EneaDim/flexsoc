@@ -459,9 +459,9 @@ def test_tests_gen_uses_shared_execution_target(tmp_path: Path) -> None:
         tmp_path, workdir, {"TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"},
     )
     paths = context.paths
-    paths.model.mkdir(parents=True, exist_ok=True)
-    (paths.model / "demo_tests.py").write_text("# tests\n", encoding="utf-8")
-    (paths.model / "demo_regmap_tests.py").write_text("# regmap tests\n", encoding="utf-8")
+    paths.py.mkdir(parents=True, exist_ok=True)
+    (paths.py / "demo_tests.py").write_text("# tests\n", encoding="utf-8")
+    (paths.py / "demo_regmap_tests.py").write_text("# regmap tests\n", encoding="utf-8")
 
     class Runner:
         def __init__(self):
@@ -9088,7 +9088,7 @@ def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tm
     assert "RUN_TOP" not in intent["design_intent"]
     assert "TARGET_OPT" not in intent["design_intent"]
     assert {item["path"] for item in intent["sources"]} == {
-        "constraints/demo.sdc", "csr/demo.hjson", "dv/functional/model/demo_model.py",
+        "constraints/demo.sdc", "csr/demo.hjson", "dv/functional/py/demo_model.py",
         "rtl/demo_core.sv",
     }
     assert sky_json["pdk"] == "sky130"
@@ -9877,7 +9877,7 @@ def test_release_vector_catalogues_cover_authored_directed_scenarios(tmp_path: P
         finally:
             sys.path.pop(0)
 
-    uart_dir = root / "hw/ips/uart/1.0.0/interfaces/tlul/dv/functional/model"
+    uart_dir = root / "hw/ips/uart/1.0.0/interfaces/tlul/dv/functional/py"
     uart = load("release_uart_tests", uart_dir / "uart_tests.py")
     assert {"fifo_reset", "noise_filter", "parity_error"}.issubset(set(uart.TESTS))
     for name in ("fifo_reset", "noise_filter", "parity_error"):
@@ -9907,7 +9907,7 @@ def test_release_vector_catalogues_cover_authored_directed_scenarios(tmp_path: P
         tmp_path / "uart_runtime" / "reconfig" / "data_in.vec"
     ).read_text(encoding="utf-8")
 
-    timer_dir = root / "hw/ips/rv_timer/1.0.0/interfaces/tlul/dv/functional/model"
+    timer_dir = root / "hw/ips/rv_timer/1.0.0/interfaces/tlul/dv/functional/py"
     timer = load("release_rv_timer_tests", timer_dir / "rv_timer_tests.py")
     assert "interrupt_test" in timer.TESTS
     timer.write_test(tmp_path / "timer", "interrupt_test")
@@ -10135,7 +10135,7 @@ def test_tests_gen_check_detects_generated_vector_drift(
 ) -> None:
     work = tmp_path / "work"
     run = work / "runs" / "demo" / "dev"
-    model = run / "dv" / "functional" / "model"
+    model = run / "dv" / "functional" / "py"
     model.mkdir(parents=True)
 
     generator = '''\

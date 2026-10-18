@@ -202,7 +202,7 @@ _flexsoc_ip_flow_impl() {
         rm -rf "$RUN/impl" "$RUN/signoff/sky130/post_impl" "$RUN/signoff/ihp-sg13g2/post_impl"
     fi
 
-    MODEL="$RUN/dv/functional/model/${IP}_tests.py"
+    MODEL="$RUN/dv/functional/py/${IP}_tests.py"
 
     if [ ! -f "$MODEL" ]; then
         echo "[STOP] authoritative Python tests missing:"

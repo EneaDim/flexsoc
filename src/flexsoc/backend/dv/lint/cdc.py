@@ -211,10 +211,11 @@ class CdcFlow:
         design_json = paths.cdc_rdc / "design.json"
         script.parent.mkdir(parents=True, exist_ok=True)
         design_json.parent.mkdir(parents=True, exist_ok=True)
+        projected_filelists = self._yosys_filelists(contract.filelists, contract.root, paths.cdc_rdc)
         script.write_text(
             self.render_extract_script(
                 top=contract.top,
-                filelists=contract.filelists,
+                filelists=projected_filelists,
                 repo_root=self.context.project_root.resolve(),
                 design_json=design_json.resolve(),
             ),
@@ -516,6 +517,44 @@ class CdcFlow:
         return CdcRdcResults(cdc, rdc, setup, glitch)
 
     # Structural extraction script.
+
+    @staticmethod
+    def _yosys_filelists(filelists: Sequence[Path], root: Path, output: Path) -> tuple[Path, ...]:
+        """Project one known Ibex declaration initializer for Yosys, never vendor RTL.
+
+        The canonical filelists and vendor checkout remain untouched. Fail closed if
+        the expected source shape changes instead of silently patching another IP.
+        """
+        projected: list[Path] = []
+        for index, filelist in enumerate(filelists):
+            lines = filelist.read_text(encoding="utf-8").splitlines(keepends=True)
+            rewritten: list[str] = []
+            changed = False
+            for line in lines:
+                entry = line.strip()
+                source = Path(entry) if entry else Path(".")
+                resolved = (source if source.is_absolute() else root / source).resolve()
+                if entry and resolved.parts[-3:] == ("lowrisc_ibex", "rtl", "ibex_top.sv"):
+                    original = resolved.read_text(encoding="utf-8")
+                    pattern = r"\blogic\s+unused_scramble_inputs\s*=\s*(.*?);"
+                    matches = list(re.finditer(pattern, original, re.DOTALL))
+                    if len(matches) != 1 or "scramble_key_valid_i" not in matches[0].group(1):
+                        raise ValueError("unexpected Ibex unused_scramble_inputs initializer; projection refused")
+                    updated = original[:matches[0].start()] + "logic unused_scramble_inputs;\n    assign unused_scramble_inputs = " + matches[0].group(1) + ";" + original[matches[0].end():]
+                    target = output / "yosys_projection" / "ibex_top.sv"
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text(updated, encoding="utf-8")
+                    rewritten.append(str(target.resolve()) + "\n")
+                    changed = True
+                else:
+                    rewritten.append(line)
+            if changed:
+                destination = output / "yosys_projection" / f"sources_{index}.f"
+                destination.write_text("".join(rewritten), encoding="utf-8")
+                projected.append(destination)
+            else:
+                projected.append(filelist)
+        return tuple(projected)
 
     @staticmethod
     def _read_slang_command(top: str, filelists: Sequence[Path], repo_root: Path) -> str:

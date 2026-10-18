@@ -152,7 +152,7 @@ For a manual experiment on generated setup:
 ```bash
 fx syn --setup
 # edit the generated setup collateral
-fx validate_override --set STAGE=syn --setup
+fx validate --set STAGE=syn.setup
 fx syn
 ```
 
@@ -776,7 +776,7 @@ Separate evidence collection from human rendering. Technology-scoped metadata li
 | `fx metrics` | Collect lint, CDC/RDC, formal, functional, synthesis, implementation, and sign-off evidence into one normalized snapshot. | Common run/clock settings only | Writes `meta/<pdk>/metrics.json`; it does not render the closure dashboard. |
 | `fx manifest` | Collect run/tool/PDK identity and lightweight qualification evidence. | Common run/clock settings only | Writes `meta/<pdk>/manifest.json`. |
 | `fx manifest_show` | Show the current run manifest in color. | Common run/clock settings only | Read-only inspection of the saved manifest. |
-| `fx validate_override` | Accept an intentional manual edit to generated setup collateral for the current lineage. | `STAGE=<keyword|stage-id>` | Only `MODIFIED` can be accepted. `STALE` means rerun `fx <keyword> --setup --force` with the intended effective settings; `INVALID` means repair missing/inconsistent inputs and rerun setup. |
+| `fx validate` | Accept an intentional manual edit to generated setup collateral for the current lineage. | `STAGE=<keyword|stage-id>` | Only `MODIFIED` can be accepted. `STALE` means rerun `fx <keyword> --setup --force` with the intended effective settings; `INVALID` means repair missing/inconsistent inputs and rerun setup. |
 | `fx check` | Render the saved metrics snapshot as the lifecycle-ordered colored dashboard. | `PDK` plus common run/clock settings | Read-only with respect to `metrics.json`; run `fx metrics` first whenever you want a new snapshot. |
 
 ### 3.14 IP qualification and load/save
