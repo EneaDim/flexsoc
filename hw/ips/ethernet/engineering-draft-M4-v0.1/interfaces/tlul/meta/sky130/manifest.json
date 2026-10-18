@@ -1,0 +1,402 @@
+{
+  "schema_version": 9,
+  "run": {
+    "top": "ethernet",
+    "run_top": "ethernet",
+    "run_id": "csr",
+    "pdk": "sky130",
+    "run_root": "/home/eneadim/github/flexsoc/workspace/ethernet_migration/csr_codegen/runs/ethernet/csr",
+    "artifacts": {
+      "synthesis": "/home/eneadim/github/flexsoc/workspace/ethernet_migration/csr_codegen/runs/ethernet/csr/syn/sky130",
+      "implementation": "/home/eneadim/github/flexsoc/workspace/ethernet_migration/csr_codegen/runs/ethernet/csr/impl/sky130",
+      "sdc": "/home/eneadim/github/flexsoc/workspace/ethernet_migration/csr_codegen/runs/ethernet/csr/constraints/ethernet.sdc",
+      "meta": "/home/eneadim/github/flexsoc/workspace/ethernet_migration/csr_codegen/runs/ethernet/csr/meta/sky130"
+    }
+  },
+  "git": {
+    "commit": "257bf94d9542c66dbd7705fa8bdc7ae00328ac43",
+    "dirty": true
+  },
+  "environment": {
+    "flexsoc": "0.1.0",
+    "python": "3.11.14",
+    "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "uv_lock_sha256": "8ca2bb2cfb58290c0be8e6a7afe0505b588a2ed372ef50942d958fa3af223ab2",
+    "toolchain_lock_sha256": null
+  },
+  "toolchain": {
+    "ok": true,
+    "path": "/home/eneadim/github/flexsoc/src/flexsoc/backend/core/runtime/toolchain.lock",
+    "sha256": "2656a2f0ae78dc0f17741899d4c0fc2c1d05ae4ed5cbf420d580acf03ed7fe60",
+    "lock_version": "3",
+    "expected": {
+      "slang": {
+        "locked_version": "11.0.0",
+        "ref": "7ddf4059f79eff508dd486eb42fd650cdf320d52"
+      },
+      "verilator": {
+        "locked_version": "5.050",
+        "minimum_version": "5.050",
+        "ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c"
+      },
+      "verible-verilog-syntax": {
+        "locked_version": "0.0-4296-g0f262651"
+      },
+      "verible-verilog-lint": {
+        "locked_version": "0.0-4296-g0f262651"
+      },
+      "yosys": {
+        "locked_version": "0.69",
+        "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc"
+      },
+      "sby": {
+        "locked_version": "0.69",
+        "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be"
+      },
+      "eqy": {
+        "locked_version": "0.69",
+        "ref": "4a72eb94fc253062464afee4d0018359017bb846"
+      },
+      "bitwuzla": {
+        "locked_version": "0.9.1",
+        "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2"
+      },
+      "boolector": {
+        "locked_version": "3.2.4"
+      },
+      "sta": {
+        "locked_version": "3.1.0",
+        "minimum_version": "3.1.0",
+        "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d"
+      },
+      "iverilog": {
+        "locked_version": "13.0",
+        "minimum_version": "13.0"
+      },
+      "gtkwave": {
+        "locked_version": "3.3.127"
+      },
+      "surfer": {
+        "locked_version": "0.7.0"
+      },
+      "sv2v": {
+        "locked_version": "0.0.13",
+        "ref": "e5effb5e1ea4e0cf9b4af2c769d364e0ed4b6d84"
+      },
+      "netlistsvg": {
+        "locked_version": "1.0.2",
+        "ref": "d3518f1b5c996a876b72a1a984bb39d3572c47dc"
+      },
+      "openroad": {
+        "ref_prefix": "f552262465b0bfef8f097e258f94bc501d01e19d",
+        "install_mode": "source-ubuntu24"
+      },
+      "klayout": {
+        "locked_version": "0.30.7"
+      }
+    }
+  },
+  "analysis": {
+    "lint": {
+      "path": "dv/lint"
+    },
+    "cdc_rdc": {
+      "path": "dv/cdc_rdc/summary.json",
+      "sha256": "9f14991865efea7b56ec84d17888e349bbdc74a1113067fc7a6a7248b6421d4c",
+      "status": "fail",
+      "cdc_raw": 3086,
+      "rdc_raw": 3304,
+      "obligations": 10
+    }
+  },
+  "flow": {
+    "order": [
+      "lint",
+      "cdc_rdc",
+      "functional",
+      "formal",
+      "synthesis",
+      "equivalence",
+      "pre_implementation_signoff",
+      "implementation",
+      "post_implementation_signoff"
+    ],
+    "stages": {
+      "lint": "PASS",
+      "cdc_rdc": "fail",
+      "functional": "pass",
+      "formal": "fail",
+      "synthesis": "missing",
+      "equivalence": "missing",
+      "pre_implementation_signoff": "incomplete",
+      "implementation": "missing",
+      "post_implementation_signoff": "incomplete"
+    },
+    "status": "fail",
+    "complete": false
+  },
+  "implementation": null,
+  "signoff": {},
+  "physical_signoff": null,
+  "closure": {
+    "order": [
+      "lint",
+      "cdc_rdc",
+      "formal",
+      "regression",
+      "synthesis",
+      "equivalence",
+      "sdf",
+      "sta",
+      "power",
+      "post_syn_gls",
+      "power_activity",
+      "fusion",
+      "implementation",
+      "physical_signoff",
+      "post_impl_sdf",
+      "post_impl_sta",
+      "post_impl_gls",
+      "post_impl_power",
+      "post_impl_power_activity",
+      "post_impl_fusion"
+    ],
+    "stages": {
+      "lint": "PASS",
+      "cdc_rdc": "fail",
+      "regression": "pass",
+      "formal": "fail",
+      "synthesis": "missing",
+      "equivalence": "missing",
+      "sdf": "missing",
+      "sta": "missing",
+      "power": "missing",
+      "post_syn_gls": "missing",
+      "power_activity": "missing",
+      "fusion": "missing",
+      "implementation": "missing",
+      "physical_signoff": "missing",
+      "post_impl_sdf": "missing",
+      "post_impl_sta": "missing",
+      "post_impl_power": "missing",
+      "post_impl_gls": "missing",
+      "post_impl_power_activity": "missing",
+      "post_impl_fusion": "missing"
+    },
+    "status": "fail",
+    "complete": false
+  },
+  "tools": {
+    "uv": {
+      "version": "uv 0.9.29",
+      "path": "/home/eneadim/.local/bin/uv",
+      "version_ok": true,
+      "lock_match": null,
+      "minimum_version": null,
+      "locked_version": null,
+      "locked_ref": null,
+      "install_mode": null
+    },
+    "slang": {
+      "version": "slang version 11.0.0+7ddf4059f",
+      "path": "/usr/local/bin/slang",
+      "version_ok": true,
+      "lock_match": true,
+      "minimum_version": null,
+      "locked_version": "11.0.0",
+      "locked_ref": "7ddf4059f79eff508dd486eb42fd650cdf320d52",
+      "install_mode": "managed"
+    },
+    "verilator": {
+      "version": "Verilator 5.050 2026-07-01 rev v5.050",
+      "path": "/home/eneadim/.local/bin/verilator",
+      "version_ok": true,
+      "lock_match": true,
+      "minimum_version": "5.050",
+      "locked_version": "5.050",
+      "locked_ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c",
+      "install_mode": "managed"
+    },
+    "verible-verilog-syntax": {
+      "version": "Version\tv0.0-4296-g0f262651",
+      "path": "/usr/local/bin/verible-verilog-syntax",
+      "version_ok": true,
+      "lock_match": true,
+      "minimum_version": null,
+      "locked_version": "0.0-4296-g0f262651",
+      "locked_ref": null,
+      "install_mode": "managed"
+    },
+    "verible-verilog-lint": {
+      "version": "Version\tv0.0-4296-g0f262651",
+      "path": "/usr/local/bin/verible-verilog-lint",
+      "version_ok": true,
+      "lock_match": true,
+      "minimum_version": null,
+      "locked_version": "0.0-4296-g0f262651",
+      "locked_ref": null,
+      "install_mode": "managed"
+    },
+    "yosys": {
+      "version": "Yosys 0.67 (git sha1 2d1509d1b, Release, GNU /usr/bin/c++ 13.3.0)",
+      "path": "/usr/local/bin/yosys",
+      "version_ok": true,
+      "lock_match": false,
+      "minimum_version": null,
+      "locked_version": "0.69",
+      "locked_ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+      "install_mode": "managed"
+    },
+    "sby": {
+      "version": "SBY v0.67",
+      "path": "/usr/local/bin/sby",
+      "version_ok": true,
+      "lock_match": false,
+      "minimum_version": null,
+      "locked_version": "0.69",
+      "locked_ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+      "install_mode": "managed"
+    },
+    "eqy": {
+      "version": "EQY v0.67",
+      "path": "/usr/local/bin/eqy",
+      "version_ok": true,
+      "lock_match": false,
+      "minimum_version": null,
+      "locked_version": "0.69",
+      "locked_ref": "4a72eb94fc253062464afee4d0018359017bb846",
+      "install_mode": "managed"
+    },
+    "bitwuzla": {
+      "version": "0.9.1",
+      "path": "/usr/local/bin/bitwuzla",
+      "version_ok": true,
+      "lock_match": true,
+      "minimum_version": null,
+      "locked_version": "0.9.1",
+      "locked_ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+      "install_mode": "managed"
+    },
+    "boolector": {
+      "version": "3.2.4",
+      "path": "/usr/local/bin/boolector",
+      "version_ok": true,
+      "lock_match": true,
+      "minimum_version": null,
+      "locked_version": "3.2.4",
+      "locked_ref": null,
+      "install_mode": "managed"
+    },
+    "btormc": {
+      "version": "3.2.4",
+      "path": "/usr/local/bin/btormc",
+      "version_ok": true,
+      "lock_match": null,
+      "minimum_version": null,
+      "locked_version": null,
+      "locked_ref": null,
+      "install_mode": null
+    },
+    "btorsim": {
+      "version": "installed \u00b7 version not exposed",
+      "path": "/usr/local/bin/btorsim",
+      "version_ok": true,
+      "lock_match": null,
+      "minimum_version": null,
+      "locked_version": null,
+      "locked_ref": null,
+      "install_mode": null
+    },
+    "sta": {
+      "version": "3.1.0",
+      "path": "/usr/local/bin/sta",
+      "version_ok": false,
+      "lock_match": true,
+      "minimum_version": "3.1.0",
+      "locked_version": "3.1.0",
+      "locked_ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
+      "install_mode": "managed"
+    },
+    "iverilog": {
+      "version": "Icarus Verilog version 13.0 (stable) (v13_0-dirty)",
+      "path": "/usr/local/bin/iverilog",
+      "version_ok": true,
+      "lock_match": true,
+      "minimum_version": "13.0",
+      "locked_version": "13.0",
+      "locked_ref": null,
+      "install_mode": "managed"
+    },
+    "slang-hier": {
+      "version": "slang version 11.0.0+7ddf4059f",
+      "path": "/usr/local/bin/slang-hier",
+      "version_ok": true,
+      "lock_match": null,
+      "minimum_version": null,
+      "locked_version": null,
+      "locked_ref": null,
+      "install_mode": null
+    },
+    "gtkwave": {
+      "version": "GTKWave Analyzer v3.3.116 (w)1999-2023 BSI",
+      "path": "/usr/bin/gtkwave",
+      "version_ok": true,
+      "lock_match": false,
+      "minimum_version": null,
+      "locked_version": "3.3.127",
+      "locked_ref": null,
+      "install_mode": "managed"
+    },
+    "fst2vcd": {
+      "version": "Usage: /usr/bin/fst2vcd [OPTION]... [FSTFILE]",
+      "path": "/usr/bin/fst2vcd",
+      "version_ok": true,
+      "lock_match": null,
+      "minimum_version": null,
+      "locked_version": null,
+      "locked_ref": null,
+      "install_mode": null
+    },
+    "surfer": {
+      "version": "surfer 0.6.0-dev (git: 37679a4)",
+      "path": "/home/eneadim/.cargo/bin/surfer",
+      "version_ok": true,
+      "lock_match": false,
+      "minimum_version": null,
+      "locked_version": "0.7.0",
+      "locked_ref": null,
+      "install_mode": "managed"
+    },
+    "sv2v": {
+      "version": "sv2v v0.0.13-5-gc1ce7d0",
+      "path": "/usr/local/bin/sv2v",
+      "version_ok": true,
+      "lock_match": true,
+      "minimum_version": null,
+      "locked_version": "0.0.13",
+      "locked_ref": "e5effb5e1ea4e0cf9b4af2c769d364e0ed4b6d84",
+      "install_mode": "managed"
+    },
+    "openroad": {
+      "version": "26Q3-1305-gf552262465",
+      "path": "/usr/local/bin/openroad",
+      "version_ok": true,
+      "lock_match": false,
+      "minimum_version": null,
+      "locked_version": null,
+      "locked_ref": "f552262465b0bfef8f097e258f94bc501d01e19d",
+      "install_mode": "source-ubuntu24"
+    },
+    "klayout": {
+      "version": "KLayout 0.30.7",
+      "path": "/usr/bin/klayout",
+      "version_ok": true,
+      "lock_match": true,
+      "minimum_version": null,
+      "locked_version": "0.30.7",
+      "locked_ref": null,
+      "install_mode": "managed"
+    }
+  }
+}

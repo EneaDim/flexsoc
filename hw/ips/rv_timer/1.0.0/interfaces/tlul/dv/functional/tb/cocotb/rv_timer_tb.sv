@@ -23,6 +23,9 @@ module rv_timer_tb;
 
   logic [1:0] gpio_intr_i;
   logic intr_timer_expired_hart0_timer0_o;
+  logic flexsoc_event_valid = 1'b0;
+  logic [31:0] flexsoc_event_value = 32'b0;
+  integer flexsoc_event_sequence = 0;
   localparam logic [2:0] FLEXSOC_TL_PUT_FULL    = 3'h0;
   localparam logic [2:0] FLEXSOC_TL_PUT_PARTIAL = 3'h1;
   localparam logic [2:0] FLEXSOC_TL_GET         = 3'h4;
@@ -132,4 +135,6 @@ assign core_d_error = tl_o[1];
     .intr_timer_expired_hart0_timer0_o(intr_timer_expired_hart0_timer0_o),
     .tl_o                     (tl_o)
   );
+
+
 endmodule

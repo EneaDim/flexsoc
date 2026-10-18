@@ -28,14 +28,14 @@ void gpio_out(gpio_t base, char c) {
 #endif
 }
 
-int gpio_putchar(int c) {
-  gpio_out((gpio_t)GPIO_BASE, (char)c);
+int gpio_putchar(gpio_t base, int c) {
+  gpio_out(base, (char)c);
   return c;
 }
 
-int gpio_puts(const char* str) {
+int gpio_puts(gpio_t base, const char* str) {
   while (*str) {
-    gpio_putchar(*str++);
+    gpio_putchar(base, *str++);
   }
   return 0;
 }

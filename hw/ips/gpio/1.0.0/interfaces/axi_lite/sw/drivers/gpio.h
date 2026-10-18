@@ -6,17 +6,14 @@
 #ifndef _GPIO_REG_DEFS_
 #define _GPIO_REG_DEFS_
 
-
 #include <stdint.h>
-
-#define GPIO_BASE 0x0
 
 typedef uintptr_t gpio_t;
 int gpio_init(gpio_t base);
 int gpio_in(gpio_t base);
 void gpio_out(gpio_t base, char c);
-int gpio_putchar(int c);
-int gpio_puts(const char* str);
+int gpio_putchar(gpio_t base, int c);
+int gpio_puts(gpio_t base, const char* str);
 
 #ifdef __cplusplus
 extern "C" {

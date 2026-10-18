@@ -66,11 +66,11 @@ else
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_intr_hw.sv \
-    /tmp/flexsoc-ip-release/rv_timer-reg_iface/runs/rv_timer/release/rtl/rv_timer_reg_pkg.sv \
-    /tmp/flexsoc-ip-release/rv_timer-reg_iface/runs/rv_timer/release/rtl/rv_timer_reg_core.sv \
-    /tmp/flexsoc-ip-release/rv_timer-reg_iface/runs/rv_timer/release/rtl/rv_timer_reg_top.sv \
-    /tmp/flexsoc-ip-release/rv_timer-reg_iface/runs/rv_timer/release/rtl/rv_timer_core.sv \
-    /tmp/flexsoc-ip-release/rv_timer-reg_iface/runs/rv_timer/release/rtl/rv_timer.sv
+    /home/eneadim/github/flexsoc/workspace/l2_rv_timer_reg_iface_mmL5XlIs/workspace/runs/rv_timer/l2/rtl/rv_timer_reg_pkg.sv \
+    /home/eneadim/github/flexsoc/workspace/l2_rv_timer_reg_iface_mmL5XlIs/workspace/runs/rv_timer/l2/rtl/rv_timer_reg_core.sv \
+    /home/eneadim/github/flexsoc/workspace/l2_rv_timer_reg_iface_mmL5XlIs/workspace/runs/rv_timer/l2/rtl/rv_timer_reg_top.sv \
+    /home/eneadim/github/flexsoc/workspace/l2_rv_timer_reg_iface_mmL5XlIs/workspace/runs/rv_timer/l2/rtl/rv_timer_core.sv \
+    /home/eneadim/github/flexsoc/workspace/l2_rv_timer_reg_iface_mmL5XlIs/workspace/runs/rv_timer/l2/rtl/rv_timer.sv
 
   COMPILE_ARGS += --sv --timing
   WAVE_FORMAT ?= fst
@@ -86,7 +86,7 @@ else
   COMPILE_ARGS += -Wno-UNOPTFLAT
 endif
 
-COMPILE_ARGS += -I/tmp/flexsoc-ip-release/rv_timer-reg_iface/runs/rv_timer/release/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan
+COMPILE_ARGS += -I/home/eneadim/github/flexsoc/workspace/l2_rv_timer_reg_iface_mmL5XlIs/workspace/runs/rv_timer/l2/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan
 export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
 TEST_NAME ?= smoke
 SEED ?= 1
@@ -121,7 +121,7 @@ export CFG ?= $(REG_CONFIG)
 export DATA_IN  ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
 export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
 export PYTHONPATH := $(PWD):$(PYTHONPATH)
-VERILOG_SOURCES += /tmp/flexsoc-ip-release/rv_timer-reg_iface/runs/rv_timer/release/dv/functional/tb/cocotb/rv_timer_tb.sv
+VERILOG_SOURCES += /home/eneadim/github/flexsoc/workspace/l2_rv_timer_reg_iface_mmL5XlIs/workspace/runs/rv_timer/l2/dv/functional/tb/cocotb/rv_timer_tb.sv
 
 COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
 ifeq ($(strip $(COCOTB_MAKEFILES)),)

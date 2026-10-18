@@ -18,6 +18,9 @@ module rv_timer_tb;
 
   logic [1:0] gpio_intr_i;
   logic intr_timer_expired_hart0_timer0_o;
+  logic flexsoc_event_valid = 1'b0;
+  logic [31:0] flexsoc_event_value = 32'b0;
+  integer flexsoc_event_sequence = 0;
 assign reg_req_i = '{
   valid: core_reg_req_valid, write: core_reg_req_write,
   addr: core_reg_req_addr, wdata: core_reg_req_wdata,
@@ -54,4 +57,6 @@ assign core_reg_rsp_rdata = reg_rsp_o.rdata;
     .intr_timer_expired_hart0_timer0_o(intr_timer_expired_hart0_timer0_o),
     .reg_rsp_o                (reg_rsp_o)
   );
+
+
 endmodule

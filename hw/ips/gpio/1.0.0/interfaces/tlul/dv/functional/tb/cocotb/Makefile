@@ -80,11 +80,11 @@ else
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv \
-    /tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/rtl/gpio_reg_pkg.sv \
-    /tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/rtl/gpio_reg_core.sv \
-    /tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/rtl/gpio_reg_top.sv \
-    /tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/rtl/gpio_core.sv \
-    /tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/rtl/gpio.sv
+    /home/eneadim/github/flexsoc/workspace/l2-gpio-tlul-20261015-184801/runs/gpio/l2/rtl/gpio_reg_pkg.sv \
+    /home/eneadim/github/flexsoc/workspace/l2-gpio-tlul-20261015-184801/runs/gpio/l2/rtl/gpio_reg_core.sv \
+    /home/eneadim/github/flexsoc/workspace/l2-gpio-tlul-20261015-184801/runs/gpio/l2/rtl/gpio_reg_top.sv \
+    /home/eneadim/github/flexsoc/workspace/l2-gpio-tlul-20261015-184801/runs/gpio/l2/rtl/gpio_core.sv \
+    /home/eneadim/github/flexsoc/workspace/l2-gpio-tlul-20261015-184801/runs/gpio/l2/rtl/gpio.sv
 
   COMPILE_ARGS += --sv --timing
   WAVE_FORMAT ?= fst
@@ -100,7 +100,7 @@ else
   COMPILE_ARGS += -Wno-UNOPTFLAT
 endif
 
-COMPILE_ARGS += -I/tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/hw/ips/tlul
+COMPILE_ARGS += -I/home/eneadim/github/flexsoc/workspace/l2-gpio-tlul-20261015-184801/runs/gpio/l2/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/hw/ips/tlul
 export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
 TEST_NAME ?= smoke
 SEED ?= 1
@@ -135,7 +135,7 @@ export CFG ?= $(REG_CONFIG)
 export DATA_IN  ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
 export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
 export PYTHONPATH := $(PWD):$(PYTHONPATH)
-VERILOG_SOURCES += /tmp/flexsoc-ip-release/gpio-tlul/runs/gpio/release/dv/functional/tb/cocotb/gpio_tb.sv
+VERILOG_SOURCES += /home/eneadim/github/flexsoc/workspace/l2-gpio-tlul-20261015-184801/runs/gpio/l2/dv/functional/tb/cocotb/gpio_tb.sv
 
 COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
 ifeq ($(strip $(COCOTB_MAKEFILES)),)

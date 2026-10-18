@@ -17,6 +17,7 @@ module gpio_tb;
   logic [3:0] cio_gpio_en_o;
   logic [3:0] intr_gpio_o;
 
+  string test_name;
   string cfg_path;
   string data_in_path;
   string data_out_path;
@@ -27,6 +28,9 @@ module gpio_tb;
 
 
 
+  logic flexsoc_event_valid = 1'b0;
+  logic [31:0] flexsoc_event_value = 32'b0;
+  integer flexsoc_event_sequence = 0;
   initial begin
     integer flexsoc_seed;
     integer jitter_prev_ps;
@@ -66,6 +70,79 @@ module gpio_tb;
     .axi_lite_o               (axi_lite_o)
   );
 
+
+  task automatic tb_wait_event(
+    input string label,
+    input logic [31:0] expected,
+    input integer timeout_cycles,
+    inout integer cursor,
+    output bit seen
+  );
+    integer i;
+    seen = 1'b0;
+    for (i = 0; i < timeout_cycles && !seen; i++) begin
+      @(posedge clk_i); #1;
+      if (flexsoc_event_sequence != cursor) begin
+        cursor = flexsoc_event_sequence;
+        if (flexsoc_event_value === expected) seen = 1'b1;
+      end
+    end
+    if (seen)
+      $display("[TB][EVENT] observed name=%s value=0x%08x", label, expected);
+  endtask
+
+  task automatic tb_wait_signal(
+    input string name,
+    input logic [31:0] expected,
+    input integer timeout_cycles,
+    output bit seen
+  );
+    integer i;
+    seen = 1'b0;
+    if (1'b0) begin
+      seen = 1'b0;
+    end
+    else if (name == "cio_gpio_i") begin
+      for (i = 0; i < timeout_cycles && !seen; i++) begin
+        @(posedge clk_i); #1;
+        if ($unsigned(cio_gpio_i) === expected) seen = 1'b1;
+      end
+    end
+    else if (name == "axi_lite_i") begin
+      for (i = 0; i < timeout_cycles && !seen; i++) begin
+        @(posedge clk_i); #1;
+        if ($unsigned(axi_lite_i) === expected) seen = 1'b1;
+      end
+    end
+    else if (name == "cio_gpio_o") begin
+      for (i = 0; i < timeout_cycles && !seen; i++) begin
+        @(posedge clk_i); #1;
+        if ($unsigned(cio_gpio_o) === expected) seen = 1'b1;
+      end
+    end
+    else if (name == "cio_gpio_en_o") begin
+      for (i = 0; i < timeout_cycles && !seen; i++) begin
+        @(posedge clk_i); #1;
+        if ($unsigned(cio_gpio_en_o) === expected) seen = 1'b1;
+      end
+    end
+    else if (name == "intr_gpio_o") begin
+      for (i = 0; i < timeout_cycles && !seen; i++) begin
+        @(posedge clk_i); #1;
+        if ($unsigned(intr_gpio_o) === expected) seen = 1'b1;
+      end
+    end
+    else if (name == "axi_lite_o") begin
+      for (i = 0; i < timeout_cycles && !seen; i++) begin
+        @(posedge clk_i); #1;
+        if ($unsigned(axi_lite_o) === expected) seen = 1'b1;
+      end
+    end
+    else begin
+      $display("[TB][ERROR] unknown wait signal: %s", name);
+      errors++;
+    end
+  endtask
   // Verification helpers share one structure for all clock topologies.
   `include "drivers/gpio_reg_driver.svh"
   `include "drivers/gpio_vec_monitor.svh"
@@ -77,6 +154,8 @@ module gpio_tb;
     rst_ni = 1'b1;
     apply_defaults();
 
+    if (!$value$plusargs("TEST_NAME=%s", test_name)) test_name = "smoke";
+    $display("[TB] test = %s", test_name);
     if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "dv/functional/tests/smoke/config.regs";
     if (!$value$plusargs("DATA_IN=%s", data_in_path)) data_in_path = "dv/functional/tests/smoke/data_in.vec";
     if (!$value$plusargs("DATA_OUT=%s", data_out_path)) data_out_path = "dv/functional/tests/smoke/data_out.vec";
@@ -118,10 +197,10 @@ module gpio_tb;
     run_vectors(data_in_path, data_out_path);
     repeat (10) core_sample_cycle();
     if (errors == 0) begin
-      $display("[TB] PASS");
+      $display("[TB] PASS test=%s", test_name);
       $finish;
     end else begin
-      $display("[TB] FAIL errors=%0d", errors);
+      $display("[TB] FAIL test=%s errors=%0d", test_name, errors);
       $fatal(1);
     end
   end

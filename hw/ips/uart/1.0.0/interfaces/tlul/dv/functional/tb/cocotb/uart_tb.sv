@@ -23,6 +23,9 @@ module uart_tb;
 
   logic rx_i;
   logic tx_o;
+  logic flexsoc_event_valid = 1'b0;
+  logic [31:0] flexsoc_event_value = 32'b0;
+  integer flexsoc_event_sequence = 0;
   localparam logic [2:0] FLEXSOC_TL_PUT_FULL    = 3'h0;
   localparam logic [2:0] FLEXSOC_TL_PUT_PARTIAL = 3'h1;
   localparam logic [2:0] FLEXSOC_TL_GET         = 3'h4;
@@ -132,4 +135,6 @@ assign core_d_error = tl_o[1];
     .tx_o                     (tx_o),
     .tl_o                     (tl_o)
   );
+
+
 endmodule

@@ -29,6 +29,9 @@ module uart_tb;
 
   logic rx_i;
   logic tx_o;
+  logic flexsoc_event_valid = 1'b0;
+  logic [31:0] flexsoc_event_value = 32'b0;
+  integer flexsoc_event_sequence = 0;
   assign axi_lite_i = '{
     aw: '{addr: core_axi_aw_addr_i, prot: core_axi_aw_prot_i},
     aw_valid: core_axi_aw_valid_i,
@@ -72,4 +75,6 @@ module uart_tb;
     .tx_o                     (tx_o),
     .axi_lite_o               (axi_lite_o)
   );
+
+
 endmodule

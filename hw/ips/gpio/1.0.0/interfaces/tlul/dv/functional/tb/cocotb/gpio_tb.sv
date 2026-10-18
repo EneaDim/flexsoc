@@ -25,6 +25,9 @@ module gpio_tb;
   logic [3:0] cio_gpio_o;
   logic [3:0] cio_gpio_en_o;
   logic [3:0] intr_gpio_o;
+  logic flexsoc_event_valid = 1'b0;
+  logic [31:0] flexsoc_event_value = 32'b0;
+  integer flexsoc_event_sequence = 0;
   localparam logic [2:0] FLEXSOC_TL_PUT_FULL    = 3'h0;
   localparam logic [2:0] FLEXSOC_TL_PUT_PARTIAL = 3'h1;
   localparam logic [2:0] FLEXSOC_TL_GET         = 3'h4;
@@ -136,4 +139,6 @@ assign core_d_error = tl_o[1];
     .intr_gpio_o              (intr_gpio_o),
     .tl_o                     (tl_o)
   );
+
+
 endmodule

@@ -47,17 +47,17 @@ void uart_out(uart_t base, char c) {
   DEV_WRITE(base + UART_WDATA_REG_OFFSET, (uint32_t)(uint8_t)c);
 }
 
-int uart_putchar(int c) {
+int uart_putchar(uart_t base, int c) {
   if (c == '\n') {
-    uart_out((uart_t)UART_BASE, '\r');
+    uart_out(base, '\r');
   }
-  uart_out((uart_t)UART_BASE, (char)c);
+  uart_out(base, (char)c);
   return c;
 }
 
-int uart_puts(const char* str) {
+int uart_puts(uart_t base, const char* str) {
   while (*str) {
-    uart_putchar(*str++);
+    uart_putchar(base, *str++);
   }
   return 0;
 }

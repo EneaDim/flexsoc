@@ -1,78 +1,115 @@
-# UART — Digital IP specification
+# UART — Technical Design Specification
 
-**Release:** 1.0.0  
-**Status:** authored qualification baseline derived from the checked-in CSR contract, RTL, functional vectors and formal properties.
+**Document class:** TDS · **IP release:** 1.0.0 · **Status:** Engineering specification for qualification
+**Upstream product contract:** [Customer Specification](customer.md) · **Derived obligations:** [Requirements](requirements.yaml) · **Verification allocation:** [Testplan](testplan.yaml)
 
-This document is the architectural contract for the UART IP release. Requirements marked `baselined` are mandatory. Behavior explicitly listed as a non-claim is not qualified by this release.
+## 1. Purpose and scope
 
-## 1. Purpose
+This document specifies a programmable, memory-mapped, full-duplex, eight-bit asynchronous UART. It defines functional interfaces, reset, framing, receive validation, buffering, loopback, error behavior and the software-visible register contract. The same UART behavior applies to its `tlul`, `reg_iface` and `axi_lite` packages; each transport is separately qualified. Package collateral supplies the register map HJSON, which is authoritative for offsets, field access types and reset values. This document defines behavioral meaning, not duplicate address offsets.
 
-`uart` is a software-controlled full-duplex asynchronous serial peripheral with an 8-bit TX/RX datapath, independent transmit and receive FIFOs, NCO-based baud timing, optional parity, line/system loopback, a receive noise filter, and software-visible live FIFO/status state.
+**Functional boundary:** serial `rx_i` and `tx_o`, `clk_i`, `rst_ni`, the control/status register transport and FIFOs. Clock generation, physical pads and system-level interrupt policy are external responsibilities. One functional clock domain is used; `rx_i` is asynchronous to it.
 
-The architectural behavior and CSR semantics are common across register transports. FlexSoC may materialize this release with `tlul`, `reg_iface`, or `axi_lite`; changing the external CSR transport shall not change the UART contract.
+## 2. Architecture and data flow
 
-## 2. Release and qualification scope
+Firmware writes TX data into an eight-entry transmit FIFO. The serializer drives idle-high frames using the programmed NCO timing. The receive pin passes through synchronization and, optionally, digital noise filtering, then a framed receiver; accepted bytes enter a sixteen-entry receive FIFO for firmware readout. Status reports FIFO and serial state. A loopback multiplexer permits pin-level or internal-path diagnostics.
 
-Release 1.0.0 supports package interfaces `tlul`, `reg_iface`, and `axi_lite`. Each interface may be independently qualified for `sky130` and `ihp-sg13g2`. The current release target is pre-PnR **Netlist Qualified**; routed physical sign-off is outside this baseline.
+The NCO register controls nominal serial timing. Testbench profile `CTRL.NCO=0x8000` corresponds to a 32-clock bit cell in the reference configuration; this is a verification configuration, **not** a promised accuracy bound for arbitrary system clocks or NCO settings.
 
-A package interface is qualified only when its own evidence satisfies the requested FlexSoC qualification level. The existence of one qualified interface or technology does not qualify the others.
+## 3. Detailed behavioral requirements
 
-## 3. Clock, reset and serial framing
+### TDS-001 — Clock, reset and serial framing
 
-- One functional clock, `clk_i`, and active-low reset, `rst_ni`.
-- Reset assertion is asynchronous; release may be synchronized and distributed internally by FlexSoC-generated reset structures.
-- `rx_i` is the asynchronous receive input; `tx_o` is the transmit output.
-- Serial idle is logic one.
-- Frames are one start bit, eight data bits LSB-first, optional parity, and stop/idle high.
-- The reference DV configuration uses `CTRL.NCO=0x8000`, which gives a deterministic 32-clock bit cell in the checked-in model.
+Customer refs: CRS-001
 
-## 4. CSR contract
+- `clk_i` clocks synchronous logic; active-low `rst_ni` establishes the reset state, including timing and receive synchronization.
+- The serial signal is idle high. A frame consists of one low start bit, eight data bits transmitted LSB-first, optional parity, then a high stop interval.
+- When enabled and given an accepted `WDATA` byte, the TX path transmits the complete payload with the active timing and parity settings. On reception, a correctly framed byte is made available in arrival order through `RDATA`.
+- The receive datapath shall preserve at least `0x00`, `0xFF`, `0x55` and `0xAA`, which provide representative corner patterns.
+- Reset must leave the externally observable FIFO/status interface in its documented idle/empty condition. The register-map HJSON owns the exact field defaults.
 
-The authoritative register map is the HJSON carried by each materialized interface package. Register offsets and field semantics are invariant across qualified register transports.
+Allocated requirements: UART-RST-001, UART-TX-001, UART-RX-001, UART-DATA-001
 
-### CTRL
+### TDS-002 — FIFO and status interface
 
-`TX`, `NF`, `SLPBK`, `LLPBK`, `PARITY_EN`, `PARITY_ODD`, and `NCO` configure UART behavior. `CTRL.RX` remains software-visible for compatibility with the inherited register map, but the current RTL continuously enables the receive datapath; **release 1.0.0 does not claim RX-disable semantics for `CTRL.RX=0`**.
+Customer refs: CRS-001
 
-### Data and FIFO control
+- `WDATA` is the software enqueue path to TX. `RDATA` is the software dequeue path from RX.
+- `FIFO_CTRL.TXRST` and `FIFO_CTRL.RXRST` are independent write-triggered FIFO-clear controls.
+- `FIFO_STATUS.TXLVL` and `FIFO_STATUS.RXLVL` report current fill levels.
+- `STATUS.TXFULL`, `RXFULL`, `TXEMPTY`, `RXEMPTY`, `TXIDLE` and `RXIDLE` reflect the corresponding live FIFO or serial conditions; firmware shall not infer that a FIFO-empty indication alone guarantees line-idle.
+- The reference configuration uses TX depth eight and RX depth sixteen. Overflow/underflow guarantees outside the existing FIFO acceptance semantics are not implied.
 
-- Writing `WDATA` pushes one byte into the TX FIFO when accepted by the implemented FIFO interface.
-- Reading `RDATA` consumes the current RX FIFO byte.
-- `FIFO_CTRL.RXRST` and `FIFO_CTRL.TXRST` are write-triggered clear actions.
-- `FIFO_STATUS.TXLVL/RXLVL` expose live fill levels.
-- The current reference instance uses RX depth 16 and TX depth 8.
+Allocated requirements: UART-FIFO-001, UART-FIFO-002, UART-STAT-001
 
-### Status
+### TDS-003 — Reception validity and parity
 
-`STATUS.TXFULL`, `RXFULL`, `TXEMPTY`, `RXEMPTY`, `TXIDLE`, and `RXIDLE` reflect the live FIFO/serial state implemented by the RTL.
+Customer refs: CRS-001
 
-## 5. Transmit path
+- Reception validates the stop framing. Frames with invalid stop framing shall not enter the RX FIFO.
+- With `CTRL.PARITY_EN=1`, the receiver checks the parity selected by `CTRL.PARITY_ODD`; a mismatch causes that frame to be dropped.
+- TX and RX use compatible parity configuration, and firmware may change parity between completed transactions.
+- Dropped erroneous frames shall not be represented as successful received payloads. An independent parity/framing error counter or interrupt is not required by this release.
 
-When TX is enabled, queued bytes are serialized using the active NCO and parity configuration. System-loopback tests exercise the full TX serializer, FIFO, RX deserializer and receive FIFO path without requiring an external serial peer.
+Allocated requirements: UART-RX-002, UART-PAR-001
 
-## 6. Receive path
+### TDS-004 — Software configuration and timing
 
-The asynchronous RX input is synchronized before decoding. Valid frames are queued in receive order. Frames with a framing error or a parity error are rejected and shall not be inserted into the RX FIFO.
+Customer refs: CRS-002
 
-## 7. Loopback modes
+- `CTRL.TX` enables transmission; `CTRL.NCO` sets baud timing.
+- `CTRL.NF`, `CTRL.SLPBK`, `CTRL.LLPBK`, `CTRL.PARITY_EN` and `CTRL.PARITY_ODD` select filtering, loopback and parity functions.
+- Configuration settings control subsequent serial transactions. Reconfiguration while a frame is in progress has no separately qualified continuity guarantee.
+- `CTRL.RX` remains in the software-visible map, but **RX-disable behavior when it is zero is not part of this release contract**.
 
-- **Line loopback (`LLPBK`)**: `tx_o` follows `rx_i`; the internal receive path is held at the loopback-safe idle value.
-- **System loopback (`SLPBK`)**: the internal transmit stream feeds the receive datapath and external `tx_o` remains at the implemented idle behavior.
+Allocated requirements: UART-CFG-001
 
-## 8. Parity
+### TDS-005 — Diagnostic loopback paths
 
-`PARITY_EN` enables parity in both directions and `PARITY_ODD` selects odd/even parity. Correctly formed parity frames are accepted. A frame with incorrect parity is rejected from the RX FIFO. Parity configuration may be changed between completed transactions.
+Customer refs: CRS-002
 
-## 9. Receive noise filter
+- In line loopback (`LLPBK`), `tx_o` reflects `rx_i`, with the internal RX path held in the loopback-safe idle condition.
+- In system loopback (`SLPBK`), the serializer output is routed internally to the RX path, allowing queued transmit data to be received without an external serial connection; the external TX pin assumes the defined idle behavior of that mode.
+- Loopback testing must distinguish pin routing from successful internal FIFO-to-FIFO delivery.
 
-When `NF` is enabled, the synchronized RX stream passes through the implemented three-sample majority filter. A one-cycle disturbance that is rejected by this filter shall not create a spurious byte; stable UART frames shall remain receivable.
+Allocated requirements: UART-LOOP-001, UART-LOOP-002
 
-## 10. Verification intent
+### TDS-006 — Receive-input qualification
 
-Qualification combines directed vector simulation, deterministic random vectors, CSR/regmap tests, structural CDC/RDC analysis and formal properties. The directed catalogue explicitly covers reset/default status, corner payloads, FIFO consume/reset, line/system loopback, parity reconfiguration, bad-parity rejection, noise-filter rejection and stable-frame reception.
+Customer refs: CRS-003
 
-Post-synthesis GLS is intentionally bounded to `smoke`, `corners`, and `reconfig` over `ss`, `tt`, and `ff`. Post-PnR GLS and physical sign-off are not release-1.0.0 requirements.
+- The asynchronous receive input is synchronized before serial decoding.
+- `CTRL.NF` optionally selects a three-sample majority filter on the synchronized input.
+- A short disturbance rejected by that majority filter shall not create a received byte. A stable correctly timed frame shall remain receivable.
+- The filter is a digital rejection mechanism and does not establish physical-layer noise immunity or a calibrated time threshold.
 
-## 11. Non-claims
+Allocated requirements: UART-FILT-001
 
-Release 1.0.0 does not claim hardware flow control, variable word length, qualified line-break handling, qualified UART interrupt generation, exhaustive baud-rate accuracy over the full NCO range, or `CTRL.RX` disable behavior. Those features require explicit CSR/RTL and requirement/testplan coverage before they can enter the release contract.
+### TDS-007 — Register-transport contract
+
+Customer refs: CRS-004
+
+- `tlul`, `reg_iface` and `axi_lite` packages expose equivalent logical control, status and data semantics.
+- The generated CSR HJSON and regmap are the source of truth for offsets, access types and field widths; this document fixes the transport-independent meaning.
+- The protocol handshake of each transport belongs to its interface adapter and is verified in that interface's qualification. A passing result for one adapter does not qualify another.
+
+Allocated requirements: UART-REG-001
+
+## 4. Register and software integration summary
+
+| Register group | Software purpose | Side effects |
+|---|---|---|
+| `CTRL` | Mode, transmit enable, NCO, parity, loopback, filter | Alters subsequent transfers |
+| `WDATA` / `RDATA` | Enqueue TX / consume RX byte | FIFO push / pop |
+| `FIFO_CTRL` | Independent FIFO reset | Write-triggered clear |
+| `FIFO_STATUS` | TX/RX occupancy | Live observation |
+| `STATUS` | Full, empty, idle states | Live observation |
+
+## 5. Verification and acceptance strategy
+
+Testplan items allocate reset/defaults, representative payloads, FIFO reads and clears, frame rejection, parity reconfiguration, line/system loopback and input-noise scenarios. Model checks can demonstrate abstract framing/parity independently, while RTL simulation must demonstrate actual FIFO and pin behavior. Formal checks address relevant register and state invariants; lint and CDC/RDC assess structural quality. An item linked to a test is *mapped*, not passed until actual evidence exists.
+
+Release evidence is per supported interface and target technology. Post-synthesis GLS scope, where applicable, is `smoke`, `corners`, `reconfig` for `ss`, `tt`, `ff`. Physical sign-off and post-PnR GLS are not within this RTL functional contract.
+
+## 6. Assumptions, exclusions and change policy
+
+The system supplies a valid clock, reset, stable CSR transactions and a serial peer whose bit timing is compatible with the programmed NCO. This specification makes no claim to RTS/CTS, arbitrary data widths, line-break qualification, UART interrupt generation, complete baud accuracy over the NCO range, or `CTRL.RX` gating. A new feature requires a TDS change, derived requirement, verification allocation and execution evidence. Technical completion does not replace customer approval.

@@ -13,17 +13,14 @@
 #ifndef _UART_REG_DEFS_
 #define _UART_REG_DEFS_
 
-
 #include <stdint.h>
-
-#define UART_BASE 0x0
 
 typedef uintptr_t uart_t;
 int uart_init(uart_t base);
 int uart_in(uart_t base);
 void uart_out(uart_t base, char c);
-int uart_putchar(int c);
-int uart_puts(const char* str);
+int uart_putchar(uart_t base, int c);
+int uart_puts(uart_t base, const char* str);
 
 #ifdef __cplusplus
 extern "C" {

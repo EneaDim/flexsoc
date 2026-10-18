@@ -13,17 +13,14 @@
 #ifndef _RV_TIMER_REG_DEFS_
 #define _RV_TIMER_REG_DEFS_
 
-
 #include <stdint.h>
-
-#define RV_TIMER_BASE 0x0
 
 typedef uintptr_t rv_timer_t;
 int rv_timer_init(rv_timer_t base);
 int rv_timer_in(rv_timer_t base);
 void rv_timer_out(rv_timer_t base, char c);
-int rv_timer_putchar(int c);
-int rv_timer_puts(const char* str);
+int rv_timer_putchar(rv_timer_t base, int c);
+int rv_timer_puts(rv_timer_t base, const char* str);
 
 #ifdef __cplusplus
 extern "C" {

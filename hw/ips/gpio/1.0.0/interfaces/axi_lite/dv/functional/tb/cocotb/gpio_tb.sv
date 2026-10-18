@@ -31,6 +31,9 @@ module gpio_tb;
   logic [3:0] cio_gpio_o;
   logic [3:0] cio_gpio_en_o;
   logic [3:0] intr_gpio_o;
+  logic flexsoc_event_valid = 1'b0;
+  logic [31:0] flexsoc_event_value = 32'b0;
+  integer flexsoc_event_sequence = 0;
   assign axi_lite_i = '{
     aw: '{addr: core_axi_aw_addr_i, prot: core_axi_aw_prot_i},
     aw_valid: core_axi_aw_valid_i,
@@ -76,4 +79,6 @@ module gpio_tb;
     .intr_gpio_o              (intr_gpio_o),
     .axi_lite_o               (axi_lite_o)
   );
+
+
 endmodule

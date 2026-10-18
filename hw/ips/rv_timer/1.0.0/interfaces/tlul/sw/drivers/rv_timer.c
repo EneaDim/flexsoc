@@ -28,14 +28,14 @@ void rv_timer_out(rv_timer_t base, char c) {
 #endif
 }
 
-int rv_timer_putchar(int c) {
-  rv_timer_out((rv_timer_t)RV_TIMER_BASE, (char)c);
+int rv_timer_putchar(rv_timer_t base, int c) {
+  rv_timer_out(base, (char)c);
   return c;
 }
 
-int rv_timer_puts(const char* str) {
+int rv_timer_puts(rv_timer_t base, const char* str) {
   while (*str) {
-    rv_timer_putchar(*str++);
+    rv_timer_putchar(base, *str++);
   }
   return 0;
 }

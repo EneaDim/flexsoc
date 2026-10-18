@@ -3,26 +3,16 @@
   "run": {
     "top": "uart",
     "run_top": "uart",
-    "run_id": "release",
+    "run_id": "l2",
     "pdk": "sky130",
-    "run_root": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release",
+    "run_root": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2",
     "artifacts": {
-      "synthesis": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/syn/sky130",
-      "equivalence": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/sky130/equivalence/rtl_vs_syn",
-      "post_syn_sim": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/dv/functional/sim/post_syn/sky130",
-      "post_pnr_sim": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/dv/functional/sim/post_pnr/sky130",
-      "implementation": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/impl/sky130",
-      "post_pnr_signoff": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/sky130/post_pnr",
-      "sdc": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/constraints/uart.sdc",
-      "sta": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/sky130/sta",
-      "power": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/sky130/power",
-      "fusion": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/sky130/fusion",
-      "sdf": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/signoff/sky130/sdf",
-      "meta": "/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/meta/sky130"
+      "sdc": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/constraints/uart.sdc",
+      "meta": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/meta/sky130"
     }
   },
   "git": {
-    "commit": "53992efe740f2197282bc384bd13a28ddc5fe4da",
+    "commit": "257bf94d9542c66dbd7705fa8bdc7ae00328ac43",
     "dirty": true
   },
   "environment": {
@@ -31,12 +21,12 @@
     "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.39",
     "machine": "x86_64",
     "uv_lock_sha256": "8ca2bb2cfb58290c0be8e6a7afe0505b588a2ed372ef50942d958fa3af223ab2",
-    "toolchain_lock_sha256": "17e1e89c390337ba0c45ca6a6fefd32ac6a4604e204ba39f8e4c054d550775b8"
+    "toolchain_lock_sha256": null
   },
   "toolchain": {
     "ok": true,
-    "path": "/home/eneadim/github/flexsoc/src/flexsoc/backend/core/toolchain.lock",
-    "sha256": "17e1e89c390337ba0c45ca6a6fefd32ac6a4604e204ba39f8e4c054d550775b8",
+    "path": "/home/eneadim/github/flexsoc/src/flexsoc/backend/core/runtime/toolchain.lock",
+    "sha256": "2656a2f0ae78dc0f17741899d4c0fc2c1d05ae4ed5cbf420d580acf03ed7fe60",
     "lock_version": "3",
     "expected": {
       "slang": {
@@ -48,17 +38,23 @@
         "minimum_version": "5.050",
         "ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c"
       },
+      "verible-verilog-syntax": {
+        "locked_version": "0.0-4296-g0f262651"
+      },
+      "verible-verilog-lint": {
+        "locked_version": "0.0-4296-g0f262651"
+      },
       "yosys": {
-        "locked_version": "0.67",
-        "ref": "2d1509d1bcb8df0723f6790057e3b1d21c876683"
+        "locked_version": "0.69",
+        "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc"
       },
       "sby": {
-        "locked_version": "0.67",
-        "ref": "8f8833c6176be263907dea5b50da7759632aaff6"
+        "locked_version": "0.69",
+        "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be"
       },
       "eqy": {
-        "locked_version": "0.67",
-        "ref": "fe7163db01bc332941cefa11d6a62d57cde792c7"
+        "locked_version": "0.69",
+        "ref": "4a72eb94fc253062464afee4d0018359017bb846"
       },
       "bitwuzla": {
         "locked_version": "0.9.1",
@@ -105,7 +101,7 @@
     },
     "cdc_rdc": {
       "path": "dv/cdc_rdc/summary.json",
-      "sha256": "a37fa66e6b11fc65557a5744cfbb5badd44c398623c3fbb2943866df2fd4b61b",
+      "sha256": "e69e871110519834fca0880840723aaed2f526e5987265f4224511ff4f1b8e1a",
       "status": "pass",
       "cdc_raw": 0,
       "rdc_raw": 0,
@@ -125,159 +121,22 @@
       "post_implementation_signoff"
     ],
     "stages": {
-      "lint": "pass",
+      "lint": "PASS",
       "cdc_rdc": "pass",
       "functional": "pass",
       "formal": "pass",
-      "synthesis": "pass",
+      "synthesis": "missing",
       "equivalence": "missing",
-      "pre_implementation_signoff": "pass",
-      "implementation": "pass",
-      "post_implementation_signoff": "review"
+      "pre_implementation_signoff": "incomplete",
+      "implementation": "missing",
+      "post_implementation_signoff": "incomplete"
     },
-    "status": "review",
+    "status": "incomplete",
     "complete": false
   },
-  "implementation": {
-    "status": "pass",
-    "platform_root": "impl/sky130/results/sky130hd/uart/base",
-    "artifacts": {
-      "6_final.v": "impl/sky130/results/sky130hd/uart/base/6_final.v",
-      "6_final.sdc": "impl/sky130/results/sky130hd/uart/base/6_final.sdc",
-      "6_final.spef": "impl/sky130/results/sky130hd/uart/base/6_final.spef",
-      "6_final.odb": "impl/sky130/results/sky130hd/uart/base/6_final.odb",
-      "6_final.gds": "impl/sky130/results/sky130hd/uart/base/6_final.gds"
-    },
-    "log": "logs/pnr/sky130/uart_pnr.log"
-  },
-  "signoff": {
-    "sdf": {
-      "status": "pass",
-      "count": 3
-    },
-    "sta": {
-      "status": "pass",
-      "clock_model": "ideal",
-      "interconnect": "none"
-    },
-    "power": {
-      "status": "pass"
-    },
-    "power_activity": {
-      "status": "pass",
-      "passed": 9,
-      "total": 9
-    },
-    "fusion": {
-      "status": "pass",
-      "passed": 9,
-      "total": 9
-    },
-    "post_syn_gls": {
-      "status": "pass",
-      "passed": 9,
-      "total": 9,
-      "failed": 0,
-      "missing": 0,
-      "interconnect_delays": "none"
-    },
-    "post_pnr": {
-      "sdf": {
-        "status": "pass",
-        "count": 3
-      },
-      "sta": {
-        "status": "pass",
-        "clock_model": "propagated",
-        "interconnect": "spef"
-      },
-      "power": {
-        "status": "pass"
-      },
-      "gls": {
-        "status": "pass",
-        "passed": 9,
-        "total": 9,
-        "interconnect_delays": "enabled"
-      },
-      "power_activity": {
-        "status": "pass",
-        "passed": 9,
-        "total": 9
-      },
-      "fusion": {
-        "status": "pass",
-        "passed": 9,
-        "total": 9
-      },
-      "physical": {
-        "status": "review",
-        "checks": {
-          "route_drc": {
-            "status": "pass",
-            "entries": 0,
-            "report": "impl/sky130/reports/sky130hd/uart/base/5_route_drc.rpt"
-          },
-          "antenna": {
-            "status": "pass",
-            "net_violations": 0,
-            "pin_violations": 0,
-            "report": "signoff/sky130/post_pnr/physical/antenna.log"
-          },
-          "gds_drc": {
-            "status": "pass",
-            "violations": 0,
-            "report": "impl/sky130/reports/sky130hd/uart/base/6_drc.lyrdb"
-          },
-          "lvs": {
-            "status": "missing",
-            "report": null,
-            "log": "impl/sky130/logs/sky130hd/uart/base/6_lvs.log"
-          },
-          "ir_drop": {
-            "status": "unsupported",
-            "reports": [],
-            "worst_drop_v": {}
-          }
-        },
-        "summary": "signoff/sky130/post_pnr/physical/summary.json"
-      }
-    }
-  },
-  "physical_signoff": {
-    "status": "review",
-    "checks": {
-      "route_drc": {
-        "status": "pass",
-        "entries": 0,
-        "report": "impl/sky130/reports/sky130hd/uart/base/5_route_drc.rpt"
-      },
-      "antenna": {
-        "status": "pass",
-        "net_violations": 0,
-        "pin_violations": 0,
-        "report": "signoff/sky130/post_pnr/physical/antenna.log"
-      },
-      "gds_drc": {
-        "status": "pass",
-        "violations": 0,
-        "report": "impl/sky130/reports/sky130hd/uart/base/6_drc.lyrdb"
-      },
-      "lvs": {
-        "status": "missing",
-        "report": null,
-        "log": "impl/sky130/logs/sky130hd/uart/base/6_lvs.log"
-      },
-      "ir_drop": {
-        "status": "unsupported",
-        "reports": [],
-        "worst_drop_v": {}
-      }
-    },
-    "orfs_returncode": 2,
-    "log": "logs/signoff/sky130/post_pnr/physical/physical_signoff.log",
-    "summary": "signoff/sky130/post_pnr/physical/summary.json"
-  },
+  "implementation": null,
+  "signoff": {},
+  "physical_signoff": null,
   "closure": {
     "order": [
       "lint",
@@ -294,34 +153,34 @@
       "fusion",
       "implementation",
       "physical_signoff",
-      "post_pnr_sdf",
-      "post_pnr_sta",
-      "post_pnr_gls",
-      "post_pnr_power",
-      "post_pnr_power_activity",
-      "post_pnr_fusion"
+      "post_impl_sdf",
+      "post_impl_sta",
+      "post_impl_gls",
+      "post_impl_power",
+      "post_impl_power_activity",
+      "post_impl_fusion"
     ],
     "stages": {
-      "lint": "pass",
+      "lint": "PASS",
       "cdc_rdc": "pass",
       "regression": "pass",
       "formal": "pass",
-      "synthesis": "pass",
+      "synthesis": "missing",
       "equivalence": "missing",
-      "sdf": "pass",
-      "sta": "pass",
-      "power": "pass",
-      "post_syn_gls": "pass",
-      "power_activity": "pass",
-      "fusion": "pass",
-      "implementation": "pass",
-      "physical_signoff": "review",
-      "post_pnr_sdf": "pass",
-      "post_pnr_sta": "pass",
-      "post_pnr_power": "pass",
-      "post_pnr_gls": "pass",
-      "post_pnr_power_activity": "pass",
-      "post_pnr_fusion": "pass"
+      "sdf": "missing",
+      "sta": "missing",
+      "power": "missing",
+      "post_syn_gls": "missing",
+      "power_activity": "missing",
+      "fusion": "missing",
+      "implementation": "missing",
+      "physical_signoff": "missing",
+      "post_impl_sdf": "missing",
+      "post_impl_sta": "missing",
+      "post_impl_power": "missing",
+      "post_impl_gls": "missing",
+      "post_impl_power_activity": "missing",
+      "post_impl_fusion": "missing"
     },
     "status": "incomplete",
     "complete": false
@@ -357,34 +216,54 @@
       "locked_ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c",
       "install_mode": "managed"
     },
+    "verible-verilog-syntax": {
+      "version": "Version\tv0.0-4296-g0f262651",
+      "path": "/usr/local/bin/verible-verilog-syntax",
+      "version_ok": true,
+      "lock_match": true,
+      "minimum_version": null,
+      "locked_version": "0.0-4296-g0f262651",
+      "locked_ref": null,
+      "install_mode": "managed"
+    },
+    "verible-verilog-lint": {
+      "version": "Version\tv0.0-4296-g0f262651",
+      "path": "/usr/local/bin/verible-verilog-lint",
+      "version_ok": true,
+      "lock_match": true,
+      "minimum_version": null,
+      "locked_version": "0.0-4296-g0f262651",
+      "locked_ref": null,
+      "install_mode": "managed"
+    },
     "yosys": {
       "version": "Yosys 0.67 (git sha1 2d1509d1b, Release, GNU /usr/bin/c++ 13.3.0)",
       "path": "/usr/local/bin/yosys",
       "version_ok": true,
-      "lock_match": true,
+      "lock_match": false,
       "minimum_version": null,
-      "locked_version": "0.67",
-      "locked_ref": "2d1509d1bcb8df0723f6790057e3b1d21c876683",
+      "locked_version": "0.69",
+      "locked_ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
       "install_mode": "managed"
     },
     "sby": {
       "version": "SBY v0.67",
       "path": "/usr/local/bin/sby",
       "version_ok": true,
-      "lock_match": true,
+      "lock_match": false,
       "minimum_version": null,
-      "locked_version": "0.67",
-      "locked_ref": "8f8833c6176be263907dea5b50da7759632aaff6",
+      "locked_version": "0.69",
+      "locked_ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
       "install_mode": "managed"
     },
     "eqy": {
       "version": "EQY v0.67",
       "path": "/usr/local/bin/eqy",
       "version_ok": true,
-      "lock_match": true,
+      "lock_match": false,
       "minimum_version": null,
-      "locked_version": "0.67",
-      "locked_ref": "fe7163db01bc332941cefa11d6a62d57cde792c7",
+      "locked_version": "0.69",
+      "locked_ref": "4a72eb94fc253062464afee4d0018359017bb846",
       "install_mode": "managed"
     },
     "bitwuzla": {

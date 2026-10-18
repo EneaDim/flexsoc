@@ -55,7 +55,6 @@ else
   # RTL sources expanded from rtl_common.f and rtl_ip.f
   VERILOG_SOURCES := \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim/prim_ff_2sync.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_enc.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_enc.sv \
     /home/eneadim/github/flexsoc/hw/ips/pkgs/top_pkg.sv \
@@ -83,13 +82,14 @@ else
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv \
-    /tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/rtl/uart_reg_pkg.sv \
-    /tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/rtl/uart_reg_core.sv \
-    /tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/rtl/uart_reg_top.sv \
-    /tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/rtl/uart_tx.sv \
-    /tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/rtl/uart_rx.sv \
-    /tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/rtl/uart_core.sv \
-    /tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/rtl/uart.sv
+    /home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl/deps/flexsoc/prim/prim_ff_2sync.sv \
+    /home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl/uart_reg_pkg.sv \
+    /home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl/uart_reg_core.sv \
+    /home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl/uart_reg_top.sv \
+    /home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl/uart_tx.sv \
+    /home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl/uart_rx.sv \
+    /home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl/uart_core.sv \
+    /home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl/uart.sv
 
   COMPILE_ARGS += --sv --timing
   WAVE_FORMAT ?= fst
@@ -105,7 +105,7 @@ else
   COMPILE_ARGS += -Wno-UNOPTFLAT
 endif
 
-COMPILE_ARGS += -I/tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/hw/ips/tlul
+COMPILE_ARGS += -I/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/hw/ips/tlul
 export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
 TEST_NAME ?= smoke
 SEED ?= 1
@@ -140,7 +140,7 @@ export CFG ?= $(REG_CONFIG)
 export DATA_IN  ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
 export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
 export PYTHONPATH := $(PWD):$(PYTHONPATH)
-VERILOG_SOURCES += /tmp/flexsoc-ip-release/uart-tlul/runs/uart/release/dv/functional/tb/cocotb/uart_tb.sv
+VERILOG_SOURCES += /home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/dv/functional/tb/cocotb/uart_tb.sv
 
 COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
 ifeq ($(strip $(COCOTB_MAKEFILES)),)

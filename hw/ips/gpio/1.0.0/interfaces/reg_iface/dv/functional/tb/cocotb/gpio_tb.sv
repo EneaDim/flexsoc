@@ -20,6 +20,9 @@ module gpio_tb;
   logic [3:0] cio_gpio_o;
   logic [3:0] cio_gpio_en_o;
   logic [3:0] intr_gpio_o;
+  logic flexsoc_event_valid = 1'b0;
+  logic [31:0] flexsoc_event_value = 32'b0;
+  integer flexsoc_event_sequence = 0;
 assign reg_req_i = '{
   valid: core_reg_req_valid, write: core_reg_req_write,
   addr: core_reg_req_addr, wdata: core_reg_req_wdata,
@@ -58,4 +61,6 @@ assign core_reg_rsp_rdata = reg_rsp_o.rdata;
     .intr_gpio_o              (intr_gpio_o),
     .reg_rsp_o                (reg_rsp_o)
   );
+
+
 endmodule

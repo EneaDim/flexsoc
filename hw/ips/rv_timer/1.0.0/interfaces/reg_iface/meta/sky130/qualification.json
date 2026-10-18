@@ -1,6 +1,6 @@
 {
   "contract": "VALID",
-  "contract_fingerprint": "578a708ca1a1b85ec4cfa37cd7ec6e5e59f8ffab966da3ebf90433be4298511d",
+  "contract_fingerprint": "72863a3c3465b6cd944d044f89ca77ac53881f83eb23053e2904dacd0c048f07",
   "evidence": {
     "cdc_rdc": "PASS",
     "eqy": "MISSING",
@@ -10,24 +10,24 @@
     "formal_csr_cover": "PASS",
     "formal_csr_prove": "PASS",
     "formal_prove": "PASS",
-    "fusion_analysis_all": "PASS",
+    "fusion_analysis_all": "MISSING",
     "fusion_analysis_post_impl_all": "MISSING",
     "lint": "PASS",
     "physical_signoff": "MISSING",
     "pnr": "MISSING",
-    "power_analysis_all": "PASS",
+    "power_analysis_all": "MISSING",
     "power_analysis_post_impl_all": "MISSING",
-    "power_estimate": "PASS",
+    "power_estimate": "MISSING",
     "power_estimate_post_impl": "MISSING",
     "regression": "PASS",
     "requirements_traceability": "PASS",
-    "sdf": "PASS",
+    "sdf": "MISSING",
     "sdf_post_impl": "MISSING",
     "sim_post_impl_all": "MISSING",
-    "sim_post_syn_all": "PASS",
-    "sta": "PASS",
+    "sim_post_syn_all": "MISSING",
+    "sta": "MISSING",
     "sta_post_impl": "MISSING",
-    "syn": "PASS"
+    "syn": "MISSING"
   },
   "freshness": {
     "cdc_rdc": "CLEAN",
@@ -38,24 +38,24 @@
     "formal_csr_cover": "CLEAN",
     "formal_csr_prove": "CLEAN",
     "formal_prove": "CLEAN",
-    "fusion_analysis_all": "CLEAN",
+    "fusion_analysis_all": "MISSING",
     "fusion_analysis_post_impl_all": "MISSING",
     "lint": "CLEAN",
     "physical_signoff": "MISSING",
     "pnr": "MISSING",
-    "power_analysis_all": "CLEAN",
+    "power_analysis_all": "MISSING",
     "power_analysis_post_impl_all": "MISSING",
-    "power_estimate": "CLEAN",
+    "power_estimate": "MISSING",
     "power_estimate_post_impl": "MISSING",
     "regression": "CLEAN",
     "requirements_traceability": "CLEAN",
-    "sdf": "CLEAN",
+    "sdf": "MISSING",
     "sdf_post_impl": "MISSING",
     "sim_post_impl_all": "MISSING",
-    "sim_post_syn_all": "CLEAN",
-    "sta": "CLEAN",
+    "sim_post_syn_all": "MISSING",
+    "sta": "MISSING",
     "sta_post_impl": "MISSING",
-    "syn": "CLEAN"
+    "syn": "MISSING"
   },
   "ip": "rv_timer",
   "levels": {
@@ -85,7 +85,10 @@
       "waived_evidence": []
     },
     "3": {
-      "blocking_evidence": [],
+      "blocking_evidence": [
+        "syn",
+        "sta"
+      ],
       "name": "Netlist Qualified",
       "required_evidence": [
         "requirements_traceability",
@@ -101,11 +104,19 @@
         "syn",
         "sta"
       ],
-      "status": "PASS",
+      "status": "BLOCKED",
       "waived_evidence": []
     },
     "4": {
-      "blocking_evidence": [],
+      "blocking_evidence": [
+        "syn",
+        "sta",
+        "sdf",
+        "power_estimate",
+        "sim_post_syn_all",
+        "power_analysis_all",
+        "fusion_analysis_all"
+      ],
       "name": "Technology Qualified",
       "required_evidence": [
         "requirements_traceability",
@@ -126,11 +137,18 @@
         "power_analysis_all",
         "fusion_analysis_all"
       ],
-      "status": "PASS",
+      "status": "BLOCKED",
       "waived_evidence": []
     },
     "5": {
       "blocking_evidence": [
+        "syn",
+        "sta",
+        "sdf",
+        "power_estimate",
+        "sim_post_syn_all",
+        "power_analysis_all",
+        "fusion_analysis_all",
         "pnr",
         "physical_signoff",
         "sdf_post_impl",
@@ -172,10 +190,10 @@
       "waived_evidence": []
     }
   },
-  "maximum_level": 4,
-  "maximum_pass_level": 4,
-  "maximum_pass_qualification": "Technology Qualified",
-  "maximum_qualification": "Technology Qualified",
+  "maximum_level": 2,
+  "maximum_pass_level": 2,
+  "maximum_pass_qualification": "RTL Qualified",
+  "maximum_qualification": "RTL Qualified",
   "outcomes": {
     "cdc_rdc": "PASS",
     "formal_bmc": "PASS",
@@ -184,21 +202,14 @@
     "formal_csr_cover": "PASS",
     "formal_csr_prove": "PASS",
     "formal_prove": "PASS",
-    "fusion_analysis_all": "PASS",
     "lint": "PASS",
-    "power_analysis_all": "PASS",
-    "power_estimate": "PASS",
     "regression": "PASS",
-    "requirements_traceability": "PASS",
-    "sdf": "PASS",
-    "sim_post_syn_all": "PASS",
-    "sta": "PASS",
-    "syn": "PASS"
+    "requirements_traceability": "PASS"
   },
   "pdk": "sky130",
   "qualification_status": "PASS",
   "reg_interface": "reg_iface",
-  "requested_level": 4,
+  "requested_level": 2,
   "requirements": {
     "covered": 11,
     "status": "PASS",

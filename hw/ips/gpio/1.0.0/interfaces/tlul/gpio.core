@@ -1,14 +1,29 @@
 CAPI=2:
 name: "prj:ip:gpio:0.1"
-description: "gpio"
+description: "FlexSoC reusable gpio IP release"
 filesets:
   files_rtl:
     depend:
-      - ips:dependecies:all
+      - lowrisc:prim:flop
+      - lowrisc:prim:secded
+      - lowrisc:constants:top_pkg
+      - lowrisc:prim:mubi
+      - lowrisc:tlul:common
+      - lowrisc:tlul:adapter_reg
+      - lowrisc:prim:buf
+      - lowrisc:prim:onehot_check
+      - lowrisc:prim:util
+      - lowrisc:prim:reg_we_check
+      - lowrisc:prim:subreg
+      - lowrisc:prim:flop_2sync
     files:
-      - rtl/gpio_reg_pkg.sv
-      - rtl/gpio_reg_top.sv
-      - rtl/gpio.sv
+      - rtl/deps/flexsoc/prim/prim_ff_2sync.sv
+      - rtl/deps/flexsoc/prim_opentitan/prim_filter_ctr.sv
+      - rtl/deps/flexsoc/workspace/l2-gpio-tlul-20261015-184801/runs/gpio/l2/rtl/gpio_reg_pkg.sv
+      - rtl/deps/flexsoc/workspace/l2-gpio-tlul-20261015-184801/runs/gpio/l2/rtl/gpio_reg_core.sv
+      - rtl/deps/flexsoc/workspace/l2-gpio-tlul-20261015-184801/runs/gpio/l2/rtl/gpio_reg_top.sv
+      - rtl/deps/flexsoc/workspace/l2-gpio-tlul-20261015-184801/runs/gpio/l2/rtl/gpio_core.sv
+      - rtl/deps/flexsoc/workspace/l2-gpio-tlul-20261015-184801/runs/gpio/l2/rtl/gpio.sv
     file_type: systemVerilogSource
 
 targets:
@@ -26,4 +41,3 @@ targets:
         verilator_options:
           - "-Wall"
           - "-Wno-fatal"
-
