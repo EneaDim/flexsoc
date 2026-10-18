@@ -7,8 +7,8 @@ REPO_ROOT=$(cd "$DOCKER_DIR/.." && pwd)
 STATE_DIR="$DOCKER_DIR/.state"
 LOCK_FILE="$DOCKER_DIR/ci/image.lock"
 DOCKERFILE="$DOCKER_DIR/ci/Dockerfile"
-TOOLCHAIN_LOCK="$REPO_ROOT/src/flexsoc/backend/core/toolchain.lock"
-DEPS_SCRIPT="$REPO_ROOT/src/flexsoc/backend/core/deps.sh"
+TOOLCHAIN_LOCK="$REPO_ROOT/src/flexsoc/backend/core/runtime/toolchain.lock"
+DEPS_SCRIPT="$REPO_ROOT/src/flexsoc/backend/core/runtime/deps.sh"
 
 mkdir -p "$STATE_DIR"
 
@@ -16,8 +16,8 @@ image_input_files() {
   cat <<'FILES'
 docker/ci/Dockerfile
 docker/ci/Dockerfile.dockerignore
-src/flexsoc/backend/core/deps.sh
-src/flexsoc/backend/core/toolchain.lock
+src/flexsoc/backend/core/runtime/deps.sh
+src/flexsoc/backend/core/runtime/toolchain.lock
 pyproject.toml
 uv.lock
 FILES

@@ -39,6 +39,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Fail before invoking BuildKit if the runtime toolchain files move again.
+      - name: Validate build-context toolchain inputs
+        shell: bash
+        run: |
+          bash -n docker/scripts/common.sh
+          bash -n src/flexsoc/backend/core/runtime/deps.sh
+          source docker/scripts/common.sh
+          test -s "$TOOLCHAIN_LOCK"
+          test -s "$DEPS_SCRIPT"
+          inputs_sha256
+
       - name: Check frozen toolchain image
         id: frozen
         shell: bash
@@ -139,7 +150,9 @@ jobs:
           fi
 
       - name: Dispatch project CI on frozen image
-        if: github.ref_type == 'branch'
+        # The image-lock commit triggers another push; only the first run
+        # dispatches project CI. Ordinary pushes with a frozen image still do.
+        if: "github.ref_type == 'branch' && (github.event_name != 'push' || github.actor != 'github-actions[bot]' || github.event.head_commit.message != 'ci: lock verified toolchain image')"
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}

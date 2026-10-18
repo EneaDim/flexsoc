@@ -279,8 +279,8 @@ The image inputs are intentionally narrow:
 ```text
 docker/ci/Dockerfile
 docker/ci/Dockerfile.dockerignore
-src/flexsoc/backend/core/deps.sh
-src/flexsoc/backend/core/toolchain.lock
+src/flexsoc/backend/core/runtime/deps.sh
+src/flexsoc/backend/core/runtime/toolchain.lock
 pyproject.toml
 uv.lock
 ```
@@ -289,6 +289,15 @@ Changes to normal FlexSoC Python/RTL/test sources therefore do not rebuild the
 EDA image. Changes to the Docker environment, locked tool versions, or Python
 runtime dependencies invalidate the lock and cause one new frozen image to be
 built.
+
+The files `deps.sh` and `toolchain.lock` live in
+`src/flexsoc/backend/core/runtime/`; the Dockerfile, input fingerprint and
+checkpoints must all refer to that same tracked location. On `main` pushes,
+`toolchain-image.yml` checks the fingerprint, rebuilds when required, verifies
+and publishes to GHCR, commits the updated `docker/ci/image.lock`, then
+starts `ci.yml`. `ci.yml` itself consumes the immutable published digest and
+never substitutes a locally built/unverified image. Pull-request CI needs an
+image lock that has already been published for the branch's image inputs.
 
 ---
 
