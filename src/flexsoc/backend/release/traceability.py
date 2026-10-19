@@ -88,9 +88,13 @@ class TraceabilityFlow:
                         state = "INVALID"
                     tests[test][backend] = {"reported": state, "log": entry.get("log") if isinstance(entry, dict) else None}
                     all_states.append(state)
+            covered = all(
+                any(tests[test][backend]["reported"] == "PASS" for backend in backends)
+                for test in tests
+            )
             status = ("INVALID" if "INVALID" in all_states else
                       "FAILED" if raw["status"] == "FAILED" or "FAILED" in all_states else
-                      "PARTIAL" if raw["status"] == "PARTIAL" or "NOT_RUN" in all_states else "RECORDED_PASS")
+                      "RECORDED_PASS" if covered and tests and raw["status"] == "PASS" else "PARTIAL")
             return {**result, "status": status, "backends": backends, "tests": tests}
         except (OSError, ValueError, TypeError, KeyError):
             return {**result, "status": "INVALID"}

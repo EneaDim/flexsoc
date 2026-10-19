@@ -725,7 +725,11 @@ class FunctionalFlow:
             )
         failed = statuses.count("FAILED") + (1 if compile_record.get("status") == "FAILED" else 0)
         not_run = statuses.count("NOT_RUN")
-        status = "FAILED" if failed else "PARTIAL" if not_run else "PASS"
+        covered = all(
+            any(serialized_matrix[test][backend]["status"] == "PASS" for backend in backends)
+            for test in tests
+        )
+        status = "FAILED" if failed else "PASS" if covered and tests else "PARTIAL"
         data: dict[str, object] = {
             "schema": "flexsoc.regression.v1",
             "stage": "regression",
