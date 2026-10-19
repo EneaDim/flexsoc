@@ -4,7 +4,7 @@ from cocotb.triggers import ReadOnly
 
 from .reg_driver import PRIMARY_CLOCK, _sample_cycle, rows
 
-SIGNAL_CLOCKS = {'phy_rst_i': 'clk_i', 'phy_gtx_clk_i': 'clk_i', 'phy_gmii_rx_clk_i': 'clk_i', 'phy_gmii_rxd_i': 'clk_i', 'phy_gmii_rx_dv_i': 'clk_i', 'phy_gmii_rx_er_i': 'clk_i', 'phy_mii_tx_clk_i': 'clk_i', 'phy_mii_select_i': 'clk_i', 'phy_speed_i': 'clk_i', 'phy_speed_valid_i': 'clk_i', 'tx_data_i': 'clk_i', 'tx_valid_i': 'clk_i', 'tx_last_i': 'clk_i', 'tx_error_i': 'clk_i', 'tl_i': 'clk_i', 'phy_gmii_tx_clk_o': 'clk_i', 'phy_gmii_txd_o': 'clk_i', 'phy_gmii_tx_en_o': 'clk_i', 'phy_gmii_tx_er_o': 'clk_i', 'tx_clk_o': 'clk_i', 'tx_rst_o': 'clk_i', 'tx_ready_o': 'clk_i', 'rx_clk_o': 'clk_i', 'rx_rst_o': 'clk_i', 'rx_data_o': 'clk_i', 'rx_valid_o': 'clk_i', 'rx_last_o': 'clk_i', 'rx_error_o': 'clk_i', 'intr_tx_underflow_o': 'clk_i', 'intr_rx_bad_frame_o': 'clk_i', 'intr_rx_bad_fcs_o': 'clk_i', 'tl_o': 'clk_i'}
+SIGNAL_CLOCKS = {'phy_gmii_rxd_i': 'clk_i', 'phy_gmii_rx_dv_i': 'clk_i', 'phy_gmii_rx_er_i': 'clk_i', 'phy_mii_select_i': 'clk_i', 'phy_speed_i': 'clk_i', 'phy_speed_valid_i': 'clk_i', 'tx_data_i': 'clk_i', 'tx_valid_i': 'clk_i', 'tx_last_i': 'clk_i', 'tx_error_i': 'clk_i', 'tl_i': 'clk_i', 'phy_gmii_tx_clk_o': 'clk_i', 'phy_gmii_txd_o': 'clk_i', 'phy_gmii_tx_en_o': 'clk_i', 'phy_gmii_tx_er_o': 'clk_i', 'tx_clk_o': 'clk_i', 'tx_rst_o': 'clk_i', 'tx_ready_o': 'clk_i', 'rx_clk_o': 'clk_i', 'rx_rst_o': 'clk_i', 'rx_data_o': 'clk_i', 'rx_valid_o': 'clk_i', 'rx_last_o': 'clk_i', 'rx_error_o': 'clk_i', 'intr_tx_underflow_o': 'clk_i', 'intr_rx_bad_frame_o': 'clk_i', 'intr_rx_bad_fcs_o': 'clk_i', 'tl_o': 'clk_i'}
 OUTPUT_VALID = ('rx_valid_o', 'clk_i')
 
 

@@ -50,7 +50,10 @@ def fixture(case: scenarios.PacketScenario) -> PhyFixture:
         nibbles = [nib for octet in wire for nib in (octet & 15, octet >> 4)]
         symbols = [(nib, 1, 0) for nib in nibbles]
         if case.phy_error:
-            symbols[2 * len(PREAMBLE)] = (symbols[2 * len(PREAMBLE)][0], 1, 1)
+            # Assert ER on multiple payload nibbles: a single boundary pulse
+            # can be absorbed by the MAC's MII/GMII synchronizer.
+            for pos in range(2 * len(PREAMBLE) + 10, 2 * len(PREAMBLE) + 14):
+                symbols[pos] = (symbols[pos][0], 1, 1)
         idle_symbols = case.ifg * 2
     else:
         raise ValueError(f'unsupported speed: {case.speed_mbps}')

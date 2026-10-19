@@ -15,16 +15,60 @@ task automatic core_sample_cycle();
   @flexsoc_core_sample_phase;
 endtask
 
+event flexsoc_gtx_drive_phase;
+event flexsoc_gtx_sample_phase;
+initial forever begin
+  @(posedge phy_gtx_clk_i);
+  fork
+    begin #(1.6) -> flexsoc_gtx_drive_phase; end
+    begin #(6.4) -> flexsoc_gtx_sample_phase; end
+  join_none
+end
+task automatic gtx_drive_cycle();
+  @flexsoc_gtx_drive_phase;
+endtask
+task automatic gtx_sample_cycle();
+  @flexsoc_gtx_sample_phase;
+endtask
+
+event flexsoc_gmii_rx_drive_phase;
+event flexsoc_gmii_rx_sample_phase;
+initial forever begin
+  @(posedge phy_gmii_rx_clk_i);
+  fork
+    begin #(1.6) -> flexsoc_gmii_rx_drive_phase; end
+    begin #(6.4) -> flexsoc_gmii_rx_sample_phase; end
+  join_none
+end
+task automatic gmii_rx_drive_cycle();
+  @flexsoc_gmii_rx_drive_phase;
+endtask
+task automatic gmii_rx_sample_cycle();
+  @flexsoc_gmii_rx_sample_phase;
+endtask
+
+event flexsoc_mii_tx_drive_phase;
+event flexsoc_mii_tx_sample_phase;
+initial forever begin
+  @(posedge phy_mii_tx_clk_i);
+  fork
+    begin #(8) -> flexsoc_mii_tx_drive_phase; end
+    begin #(32) -> flexsoc_mii_tx_sample_phase; end
+  join_none
+end
+task automatic mii_tx_drive_cycle();
+  @flexsoc_mii_tx_drive_phase;
+endtask
+task automatic mii_tx_sample_cycle();
+  @flexsoc_mii_tx_sample_phase;
+endtask
+
 // One CSR transport contract; each window follows its owning clock domain.
 task automatic apply_defaults();
   tl_i = '0;
-  phy_rst_i = '0;
-  phy_gtx_clk_i = '0;
-  phy_gmii_rx_clk_i = '0;
   phy_gmii_rxd_i = '0;
   phy_gmii_rx_dv_i = '0;
   phy_gmii_rx_er_i = '0;
-  phy_mii_tx_clk_i = '0;
   phy_mii_select_i = '0;
   phy_speed_i = '0;
   phy_speed_valid_i = '0;
@@ -39,10 +83,15 @@ endtask
         matched = 1'b0;
         if (selector == "" || selector == "all" || selector == "*") begin
         rst_ni = 1'b0;
+        phy_rst_i = 1'b1;
           fork
           begin repeat (cycles) @(posedge clk_i); @(negedge clk_i); end
+          begin repeat (cycles) @(posedge phy_gtx_clk_i); @(negedge phy_gtx_clk_i); end
+          begin repeat (cycles) @(posedge phy_gmii_rx_clk_i); @(negedge phy_gmii_rx_clk_i); end
+          begin repeat (cycles) @(posedge phy_mii_tx_clk_i); @(negedge phy_mii_tx_clk_i); end
           join
         rst_ni = 1'b1;
+        phy_rst_i = 1'b0;
           matched = 1'b1;
         end
 else if (selector == "core" || selector == "rst_ni") begin
@@ -50,6 +99,27 @@ else if (selector == "core" || selector == "rst_ni") begin
   repeat (cycles) @(posedge clk_i);
   @(negedge clk_i);
   rst_ni = 1'b1;
+  matched = 1'b1;
+end
+else if (selector == "gtx" || selector == "phy_rst_i") begin
+  phy_rst_i = 1'b1;
+  repeat (cycles) @(posedge phy_gtx_clk_i);
+  @(negedge phy_gtx_clk_i);
+  phy_rst_i = 1'b0;
+  matched = 1'b1;
+end
+else if (selector == "gmii_rx" || selector == "phy_rst_i") begin
+  phy_rst_i = 1'b1;
+  repeat (cycles) @(posedge phy_gmii_rx_clk_i);
+  @(negedge phy_gmii_rx_clk_i);
+  phy_rst_i = 1'b0;
+  matched = 1'b1;
+end
+else if (selector == "mii_tx" || selector == "phy_rst_i") begin
+  phy_rst_i = 1'b1;
+  repeat (cycles) @(posedge phy_mii_tx_clk_i);
+  @(negedge phy_mii_tx_clk_i);
+  phy_rst_i = 1'b0;
   matched = 1'b1;
 end
         if (!matched) begin
@@ -240,16 +310,60 @@ task automatic core_sample_cycle();
   @flexsoc_core_sample_phase;
 endtask
 
+event flexsoc_gtx_drive_phase;
+event flexsoc_gtx_sample_phase;
+initial forever begin
+  @(posedge phy_gtx_clk_i);
+  fork
+    begin #(1.6) -> flexsoc_gtx_drive_phase; end
+    begin #(6.4) -> flexsoc_gtx_sample_phase; end
+  join_none
+end
+task automatic gtx_drive_cycle();
+  @flexsoc_gtx_drive_phase;
+endtask
+task automatic gtx_sample_cycle();
+  @flexsoc_gtx_sample_phase;
+endtask
+
+event flexsoc_gmii_rx_drive_phase;
+event flexsoc_gmii_rx_sample_phase;
+initial forever begin
+  @(posedge phy_gmii_rx_clk_i);
+  fork
+    begin #(1.6) -> flexsoc_gmii_rx_drive_phase; end
+    begin #(6.4) -> flexsoc_gmii_rx_sample_phase; end
+  join_none
+end
+task automatic gmii_rx_drive_cycle();
+  @flexsoc_gmii_rx_drive_phase;
+endtask
+task automatic gmii_rx_sample_cycle();
+  @flexsoc_gmii_rx_sample_phase;
+endtask
+
+event flexsoc_mii_tx_drive_phase;
+event flexsoc_mii_tx_sample_phase;
+initial forever begin
+  @(posedge phy_mii_tx_clk_i);
+  fork
+    begin #(8) -> flexsoc_mii_tx_drive_phase; end
+    begin #(32) -> flexsoc_mii_tx_sample_phase; end
+  join_none
+end
+task automatic mii_tx_drive_cycle();
+  @flexsoc_mii_tx_drive_phase;
+endtask
+task automatic mii_tx_sample_cycle();
+  @flexsoc_mii_tx_sample_phase;
+endtask
+
 // One CSR transport contract; each window follows its owning clock domain.
 task automatic apply_defaults();
   tl_i = '0;
-  phy_rst_i = '0;
-  phy_gtx_clk_i = '0;
-  phy_gmii_rx_clk_i = '0;
   phy_gmii_rxd_i = '0;
   phy_gmii_rx_dv_i = '0;
   phy_gmii_rx_er_i = '0;
-  phy_mii_tx_clk_i = '0;
   phy_mii_select_i = '0;
   phy_speed_i = '0;
   phy_speed_valid_i = '0;
@@ -264,10 +378,15 @@ endtask
         matched = 1'b0;
         if (selector == "" || selector == "all" || selector == "*") begin
         rst_ni = 1'b0;
+        phy_rst_i = 1'b1;
           fork
           begin repeat (cycles) @(posedge clk_i); @(negedge clk_i); end
+          begin repeat (cycles) @(posedge phy_gtx_clk_i); @(negedge phy_gtx_clk_i); end
+          begin repeat (cycles) @(posedge phy_gmii_rx_clk_i); @(negedge phy_gmii_rx_clk_i); end
+          begin repeat (cycles) @(posedge phy_mii_tx_clk_i); @(negedge phy_mii_tx_clk_i); end
           join
         rst_ni = 1'b1;
+        phy_rst_i = 1'b0;
           matched = 1'b1;
         end
 else if (selector == "core" || selector == "rst_ni") begin
@@ -275,6 +394,27 @@ else if (selector == "core" || selector == "rst_ni") begin
   repeat (cycles) @(posedge clk_i);
   @(negedge clk_i);
   rst_ni = 1'b1;
+  matched = 1'b1;
+end
+else if (selector == "gtx" || selector == "phy_rst_i") begin
+  phy_rst_i = 1'b1;
+  repeat (cycles) @(posedge phy_gtx_clk_i);
+  @(negedge phy_gtx_clk_i);
+  phy_rst_i = 1'b0;
+  matched = 1'b1;
+end
+else if (selector == "gmii_rx" || selector == "phy_rst_i") begin
+  phy_rst_i = 1'b1;
+  repeat (cycles) @(posedge phy_gmii_rx_clk_i);
+  @(negedge phy_gmii_rx_clk_i);
+  phy_rst_i = 1'b0;
+  matched = 1'b1;
+end
+else if (selector == "mii_tx" || selector == "phy_rst_i") begin
+  phy_rst_i = 1'b1;
+  repeat (cycles) @(posedge phy_mii_tx_clk_i);
+  @(negedge phy_mii_tx_clk_i);
+  phy_rst_i = 1'b0;
   matched = 1'b1;
 end
         if (!matched) begin

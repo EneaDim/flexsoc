@@ -3,6 +3,10 @@
 module ethernet_tb;
   logic clk_i;
   logic rst_ni;
+  logic phy_gtx_clk_i;
+  logic phy_rst_i;
+  logic phy_gmii_rx_clk_i;
+  logic phy_mii_tx_clk_i;
   logic [108:0] tl_i;
   logic [65:0]  tl_o;
   logic        core_a_valid;
@@ -21,13 +25,9 @@ module ethernet_tb;
 
 
 
-  logic phy_rst_i;
-  logic phy_gtx_clk_i;
-  logic phy_gmii_rx_clk_i;
   logic [7:0] phy_gmii_rxd_i;
   logic phy_gmii_rx_dv_i;
   logic phy_gmii_rx_er_i;
-  logic phy_mii_tx_clk_i;
   logic phy_mii_select_i;
   logic [1:0] phy_speed_i;
   logic phy_speed_valid_i;

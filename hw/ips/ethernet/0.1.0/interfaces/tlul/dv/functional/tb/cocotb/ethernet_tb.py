@@ -50,6 +50,9 @@ async def _flexsoc_clock(signal, period_ns, rise_ns, fall_ns, source_latency_ns,
 @cocotb.test()
 async def vector_test(dut):
     cocotb.start_soon(_flexsoc_clock(getattr(dut, 'clk_i'), 10, 0.05, 5, 0.05, 25, 3713949822))
+    cocotb.start_soon(_flexsoc_clock(getattr(dut, 'phy_gtx_clk_i'), 8, 0, 4, 0, 0, 1378972938))
+    cocotb.start_soon(_flexsoc_clock(getattr(dut, 'phy_gmii_rx_clk_i'), 8, 0, 4, 0, 0, 3613810190))
+    cocotb.start_soon(_flexsoc_clock(getattr(dut, 'phy_mii_tx_clk_i'), 40, 0, 20, 0, 0, 1899458599))
     set_defaults(dut)
     await reset(dut, "all")
     test_name = os.environ.get("TEST_NAME", "smoke")

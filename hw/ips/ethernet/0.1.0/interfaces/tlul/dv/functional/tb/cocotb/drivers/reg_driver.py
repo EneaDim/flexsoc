@@ -7,11 +7,11 @@ from cocotb.simtime import get_sim_time
 
 
 CLOCKS = {'core': 'clk_i'}
-CLOCK_PERIOD_PS = {'clk_i': 10000}
-CLOCK_DRIVE_PS = {'clk_i': 2000}
-CLOCK_SAMPLE_PS = {'clk_i': 8000}
+CLOCK_PERIOD_PS = {'clk_i': 10000, 'phy_gtx_clk_i': 8000, 'phy_gmii_rx_clk_i': 8000, 'phy_mii_tx_clk_i': 40000}
+CLOCK_DRIVE_PS = {'clk_i': 2000, 'phy_gtx_clk_i': 1600, 'phy_gmii_rx_clk_i': 1600, 'phy_mii_tx_clk_i': 8000}
+CLOCK_SAMPLE_PS = {'clk_i': 8000, 'phy_gtx_clk_i': 6400, 'phy_gmii_rx_clk_i': 6400, 'phy_mii_tx_clk_i': 32000}
 _PHASE_ORIGINS = {}
-RESET_DOMAINS = {'core': ('clk_i', 'rst_ni', 'low')}
+RESET_DOMAINS = {'core': ('clk_i', 'rst_ni', 'low'), 'gtx': ('phy_gtx_clk_i', 'phy_rst_i', 'high'), 'gmii_rx': ('phy_gmii_rx_clk_i', 'phy_rst_i', 'high'), 'mii_tx': ('phy_mii_tx_clk_i', 'phy_rst_i', 'high')}
 PRIMARY_CLOCK = 'clk_i'
 SETTLE_CLOCK = 'clk_i'
 
@@ -78,13 +78,9 @@ def _set_domain_defaults(dut, domain: str):
 def set_defaults(dut):
     for domain in WINDOWS:
         _set_domain_defaults(dut, domain)
-    dut.phy_rst_i.value = 0
-    dut.phy_gtx_clk_i.value = 0
-    dut.phy_gmii_rx_clk_i.value = 0
     dut.phy_gmii_rxd_i.value = 0
     dut.phy_gmii_rx_dv_i.value = 0
     dut.phy_gmii_rx_er_i.value = 0
-    dut.phy_mii_tx_clk_i.value = 0
     dut.phy_mii_select_i.value = 0
     dut.phy_speed_i.value = 0
     dut.phy_speed_valid_i.value = 0

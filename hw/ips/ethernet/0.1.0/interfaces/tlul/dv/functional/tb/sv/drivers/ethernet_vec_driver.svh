@@ -144,13 +144,9 @@ task automatic run_inputs(input string path);
     end else begin
       code = $sscanf(line, "%d %s %h", step, token, value);
       if (code != 3) disable tb_stream_input_line;
-      if (token == "phy_rst_i") begin core_drive_cycle(); phy_rst_i = value; end
-      else if (token == "phy_gtx_clk_i") begin core_drive_cycle(); phy_gtx_clk_i = value; end
-      else if (token == "phy_gmii_rx_clk_i") begin core_drive_cycle(); phy_gmii_rx_clk_i = value; end
-      else if (token == "phy_gmii_rxd_i") begin core_drive_cycle(); phy_gmii_rxd_i = value; end
+      if (token == "phy_gmii_rxd_i") begin core_drive_cycle(); phy_gmii_rxd_i = value; end
       else if (token == "phy_gmii_rx_dv_i") begin core_drive_cycle(); phy_gmii_rx_dv_i = value; end
       else if (token == "phy_gmii_rx_er_i") begin core_drive_cycle(); phy_gmii_rx_er_i = value; end
-      else if (token == "phy_mii_tx_clk_i") begin core_drive_cycle(); phy_mii_tx_clk_i = value; end
       else if (token == "phy_mii_select_i") begin core_drive_cycle(); phy_mii_select_i = value; end
       else if (token == "phy_speed_i") begin pending_phy_speed_i = value; end
       else if (token == "phy_speed_valid_i") begin if (value[0]) send_phy_speed(); end
@@ -346,13 +342,9 @@ task automatic run_inputs(input string path);
       parsed = tb_parse_u32(arg0);
       if (!parsed[32]) disable tb_stream_input_line;
       value = parsed[31:0];
-      if (token == "phy_rst_i") begin core_drive_cycle(); phy_rst_i = value; end
-      else if (token == "phy_gtx_clk_i") begin core_drive_cycle(); phy_gtx_clk_i = value; end
-      else if (token == "phy_gmii_rx_clk_i") begin core_drive_cycle(); phy_gmii_rx_clk_i = value; end
-      else if (token == "phy_gmii_rxd_i") begin core_drive_cycle(); phy_gmii_rxd_i = value; end
+      if (token == "phy_gmii_rxd_i") begin core_drive_cycle(); phy_gmii_rxd_i = value; end
       else if (token == "phy_gmii_rx_dv_i") begin core_drive_cycle(); phy_gmii_rx_dv_i = value; end
       else if (token == "phy_gmii_rx_er_i") begin core_drive_cycle(); phy_gmii_rx_er_i = value; end
-      else if (token == "phy_mii_tx_clk_i") begin core_drive_cycle(); phy_mii_tx_clk_i = value; end
       else if (token == "phy_mii_select_i") begin core_drive_cycle(); phy_mii_select_i = value; end
       else if (token == "phy_speed_i") begin pending_phy_speed_i = value; end
       else if (token == "phy_speed_valid_i") begin if (value[0]) send_phy_speed(); end

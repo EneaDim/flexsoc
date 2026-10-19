@@ -7,7 +7,7 @@
     "TOP": "ethernet"
   },
   "ip": "ethernet",
-  "ip_intent_sha256": "01b4436c6736558f738c9a3fb6b7d6edd111d7e9c9af186ae595b381e9e3f5d8",
+  "ip_intent_sha256": "35f7ef2621521ce21f35bf9ac6943b96cb92e3023d0a8d2cd97745f4b9e2eb94",
   "reg_interface": "tlul",
   "schema": 2,
   "source_of_truth": {
@@ -35,6 +35,22 @@
       {
         "path": "rtl/ethernet_tx.sv",
         "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+      },
+      {
+        "path": "rtl/lfsr.sv",
+        "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+      },
+      {
+        "path": "rtl/oddr.sv",
+        "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+      },
+      {
+        "path": "rtl/ssio_sdr_in.sv",
+        "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+      },
+      {
+        "path": "rtl/ssio_sdr_out.sv",
+        "sha256": "3eb5251c2cc1bdbf8d380e1954d5d8cdf107c3977541afe219e4a1034cc7eb80"
       }
     ],
     "constraints": [
@@ -71,52 +87,12 @@
   },
   "sources": [
     {
-      "path": "constraints/ethernet.sdc",
-      "sha256": "465c3814c97c6f18cacd9016378a1e47f6f4d84454e5f590a0e12fe479706e1e"
-    },
-    {
       "path": "csr/ethernet.hjson",
       "sha256": "eda6eac90592db35692f931c3f5553e36987c7a6b7cdcd2bd415a1d2d5fbb13b"
     },
     {
-      "path": "dv/functional/py/model/ethernet_model.py",
-      "sha256": "4be8a81af39a9a9de1d049bbac1cebeb95d1450b25899e1f98741b77cb6b2371"
-    },
-    {
-      "path": "dv/functional/py/model/ethernet_model_tests.py",
-      "sha256": "7277fe9dd388493857202d5f8510edd0fb15f212910ec708de57fae92a3f7b7d"
-    },
-    {
-      "path": "dv/functional/py/model/scenarios.py",
-      "sha256": "2cf2e141fc7d9bf8c69c77f05aeb2176c7403c48abc5f58ed9b581bf6aabf188"
-    },
-    {
-      "path": "dv/functional/py/model/test_ethernet_model.py",
-      "sha256": "0e5f3ecd0c527c47aa09565b4696c066bf14e6bdc1dfa6f68f4a70696b5010ea"
-    },
-    {
-      "path": "dv/functional/py/rtl/cocotb_plugins.json",
-      "sha256": "d2e4ed37586736c713794e65fdb5a1bee9e02337d09eb098b7292cd08727c780"
-    },
-    {
-      "path": "dv/functional/py/rtl/ethernet_packet_test.py",
-      "sha256": "a35bc658515c61fd2b217c5bffbb66bc30c6030c5903b407ee4f653a82bb968f"
-    },
-    {
-      "path": "dv/functional/py/rtl/ethernet_regmap.py",
-      "sha256": "d58566a8a1b3fe179409c81cea484170646d9174847c9ff57a3303905d3ca6aa"
-    },
-    {
-      "path": "dv/functional/py/rtl/ethernet_regmap_tests.py",
-      "sha256": "07a17e08f78f9c3d672c8c435eca5863c9336c8e6458b08e61e1f64811f77ca1"
-    },
-    {
-      "path": "dv/functional/py/rtl/ethernet_tests.py",
-      "sha256": "087c75c42fc1d030be0d3586223473f9ecdfaa57c5eaaa8308260574e854d874"
-    },
-    {
-      "path": "dv/functional/py/rtl/packet_phy_vectors.py",
-      "sha256": "f8187f67cda267ac61665da027285143b5ca6cfc39339b94e766bef80f1e7a03"
+      "path": "constraints/ethernet.sdc",
+      "sha256": "465c3814c97c6f18cacd9016378a1e47f6f4d84454e5f590a0e12fe479706e1e"
     },
     {
       "path": "rtl/ethernet_core.sv",
@@ -133,6 +109,22 @@
     {
       "path": "rtl/ethernet_tx.sv",
       "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+    },
+    {
+      "path": "rtl/lfsr.sv",
+      "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+    },
+    {
+      "path": "rtl/oddr.sv",
+      "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+    },
+    {
+      "path": "rtl/ssio_sdr_in.sv",
+      "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+    },
+    {
+      "path": "rtl/ssio_sdr_out.sv",
+      "sha256": "3eb5251c2cc1bdbf8d380e1954d5d8cdf107c3977541afe219e4a1034cc7eb80"
     }
   ],
   "spec_fingerprint": "49a283c893c3513cc0c91c425511d941d38aa067681a5acd4d817c3d48349260",

@@ -7,18 +7,18 @@
 module ethernet_tb;
   logic clk_i;
   logic rst_ni;
+  logic phy_gtx_clk_i;
+  logic phy_rst_i;
+  logic phy_gmii_rx_clk_i;
+  logic phy_mii_tx_clk_i;
   logic [108:0] tl_i;
   logic [65:0]  tl_o;
 
 
 
-  logic phy_rst_i;
-  logic phy_gtx_clk_i;
-  logic phy_gmii_rx_clk_i;
   logic [7:0] phy_gmii_rxd_i;
   logic phy_gmii_rx_dv_i;
   logic phy_gmii_rx_er_i;
-  logic phy_mii_tx_clk_i;
   logic phy_mii_select_i;
   logic [1:0] phy_speed_i;
   logic phy_speed_valid_i;
@@ -188,6 +188,36 @@ module ethernet_tb;
       jitter_prev_ps = jitter_next_ps;
     end
   end
+  initial begin
+    phy_gtx_clk_i = 1'b0;
+    #0;
+    forever begin
+      phy_gtx_clk_i = 1'b1;
+      #4;
+      phy_gtx_clk_i = 1'b0;
+      #4;
+    end
+  end
+  initial begin
+    phy_gmii_rx_clk_i = 1'b0;
+    #0;
+    forever begin
+      phy_gmii_rx_clk_i = 1'b1;
+      #4;
+      phy_gmii_rx_clk_i = 1'b0;
+      #4;
+    end
+  end
+  initial begin
+    phy_mii_tx_clk_i = 1'b0;
+    #0;
+    forever begin
+      phy_mii_tx_clk_i = 1'b1;
+      #20;
+      phy_mii_tx_clk_i = 1'b0;
+      #20;
+    end
+  end
 
   ethernet u_dut (
     .clk_i                    (clk_i),
@@ -258,24 +288,6 @@ module ethernet_tb;
     if (1'b0) begin
       seen = 1'b0;
     end
-    else if (name == "phy_rst_i") begin
-      for (i = 0; i < timeout_cycles && !seen; i++) begin
-        @(posedge clk_i); #1;
-        if ($unsigned(phy_rst_i) === expected) seen = 1'b1;
-      end
-    end
-    else if (name == "phy_gtx_clk_i") begin
-      for (i = 0; i < timeout_cycles && !seen; i++) begin
-        @(posedge clk_i); #1;
-        if ($unsigned(phy_gtx_clk_i) === expected) seen = 1'b1;
-      end
-    end
-    else if (name == "phy_gmii_rx_clk_i") begin
-      for (i = 0; i < timeout_cycles && !seen; i++) begin
-        @(posedge clk_i); #1;
-        if ($unsigned(phy_gmii_rx_clk_i) === expected) seen = 1'b1;
-      end
-    end
     else if (name == "phy_gmii_rxd_i") begin
       for (i = 0; i < timeout_cycles && !seen; i++) begin
         @(posedge clk_i); #1;
@@ -292,12 +304,6 @@ module ethernet_tb;
       for (i = 0; i < timeout_cycles && !seen; i++) begin
         @(posedge clk_i); #1;
         if ($unsigned(phy_gmii_rx_er_i) === expected) seen = 1'b1;
-      end
-    end
-    else if (name == "phy_mii_tx_clk_i") begin
-      for (i = 0; i < timeout_cycles && !seen; i++) begin
-        @(posedge clk_i); #1;
-        if ($unsigned(phy_mii_tx_clk_i) === expected) seen = 1'b1;
       end
     end
     else if (name == "phy_mii_select_i") begin
@@ -463,7 +469,11 @@ module ethernet_tb;
   initial begin
     errors = 0;
     clk_i = 1'b0;
+    phy_gtx_clk_i = 1'b0;
+    phy_gmii_rx_clk_i = 1'b0;
+    phy_mii_tx_clk_i = 1'b0;
     rst_ni = 1'b1;
+    phy_rst_i = 1'b0;
     apply_defaults();
 
     if (!$value$plusargs("TEST_NAME=%s", test_name)) test_name = "smoke";
@@ -499,10 +509,12 @@ module ethernet_tb;
     repeat (2) @(posedge clk_i);
     @(negedge clk_i); #1;
     rst_ni = 1'b0;
+    phy_rst_i = 1'b1;
     $display("[TB] initial reset pulse cycles=%0d", INITIAL_RESET_CYCLES);
     repeat (INITIAL_RESET_CYCLES) @(posedge clk_i);
     @(negedge clk_i); #1;
     rst_ni = 1'b1;
+    phy_rst_i = 1'b0;
     repeat (8) @(posedge clk_i);
 
     load_config(cfg_path);
