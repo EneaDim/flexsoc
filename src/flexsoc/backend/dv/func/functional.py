@@ -407,8 +407,19 @@ class FunctionalFlow:
         wave = wave_file or cocotb_dir / f"{top}_tb_{test_name}.fst"
         if coverage_file is not None:
             coverage_file.parent.mkdir(parents=True, exist_ok=True)
+        plugin = test_dir / "cocotb_plugin.json"
+        selected_module = None
+        if plugin.is_file():
+            import re
+            declaration = json.loads(plugin.read_text(encoding="utf-8"))
+            selected_module = declaration.get("module") if isinstance(declaration, dict) else None
+            if not isinstance(selected_module, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", selected_module):
+                raise ValueError(f"invalid cocotb test module declaration: {plugin}")
+            if not (cocotb_dir / f"{selected_module}.py").is_file():
+                raise FileNotFoundError(f"declared cocotb plugin was not staged: {selected_module}")
         argv = (
             "make", "--no-print-dir", "-C", str(cocotb_dir),
+            *([f"COCOTB_TEST_MODULES={selected_module}"] if selected_module else []),
             f"SIM={simulator}", f"TEST_NAME={test_name}", f"SEED={seed}",
             f"RESET_SETTLE_CYCLES={max(0, int(reset_settle_cycles))}",
             f"HDL_COVERAGE={1 if coverage_file else 0}",
@@ -497,7 +508,10 @@ class FunctionalFlow:
                 return tuple(results)
 
         for name in tests:
-            if "sv" in selected:
+            plugin_only = (test_root / name / "cocotb_plugin.json").is_file()
+            if "sv" in selected and plugin_only:
+                Terminal.print_label("regression", f"backend=sv · test={name} · NOT_RUN (cocotb plugin)")
+            if "sv" in selected and not plugin_only:
                 cov = coverage_dir / "sv" / f"{name}.dat" if coverage_dir else None
                 run_log = sv_logs / f"{top}_sv_sim_{name}.log"
                 Terminal.print_label("regression", f"backend=sv · compiler={compiler} · test={name}")
