@@ -51,9 +51,11 @@ LEVEL_ALIASES = {
     "0": 0,
     "none": 0,
     "1": 1,
+    "l1": 1,
     "contract": 1,
     "contract_valid": 1,
     "2": 2,
+    "l2": 2,
     "rtl": 2,
     "rtl_qualified": 2,
     "3": 3,
@@ -560,7 +562,7 @@ class QualificationFlow:
             return None
         key = str(value).strip().lower().replace("-", "_").replace(" ", "_") or "auto"
         if key not in LEVEL_ALIASES:
-            choices = "auto, contract, rtl, netlist, technology, physical_signoff"
+            choices = "auto, contract (L1), rtl (L2), netlist, technology, physical_signoff"
             raise ValueError(f"QUAL_LEVEL must be one of: {choices}")
         return LEVEL_ALIASES[key]
 
