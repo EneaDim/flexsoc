@@ -146,6 +146,18 @@ class ClockConfig:
         signals = [domain.signal for domain in domains]
         if len(set(names)) != len(names) or len(set(signals)) != len(signals):
             raise ValueError("clock domain names and clock signals must be unique")
+        reset_polarities: dict[str, str] = {}
+        for domain in domains:
+            if domain.reset in signals:
+                raise ValueError(
+                    f"signal {domain.reset!r} used as both clock and reset"
+                )
+            previous = reset_polarities.setdefault(domain.reset, domain.reset_polarity)
+            if previous != domain.reset_polarity:
+                raise ValueError(
+                    f"reset {domain.reset!r} has inconsistent polarities: "
+                    f"{previous} vs {domain.reset_polarity}"
+                )
         return tuple(domains)
 
     @staticmethod

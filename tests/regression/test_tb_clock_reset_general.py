@@ -28,12 +28,10 @@ def test_unique_resets(spec,expected):
 
 
 def test_reject_polarity_conflict():
-    clocks=cfg("a:clk_a:rst_shared:10:low,b:clk_b:rst_shared:12:high")
     with pytest.raises(ValueError,match="inconsistent polarities"):
-        TestbenchModel.unique_resets(clocks)
+        cfg("a:clk_a:rst_shared:10:low,b:clk_b:rst_shared:12:high")
 
 
 def test_reject_clock_reset_collision():
-    clocks=cfg("a:clk_a:clk_b:10:low,b:clk_b:rst_b:12:low")
     with pytest.raises(ValueError,match="both clock and reset"):
-        TestbenchModel.unique_resets(clocks)
+        cfg("a:clk_a:clk_b:10:low,b:clk_b:rst_b:12:low")
