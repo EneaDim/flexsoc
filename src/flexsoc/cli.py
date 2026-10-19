@@ -1388,7 +1388,16 @@ Use `fx commands` to list every backend target.
 
             from .backend.core import PDKRunLayout
 
-            values = dict(DEFAULT_SETTINGS if reset else WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS))
+            settings_path = WorkspaceFlow.settings_path(root, workdir)
+            writes_settings = bool(reset or unsets or sets or items)
+            if reset:
+                values = dict(DEFAULT_SETTINGS)
+            elif workdir is not None and not settings_path.exists() and writes_settings:
+                # Bootstrap explicitly requested configuration without reading a
+                # stale project run; keep ordinary reads and other commands strict.
+                values = WorkspaceFlow.read_settings(root, defaults=DEFAULT_SETTINGS)
+            else:
+                values = WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS)
             for key in unsets:
                 values.pop(key.upper(), None)
             updates = self._assignments((*items, *sets))
@@ -2163,6 +2172,12 @@ Use `fx commands` to list every backend target.
                 if deps_jobs is not None:
                     dep_sets.append(f"DEPS_JOBS={deps_jobs}")
                 set_args = (*set_args, *dep_sets)
+            # Settings must be able to bootstrap a populated workdir without
+            # a settings.json (e.g. a prior failed command created run logs).
+            # Do not relax the fail-closed guard for any other command.
+            if args and args[0] == "settings":
+                self._settings(root, workdir, args[1:], set_args, unset_args, reset, as_json)
+                return
             stored_settings = WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS)
             effective_settings = WorkspaceFlow.effective_settings(root, workdir, stored_settings)
             client = FlexSoC(FlexSoCConfig(root, workdir), **effective_settings)
