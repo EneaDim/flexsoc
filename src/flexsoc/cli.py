@@ -52,7 +52,7 @@ else:
     error_console = Console(stderr=True)
     PSEUDO_COMMANDS = (
         "help", "settings", "commands", "show", "requirements", "testplan", "trace", "mtest", "meta",
-        "doctor", "pdk", "shell",
+        "doctor", "pdk", "shell", "defer",
     )
     PRIVATE_CLI_TARGETS = frozenset({
         "formal_csr", "formal_csr_bmc", "formal_csr_prove", "formal_csr_cover",
@@ -2170,6 +2170,26 @@ Use `fx commands` to list every backend target.
             if args[0] == "commands":
                 self._print_commands(client, as_json)
                 return
+            if args[0] == "defer":
+                from .backend.core import PDKRunLayout
+                from .backend.release.deferrals import manage_deferrals
+
+                if reset or force or setup or unset_args:
+                    raise click.BadParameter("fx defer does not support reset/force/setup/unset")
+                # PDKRunLayout.from_values defaults to project_root/workspace unless
+                # WORKSPACE is explicit.  A caller's --workdir must take precedence.
+                defer_values = dict(effective_settings)
+                if workdir is not None:
+                    defer_values["WORKSPACE"] = str(workdir.expanduser().resolve())
+                layout = PDKRunLayout.from_values(root, defer_values)
+                try:
+                    result = manage_deferrals(
+                        layout.run_root / "meta" / layout.pdk,
+                        args[1:], self._assignments(set_args), as_json=as_json,
+                    )
+                except (ValueError, OSError, json.JSONDecodeError) as exc:
+                    raise click.ClickException(str(exc)) from exc
+                raise typer.Exit(result)
             if args[0] == "settings":
                 self._settings(root, workdir, args[1:], set_args, unset_args, reset, as_json)
                 return
