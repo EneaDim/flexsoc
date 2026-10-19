@@ -305,6 +305,18 @@ class CocotbTestbench:
         }
         for path, body in files.items():
             path.write_text(body.rstrip() + "\n", encoding="utf-8")
+        # Optional IP-authored cocotb suites are staged, never executed implicitly.
+        rtl_py = out.parent.parent / "py" / "rtl"
+        model_py = out.parent.parent / "py" / "model"
+        if (rtl_py / f"{config.top}_packet_test.py").is_file():
+            for source in (*rtl_py.glob("*.py"), *model_py.glob("scenarios.py")):
+                if source.name.startswith("test_") or source.name == f"{config.top}_tb.py":
+                    continue
+                target = out / source.name
+                if target.is_file():
+                    continue
+                target.write_bytes(source.read_bytes())
+                files[target] = ""
         return list(files)
 
     @staticmethod
