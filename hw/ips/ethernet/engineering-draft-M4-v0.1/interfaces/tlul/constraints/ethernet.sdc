@@ -37,9 +37,13 @@ set_clock_groups -asynchronous -group [get_clocks core] -group [get_clocks gtx] 
 # ============================================================
 # 5. INPUT TIMING
 # ============================================================
-set non_clock_inputs [all_inputs -no_clocks]
-set_input_delay -max 2 -clock core $non_clock_inputs
-set_input_delay -min 0.0 -clock core $non_clock_inputs
+# No global input-delay blanket is valid for this multi-clock IP.
+# The CSR/TL-UL and PHY input timing budgets must be specified independently
+# from the system integration and PHY datasheet before STA signoff.
+# Required input groups: tl_i (core), phy_gmii_rxd_i/phy_gmii_rx_dv_i/
+# phy_gmii_rx_er_i (gmii_rx); phy_mii_select_i and phy_speed* are
+# asynchronous mode/configuration controls, not core-synchronous data.
+# Do not substitute default numerical input delays for these unknown budgets.
 
 # ============================================================
 # 6. INPUT DRIVE
@@ -51,13 +55,24 @@ set_drive 0.1 [all_inputs -no_clocks]
 # ============================================================
 # 7. OUTPUT TIMING
 # ============================================================
-set_output_delay -max 2 -clock core [all_outputs]
-set_output_delay -min 0.0 -clock core [all_outputs]
+# No global output-delay blanket is valid for this multi-clock IP.
+# Timing budgets are outstanding for tl_o (core), the PHY TX interface,
+# tx_* (selected TX clock), rx_* (RX clock), and interrupt outputs.
+# In particular, the MAC TX clock is selected from GTX and MII TX_CLK;
+# this SDC does not certify the switching logic as glitch-free.
+# Add per-interface min/max output delays only after the timing contract
+# (board or SoC, receiver setup/hold, trace skew) has been reviewed.
 
 # ============================================================
 # 8. FUNCTIONAL MODE CONTROLS
 # ============================================================
 # PHY speed and MII select are functional mode controls; do not infer a glitch-free clock mux.
+# STA requires distinct modes: GMII 1000 (gtx=8 ns, gmii_rx=8 ns),
+# MII 100 (mii_tx=40 ns), MII 10 (mii_tx=400 ns).
+# The 40 ns MII clock above describes ONLY 100 Mb/s diagnostics.
+# Mode selection, mux output/generated clocks, and min/max PHY I/O
+# timing require a technology/PHY-specific, independently reviewed SDC.
+# No false paths, clock exclusivity, or case analysis are asserted here.
 
 # ============================================================
 # 9. OUTPUT LOAD
