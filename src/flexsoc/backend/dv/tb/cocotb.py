@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import json
+import re
 from pathlib import Path
 from typing import Sequence
 
@@ -32,6 +34,51 @@ class CocotbConfig:
     vsv: str = "sv"
     force: bool = False
     event_source: TestEventSource | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CocotbPluginManifest:
+    """Validate and stage explicit, flat Python extension modules from an IP."""
+
+    path: Path
+
+    def sources(self) -> tuple[Path, ...]:
+        document = json.loads(self.path.read_text(encoding="utf-8"))
+        if not isinstance(document, dict) or document.get("schema") != 1:
+            raise ValueError("cocotb plugin manifest requires schema 1")
+        modules = document.get("modules")
+        dependencies = document.get("sources", [])
+        if not isinstance(modules, list) or not modules or not isinstance(dependencies, list):
+            raise ValueError("cocotb plugins require a nonempty modules list and sources list")
+        names = [*modules, *dependencies]
+        if any(not isinstance(name, str) for name in names):
+            raise ValueError("cocotb plugin paths must be strings")
+        seen = set()
+        result = []
+        base = self.path.parent.resolve()
+        model = (base.parent / "model").resolve()
+        for name in names:
+            if name in modules:
+                if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", name):
+                    raise ValueError(f"invalid cocotb plugin module: {name!r}")
+                source = base / f"{name}.py"
+            else:
+                parts = Path(name).parts
+                if len(parts) == 1 and name.endswith(".py"):
+                    source = base / name
+                elif len(parts) == 3 and parts[:2] == ("..", "model") and parts[2].endswith(".py"):
+                    source = model / parts[2]
+                else:
+                    raise ValueError(f"unsafe cocotb plugin source: {name!r}")
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*\.py", source.name):
+                raise ValueError(f"invalid cocotb plugin source: {name!r}")
+            if source.is_symlink() or not source.is_file() or source.resolve().parent not in (base, model):
+                raise ValueError(f"missing or unsafe cocotb plugin source: {name!r}")
+            if source.name in seen:
+                raise ValueError(f"duplicate cocotb plugin filename: {source.name}")
+            seen.add(source.name)
+            result.append(source)
+        return tuple(result)
 
 
 @dataclass(slots=True)
@@ -305,16 +352,14 @@ class CocotbTestbench:
         }
         for path, body in files.items():
             path.write_text(body.rstrip() + "\n", encoding="utf-8")
-        # Optional IP-authored cocotb suites are staged, never executed implicitly.
+        # IP-authored extensions: staging only, never implicit execution.
         rtl_py = out.parent.parent / "py" / "rtl"
-        model_py = out.parent.parent / "py" / "model"
-        if (rtl_py / f"{config.top}_packet_test.py").is_file():
-            for source in (*rtl_py.glob("*.py"), *model_py.glob("scenarios.py")):
-                if source.name.startswith("test_") or source.name == f"{config.top}_tb.py":
-                    continue
+        manifest = rtl_py / "cocotb_plugins.json"
+        if manifest.is_file():
+            for source in CocotbPluginManifest(manifest).sources():
                 target = out / source.name
-                if target.is_file():
-                    continue
+                if target.exists():
+                    raise ValueError(f"cocotb plugin destination collision: {target.name}")
                 target.write_bytes(source.read_bytes())
                 files[target] = ""
         return list(files)

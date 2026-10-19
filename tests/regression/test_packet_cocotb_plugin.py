@@ -20,5 +20,5 @@ def test_plugin_staging_is_opt_in():
     from flexsoc.backend.dv.tb.cocotb import CocotbTestbench
     import inspect
     src = inspect.getsource(CocotbTestbench._write)
-    assert 'f"{config.top}_packet_test.py"' in src
+    assert 'CocotbPluginManifest(manifest).sources()' in src
     assert 'files[target] = ""' in src
