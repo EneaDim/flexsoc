@@ -2,11 +2,11 @@
 rtl/ethernet_reg_pkg.sv
 rtl/ethernet_reg_core.sv
 rtl/ethernet_reg_top.sv
-rtl/ssio_sdr_in.v
-rtl/oddr.v
-rtl/ssio_sdr_out.v
+rtl/ssio_sdr_in.sv
+rtl/oddr.sv
+rtl/ssio_sdr_out.sv
 rtl/ethernet_phy_if.sv
-rtl/lfsr.v
+rtl/lfsr.sv
 rtl/ethernet_tx.sv
 rtl/ethernet_rx.sv
 rtl/ethernet_core.sv

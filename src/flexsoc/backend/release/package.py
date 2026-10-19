@@ -182,6 +182,7 @@ class PackageFlow:
                 # Historical source snapshots may reference checkout-level RTL mirrors.
                 # `fx flist` regenerates the canonical closure for this new run.
                 PackageFlow._copy_contents(staged, destination)
+                self._materialize_shared_rtl(destination)
             print("[ip_load] UNQUALIFIED source baseline: previous qualification and PDK evidence discarded")
             return destination
         if destination.exists() and destination != run:
@@ -209,8 +210,33 @@ class PackageFlow:
                     self._replace_tree(post_impl, run_pdk / "post_impl")
             shutil.rmtree(staged_signoff)
         PackageFlow._clean_python_cache(destination)
+        self._materialize_shared_rtl(destination)
         PackageFlow._validate_frozen_filelists(destination)
         return destination
+
+    def _materialize_shared_rtl(self, destination: Path) -> None:
+        """Populate missing run-local shared RTL from hw/ips, never from IP snapshot."""
+        common = destination / "rtl" / "rtl_common.f"
+        if not common.is_file():
+            return
+        shared_root = (self.project_root / "hw" / "ips").resolve()
+        for entry in common.read_text(encoding="utf-8").splitlines():
+            entry = entry.strip()
+            if not entry or entry.startswith(("#", "+", "-")):
+                continue
+            relative = Path(entry)
+            parts = relative.parts
+            if (len(parts) != 5 or parts[:4] != ("rtl", "deps", "flexsoc", "prim")
+                    or relative.suffix != ".sv"):
+                continue
+            target = destination / relative
+            if target.is_file():
+                continue
+            source = (shared_root / "prim" / parts[4]).resolve()
+            if not source.is_relative_to(shared_root) or not source.is_file():
+                raise FileNotFoundError(f"shared RTL primitive is missing: {source}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
 
     def export_ipxact(
         self,
@@ -637,7 +663,10 @@ class PackageFlow:
                 if path.is_absolute() or ".." in path.parts:
                     raise ValueError(f"IP release core source must be release-relative: {value}")
                 if not (staged / path).is_file():
-                    raise FileNotFoundError(f"IP release RTL source not found: {staged / path}")
+                    parts = path.parts
+                    if not (len(parts) == 5 and parts[:4] == ("rtl", "deps", "flexsoc", "prim")
+                            and (self_shared := staged / path).suffix == ".sv"):
+                        raise FileNotFoundError(f"IP release RTL source not found: {staged / path}")
                 relative = path.as_posix()
                 if relative not in sources:
                     sources.append(relative)
@@ -654,12 +683,20 @@ class PackageFlow:
                     continue
                 include_entries.append((relative, directory))
 
-        dependency_file = rtl / "fusesoc_deps.txt"
-        dependencies = tuple(
-            line.strip()
-            for line in dependency_file.read_text(encoding="utf-8").splitlines()
-            if line.strip() and not line.lstrip().startswith("#")
-        ) if dependency_file.is_file() else ()
+        # Reuse declared FuseSoC dependencies instead of a second dependency file.
+        existing_core = staged / f"{ip_name}.core"
+        dependencies: list[str] = []
+        if existing_core.is_file():
+            inside = False
+            for line in existing_core.read_text(encoding="utf-8").splitlines():
+                if line == "    depend:":
+                    inside = True
+                elif inside and line.startswith("      - "):
+                    dependency = line[8:].strip()
+                    if dependency and dependency not in dependencies:
+                        dependencies.append(dependency)
+                elif inside:
+                    inside = False
 
         lines = [
             "CAPI=2:",
@@ -1264,11 +1301,11 @@ class PackageFlow:
                 frozen.append(prefix + destination.relative_to(root).as_posix())
             filelist.write_text("\n".join(frozen) + "\n", encoding="utf-8")
 
-        dependency_file = root / "rtl" / "fusesoc_deps.txt"
-        if core_dependencies:
-            dependency_file.write_text("\n".join(core_dependencies) + "\n", encoding="utf-8")
-        else:
-            dependency_file.unlink(missing_ok=True)
+        # Shared prim RTL is resolved by the run loader, not copied into hw/ips releases.
+        shared_prim = root / "rtl" / "deps" / "flexsoc" / "prim"
+        for primitive in ("prim_ff_2sync.sv",):
+            (shared_prim / primitive).unlink(missing_ok=True)
+        (root / "rtl" / "fusesoc_deps.txt").unlink(missing_ok=True)
 
     @staticmethod
     def _validate_frozen_filelists(root: Path) -> None:
@@ -1292,4 +1329,7 @@ class PackageFlow:
                 except ValueError as exc:
                     raise ValueError(f"IP release path escapes staged release: {line}") from exc
                 if not resolved.exists():
-                    raise FileNotFoundError(f"staged IP release dependency not found: {resolved}")
+                    parts = path.parts
+                    if not (len(parts) == 5 and parts[:4] == ("rtl", "deps", "flexsoc", "prim")
+                            and path.suffix == ".sv"):
+                        raise FileNotFoundError(f"staged IP release dependency not found: {resolved}")
