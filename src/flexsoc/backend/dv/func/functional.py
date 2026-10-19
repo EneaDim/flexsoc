@@ -35,7 +35,7 @@ class FunctionalFlow:
 
         from flexsoc.backend.core import CommandRequest, ToolRunner
 
-        model_dir = Path(model_dir) if model_dir is not None else Path(base_dir).parent / "py"
+        model_dir = Path(model_dir) if model_dir is not None else (Path(base_dir).parent / "py" / "rtl" if (Path(base_dir).parent / "py" / "rtl").is_dir() else Path(base_dir).parent / "py")
         script = model_dir / f"{top}_{suffix}.py"
         if not script.is_file():
             raise FileNotFoundError(f"missing vector generator: {script}")
@@ -160,7 +160,8 @@ class FunctionalFlow:
     def _local_catalog(base_dir: Path) -> Path | None:
         """Return a workspace/package-owned functional-test catalogue, if present."""
 
-        script = Path(base_dir).parent / "py" / "tests.py"
+        py = Path(base_dir).parent / "py"
+        script = py / "rtl" / "tests.py" if (py / "rtl" / "tests.py").is_file() else py / "tests.py"
         return script if script.is_file() else None
 
     def _run_local_catalog(
@@ -224,7 +225,7 @@ class FunctionalFlow:
         """Regenerate generated collateral in staging and compare it with the run."""
 
         root = Path(base_dir)
-        model_dir = root.parent / "py"
+        model_dir = root.parent / "py" / "rtl" if (root.parent / "py" / "rtl").is_dir() else root.parent / "py"
         local = self._local_catalog(root)
         generated = {"config.regs", "data_in.vec", "data_out.vec"}
         with tempfile.TemporaryDirectory(prefix=f"flexsoc-{top}-tests-check-") as temporary:

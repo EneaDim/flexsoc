@@ -91,14 +91,16 @@ class ModelFlow:
         *,
         force: bool = False,
         clocks=None,
+        regmap_output: Path | None = None,
     ) -> tuple[Path, Path, Path, Path]:
-        """Prepare regmap, model and both test scaffolds."""
+        """Prepare independent model and interface-facing register collateral."""
 
         clocks = clocks or ClockConfig.from_values()
-        regmap = RegsFlow.generate(top, data_dir, output, force=force)
+        register_dir = regmap_output if regmap_output is not None else output
+        regmap = RegsFlow.generate(top, data_dir, register_dir, force=force)
         model = self.init_reference(top, output, rtl_dir, force=force, clocks=clocks)
         tests = self.init_model_tests(top, output, force=force, clocks=clocks)
-        regmap_tests = self.setup_regmap_tests(top, output, clocks=clocks)
+        regmap_tests = self.setup_regmap_tests(top, register_dir, clocks=clocks)
         ModelFlow._write_text(output / "scenarios.py", ModelFlow._scenarios_text(top, multiclock=clocks.multiclock), force=False)
         ModelFlow._write_text(output / f"{top}_model_tests.py", ModelFlow._model_tests_text(top), force=False)
         return regmap, model, tests, regmap_tests

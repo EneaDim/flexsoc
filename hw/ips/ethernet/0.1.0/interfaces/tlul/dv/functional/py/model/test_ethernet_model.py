@@ -5,8 +5,7 @@ from pathlib import Path
 import binascii
 import random
 import pytest
-sys.path.insert(0, str(Path(__file__).resolve().parent if (Path(__file__).resolve().parent / 'ethernet_oracle.py').is_file() else Path(__file__).resolve().parents[1] / 'model'))
-from ethernet_oracle import (crc32_eth, fcs_octets, pad_frame, encode_tx,
+from ethernet_model import (crc32_eth, fcs_octets, pad_frame, encode_tx,
                              decode_rx, corrupt_fcs, mii_low_nibble_first,
                              mii_to_gmii, speed_descriptor, EthernetCsrOracle,
                              PREAMBLE)

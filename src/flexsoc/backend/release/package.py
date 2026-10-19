@@ -520,6 +520,7 @@ class PackageFlow:
                     else:
                         child.unlink()
         functional = dv / "functional"
+        shutil.rmtree(functional / "py" / "model" / "results", ignore_errors=True)
         for name in ("model_tests", "regression", "coverage", "sim", "summary.json"):
             path = functional / name
             if path.is_dir():
@@ -714,7 +715,6 @@ class PackageFlow:
         for key, relative in (
             ("registers", "csr"), ("rtl", "rtl"), ("documentation", "doc"),
             ("drivers", "sw/drivers"), ("functional_python", "dv/functional/py"),
-            ("functional_model", "dv/functional/model"),
             ("functional_tests", "dv/functional/tests"),
             ("functional_tb", "dv/functional/tb"),
             ("formal_properties", "dv/formal/properties"),

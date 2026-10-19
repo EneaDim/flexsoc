@@ -62,7 +62,7 @@ class IpDesign:
             )
         if action == "regmap_py":
             return self.regs.setup_regmap_py(
-                top, paths.csr, paths.py, force=force, refresh_tests=True,
+                top, paths.csr, paths.py / "rtl", force=force, refresh_tests=True,
                 clocks=self.context.clocks,
             )
         if action == "rtl_scaffold":
@@ -89,8 +89,8 @@ class IpDesign:
             )
         if action == "model_setup":
             return self.model.setup(
-                top, paths.csr, paths.py, paths.rtl,
-                force=force, clocks=self.context.clocks,
+                top, paths.csr, paths.py / "model", paths.rtl,
+                force=force, clocks=self.context.clocks, regmap_output=paths.py / "rtl",
             )
         raise ValueError(f"unsupported design action: {action!r}")
 

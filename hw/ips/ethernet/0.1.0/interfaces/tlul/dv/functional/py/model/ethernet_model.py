@@ -156,3 +156,5 @@ class EthernetCsrOracle:
 
     def reset(self) -> None:
         self.__dict__.update(type(self)().__dict__)
+
+TOP = "ethernet"

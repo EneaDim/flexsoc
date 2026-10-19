@@ -1481,8 +1481,9 @@ Use `fx commands` to list every backend target.
             interface = self._assignments(sets).get("REG_ITF", client.settings.get("REG_ITF", "tlul"))
             ip = str(contract["ip"])
             packaged = base / "interfaces" / interface / "dv" / "functional" / "py"
-            model = packaged if packaged.is_dir() else base / "dv" / "functional" / "py"
-            summary = (client.workdir / "model_tests" / ip / interface / "summary.json") if source else (base / "dv" / "functional" / "model_tests" / "summary.json")
+            model_root = packaged if packaged.is_dir() else base / "dv" / "functional" / "py"
+            model = model_root / "model" if (model_root / "model").is_dir() else model_root
+            summary = (client.workdir / "model_tests" / ip / interface / "summary.json") if source else (model / "results" / "summary.json" if model != model_root else base / "dv" / "functional" / "model_tests" / "summary.json")
             report["model_execution"] = TraceabilityFlow.model_evidence(
                 report=report, summary=summary, fingerprint=str(contract["fingerprint"]),
                 model_dir=model, ip=ip,
@@ -1545,8 +1546,9 @@ Use `fx commands` to list every backend target.
             top = str(contract["ip"])
             interface = self._assignments(sets).get("REG_ITF", client.settings.get("REG_ITF", "tlul"))
             packaged = base / "interfaces" / interface / "dv" / "functional" / "py"
-            model = packaged if packaged.is_dir() else base / "dv" / "functional" / "py"
-            output = (client.workdir / "model_tests" / top / interface) if source else (base / "dv" / "functional" / "model_tests")
+            model_root = packaged if packaged.is_dir() else base / "dv" / "functional" / "py"
+            model = model_root / "model" if (model_root / "model").is_dir() else model_root
+            output = (client.workdir / "model_tests" / top / interface) if source else (model / "results" if model != model_root else base / "dv" / "functional" / "model_tests")
             log_dir = (client.workdir / "logs" / "dv" / "functional" / "model_tests" / top / interface) if source else (base / "logs" / "dv" / "functional" / "model_tests")
             return contract, top, interface, model, output, log_dir
 

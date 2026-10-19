@@ -12,13 +12,13 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 IP = ROOT / 'hw/ips/ethernet/0.1.0'
-PY = IP / 'interfaces/tlul/dv/functional/py'
-MODEL = IP / 'interfaces/tlul/dv/functional/model'
+PY = IP / 'interfaces/tlul/dv/functional/py/rtl'
+MODEL = IP / 'interfaces/tlul/dv/functional/py/model'
 for path in (str(PY), str(MODEL)):
     if path not in sys.path:
         sys.path.insert(0, path)
 from packet_phy_vectors import all_fixtures
-from ethernet_oracle import PREAMBLE, decode_rx, encode_tx, mii_to_gmii
+from ethernet_model import PREAMBLE, decode_rx, encode_tx, mii_to_gmii
 
 FIXTURES = all_fixtures()
 
