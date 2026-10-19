@@ -1395,11 +1395,33 @@ class CdcFlow:
             if crossing.source.clock_domain != crossing.destination.clock_domain
         )
         reset_families = CdcFlow._reset_family_map(ir, dependencies)
+        seq_by_name = {seq.name: seq for seq in ir.sequential}
+
+        def synchronous_only_same_clock(crossing: Crossing) -> bool:
+            """Synchronous-only controls do not create an asynchronous RDC.
+
+            Preserve all unknown-clock, different-clock and async-reset paths:
+            a synchronous reset is not proof that an asynchronous source is safe.
+            """
+            src = seq_by_name.get(crossing.source.name)
+            dst = seq_by_name.get(crossing.destination.name)
+            return bool(
+                src is not None
+                and dst is not None
+                and src.clock_domain is not None
+                and src.clock_domain == dst.clock_domain
+                and src.async_reset_bit is None
+                and dst.async_reset_bit is None
+                and src.sync_reset_bit is not None
+                and dst.sync_reset_bit is not None
+            )
+
         reset_crossings = tuple(
             crossing
             for crossing in dependencies
             if crossing.source.reset_signal is not None
             and crossing.destination.reset_signal is not None
+            and not synchronous_only_same_clock(crossing)
             and reset_families.get(crossing.source.name, crossing.source.reset_signal)
             != reset_families.get(crossing.destination.name, crossing.destination.reset_signal)
         )
@@ -2061,6 +2083,39 @@ class CdcFlow:
     # Clock/reset setup and glitch checks.
 
     @staticmethod
+    def _unassigned_clock_sources(ir: DesignIR, clock_bit: NetBit) -> tuple[str, ...]:
+        """Report the primary clocks feeding an unresolved clock, without certifying a mux.
+
+        This is diagnostic only: clock_domain remains None and the existing
+        GLITCH/RDC/SETUP gates are not waived.  Never infer a safe domain from
+        a multi-source clock expression.
+        """
+        module = ir.module
+        sources: dict[NetBit, Endpoint] = {}
+        for name, port in module.get("ports", {}).items():
+            if port.get("direction") == "input":
+                for index, bit in enumerate(port.get("bits", ())):
+                    sources[bit] = Endpoint("input", name, index)
+        drivers: dict[NetBit, tuple[str, str]] = {}
+        for name, cell in module.get("cells", {}).items():
+            if str(cell.get("type", "")) in _SEQ_PORTS:
+                continue
+            if CdcFlow._cdc_contract(cell) == "async_fifo":
+                continue
+            for port, direction in cell.get("port_directions", {}).items():
+                if direction == "output":
+                    for bit in cell.get("connections", {}).get(port, ()):
+                        drivers[bit] = (name, port)
+        upstream = CdcFlow._upstream_sources(
+            clock_bit, sources=sources, drivers=drivers, cells=module.get("cells", {}),
+            memo={}, active=set(),
+        )
+        clock_names = {domain.signal for domain in ir.clocks}
+        candidates = sorted({endpoint.name for endpoint, _ in upstream
+                             if endpoint.kind == "input" and endpoint.name in clock_names})
+        return tuple(candidates)
+
+    @staticmethod
     def _check_setup(ir: DesignIR, analysis: CrossingAnalysis) -> tuple[DomainFinding, ...]:
         """Check domain assignment, clock relationships, reset polarity and reset families."""
 
@@ -2071,7 +2126,11 @@ class CdcFlow:
                 findings.append(DomainFinding(
                     "setup", "ERROR", "unassigned_clock_domain",
                     issues=(f"sequential={seq.name}",),
-                    evidence=(seq.source or "-",),
+                    evidence=(seq.source or "-",) + (
+                        ("clock_candidates=" + ",".join(candidates),)
+                        if (candidates := CdcFlow._unassigned_clock_sources(ir, seq.clock_bit))
+                        else ("clock_candidates=unresolved",)
+                    ),
                 ))
             elif seq.reset_signal:
                 domain = domain_by_name[seq.clock_domain]
@@ -2129,6 +2188,41 @@ class CdcFlow:
         return tuple(findings)
 
     @staticmethod
+    def _clock_mux_evidence(ir: DesignIR, clock_bit: NetBit) -> tuple[str, ...]:
+        """Describe direct Yosys mux clocks; never certify glitch-free switching.
+
+        Only a direct 1-bit $mux with two distinct declared primary clock
+        inputs is recognized. Other logic keeps the existing generic GLITCH.
+        """
+        module = ir.module
+        input_bits = {
+            tuple(port.get("bits", ()))[0]: name
+            for name, port in module.get("ports", {}).items()
+            if port.get("direction") == "input" and len(port.get("bits", ())) == 1
+        }
+        declared = {domain.signal for domain in ir.clocks}
+        for name, cell in module.get("cells", {}).items():
+            if cell.get("type") != "$mux":
+                continue
+            conn = cell.get("connections", {})
+            if tuple(conn.get("Y", ())) != (clock_bit,):
+                continue
+            a, b, select = (tuple(conn.get(key, ())) for key in ("A", "B", "S"))
+            if not (len(a) == len(b) == len(select) == 1):
+                continue
+            first, second = input_bits.get(a[0]), input_bits.get(b[0])
+            if not (first in declared and second in declared and first != second):
+                continue
+            selector = input_bits.get(select[0], "internal")
+            return (
+                "clock_mux=" + name,
+                "clock_mux_inputs=" + ",".join(sorted((first, second))),
+                "clock_mux_select=" + selector,
+                "clock_mux_switch_safety=unproven",
+            )
+        return ()
+
+    @staticmethod
     def _check_glitches(ir: DesignIR) -> tuple[DomainFinding, ...]:
         """Check for combinational logic on declared clock and reset paths."""
 
@@ -2150,12 +2244,14 @@ class CdcFlow:
                         findings.append(DomainFinding(
                             "glitch", "ERROR", "combinational_clock_path",
                             issues=("potentially_glitching_clock_logic",),
+                            obligations=("prove_clock_switch_glitch_free_or_use_qualified_clock_mux",)
+                            if CdcFlow._clock_mux_evidence(ir, seq.clock_bit) else (),
                             evidence=(
                                 f"clock={endpoint.name}",
                                 f"clock_bit={seq.clock_bit}",
                                 f"sequential_count={sequential_by_clock[seq.clock_bit]}",
                                 f"path={'/'.join(path)}",
-                            ),
+                            ) + CdcFlow._clock_mux_evidence(ir, seq.clock_bit),
                         ))
                         break
 

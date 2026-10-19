@@ -91,7 +91,44 @@ _SERIAL_IDLE_HIGH_INPUTS = frozenset({"rx_i", "cio_rx_i", "uart_rx_i", "serial_r
 
 
 class TestbenchModel:
+    @staticmethod
+    def render_clock_reset_declarations(clocks: ClockConfig) -> str:
+        """Declare shared reset pins once; reject inconsistent clock/reset wiring."""
+        seen: dict[str, str] = {}
+        lines: list[str] = []
+        resets: dict[str, str] = {}
+        for domain in clocks.domains:
+            existing = resets.setdefault(domain.reset, domain.reset_polarity)
+            if existing != domain.reset_polarity:
+                raise ValueError(
+                    f"reset {domain.reset!r} has inconsistent polarities: "
+                    f"{existing} vs {domain.reset_polarity}"
+                )
+            for name, kind in ((domain.signal, "clock"), (domain.reset, "reset")):
+                previous = seen.get(name)
+                if previous is not None:
+                    if previous != kind:
+                        raise ValueError(f"signal {name!r} used as both clock and reset")
+                    continue
+                seen[name] = kind
+                lines.append(f"  logic {name};")
+        return "\n".join(lines)
+
     """Semantic model shared by SystemVerilog and cocotb renderers."""
+
+    @staticmethod
+    def unique_resets(clocks: ClockConfig) -> tuple[ClockDomain, ...]:
+        """One representative domain per physical reset, with validated polarity."""
+        representatives: dict[str, ClockDomain] = {}
+        used_clocks = {d.signal for d in clocks.domains}
+        for domain in clocks.domains:
+            if domain.reset in used_clocks:
+                raise ValueError(f"signal {domain.reset!r} used as both clock and reset")
+            earlier = representatives.get(domain.reset)
+            if earlier is not None and earlier.reset_polarity != domain.reset_polarity:
+                raise ValueError(f"reset {domain.reset!r} has inconsistent polarities")
+            representatives.setdefault(domain.reset, domain)
+        return tuple(representatives.values())
 
     _REGISTER_SUFFIXES = {
         "reg_iface": ("reg_req_i", "reg_rsp_o"),

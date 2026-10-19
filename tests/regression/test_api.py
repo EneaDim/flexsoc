@@ -11981,3 +11981,47 @@ def test_driver_is_base_relative_and_has_no_absolute_binding(tmp_path: Path, mon
     assert "demo_putchar(demo_t base, int c)" in header_text
     assert "demo_puts(demo_t base, const char* str)" in header_text
     assert "base + DEMO_CTRL_REG_OFFSET" in source_text
+
+
+def test_flist_nested_shadow_packages_not_loaded(tmp_path: Path) -> None:
+    from flexsoc.backend.design.ip.rtl import RtlFlow
+
+    rtl = tmp_path / "run" / "rtl"
+    legacy = rtl / "deps" / "legacy" / "csr" / "rtl"
+    prim = rtl / "deps" / "flexsoc" / "prim"
+    legacy.mkdir(parents=True)
+    prim.mkdir(parents=True)
+    (rtl / "ethernet_reg_pkg.sv").write_text("package ethernet_reg_pkg; endpackage\n")
+    (legacy / "ethernet_reg_pkg.sv").write_text("package ethernet_reg_pkg; endpackage\n")
+    (prim / "prim_ff_2sync.sv").write_text("module prim_ff_2sync; endmodule\n")
+
+    args = RtlFlow._recursive_search_args([rtl])
+    library_dirs = [args[i + 1] for i, token in enumerate(args[:-1]) if token == "--libdir"]
+    assert str(rtl) in library_dirs
+    assert str(prim) in library_dirs
+    assert str(legacy) not in library_dirs
+    assert str(rtl / "...") not in library_dirs
+
+
+def test_flist_mixed_nested_shadow_is_refused(tmp_path: Path) -> None:
+    from flexsoc.backend.design.ip.rtl import RtlFlow
+
+    rtl = tmp_path / "rtl"
+    legacy = rtl / "deps" / "legacy"
+    legacy.mkdir(parents=True)
+    (rtl / "reg_pkg.sv").write_text("package reg_pkg; endpackage\n")
+    (legacy / "reg_pkg.sv").write_text("package reg_pkg; endpackage\n")
+    (legacy / "unique.sv").write_text("module unique; endmodule\n")
+    with pytest.raises(ValueError, match="mixed shadow and new RTL"):
+        RtlFlow._recursive_search_args([rtl])
+
+
+def test_deleted_workspace_settings_do_not_select_other_project_run(tmp_path: Path) -> None:
+    from flexsoc.backend.core.flow.session import WorkspaceFlow
+
+    project = tmp_path / "project"
+    workdir = tmp_path / "work"
+    WorkspaceFlow.write_settings(project, {"TOP": "scaffold_single_clock"})
+    (workdir / "runs" / "ethernet").mkdir(parents=True)
+    with pytest.raises(FileNotFoundError, match="workspace settings missing"):
+        WorkspaceFlow.read_settings(project, workdir)

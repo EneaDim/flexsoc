@@ -906,10 +906,36 @@ class RtlFlow:
 
     @staticmethod
     def _recursive_search_args(roots: list[Path]) -> list[str]:
-        """Return recursive include and library-search arguments for Slang."""
+        """Search run RTL without reimporting shadow copies in nested dependencies.
+
+        The first root is the run RTL directory.  Slang's ``root/...``
+        library scan can compile both a restored package and its historical
+        copy under ``deps/``.  Keep the primary library shallow and include
+        nested directories only if their RTL names do not shadow primary RTL.
+        Other, shared library roots retain their original recursive behavior.
+        """
 
         args: list[str] = []
-        for root in roots:
+        if not roots:
+            return args
+        primary = roots[0]
+        suffixes = {".sv", ".v"}
+        primary_names = {p.name for p in primary.iterdir() if p.is_file() and p.suffix in suffixes}
+        args.extend([f"-I{primary / '...'}", "--libdir", str(primary)])
+        for directory in sorted(p for p in primary.rglob("*") if p.is_dir()):
+            sources = [p for p in directory.iterdir() if p.is_file() and p.suffix in suffixes]
+            if not sources:
+                continue
+            overlaps = {p.name for p in sources} & primary_names
+            if overlaps:
+                if any(p.name not in primary_names for p in sources):
+                    raise ValueError(
+                        f"mixed shadow and new RTL sources in {directory}; "
+                        "resolve duplicate library sources explicitly"
+                    )
+                continue
+            args.extend(["--libdir", str(directory)])
+        for root in roots[1:]:
             recursive = str(root / "...")
             args.extend([f"-I{recursive}", "--libdir", recursive])
         return args

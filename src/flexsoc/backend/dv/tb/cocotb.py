@@ -67,10 +67,7 @@ class CocotbTestbench:
         bus_decls, bus_helpers = TestbenchModel.render_register_boundary(
             top, transport, cocotb=True
         )
-        clock_decls = "\n".join(
-            f"  logic {domain.signal};\n  logic {domain.reset};"
-            for domain in clocks.domains
-        )
+        clock_decls = TestbenchModel.render_clock_reset_declarations(clocks)
         event_declarations, event_statements = CocotbTestbench._event_boundary(event_source)
         return templates.render(
             "dv/cocotb/testbench/wrapper.sv.j2",

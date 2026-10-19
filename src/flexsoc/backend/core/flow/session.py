@@ -751,6 +751,12 @@ class WorkspaceFlow:
 
         path = cls.settings_path(root, workdir)
         if workdir is not None and not path.exists():
+            # A new workspace may inherit project defaults, but an existing
+            # workspace must not silently select another run if its settings
+            # were deleted (for example by an accidental cleanup).
+            workspace = Path(workdir).expanduser().resolve()
+            if workspace.is_dir() and any(workspace.iterdir()):
+                raise FileNotFoundError(f"workspace settings missing: {path}")
             path = cls.settings_path(root)
         stored = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
         values = {str(key).upper(): str(value) for key, value in stored.items()}

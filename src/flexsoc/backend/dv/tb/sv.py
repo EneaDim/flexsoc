@@ -181,10 +181,7 @@ class SystemVerilogTestbench:
         )
         event_boundary = SystemVerilogTestbench._event_boundary(event_source, signature, clocks)
 
-        clock_decls = "\n".join(
-            f"  logic {domain.signal};\n  logic {domain.reset};"
-            for domain in clocks.domains
-        )
+        clock_decls = TestbenchModel.render_clock_reset_declarations(clocks)
         clock_drivers = "\n".join(
             "\n".join(SystemVerilogTestbench._clock_driver(domain))
             for domain in clocks.domains
@@ -193,16 +190,16 @@ class SystemVerilogTestbench:
             [f"    {domain.signal} = 1'b0;" for domain in clocks.domains]
             + [
                 f"    {domain.reset} = 1'b{0 if domain.reset_polarity == 'high' else 1};"
-                for domain in clocks.domains
+                for domain in TestbenchModel.unique_resets(clocks)
             ]
         )
         reset_assert = "\n".join(
             f"    {domain.reset} = 1'b{1 if domain.reset_polarity == 'high' else 0};"
-            for domain in clocks.domains
+            for domain in TestbenchModel.unique_resets(clocks)
         )
         reset_release = "\n".join(
             f"    {domain.reset} = 1'b{0 if domain.reset_polarity == 'high' else 1};"
-            for domain in clocks.domains
+            for domain in TestbenchModel.unique_resets(clocks)
         )
         return templates.render(
             "dv/sv/testbench/top.sv.j2",
@@ -415,11 +412,11 @@ class SystemVerilogTestbench:
     def _reset_tasks(clocks: ClockConfig) -> str:
         assert_reset = "\n".join(
             f"        {d.reset} = 1'b{1 if d.reset_polarity == 'high' else 0};"
-            for d in clocks.domains
+            for d in TestbenchModel.unique_resets(clocks)
         )
         release_reset = "\n".join(
             f"        {d.reset} = 1'b{0 if d.reset_polarity == 'high' else 1};"
-            for d in clocks.domains
+            for d in TestbenchModel.unique_resets(clocks)
         )
         wait_all = "\n".join(
             f"          begin repeat (cycles) @(posedge {d.signal}); @(negedge {d.signal}); end"

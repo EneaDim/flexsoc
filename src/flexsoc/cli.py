@@ -1398,6 +1398,12 @@ Use `fx commands` to list every backend target.
             if {"N_CLOCKS", "CLOCK_DOMAINS"} & updates.keys() and "CLOCK_RELATIONSHIPS" not in updates:
                 values.pop("CLOCK_RELATIONSHIPS", None)
             values.update(updates)
+            if "CLOCK_DOMAINS" in updates and "N_CLOCKS" not in updates:
+                # A declarative domain list is sufficient. Preserve explicit
+                # N_CLOCKS validation when the user supplies both settings.
+                from .backend.core import ClockConfig
+
+                values["N_CLOCKS"] = str(len(ClockConfig._domains(values["CLOCK_DOMAINS"])))
             if clock_updates:
                 from .backend.core import ClockConfig
 
