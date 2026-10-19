@@ -254,10 +254,31 @@ class QualificationFlow:
             and bool(rtl_sources)
             and any(paths.csr.glob("*.hjson"))
         )
+        # Engineering deferrals are annotations, never replacements for tool results.
+        deferral_file = paths.meta / "qualification_deferrals.json"
+        deferrals: dict[str, dict[str, str]] = {}
+        if deferral_file.is_file():
+            payload = json.loads(deferral_file.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict) or payload.get("schema") != 1 or not isinstance(payload.get("deferrals"), list):
+                raise ValueError("qualification_deferrals.json must contain schema=1 and a deferrals list")
+            known = set(QualificationFlow.required_stages(spec, 5))
+            for item in payload["deferrals"]:
+                if not isinstance(item, dict):
+                    raise ValueError("qualification deferral must be an object")
+                required_fields = ("stage", "reason", "owner", "resolve_by", "fingerprint")
+                if any(not isinstance(item.get(key), str) or not item[key].strip() for key in required_fields):
+                    raise ValueError("qualification deferral requires nonempty stage, reason, owner, resolve_by, fingerprint")
+                stage = item["stage"]
+                if stage not in known or stage in deferrals:
+                    raise ValueError(f"unknown or duplicate deferred stage: {stage}")
+                if item["fingerprint"] != spec.get("fingerprint"):
+                    raise ValueError(f"deferred {stage} has a stale contract fingerprint")
+                deferrals[stage] = {key: item[key] for key in required_fields}
         report = QualificationFlow.build_qualification_report(
             ip_name=ip_name, reg_interface=reg_interface, pdk=paths.pdk,
             spec=spec, stage_states=states, contract_ready=contract_ready,
             requested_level=values.get("QUAL_LEVEL", "auto"), stage_outcomes=outcomes,
+            deferrals=deferrals,
         )
         report["contract"] = "VALID" if contract_ready else "INVALID"
         report["spec_error"] = spec_error
@@ -299,6 +320,11 @@ class QualificationFlow:
             blocking = item["blocking_evidence"]
             suffix = "" if not blocking else " blocking=" + ",".join(blocking)
             print(f"[level] L{level} {item['name']}: {item['status']}{suffix}")
+        for level, item in report["levels"].items():
+            if item["deferred_evidence"]:
+                print(f"[development] L{level} {item['development_status']} deferred=" + ",".join(item["deferred_evidence"]))
+        for stage, note in sorted(deferrals.items()):
+            print(f"[deferral] {stage} owner={note['owner']} resolve_by={note['resolve_by']} reason={note['reason']}")
         for stage in QualificationFlow.required_stages(spec, 5):
             state = report["evidence"].get(stage, "MISSING")
             print(f"[evidence] {stage:<26} {state}")
@@ -775,10 +801,12 @@ class QualificationFlow:
         contract_ready: bool,
         requested_level: str | int | None = None,
         stage_outcomes: Mapping[str, str | None] | None = None,
+        deferrals: Mapping[str, Mapping[str, str]] | None = None,
     ) -> dict[str, object]:
         """Derive the maximum release level from freshness plus independent outcomes."""
 
         outcomes = dict(stage_outcomes or {})
+        deferrals = dict(deferrals or {})
         evidence = {
             stage: QualificationFlow.evidence_state(state, outcome=outcomes.get(stage))
             for stage, state in stage_states.items()
@@ -796,6 +824,8 @@ class QualificationFlow:
                 blocking.append("eqy")
             blocking = list(dict.fromkeys(blocking))
             waived = [stage for stage in required if evidence.get(stage) == "WAIVED"]
+            deferred = [stage for stage in blocking if stage in deferrals]
+            development_blocking = [stage for stage in blocking if stage not in deferrals]
             satisfied = contract_ready and not blocking and (level == 1 or maximum == level - 1)
             status = "BLOCKED"
             if satisfied:
@@ -809,6 +839,9 @@ class QualificationFlow:
                 "required_evidence": list(required),
                 "blocking_evidence": blocking,
                 "waived_evidence": waived,
+                "deferred_evidence": deferred,
+                "development_blocking_evidence": development_blocking,
+                "development_status": "CONDITIONAL" if contract_ready and deferred and not development_blocking else ("READY" if status == "PASS" else "BLOCKED"),
             }
 
         requested = QualificationFlow.normalize_qualification_level(requested_level)
@@ -839,6 +872,7 @@ class QualificationFlow:
             "target_satisfied": target_satisfied,
             "levels": levels,
             "evidence": evidence,
+            "engineering_deferrals": deferrals,
             "freshness": {stage: str(state).upper() for stage, state in sorted(stage_states.items())},
             "outcomes": {
                 stage: (str(value).upper() if value is not None else None)
