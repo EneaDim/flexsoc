@@ -1,0 +1,155 @@
+from __future__ import annotations
+
+import cocotb
+from cocotb.triggers import RisingEdge
+
+from .reg_driver import (
+    PRIMARY_CLOCK, _drive_cycle, _sample_cycle,
+    apply_config, apply_reg, expect_reg, reset, rows, settle,
+)
+from .vec_monitor import check_outputs, expected_outputs
+
+SIGNAL_CLOCKS = {'phy_rst_i': 'clk_i', 'phy_gtx_clk_i': 'clk_i', 'phy_gmii_rx_clk_i': 'clk_i', 'phy_gmii_rxd_i': 'clk_i', 'phy_gmii_rx_dv_i': 'clk_i', 'phy_gmii_rx_er_i': 'clk_i', 'phy_mii_tx_clk_i': 'clk_i', 'phy_mii_select_i': 'clk_i', 'phy_speed_i': 'clk_i', 'phy_speed_valid_i': 'clk_i', 'tx_data_i': 'clk_i', 'tx_valid_i': 'clk_i', 'tx_last_i': 'clk_i', 'tx_error_i': 'clk_i', 'tl_i': 'clk_i', 'phy_gmii_tx_clk_o': 'clk_i', 'phy_gmii_txd_o': 'clk_i', 'phy_gmii_tx_en_o': 'clk_i', 'phy_gmii_tx_er_o': 'clk_i', 'tx_clk_o': 'clk_i', 'tx_rst_o': 'clk_i', 'tx_ready_o': 'clk_i', 'rx_clk_o': 'clk_i', 'rx_rst_o': 'clk_i', 'rx_data_o': 'clk_i', 'rx_valid_o': 'clk_i', 'rx_last_o': 'clk_i', 'rx_error_o': 'clk_i', 'intr_tx_underflow_o': 'clk_i', 'intr_rx_bad_frame_o': 'clk_i', 'intr_rx_bad_fcs_o': 'clk_i', 'tl_o': 'clk_i'}
+INPUT_STREAMS = {'phy_speed': {'clock': 'clk_i', 'valid': 'phy_speed_valid_i', 'ready': None, 'payload': ('phy_speed_i',)}, 'tx': {'clock': 'clk_i', 'valid': 'tx_valid_i', 'ready': 'tx_ready_o', 'payload': ('tx_data_i', 'tx_last_i', 'tx_error_i')}}
+OUTPUT_VALID = ('rx_valid_o', 'clk_i')
+STREAM_BY_SIGNAL = {
+    signal: name
+    for name, stream in INPUT_STREAMS.items()
+    for signal in (*stream["payload"], stream["valid"])
+}
+
+
+def _clock(dut, signal: str):
+    return getattr(dut, SIGNAL_CLOCKS.get(signal, PRIMARY_CLOCK))
+
+
+async def _wait_event(dut, label, expected, timeout, cursor):
+    clk = getattr(dut, PRIMARY_CLOCK)
+    for _ in range(max(1, int(timeout))):
+        await RisingEdge(clk)
+        sequence = int(dut.flexsoc_event_sequence.value)
+        if sequence != cursor:
+            cursor = sequence
+            if int(dut.flexsoc_event_value.value) & 0xFFFFFFFF == int(expected) & 0xFFFFFFFF:
+                dut._log.info("[TB][EVENT] observed name=%s value=0x%08x", label, expected)
+                return cursor
+    raise AssertionError(f"event timeout name={label} value=0x{int(expected) & 0xffffffff:08x}")
+
+
+async def _wait_signal(dut, name, expected, timeout):
+    if not hasattr(dut, name):
+        raise AssertionError(f"unknown wait signal: {name}")
+    clk = _clock(dut, name)
+    handle = getattr(dut, name)
+    mask = (1 << len(handle)) - 1
+    expected = int(expected) & mask
+    for _ in range(max(1, int(timeout))):
+        await RisingEdge(clk)
+        if int(handle.value) & mask == expected:
+            return
+    raise AssertionError(f"signal timeout name={name} value=0x{expected:x}")
+
+
+async def _send_stream(dut, stream, pending):
+    clk = _clock(dut, stream["valid"])
+    await _drive_cycle(clk)
+    for signal in stream["payload"]:
+        if signal in pending:
+            handle = getattr(dut, signal)
+            handle.value = int(pending[signal]) & ((1 << len(handle)) - 1)
+    getattr(dut, stream["valid"]).value = 1
+    ready = stream.get("ready")
+    if ready:
+        for _ in range(64):
+            await _sample_cycle(clk)
+            if bool(getattr(dut, ready).value):
+                break
+        else:
+            raise TimeoutError(f"timeout waiting for {ready}")
+    else:
+        await _sample_cycle(clk)
+    await _drive_cycle(clk)
+    getattr(dut, stream["valid"]).value = 0
+
+
+async def _drive_signal(dut, name: str, value: int):
+    if not hasattr(dut, name):
+        raise AssertionError(f"unknown input vector signal: {name}")
+    await _drive_cycle(_clock(dut, name))
+    handle = getattr(dut, name)
+    handle.value = int(value) & ((1 << len(handle)) - 1)
+
+
+async def _wait_output(dut):
+    if OUTPUT_VALID is None:
+        raise AssertionError("@wait_output requires exactly one *_valid_o stream")
+    signal, clock = OUTPUT_VALID
+    for _ in range(64):
+        await _sample_cycle(getattr(dut, clock))
+        if bool(getattr(dut, signal).value):
+            return
+    raise TimeoutError(f"@wait_output timeout waiting for {signal}")
+
+
+async def drive_inputs(dut, path: str):
+    """Execute generic signal, CSR, reset and stream commands from data_in.vec."""
+    pending = {}
+    event_cursor = 0
+    for parts in rows(path):
+        if len(parts) < 2:
+            continue
+        token = parts[1]
+        if token in {"@wait_output", "wait_output"}:
+            await _wait_output(dut)
+            continue
+        if token in {"@wait_event", "wait_event"}:
+            if len(parts) not in (4, 5):
+                raise AssertionError("@wait_event format: step @wait_event label value [timeout]")
+            timeout = int(parts[4], 0) if len(parts) == 5 else 1024
+            event_cursor = await _wait_event(
+                dut, parts[2], int(parts[3], 0), timeout, event_cursor
+            )
+            continue
+        if token in {"@wait_signal", "wait_signal"}:
+            if len(parts) not in (4, 5):
+                raise AssertionError("@wait_signal format: step @wait_signal signal value [timeout]")
+            timeout = int(parts[4], 0) if len(parts) == 5 else 1024
+            await _wait_signal(dut, parts[2], int(parts[3], 0), timeout)
+            continue
+        if token in {"@write", "write"} and len(parts) >= 4:
+            mask = int(parts[4], 0) if len(parts) >= 5 else 0xFFFFFFFF
+            await apply_reg(dut, parts[2], int(parts[3], 0), mask)
+            await settle(dut)
+            continue
+        if token in {"@read", "read"} and len(parts) >= 4:
+            mask = int(parts[4], 0) if len(parts) >= 5 else 0xFFFFFFFF
+            await expect_reg(dut, parts[2], int(parts[3], 0), mask)
+            continue
+        if token in {"@reset", "reset"}:
+            if len(parts) == 3:
+                selector, cycles = "all", parts[2]
+            elif len(parts) == 4:
+                selector, cycles = parts[2], parts[3]
+            else:
+                raise AssertionError("@reset format: cycle @reset [domain|reset] cycles")
+            await reset(dut, selector, int(cycles, 0))
+            continue
+        if len(parts) < 3:
+            continue
+        value = int(parts[2], 0)
+        stream_name = STREAM_BY_SIGNAL.get(token)
+        if stream_name is None:
+            await _drive_signal(dut, token, value)
+            continue
+        stream = INPUT_STREAMS[stream_name]
+        if token in stream["payload"]:
+            pending[token] = value
+        elif token == stream["valid"] and value:
+            await _send_stream(dut, stream, pending)
+
+
+async def run_vectors(dut, cfg, data_in, data_out):
+    await apply_config(dut, cfg)
+    checker = cocotb.start_soon(check_outputs(dut, expected_outputs(data_out)))
+    await drive_inputs(dut, data_in)
+    await checker
