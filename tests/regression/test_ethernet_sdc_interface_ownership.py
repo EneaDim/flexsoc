@@ -9,7 +9,7 @@ import hashlib
 
 def test_ethernet_sdc_does_not_assign_phy_to_core_clock():
     root = Path(__file__).resolve().parents[2]
-    package = root / "hw/ips/ethernet/engineering-draft-M4-v0.1/interfaces/tlul"
+    package = root / "hw/ips/ethernet/0.1.0/interfaces/tlul"
     sdc = (package / "constraints/ethernet.sdc").read_text()
     active = [line.strip() for line in sdc.splitlines() if line.strip() and not line.lstrip().startswith("#")]
     assert len([line for line in active if line.startswith("create_clock ")]) == 4
