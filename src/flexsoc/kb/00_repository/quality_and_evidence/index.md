@@ -1,5 +1,5 @@
 # Quality & Evidence
 
-- Distinguere `PASS`, `FAIL`, `NOT_RUN`, `BLOCKED` e deroghe documentate.
-- Provenienza e copertura sono parte del risultato: un test del modello non prova l'esecuzione RTL; un test RTL non prova formal o signoff.
-- Un gate si chiude soltanto con evidenza corrispondente al requisito e alla versione verificata.
+- Distinguish PASS, FAIL, NOT_RUN, BLOCKED, and documented deferrals.
+- Match every claimed result to the actual tool, design version, scenario, and run.
+- A model PASS is not an RTL PASS; RTL simulation does not replace formal or physical signoff.

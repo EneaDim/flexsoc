@@ -1,8 +1,4 @@
 # Reference Models
 
-Modelli Python minimali e semantica delle interfacce.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Model interface-visible behavior, corner cases, and error handling without mirroring RTL internals.
+- Keep the model cohesive; avoid splitting into thin forwarding wrappers.

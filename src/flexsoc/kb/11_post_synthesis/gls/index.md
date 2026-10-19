@@ -1,3 +1,4 @@
 # Gate-Level Simulation — Post-Synthesis
 
-Eseguire una selezione mirata di startup, shutdown, reset, interfacce critiche e rischi gate-level; non duplicare indiscriminatamente l’intera regressione RTL.
+- Run a targeted gate-level subset: startup, shutdown, reset, and timing-sensitive interfaces.
+- Do not duplicate the full RTL regression by default.

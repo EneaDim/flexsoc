@@ -1,8 +1,4 @@
 # Verification Plan
 
-Scenari, livelli di verifica, risultati attesi e copertura.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Map each requirement to the appropriate model, RTL, formal, or implementation-level check.
+- Specify stimulus, observation, scoreboard/assertion, and evidence needed to close each test.

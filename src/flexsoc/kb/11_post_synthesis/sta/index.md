@@ -1,8 +1,4 @@
 # Static Timing Analysis
 
-Setup/hold e vincoli in fase post-sintesi.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Check setup and hold against the intended clocks and constraints.
+- Review path exceptions and unconstrained endpoints.

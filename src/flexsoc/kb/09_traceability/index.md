@@ -1,10 +1,8 @@
 # Requirements Traceability
 
-Collegamenti verificabili tra specifiche, requisiti e risultati.
+- Connect customer intent to technical design, requirements, testplan, and executed evidence.
 
-## Argomenti
+## Topics
 
 - [mapping](./mapping/index.md) — Mapping
 - [evidence](./evidence/index.md) — Evidence
-
-Le procedure operative dettagliate saranno aggiunte quando validate sul flow reale.

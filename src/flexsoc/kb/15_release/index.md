@@ -1,10 +1,8 @@
 # Qualification & Release
 
-Rilascio di IP e SoC con evidenze verificabili.
+- Release only reproducible IP/SoC artifacts backed by the required qualification evidence.
 
-## Argomenti
+## Topics
 
 - [qualification](./qualification/index.md) — Qualification
 - [packaging](./packaging/index.md) — Packaging
-
-Le procedure operative dettagliate saranno aggiunte quando validate sul flow reale.

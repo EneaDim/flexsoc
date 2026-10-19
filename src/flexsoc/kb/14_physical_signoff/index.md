@@ -1,10 +1,8 @@
 # Physical Signoff
 
-Controlli finali sulla realizzazione fisica.
+- Verify physical correctness against the selected PDK and release criteria.
 
-## Argomenti
+## Topics
 
 - [verification](./verification/index.md) — Physical Verification
 - [closure](./closure/index.md) — Signoff Closure
-
-Le procedure operative dettagliate saranno aggiunte quando validate sul flow reale.

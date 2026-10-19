@@ -1,11 +1,10 @@
 # Repository & Engineering Practices
 
-Convenzioni trasversali per lavorare in FlexSoC.
+- Keep source packages, generated workspaces, and release evidence separate.
+- Review changes for portability, provenance, and reproducibility.
 
-## Argomenti
+## Topics
 
 - [workspace_and_patches](./workspace_and_patches/index.md) — Workspace & Patches
 - [coding_guidelines](./coding_guidelines/index.md) — Coding Guidelines
 - [quality_and_evidence](./quality_and_evidence/index.md) — Quality & Evidence
-
-Le procedure operative dettagliate saranno aggiunte quando validate sul flow reale.

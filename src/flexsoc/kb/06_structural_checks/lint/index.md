@@ -1,8 +1,4 @@
 # Lint
 
-Qualità statica SystemVerilog e triage dei warning.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Run static analysis on the intended RTL configuration and triage actionable findings.
+- Track remaining exceptions with concrete technical justification.

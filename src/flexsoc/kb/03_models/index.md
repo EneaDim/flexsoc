@@ -1,10 +1,8 @@
 # Python Models & Model Tests
 
-Modelli comportamentali indipendenti e relativa verifica.
+- Keep Python models independent enough to serve as an oracle for RTL verification.
 
-## Argomenti
+## Topics
 
 - [reference_models](./reference_models/index.md) — Reference Models
 - [model_tests](./model_tests/index.md) — Model Tests
-
-Le procedure operative dettagliate saranno aggiunte quando validate sul flow reale.

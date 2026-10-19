@@ -1,10 +1,8 @@
 # Synthesis
 
-Dal RTL alla netlist tecnologica.
+- Map RTL to the target library under reviewed constraints.
 
-## Argomenti
+## Topics
 
 - [flow](./flow/index.md) — Flow
 - [reports](./reports/index.md) — Reports
-
-Le procedure operative dettagliate saranno aggiunte quando validate sul flow reale.

@@ -1,8 +1,4 @@
 # Generation & Access
 
-Codice generato, regmap Python, accesso bus e coerenza con la specifica.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Check generated RTL, software-visible register map, and bus transaction semantics against the register specification.
+- Keep bus masters as reusable Cocotb drivers owned by the relevant interface or IP, not hardcoded in the generic backend.

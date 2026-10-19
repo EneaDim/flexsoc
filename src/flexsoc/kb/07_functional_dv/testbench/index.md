@@ -1,5 +1,5 @@
 # Testbench & Plugins
 
-- Il backend ospita discovery, configurazione, esecuzione e raccolta di evidenze in modo indipendente dal protocollo.
-- Ogni IP può dichiarare plugin Cocotb con driver/master, monitor e scoreboard propri (per esempio un master AXI-Lite per la regmap).
-- Il solo caricamento di un plugin non costituisce un test superato: sono necessari stimoli, osservazioni, assert e prova di esecuzione nel simulatore.
+- The backend discovers and runs declared Cocotb plugins without knowing the IP protocol.
+- IP-owned, object-oriented bus masters, PHY drivers, monitors, and scoreboards implement protocol behavior.
+- Loading a plugin does not count as executing or passing a test.

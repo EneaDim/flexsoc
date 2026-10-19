@@ -1,8 +1,4 @@
 # Integration
 
-Gerarchia, filelist, primitive comuni e dipendenze condivise.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Keep ordered filelists, shared primitive dependencies, top-level connectivity, and package manifests consistent.
+- Reference: [lowRISC hardware primitives](https://opentitan.org/book/hw/ip/prim/index.html) for examples of reusable RTL building blocks.

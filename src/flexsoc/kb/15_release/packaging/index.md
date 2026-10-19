@@ -1,8 +1,4 @@
 # Packaging
 
-Versioning, manifest, dipendenze e riproducibilità.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Keep semantic versions, manifests, dependency references, and source hashes consistent.
+- Exclude temporary simulation artifacts, generated caches, and obsolete versions.

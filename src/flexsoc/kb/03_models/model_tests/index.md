@@ -1,8 +1,4 @@
 # Model Tests
 
-Casi positivi, negativi, corner e confronto con aspettative indipendenti.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Check deterministic examples, random cross-checks, boundaries, and negative cases.
+- Store real execution results separately from the packaged model source.

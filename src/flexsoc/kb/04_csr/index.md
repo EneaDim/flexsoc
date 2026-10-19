@@ -1,10 +1,8 @@
 # Control & Status Registers
 
-Definizione CSR e integrazione con il design.
+- Keep register behavior consistent across specification, generated RTL, software views, and verification.
 
-## Argomenti
+## Topics
 
 - [register_spec](./register_spec/index.md) — Register Specification
 - [generation_and_access](./generation_and_access/index.md) — Generation & Access
-
-Le procedure operative dettagliate saranno aggiunte quando validate sul flow reale.

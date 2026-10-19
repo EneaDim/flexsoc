@@ -1,11 +1,10 @@
 # Customer Spec → Technical Spec
 
-Traduzione dei bisogni del cliente in architettura e microarchitettura.
+- Identify assumptions and measurable acceptance criteria before committing to implementation choices.
+- Separate system-level architecture from each IP microarchitecture.
 
-## Argomenti
+## Topics
 
 - [architecture](./architecture/index.md) — Architecture
 - [microarchitecture](./microarchitecture/index.md) — Microarchitecture
 - [interfaces](./interfaces/index.md) — Interfaces
-
-Le procedure operative dettagliate saranno aggiunte quando validate sul flow reale.

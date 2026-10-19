@@ -1,8 +1,4 @@
 # Microarchitecture
 
-Partizionamento interno degli IP: datapath, control path, pipeline, interfacce e reset.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Describe each IP datapath, control path, buffering, state machines, reset behavior, and backpressure.
+- Record observable behaviors, resource choices, and latency budgets rather than prescribing code prematurely.

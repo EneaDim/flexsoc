@@ -1,8 +1,4 @@
 # Register Specification
 
-Mappe, campi, accessi, reset, side effects e naming.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Define offsets, fields, access permissions, reset values, side effects, and interrupt semantics.
+- Reference: [OpenTitan reggen](https://opentitan.org/book/util/reggen/index.html) for register-description and generation concepts.

@@ -1,8 +1,4 @@
 # Properties
 
-Assunzioni, assert, cover e loro collegamento ai requisiti.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Relate each assumption, assertion, and cover property to a specific design guarantee.
+- Avoid circular assumptions that simply assert the intended conclusion.

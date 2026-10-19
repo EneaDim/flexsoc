@@ -1,10 +1,8 @@
 # Coding Guidelines
 
-**Principio:** fully object-oriented dove offre responsabilità chiare; minimale in codice, file e astrazioni, ma completo e funzionale.
-
-- Una classe per una responsabilità reale; evitare wrapper, gerarchie e factory senza beneficio concreto.
-- Preferire metodi piccoli, naming esplicito e dipendenze visibili. Ridurre duplicazioni e configurazioni implicite.
-- Separare il backend generico dalle implementazioni dei protocolli/IP: le estensioni si dichiarano, non si hardcodano.
-- Tenere il package ordinato: sorgenti SystemVerilog `.sv`, primitive condivise referenziate senza duplicarle, niente versioni obsolete o file generati nel catalogo.
-- Non moltiplicare file di test per singoli fix: estendere test esistenti quando serve, conservando comunque le verifiche essenziali.
-- Non ottimizzare il numero di linee a scapito di sicurezza, chiarezza o correttezza.
+- Prefer fully object-oriented code with one meaningful responsibility per class.
+- Keep code, files, and abstraction layers to the minimum needed for correct, complete behavior.
+- Avoid speculative factories, wrappers, duplicated state, and premature generalization.
+- Keep backend interfaces protocol-agnostic; implement protocol-specific behavior inside the IP package.
+- Use readable names, explicit dependencies, and modern SystemVerilog; reuse shared primitives without copying them.
+- Extend existing verification suites when possible; do not commit generated caches, logs, or fix-specific test clutter.

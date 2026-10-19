@@ -1,8 +1,3 @@
 # Floorplan & Placement
 
-Vincoli fisici, macro e congestionamento.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Plan macros, pin access, placement density, and early congestion risk.

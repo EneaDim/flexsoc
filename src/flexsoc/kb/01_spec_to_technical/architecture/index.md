@@ -1,8 +1,5 @@
 # Architecture
 
-Trade-off SoC: processore, interconnessioni, memoria, IP e vincoli di sistema.
-
-## Contenuti previsti
-
-- **Knowledge**: riferimenti, scelte e criteri da consolidare.
-- **Skills**: procedure e automazioni future, solo dopo verifica.
+- Decide whether software execution is needed and select processor class, memory hierarchy, bus/interconnect, and IP inventory.
+- Evaluate latency, throughput, power, area, clocking, security, and integration trade-offs.
+- Reference: [PULP Platform](https://github.com/pulp-platform/pulp) for modular RISC-V SoC composition and dependency management.

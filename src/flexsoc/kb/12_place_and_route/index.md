@@ -1,10 +1,8 @@
 # Place & Route
 
-Implementazione fisica del design.
+- Implement the netlist physically and assess routability and timing closure.
 
-## Argomenti
+## Topics
 
 - [floorplan](./floorplan/index.md) — Floorplan & Placement
 - [clock_and_route](./clock_and_route/index.md) — CTS & Routing
-
-Le procedure operative dettagliate saranno aggiunte quando validate sul flow reale.
