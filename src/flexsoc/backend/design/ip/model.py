@@ -233,6 +233,10 @@ class ModelFlow:
 
             import argparse
             from pathlib import Path
+            import sys
+            _MODEL_DIR = Path(__file__).resolve().parent.parent / "model"
+            if str(_MODEL_DIR) not in sys.path:
+                sys.path.insert(0, str(_MODEL_DIR))
 
             import {top}_model as model
             import {top}_regmap as regmap

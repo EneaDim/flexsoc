@@ -35,22 +35,37 @@ class SlangHierarchy:
         ast.unlink(missing_ok=True)
         (stage / "summary.json").unlink(missing_ok=True)
 
-        command, top_file, roots = self._command(ast=ast, on=on)
+        hierarchy_command, top_file, roots = self._command(ast=ast, on=on)
+        ast_command = self._ast_command(hierarchy_command, ast=ast, on=on)
         log = self.context.paths.logs / "dv" / "slang_hier" / "slang_hier.log"
-        result = self.runner.run(
+        hierarchy_result = self.runner.run(
             CommandRequest(
-                command,
-                self.context.project_root,
-                {},
-                log,
-                inputs=(top_file, *roots),
-                outputs=(hierarchy, ast),
-                stdout=hierarchy,
-            ),
-            on=on,
+                hierarchy_command, self.context.project_root, {}, log,
+                inputs=(top_file, *roots), outputs=(hierarchy,), stdout=hierarchy,
+            ), on=on,
         )
-        self._write_summary(command, result.returncode, result.duration_s, hierarchy, ast, log)
-        return 0
+        ast_log = log.with_name("slang_ast.log")
+        ast_code = 0
+        duration = hierarchy_result.duration_s
+        if hierarchy_result.returncode == 0:
+            ast_result = self.runner.run(
+                CommandRequest(
+                    ast_command, self.context.project_root, {}, ast_log,
+                    inputs=(top_file, *roots), outputs=(ast,),
+                ), on=on,
+            )
+            ast_code = ast_result.returncode
+            duration += ast_result.duration_s
+        code = hierarchy_result.returncode or ast_code
+        summary = self._write_summary(
+            hierarchy_command, code, duration, hierarchy, ast, log,
+        )
+        summary["ast_command"] = list(ast_command)
+        summary["artifacts"]["ast_log"] = ast_log.resolve().relative_to(self.context.paths.run.resolve()).as_posix()
+        (stage / "summary.json").write_text(
+            json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+        )
+        return 0 if summary["status"] == "PASS" else (code or 1)
 
     def debug(self, *, output: str | None = None, as_json: bool = False) -> int:
         """Show canonical evidence plus the command and raw artifact locations."""
@@ -126,35 +141,21 @@ class SlangHierarchy:
             else:
                 extra.append(token)
 
+        # Search roots are include directories only. Never recurse through an
+        # entire staged deps tree: it can contain historical workspace copies.
         if not roots:
+            roots = [root]
             for filelist in (paths.rtl_common, paths.rtl_ip):
                 if not filelist.is_file():
                     continue
                 for raw in filelist.read_text(encoding="utf-8").splitlines():
                     item = raw.strip()
-                    if not item or item.startswith(("#", "+define+")):
-                        continue
-                    entries = (
-                        item.removeprefix("+incdir+").split("+")
-                        if item.startswith("+incdir+")
-                        else [str(Path(item).parent)]
-                    )
-                    roots.extend(
-                        (root / path if not path.is_absolute() else path).resolve()
-                        for path in map(Path, entries)
-                        if str(path)
-                    )
+                    if item.startswith("+incdir+"):
+                        for entry in item.removeprefix("+incdir+").split("+"):
+                            if entry:
+                                path = Path(entry)
+                                roots.append((paths.run / path if not path.is_absolute() else path).resolve())
         roots = list(dict.fromkeys(roots))
-        if not roots:
-            roots = [
-                path
-                for path in (
-                    paths.rtl,
-                    self.context.project_root / "hw" / "ips",
-                    self.context.project_root / "vendor",
-                )
-                if path.is_dir()
-            ]
         extra_args = shlex.join((*shlex.split(values.get("SLANG_ARGS", "")), *extra))
         return root, top_file, tuple(roots), extra_args
 
@@ -192,11 +193,32 @@ class SlangHierarchy:
                 raise FileNotFoundError(f"source root not found: {resolved_root}")
             if resolved_root not in ordered_roots:
                 ordered_roots.append(resolved_root)
-        search_args = [
-            arg
-            for search_root in ordered_roots
-            for arg in (f"-I{search_root / '...'}", "--libdir", str(search_root / "..."))
-        ]
+        search_args = [f"-I{search_root}" for search_root in ordered_roots]
+        # Filelists are release-root-relative, deliberately nonrecursive.
+        # This avoids accidentally elaborating a second copy under deps/workspace.
+        sources: list[Path] = []
+        for filelist in (self.context.paths.rtl_common, self.context.paths.rtl_ip):
+            if not filelist.is_file():
+                continue
+            for number, raw in enumerate(filelist.read_text(encoding="utf-8").splitlines(), 1):
+                item = raw.strip()
+                if not item or item.startswith(("#", "+incdir+", "+define+")):
+                    continue
+                if item.startswith(("-", "+")):
+                    raise ValueError(f"unsupported filelist directive: {filelist}:{number}: {item}")
+                rel = Path(item)
+                if rel.is_absolute():
+                    raise ValueError(f"nonportable absolute filelist source: {filelist}:{number}")
+                source_file = (self.context.paths.run / rel).resolve()
+                try:
+                    source_file.relative_to(self.context.paths.run.resolve())
+                except ValueError as exc:
+                    raise ValueError(f"source escapes release: {filelist}:{number}: {item}") from exc
+                if not source_file.is_file():
+                    raise FileNotFoundError(f"filelist source missing: {filelist}:{number}: {source_file}")
+                if source_file not in sources:
+                    sources.append(source_file)
+        sources = [src for src in sources if src != top_file]
 
         source = top_file.read_text(encoding="utf-8", errors="replace")
         source = re.sub(r"/\*.*?\*/", " ", source, flags=re.S)
@@ -206,20 +228,36 @@ class SlangHierarchy:
 
         command = (
             executable,
-            "--top",
-            top,
-            "--custom-format",
-            "{inst}\t{module}\t{file}",
-            "--ast-json",
-            str(ast),
-            "--ast-json-source-info",
+            "--top", top,
+            "--custom-format", "{inst}\t{module}\t{file}",
             "-DSYNTHESIS",
             *timescale_args,
             *search_args,
             *shlex.split(extra_args),
+            *(str(src) for src in sources),
             str(top_file),
         )
         return command, top_file, roots
+
+    def _ast_command(self, hierarchy_command: tuple[str, ...], *, ast: Path, on: str) -> tuple[str, ...]:
+        """Use the Slang driver for AST output; slang-hier does not own that flag."""
+        tool = self.context.values.get("SLANG", "slang")
+        executable = tool
+        if on == "local":
+            candidate = Path(tool)
+            executable = (
+                str(candidate.resolve())
+                if candidate.is_file() and candidate.stat().st_mode & 0o111
+                else shutil.which(tool) or ""
+            )
+            if not executable:
+                raise FileNotFoundError(f"Slang AST driver not found: {tool}")
+        return (
+            executable,
+            *hierarchy_command[7:-1],
+            "--ast-json", str(ast), "--ast-json-source-info",
+            *hierarchy_command[-1:],
+        )
 
     def _write_summary(
         self,
@@ -234,15 +272,24 @@ class SlangHierarchy:
 
         instances: list[dict[str, str]] = []
         malformed = 0
+        non_hierarchy = 0
         if hierarchy.is_file():
             for raw in hierarchy.read_text(encoding="utf-8", errors="replace").splitlines():
                 if not raw.strip():
                     continue
                 fields = raw.split("\t", 2)
                 if len(fields) != 3:
-                    malformed += 1
+                    # slang-hier can emit human-readable headers / build summaries
+                    # on stdout alongside the machine-readable instance rows.
+                    # Only tabular records belong to the hierarchy protocol.
+                    # Keep a count for diagnostics, but do not fail a successful
+                    # elaboration because of non-hierarchy text.
+                    non_hierarchy += 1
                     continue
                 instance, module, source = (field.strip() for field in fields)
+                if not instance or not module:
+                    malformed += 1
+                    continue
                 source = source or "-"
                 source_path = Path(source)
                 if source != "-" and source_path.is_absolute():
@@ -260,7 +307,7 @@ class SlangHierarchy:
             "stage": "slang_hier",
             "status": (
                 "PASS"
-                if returncode == 0 and hierarchy.is_file() and ast.is_file() and malformed == 0
+                if returncode == 0 and hierarchy.is_file() and ast.is_file() and bool(instances) and malformed == 0
                 else "FAILED"
             ),
             "tool": "slang-hier",
@@ -273,6 +320,7 @@ class SlangHierarchy:
                 "source_files": len({item["file"] for item in instances}),
                 "ast_bytes": ast.stat().st_size if ast.is_file() else 0,
                 "malformed_rows": malformed,
+                "non_hierarchy_rows": non_hierarchy,
             },
             "instances": instances,
             "artifacts": {

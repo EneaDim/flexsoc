@@ -16,6 +16,127 @@ from flexsoc.backend.core import ClockConfig
 from flexsoc.backend.core.render.templates import templates
 
 
+# FLEXSOC_FORMAL_RUNTIME_PATHS_V2
+def _formal_runtime_filelist(filelist: Path) -> Path:
+    """Resolve filelists for Yosys running inside an SBY task."""
+    import hashlib
+
+    filelist = filelist.resolve()
+    run = filelist.parent.parent
+    repo = next(
+        (p for p in (run, *run.parents)
+         if (p / "hw/ips").is_dir() and (p / "src/flexsoc").is_dir()),
+        None,
+    )
+    if repo is None:
+        raise RuntimeError(f"formal: checkout not found above {run}")
+
+    def resolve(item: str, line: int, is_dir: bool) -> str:
+        rel = Path(item)
+
+        if rel.is_absolute():
+            dest = rel.resolve()
+            if not (dest.is_relative_to(run) or dest.is_relative_to(repo)):
+                raise RuntimeError(
+                    f"{filelist}:{line}: external path {item}"
+                )
+
+        elif rel.parts[:3] == ("rtl", "deps", "flexsoc"):
+            frozen = run / rel
+            parts = rel.parts[3:]
+
+            if parts[:2] == ("hw", "ips") or parts[:1] == ("vendor",):
+                dest = repo.joinpath(*parts)
+            elif parts[:1] in (("prim",), ("prim_opentitan",), ("pkgs",)):
+                dest = repo.joinpath("hw", "ips", *parts)
+            else:
+                raise RuntimeError(
+                    f"{filelist}:{line}: unsupported legacy path {item}"
+                )
+
+            if frozen.exists():
+                if frozen.is_dir() != is_dir:
+                    raise RuntimeError(
+                        f"{filelist}:{line}: wrong source type {frozen}"
+                    )
+
+                members = (
+                    (p for p in frozen.rglob("*")
+                     if p.is_file() and p.suffix in
+                     (".sv", ".svh", ".v", ".vh"))
+                    if is_dir else (frozen,)
+                )
+
+                for source in members:
+                    target = (
+                        dest / source.relative_to(frozen)
+                        if is_dir else dest
+                    )
+                    if (
+                        not target.is_file()
+                        or hashlib.sha256(source.read_bytes()).digest()
+                        != hashlib.sha256(target.read_bytes()).digest()
+                    ):
+                        raise RuntimeError(
+                            f"{filelist}:{line}: DIFFERENT RTL "
+                            f"{source} vs {target}"
+                        )
+
+        elif rel.parts[:1] == ("rtl",):
+            dest = run / rel
+
+        elif rel.parts[:1] in (("hw",), ("vendor",)):
+            dest = repo / rel
+
+        else:
+            raise RuntimeError(
+                f"{filelist}:{line}: unsupported path {item}"
+            )
+
+        if not (dest.is_dir() if is_dir else dest.is_file()):
+            raise FileNotFoundError(
+                f"{filelist}:{line}: missing source {dest}"
+            )
+
+        if any(c.isspace() for c in str(dest)):
+            raise RuntimeError(f"path contains spaces: {dest}")
+
+        return str(dest.resolve())
+
+    lines = []
+    for number, raw in enumerate(
+        filelist.read_text(encoding="utf-8").splitlines(), 1
+    ):
+        item = raw.strip()
+
+        if item.startswith("+incdir+"):
+            parts = item[len("+incdir+"):].split("+")
+            if not all(parts):
+                raise RuntimeError(
+                    f"{filelist}:{number}: invalid include directory"
+                )
+            lines.append(
+                "+incdir+" + "+".join(
+                    resolve(p, number, True) for p in parts
+                )
+            )
+        elif not item or item.startswith(("#", "+", "-")):
+            lines.append(raw)
+        else:
+            lines.append(resolve(item, number, False))
+
+    output = (
+        run / "logs/dv/formal/resolved_filelists" / filelist.name
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    content = "\n".join(lines) + "\n"
+
+    if not output.exists() or output.read_text() != content:
+        output.write_text(content, encoding="utf-8")
+
+    return output
+
+
 @dataclass(frozen=True, slots=True)
 class PropertyFormalConfig:
     """Inputs required to build one authored-property SBY configuration."""
@@ -136,7 +257,50 @@ class FormalFlow:
             on=on,
         )
         if result.returncode:
-            raise RuntimeError(f"formal task failed; log: {log}")
+            # SymbiYosys's top-level log often only says "base: ERROR: Bad command".
+            # The Yosys diagnostics live one level deeper, in model/design.log.
+            details = [
+                f"formal SBY task failed (exit={result.returncode}, "
+                f"task={task or 'cover'}, workdir={output})"
+            ]
+            for diagnostic in (
+                output / "model" / "design.log",
+                output / "logfile.txt",
+                log,
+            ):
+                if not diagnostic.is_file():
+                    continue
+                lines = diagnostic.read_text(encoding="utf-8", errors="replace").splitlines()
+                hits = [
+                    index for index, line in enumerate(lines)
+                    if re.search(
+                        r"error:|bad command|no such command|fatal:|syntax error|"
+                        r"cannot (?:open|find)|file not found|not found",
+                        line,
+                        flags=re.IGNORECASE,
+                    )
+                ]
+                if hits:
+                    index = hits[-1]
+                    context_lines = lines[max(0, index - 3):index + 1]
+                    details.append(f"{diagnostic}: " + " | ".join(
+                        line.strip() for line in context_lines if line.strip()
+                    )[:750])
+                    break
+            script = output / "model" / "design.ys"
+            if script.is_file():
+                script_lines = script.read_text(
+                    encoding="utf-8", errors="replace"
+                ).splitlines()
+                first_command = next(
+                    (line.strip() for line in script_lines if line.strip() and
+                     not line.lstrip().startswith('#')),
+                    None,
+                )
+                if first_command:
+                    details.append(f"Yosys script={script}; first command={first_command[:350]}")
+            details.append(f"SBY log={log}")
+            raise RuntimeError("\n".join(details))
         return result
 
     def run_bmc(
@@ -609,7 +773,7 @@ class FormalFlow:
             options.append("--ignore-assertions")
         # yosys-slang forwards literal quote characters in command-file arguments.
         # FlexSoC run paths have no spaces, so pass filelist/source paths unquoted.
-        options.extend(f"-f {path}" for path in filelists)
+        options.extend(f"-f {_formal_runtime_filelist(Path(path))}" for path in filelists)
         options.extend(str(path) for path in extra_sources)
         options.append(f"--top {top}")
         return "read_slang " + " ".join(options)

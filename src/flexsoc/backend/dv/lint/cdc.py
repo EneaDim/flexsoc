@@ -837,6 +837,49 @@ class CdcFlow:
         return tuple(result)
 
     @staticmethod
+    def _constant_reset_bit(bit: NetBit, module: Mapping[str, Any]) -> str | None:
+        """Prove a scalar reset expression constant using only absorbing gates.
+
+        This is deliberately not an RTL value inference engine: unknown inputs
+        remain unknown, and only constant-dominated AND / OR cells are folded.
+        """
+
+        outputs: dict[NetBit, Mapping[str, Any]] = {}
+        for cell in module.get("cells", {}).values():
+            if cell.get("type") not in {"$and", "$logic_and", "$or", "$logic_or", "$reduce_or"}:
+                continue
+            ys = tuple(cell.get("connections", {}).get("Y", ()))
+            if len(ys) == 1:
+                outputs[ys[0]] = cell
+
+        def fold(net: NetBit, active: set[NetBit]) -> str | None:
+            if net in {"0", "1"}:
+                return str(net)
+            if net in active:
+                return None
+            cell = outputs.get(net)
+            if cell is None:
+                return None
+            kind = cell.get("type")
+            active.add(net)
+            try:
+                inputs = tuple(cell.get("connections", {}).get("A", ())) + tuple(
+                    cell.get("connections", {}).get("B", ())
+                )
+                values = tuple(fold(item, active) for item in inputs)
+                if kind in {"$and", "$logic_and"}:
+                    if "0" in values:
+                        return "0"
+                    return "1" if values and all(value == "1" for value in values) else None
+                if "1" in values:
+                    return "1"
+                return "0" if values and all(value == "0" for value in values) else None
+            finally:
+                active.remove(net)
+
+        return fold(bit, set())
+
+    @staticmethod
     def load_yosys_json(data: Mapping[str, Any], top: str, clocks: ClockConfig) -> DesignIR:
         """Build the shared IR from a pre-technology Yosys ``write_json`` design."""
 
@@ -880,6 +923,14 @@ class CdcFlow:
                 continue
             async_bits = CdcFlow._bits(cell, async_port)
             sync_bits = CdcFlow._bits(cell, sync_port)
+            # Yosys can leave an inactive synchronous reset as a small
+            # constant-dominated logic tree (e.g. 0 OR (0 AND data)).
+            # It is not an independent reset domain.
+            if sync_bits and not async_bits:
+                srst_polarity = CdcFlow._parameter_bool(cell, "SRST_POLARITY")
+                inactive = "0" if srst_polarity == "high" else "1"
+                if srst_polarity in {"high", "low"} and CdcFlow._constant_reset_bit(sync_bits[0], module) == inactive:
+                    sync_bits = ()
             reset_bit = async_bits[0] if async_bits else (sync_bits[0] if sync_bits else None)
             polarity = None
             if async_bits:
@@ -1568,17 +1619,9 @@ class CdcFlow:
 
         direct = tuple(item for item in successors if not item.path)
         if not direct:
-            candidate = min(
-                successors,
-                key=lambda item: (len(item.path), item.path, CdcFlow._endpoint_key(item.destination)),
-            )
-            return SynchronizerFinding(
-                crossing=crossing,
-                status="ERROR",
-                classification="nff_synchronizer",
-                stages=(first, candidate.destination),
-                issues=("combinational_between_stages",),
-            )
+            # A functional destination may feed arbitrary combinational logic.
+            # Such a successor is not sufficient evidence of an N-FF chain.
+            return None
 
         next_dep = min(direct, key=lambda item: CdcFlow._endpoint_key(item.destination))
         issues: list[str] = []
@@ -1661,6 +1704,28 @@ class CdcFlow:
         for group in groups:
             if len(group) == 1:
                 crossing = group[0]
+                dest = seq_by_name.get(crossing.destination.name)
+                controls = CdcFlow._control_source_endpoints(ir, dest) if dest is not None else ()
+                qualified = tuple(
+                    endpoint for endpoint in controls
+                    if final_sync_origin.get(endpoint) == crossing.source.clock_domain
+                )
+                if qualified:
+                    finding = DomainFinding(
+                        "cdc", "REVIEW", "qualified_multibit", group,
+                        obligations=(
+                            "prove_data_stability_before_control",
+                            "prove_data_stability_after_control",
+                            "confirm_control_polarity_and_sampling_edge",
+                        ),
+                        evidence=(
+                            "width=1",
+                            *(f"control={item.name}[{item.bit_index}]" for item in qualified),
+                        ),
+                    )
+                    cdc.append(finding)
+                    multibit_findings.append(finding)
+                    continue
                 sync = all_sync_candidates[(crossing.source, crossing.destination)]
                 if sync is None:
                     status = "ERROR" if crossing.relationship == "async" else "WARN"

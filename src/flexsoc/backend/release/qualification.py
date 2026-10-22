@@ -274,11 +274,20 @@ class QualificationFlow:
                 if item["fingerprint"] != spec.get("fingerprint"):
                     raise ValueError(f"deferred {stage} has a stale contract fingerprint")
                 deferrals[stage] = {key: item[key] for key in required_fields}
+        review_acceptance = QualificationFlow.cdc_rdc_review_acceptance(
+            paths.cdc_rdc / "summary.json",
+            enabled=str(values.get("CDC_RDC_L2_ACCEPT_REVIEW", "0")).strip().lower()
+            in {"1", "true", "yes"},
+            evidence_state=QualificationFlow.evidence_state(
+                states.get("cdc_rdc", "MISSING"), outcome=outcomes.get("cdc_rdc")
+            ),
+        )
         report = QualificationFlow.build_qualification_report(
             ip_name=ip_name, reg_interface=reg_interface, pdk=paths.pdk,
             spec=spec, stage_states=states, contract_ready=contract_ready,
             requested_level=values.get("QUAL_LEVEL", "auto"), stage_outcomes=outcomes,
             deferrals=deferrals,
+            accepted_reviews={"cdc_rdc": review_acceptance} if review_acceptance else {},
         )
         report["contract"] = "VALID" if contract_ready else "INVALID"
         report["spec_error"] = spec_error
@@ -791,6 +800,41 @@ class QualificationFlow:
         return "INVALID"
 
     @staticmethod
+    def cdc_rdc_review_acceptance(
+        summary_path: Path, *, enabled: bool, evidence_state: str,
+    ) -> dict[str, object] | None:
+        """Accept reviewed structural analysis as an explicit release policy decision.
+
+        This does not waive CDC/RDC verification obligations or rewrite tool evidence.
+        """
+        if not enabled or evidence_state != "REVIEW" or not summary_path.is_file():
+            return None
+        try:
+            raw = summary_path.read_bytes()
+            summary = json.loads(raw)
+            if not isinstance(summary, dict) or str(summary.get("status", "")).lower() != "review":
+                return None
+            obligations = summary.get("verification_obligations")
+            if type(obligations) is not int or obligations < 0:
+                return None
+            for scope in ("cdc", "rdc", "setup", "glitch"):
+                block = summary.get(scope)
+                if not isinstance(block, dict):
+                    return None
+                for count in ("errors", "warnings"):
+                    if type(block.get(count)) is not int or block[count] != 0:
+                        return None
+            return {
+                "policy": "cdc_rdc_structural_review_v1",
+                "summary_sha256": hashlib.sha256(raw).hexdigest(),
+                "open_obligations": obligations,
+                "analysis_status": "REVIEW",
+                "scope": "Structural acceptance only; verification obligations remain open",
+            }
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            return None
+
+    @staticmethod
     def build_qualification_report(
         *,
         ip_name: str,
@@ -802,11 +846,13 @@ class QualificationFlow:
         requested_level: str | int | None = None,
         stage_outcomes: Mapping[str, str | None] | None = None,
         deferrals: Mapping[str, Mapping[str, str]] | None = None,
+        accepted_reviews: Mapping[str, Mapping[str, object]] | None = None,
     ) -> dict[str, object]:
         """Derive the maximum release level from freshness plus independent outcomes."""
 
         outcomes = dict(stage_outcomes or {})
         deferrals = dict(deferrals or {})
+        accepted_reviews = dict(accepted_reviews or {})
         evidence = {
             stage: QualificationFlow.evidence_state(state, outcome=outcomes.get(stage))
             for stage, state in stage_states.items()
@@ -819,7 +865,12 @@ class QualificationFlow:
         levels: dict[str, object] = {}
         for level in range(1, 6):
             required = QualificationFlow.required_stages(spec, level)
-            blocking = [stage for stage in required if evidence.get(stage) not in {"PASS", "WAIVED"}]
+            blocking = [
+                stage for stage in required
+                if evidence.get(stage) not in {"PASS", "WAIVED"}
+                and not (stage == "cdc_rdc" and evidence.get(stage) == "REVIEW"
+                         and stage in accepted_reviews)
+            ]
             if level >= 3 and evidence.get("eqy") == "FAILED":
                 blocking.append("eqy")
             blocking = list(dict.fromkeys(blocking))
@@ -839,6 +890,10 @@ class QualificationFlow:
                 "required_evidence": list(required),
                 "blocking_evidence": blocking,
                 "waived_evidence": waived,
+                "accepted_review_evidence": sorted(
+                    stage for stage in required if stage in accepted_reviews
+                    and evidence.get(stage) == "REVIEW"
+                ),
                 "deferred_evidence": deferred,
                 "development_blocking_evidence": development_blocking,
                 "development_status": "CONDITIONAL" if contract_ready and deferred and not development_blocking else ("READY" if status == "PASS" else "BLOCKED"),
@@ -873,6 +928,7 @@ class QualificationFlow:
             "levels": levels,
             "evidence": evidence,
             "engineering_deferrals": deferrals,
+            "review_acceptances": accepted_reviews,
             "freshness": {stage: str(state).upper() for stage, state in sorted(stage_states.items())},
             "outcomes": {
                 stage: (str(value).upper() if value is not None else None)

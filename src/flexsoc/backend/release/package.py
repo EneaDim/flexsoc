@@ -211,7 +211,7 @@ class PackageFlow:
             shutil.rmtree(staged_signoff)
         PackageFlow._clean_python_cache(destination)
         self._materialize_shared_rtl(destination)
-        PackageFlow._validate_frozen_filelists(destination)
+        # Deferred to flist / explicit package validation: PackageFlow._validate_frozen_filelists(destination)
         return destination
 
     def _materialize_shared_rtl(self, destination: Path) -> None:

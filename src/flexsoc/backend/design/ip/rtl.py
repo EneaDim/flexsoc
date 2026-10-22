@@ -906,38 +906,23 @@ class RtlFlow:
 
     @staticmethod
     def _recursive_search_args(roots: list[Path]) -> list[str]:
-        """Search run RTL without reimporting shadow copies in nested dependencies.
+        """Compile the run's own RTL and exactly one declared library tree.
 
-        The first root is the run RTL directory.  Slang's ``root/...``
-        library scan can compile both a restored package and its historical
-        copy under ``deps/``.  Keep the primary library shallow and include
-        nested directories only if their RTL names do not shadow primary RTL.
-        Other, shared library roots retain their original recursive behavior.
+        The primary RTL directory contains deps/flexsoc: recursive scanning
+        would re-import shadow copies of packages already declared as library
+        roots. Nested historic workspace snapshots must not enter compilation.
         """
-
-        args: list[str] = []
         if not roots:
-            return args
+            return []
         primary = roots[0]
-        suffixes = {".sv", ".v"}
-        primary_names = {p.name for p in primary.iterdir() if p.is_file() and p.suffix in suffixes}
-        args.extend([f"-I{primary / '...'}", "--libdir", str(primary)])
-        for directory in sorted(p for p in primary.rglob("*") if p.is_dir()):
-            sources = [p for p in directory.iterdir() if p.is_file() and p.suffix in suffixes]
-            if not sources:
-                continue
-            overlaps = {p.name for p in sources} & primary_names
-            if overlaps:
-                if any(p.name not in primary_names for p in sources):
-                    raise ValueError(
-                        f"mixed shadow and new RTL sources in {directory}; "
-                        "resolve duplicate library sources explicitly"
-                    )
-                continue
-            args.extend(["--libdir", str(directory)])
+        args: list[str] = [f"-I{primary}", "--libdir", str(primary)]
         for root in roots[1:]:
+            # Libraries are selected by _setup_filelists and never by blindly
+            # crawling the complete run RTL tree.
             recursive = str(root / "...")
-            args.extend([f"-I{recursive}", "--libdir", recursive])
+            # Slang's recursive include search is not equivalent to adding
+            # root itself: prim_assert.sv often lives directly in pkgs/.
+            args.extend([f"-I{root}", f"-I{recursive}", "--libdir", recursive])
         return args
 
     @staticmethod

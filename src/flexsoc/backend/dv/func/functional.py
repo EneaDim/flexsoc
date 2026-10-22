@@ -227,7 +227,7 @@ class FunctionalFlow:
         root = Path(base_dir)
         model_dir = root.parent / "py" / "rtl" if (root.parent / "py" / "rtl").is_dir() else root.parent / "py"
         local = self._local_catalog(root)
-        generated = {"config.regs", "data_in.vec", "data_out.vec"}
+        generated = {"config.regs", "data_in.vec", "data_out.vec", "rtl_parameters.json"}
         with tempfile.TemporaryDirectory(prefix=f"flexsoc-{top}-tests-check-") as temporary:
             staged = Path(temporary) / "tests"
             if local is not None:
@@ -278,6 +278,34 @@ class FunctionalFlow:
         root = Path(base_dir)
         return tuple(path.name for path in sorted(root.iterdir()) if path.is_dir()) if root.is_dir() else ()
 
+    @staticmethod
+    def _parameterized_wrapper(source: Path, top: str, parameters: Mapping[str, int | str], destination: Path) -> Path:
+        """Stage a DUT-instantiation override; never mutate generated TB sources."""
+        import re
+        raw = source.read_text(encoding="utf-8")
+        if not parameters:
+            return source
+        match = re.search(r"(?m)^(\s*)" + re.escape(top) + r"\s+u_dut\s*\(", raw)
+        if match is None or len(re.findall(re.escape(top) + r"\s+u_dut\s*\(", raw)) != 1:
+            raise ValueError(f"expected exactly one plain DUT instantiation in {source}")
+        literals = []
+        for name, value in sorted(parameters.items()):
+            literal = str(value)
+            if isinstance(value, str) and not re.fullmatch(r"[A-Za-z0-9_'xXzZbBoOdDhH.+\-]+", literal):
+                raise ValueError(f"unsupported RTL parameter literal: {name}={literal!r}")
+            literals.append(f".{name}({literal})")
+        replacement = f"{top} #(\n" + ",\n".join(f"{match.group(1)}    {value}" for value in literals) + f"\n{match.group(1)}) u_dut ("
+        updated = raw[:match.start()] + match.group(1) + replacement + raw[match.end():]
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(updated, encoding="utf-8")
+        return destination
+
+    @staticmethod
+    def _parameter_key(parameters: Mapping[str, int | str]) -> str:
+        import hashlib
+        encoded = json.dumps(parameters, sort_keys=True, separators=(",", ":")).encode()
+        return hashlib.sha256(encoded).hexdigest()[:12]
+
     def run_compile_systemverilog(
         self,
         *,
@@ -289,6 +317,7 @@ class FunctionalFlow:
         test_name: str = "smoke",
         compiler: str = "verilator",
         coverage: bool = False,
+        rtl_parameters: Mapping[str, int | str] | None = None,
         log: Path,
         on: str = "local",
     ):
@@ -301,6 +330,10 @@ class FunctionalFlow:
         if not source.is_file():
             raise FileNotFoundError(f"testbench not found: {source}")
         sim_dir.mkdir(parents=True, exist_ok=True)
+        params = dict(rtl_parameters or {})
+        source = self._parameterized_wrapper(
+            source, top, params, sim_dir / "elaboration" / f"{testbench}.sv"
+        )
         rtl_dir = ip_filelist.parent.resolve()
         if compiler == "iverilog":
             argv = (
@@ -323,10 +356,12 @@ class FunctionalFlow:
             raise ValueError("compiler must be iverilog or verilator")
         tb_inputs = tuple(sorted(path for path in sv_dir.rglob("*") if path.is_file()))
         inputs = tuple(
-            path for path in (common_filelist, ip_filelist, *tb_inputs) if path.exists()
+            path for path in (common_filelist, ip_filelist, source, *tb_inputs) if path.exists()
         )
         FunctionalFlow._print_command(argv)
-        return runner.run(CommandRequest(tuple(argv), sv_dir, {}, log, inputs=inputs), on=on)
+        # Filelists are rooted at the run directory (entries begin with rtl/).
+        # Compile from the run root, not from dv/functional/tb/sv.
+        return runner.run(CommandRequest(tuple(argv), rtl_dir.parent, {}, log, inputs=inputs), on=on)
 
     def run_systemverilog(
         self,
@@ -404,6 +439,13 @@ class FunctionalFlow:
         required = tuple(test_dir / name for name in ("config.regs", "data_in.vec", "data_out.vec"))
         if any(not path.is_file() for path in required):
             raise FileNotFoundError(f"functional test not found: {test_dir}")
+        from flexsoc.backend.dv.func.rtl_parameters import read_rtl_parameters
+        params = read_rtl_parameters(test_dir)
+        parameter_key = self._parameter_key(params)
+        variant_dir = (cocotb_dir / "elaborations" / parameter_key).resolve()
+        variant_wrapper = self._parameterized_wrapper(
+            wrapper, top, params, variant_dir / wrapper.name
+        )
         wave = wave_file or cocotb_dir / f"{top}_tb_{test_name}.fst"
         if coverage_file is not None:
             coverage_file.parent.mkdir(parents=True, exist_ok=True)
@@ -417,6 +459,19 @@ class FunctionalFlow:
                 raise ValueError(f"invalid cocotb test module declaration: {plugin}")
             if not (cocotb_dir / f"{selected_module}.py").is_file():
                 raise FileNotFoundError(f"declared cocotb plugin was not staged: {selected_module}")
+        # Filelist paths are relative to the run root (rtl/...), but cocotb
+        # executes `make -C dv/functional/tb/cocotb`. Pass absolute paths to
+        # make, without rewriting the portable filelists or changing their order.
+        run_root = tb_dir.resolve().parents[2]
+        resolved_rtl_sources = []
+        for source in rtl_sources:
+            candidate = Path(source)
+            resolved = candidate.resolve() if candidate.is_absolute() else (run_root / candidate).resolve()
+            if not resolved.is_file():
+                raise FileNotFoundError(f"cocotb RTL source not found: {source} (resolved as {resolved})")
+            resolved_rtl_sources.append(resolved)
+        if len(resolved_rtl_sources) != len(set(resolved_rtl_sources)):
+            raise ValueError("duplicate cocotb RTL sources in the active filelists")
         argv = (
             "make", "--no-print-dir", "-C", str(cocotb_dir),
             *([f"COCOTB_TEST_MODULES={selected_module}"] if selected_module else []),
@@ -425,9 +480,11 @@ class FunctionalFlow:
             f"HDL_COVERAGE={1 if coverage_file else 0}",
             f"COVERAGE_FILE={coverage_file or ''}", f"WAVE_FILE={wave}",
             f"WAVES={1 if waves else 0}",
-            "VERILOG_SOURCES=" + " ".join(str(path) for path in (*rtl_sources, wrapper)),
+            f"SIM_BUILD={variant_dir / 'sim_build'}",
+            "VERILOG_SOURCES=" + " ".join(str(path) for path in (*resolved_rtl_sources, variant_wrapper.resolve())),
         )
-        inputs = (*required, makefile, wrapper, *rtl_sources)
+        sidecar = test_dir / "rtl_parameters.json"
+        inputs = (*required, *((sidecar,) if sidecar.is_file() else ()), makefile, variant_wrapper, *resolved_rtl_sources)
         FunctionalFlow._print_command(argv)
         return runner.run(CommandRequest(tuple(argv), cocotb_dir, {}, log, inputs=tuple(inputs), outputs=(wave,)), on=on)
 
@@ -517,10 +574,28 @@ class FunctionalFlow:
                 Terminal.print_label("regression", f"backend=sv · compiler={compiler} · test={name}")
                 Terminal.print_path_label("log", run_log)
                 Terminal.print_status_label("regression", "RUNNING", f"backend=sv · compiler={compiler} · test={name}")
+                from flexsoc.backend.dv.func.rtl_parameters import read_rtl_parameters
+                params = read_rtl_parameters(test_root / name)
+                variant_executable = None
+                variant_sim_dir = sim_dir
+                if params:
+                    variant_sim_dir = sim_dir / "elaborations" / self._parameter_key(params)
+                    variant_log = sv_logs / f"{top}_sv_compile_{self._parameter_key(params)}.log"
+                    build = self.run_compile_systemverilog(
+                        top=top, tb_dir=tb_dir, sim_dir=variant_sim_dir,
+                        common_filelist=common_filelist, ip_filelist=ip_filelist,
+                        compiler=compiler, coverage=coverage_dir is not None,
+                        rtl_parameters=params, log=variant_log, on=on,
+                    )
+                    results.append(build)
+                    if build.returncode != 0:
+                        matrix[name]["sv"]["status"] = "FAILED"
+                        FunctionalFlow._print_failure_tail(variant_log)
+                        continue
                 result = self.run_systemverilog(
-                    top=top, test_root=test_root, tb_dir=tb_dir, sim_dir=sim_dir,
+                    top=top, test_root=test_root, tb_dir=tb_dir, sim_dir=variant_sim_dir,
                     test_name=name, compiler=compiler, seed=seed, coverage_file=cov,
-                    log=run_log, on=on,
+                    executable=variant_executable, log=run_log, on=on,
                 )
                 results.append(result)
                 status = "PASS" if result.returncode == 0 else "FAILED"
