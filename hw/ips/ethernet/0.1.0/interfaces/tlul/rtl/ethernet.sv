@@ -2,6 +2,7 @@
 `timescale 1ns / 1ps
 module ethernet
   import ethernet_reg_pkg::*;
+#(parameter bit PHY_MII_MODE = 1'b0)
 (
  input logic clk_i,
  input logic rst_ni,
@@ -75,7 +76,7 @@ module ethernet
     .devmode_i(1'b1)
   );
 
-  ethernet_core u_ethernet_core (
+  ethernet_core #(.PHY_MII_MODE(PHY_MII_MODE)) u_ethernet_core (
     .clk_i(clk_i),
     .rst_ni(core_rst_ni),
     .reg2hw(reg2hw),

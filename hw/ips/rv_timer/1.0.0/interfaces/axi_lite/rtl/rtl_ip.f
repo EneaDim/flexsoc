@@ -3,8 +3,8 @@
 +incdir+rtl/deps/flexsoc/vendor/pulp/register_interface/include
 +incdir+rtl/deps/flexsoc/vendor/pulp/register_interface/include/register_interface
 +incdir+rtl/deps/flexsoc/vendor/pulp/axi/include/axi
-rtl/deps/flexsoc/workspace/l2_rv_timer_axi_lite_HhSxO3hE/workspace/runs/rv_timer/l2/rtl/rv_timer_reg_pkg.sv
-rtl/deps/flexsoc/workspace/l2_rv_timer_axi_lite_HhSxO3hE/workspace/runs/rv_timer/l2/rtl/rv_timer_reg_core.sv
-rtl/deps/flexsoc/workspace/l2_rv_timer_axi_lite_HhSxO3hE/workspace/runs/rv_timer/l2/rtl/rv_timer_reg_top.sv
-rtl/deps/flexsoc/workspace/l2_rv_timer_axi_lite_HhSxO3hE/workspace/runs/rv_timer/l2/rtl/rv_timer_core.sv
-rtl/deps/flexsoc/workspace/l2_rv_timer_axi_lite_HhSxO3hE/workspace/runs/rv_timer/l2/rtl/rv_timer.sv
+rtl/rv_timer_reg_pkg.sv
+rtl/rv_timer_reg_core.sv
+rtl/rv_timer_reg_top.sv
+rtl/rv_timer_core.sv
+rtl/rv_timer.sv

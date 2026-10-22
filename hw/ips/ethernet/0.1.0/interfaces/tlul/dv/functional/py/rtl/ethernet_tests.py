@@ -6,6 +6,7 @@ same canonical `scenarios.py` and the actual user-generated reg package.
 """
 from __future__ import annotations
 import argparse
+import json
 from pathlib import Path
 import sys
 from pathlib import Path
@@ -75,6 +76,10 @@ def main() -> int:
             (folder / "data_in.vec").write_text("# Executed by cocotb plugin; no SV vectors\n")
             (folder / "data_out.vec").write_text("# Executed by cocotb plugin; no SV vectors\n")
             (folder / "cocotb_plugin.json").write_text('{"module": "ethernet_packet_test"}\n')
+            if case.name in {"mii_10", "mii_100", "mii_phy_error"}:
+                (folder / "rtl_parameters.json").write_text(
+                    json.dumps({"schema": 1, "parameters": {"PHY_MII_MODE": 1}}, indent=2) + "\n", encoding="utf-8"
+                )
     return 0
 
 if __name__ == '__main__':

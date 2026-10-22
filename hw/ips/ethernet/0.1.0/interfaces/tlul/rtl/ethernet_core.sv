@@ -6,6 +6,7 @@
 `default_nettype none
 module ethernet_core
   import ethernet_reg_pkg::*;
+#(parameter bit PHY_MII_MODE = 1'b0)
 (
   input  logic         clk_i,
   input  logic         rst_ni,
@@ -68,7 +69,8 @@ module ethernet_core
   assign rx_clk_o = mac_rx_clk;
   assign rx_rst_o = mac_rx_rst;
 
-  ethernet_phy_if #(.TARGET("GENERIC")) u_phy (
+  ethernet_phy_if #(.PHY_MII_MODE(PHY_MII_MODE),
+    .TARGET("GENERIC")) u_phy (
     .clk               (phy_gtx_clk_i),
     .rst               (phy_rst_i),
     .mac_gmii_rx_clk   (mac_rx_clk),
@@ -90,7 +92,7 @@ module ethernet_core
     .phy_gmii_txd      (phy_gmii_txd_o),
     .phy_gmii_tx_en    (phy_gmii_tx_en_o),
     .phy_gmii_tx_er    (phy_gmii_tx_er_o),
-    .mii_select        (phy_mii_select_i)
+    .mii_select        (PHY_MII_MODE)
   );
 
   // CSR->TX coherent configuration mailbox. Data held until synchronized ACK.
@@ -188,17 +190,13 @@ module ethernet_core
     end
   end
 
-  // Platform mode stable during PHY operation; MAC inputs are synchronized to
-  // their own clock. Clock mux in PHY is NOT glitchless for GENERIC target.
+  // GMII/MII is an elaboration-time operating mode. The PHY clock mux
+  // and both MAC datapaths consume the SAME constant mode.
+  // The legacy phy_mii_select_i port is kept for interface compatibility,
+  // but cannot switch the clock at run time.
   logic [1:0] tx_mii_sync, rx_mii_sync;
-  always_ff @(posedge mac_tx_clk or posedge mac_tx_rst) begin
-    if (mac_tx_rst) tx_mii_sync <= '0;
-    else tx_mii_sync <= {tx_mii_sync[0], phy_mii_select_i};
-  end
-  always_ff @(posedge mac_rx_clk or posedge mac_rx_rst) begin
-    if (mac_rx_rst) rx_mii_sync <= '0;
-    else rx_mii_sync <= {rx_mii_sync[0], phy_mii_select_i};
-  end
+  assign tx_mii_sync = {2{PHY_MII_MODE}};
+  assign rx_mii_sync = {2{PHY_MII_MODE}};
 
   ethernet_tx #(.PTP_TS_ENABLE(0)) u_tx (
     .clk(mac_tx_clk), .rst(mac_tx_rst),

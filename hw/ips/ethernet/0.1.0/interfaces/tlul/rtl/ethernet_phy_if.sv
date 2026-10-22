@@ -43,7 +43,8 @@ module ethernet_phy_if #
     // Use BUFR for Virtex-5, Virtex-6, 7-series
     // Use BUFG for Ultrascale
     // Use BUFIO2 for Spartan-6
-    parameter CLOCK_INPUT_STYLE = "BUFIO2"
+    parameter CLOCK_INPUT_STYLE = "BUFIO2",
+    parameter bit PHY_MII_MODE = 1'b0
 )
 (
     input  logic        clk,
@@ -109,19 +110,19 @@ tx_ssio_sdr_inst (
 );
 
 generate
-
 if (TARGET == "XILINX") begin
     BUFGMUX
     gmii_bufgmux_inst (
         .I0(clk),
         .I1(phy_mii_tx_clk),
-        .S(mii_select),
+        .S(PHY_MII_MODE),
         .O(mac_gmii_tx_clk)
     );
-end else begin
-    assign mac_gmii_tx_clk = mii_select ? phy_mii_tx_clk : clk;
+end else if (PHY_MII_MODE) begin : gen_static_mii_tx_clock
+    assign mac_gmii_tx_clk = phy_mii_tx_clk;
+end else begin : gen_static_gmii_tx_clock
+    assign mac_gmii_tx_clk = clk;
 end
-
 endgenerate
 
 // reset sync

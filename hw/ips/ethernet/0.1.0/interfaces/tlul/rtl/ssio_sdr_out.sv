@@ -51,17 +51,26 @@ module ssio_sdr_out #
     output wire [WIDTH-1:0] output_q
 );
 
-oddr #(
-    .TARGET(TARGET),
-    .IODDR_STYLE(IODDR_STYLE),
-    .WIDTH(1)
-)
-clk_oddr_inst (
-    .clk(clk),
-    .d1(1'b0),
-    .d2(1'b1),
-    .q(output_clk)
-);
+// Clock forwarding uses constant ODDR data (0 on rising, 1 on falling).
+// In the GENERIC/ASIC flow a direct inverted clock avoids synthesizing the
+// behavioral dual-edge ODDR model as two conflicting flip-flop drivers.
+// FPGA targets retain their vendor-specific ODDR instantiation.
+generate
+if (TARGET == "GENERIC") begin : gen_generic_forwarded_clock
+    assign output_clk = ~clk;
+end else begin : gen_target_forwarded_clock
+    oddr #(
+        .TARGET(TARGET),
+        .IODDR_STYLE(IODDR_STYLE),
+        .WIDTH(1)
+    ) clk_oddr_inst (
+        .clk(clk),
+        .d1(1'b0),
+        .d2(1'b1),
+        .q(output_clk)
+    );
+end
+endgenerate
 
 (* IOB = "TRUE" *)
 reg [WIDTH-1:0] output_q_reg = {WIDTH{1'b0}};

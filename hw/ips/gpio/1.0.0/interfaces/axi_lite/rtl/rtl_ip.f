@@ -3,8 +3,8 @@
 +incdir+rtl/deps/flexsoc/vendor/pulp/register_interface/include
 +incdir+rtl/deps/flexsoc/vendor/pulp/register_interface/include/register_interface
 +incdir+rtl/deps/flexsoc/vendor/pulp/axi/include/axi
-rtl/deps/flexsoc/workspace/l2_batch_20261015-201247/gpio-axi_lite/workspace/runs/gpio/l2/rtl/gpio_reg_pkg.sv
-rtl/deps/flexsoc/workspace/l2_batch_20261015-201247/gpio-axi_lite/workspace/runs/gpio/l2/rtl/gpio_reg_core.sv
-rtl/deps/flexsoc/workspace/l2_batch_20261015-201247/gpio-axi_lite/workspace/runs/gpio/l2/rtl/gpio_reg_top.sv
-rtl/deps/flexsoc/workspace/l2_batch_20261015-201247/gpio-axi_lite/workspace/runs/gpio/l2/rtl/gpio_core.sv
-rtl/deps/flexsoc/workspace/l2_batch_20261015-201247/gpio-axi_lite/workspace/runs/gpio/l2/rtl/gpio.sv
+rtl/gpio_reg_pkg.sv
+rtl/gpio_reg_core.sv
+rtl/gpio_reg_top.sv
+rtl/gpio_core.sv
+rtl/gpio.sv
