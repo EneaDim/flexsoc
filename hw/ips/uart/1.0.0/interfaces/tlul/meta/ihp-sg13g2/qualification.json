@@ -1,6 +1,7 @@
 {
   "contract": "VALID",
   "contract_fingerprint": "0db2202ae17394aa5a1ce113bee12c1ddd5b8fb4e58c7dbc31e1f754057b91c9",
+  "engineering_deferrals": {},
   "evidence": {
     "cdc_rdc": "PASS",
     "eqy": "MISSING",
@@ -13,6 +14,7 @@
     "fusion_analysis_all": "MISSING",
     "fusion_analysis_post_impl_all": "MISSING",
     "lint": "PASS",
+    "model_tests": "PASS",
     "physical_signoff": "MISSING",
     "pnr": "MISSING",
     "power_analysis_all": "MISSING",
@@ -41,6 +43,7 @@
     "fusion_analysis_all": "MISSING",
     "fusion_analysis_post_impl_all": "MISSING",
     "lint": "CLEAN",
+    "model_tests": "CLEAN",
     "physical_signoff": "MISSING",
     "pnr": "MISSING",
     "power_analysis_all": "MISSING",
@@ -60,17 +63,26 @@
   "ip": "uart",
   "levels": {
     "1": {
+      "accepted_review_evidence": [],
       "blocking_evidence": [],
+      "deferred_evidence": [],
+      "development_blocking_evidence": [],
+      "development_status": "READY",
       "name": "Contract Valid",
       "required_evidence": [],
       "status": "PASS",
       "waived_evidence": []
     },
     "2": {
+      "accepted_review_evidence": [],
       "blocking_evidence": [],
+      "deferred_evidence": [],
+      "development_blocking_evidence": [],
+      "development_status": "READY",
       "name": "RTL Qualified",
       "required_evidence": [
         "requirements_traceability",
+        "model_tests",
         "lint",
         "regression",
         "cdc_rdc",
@@ -85,13 +97,21 @@
       "waived_evidence": []
     },
     "3": {
+      "accepted_review_evidence": [],
       "blocking_evidence": [
         "syn",
         "sta"
       ],
+      "deferred_evidence": [],
+      "development_blocking_evidence": [
+        "syn",
+        "sta"
+      ],
+      "development_status": "BLOCKED",
       "name": "Netlist Qualified",
       "required_evidence": [
         "requirements_traceability",
+        "model_tests",
         "lint",
         "regression",
         "cdc_rdc",
@@ -108,6 +128,7 @@
       "waived_evidence": []
     },
     "4": {
+      "accepted_review_evidence": [],
       "blocking_evidence": [
         "syn",
         "sta",
@@ -117,9 +138,21 @@
         "power_analysis_all",
         "fusion_analysis_all"
       ],
+      "deferred_evidence": [],
+      "development_blocking_evidence": [
+        "syn",
+        "sta",
+        "sdf",
+        "power_estimate",
+        "sim_post_syn_all",
+        "power_analysis_all",
+        "fusion_analysis_all"
+      ],
+      "development_status": "BLOCKED",
       "name": "Technology Qualified",
       "required_evidence": [
         "requirements_traceability",
+        "model_tests",
         "lint",
         "regression",
         "cdc_rdc",
@@ -141,6 +174,7 @@
       "waived_evidence": []
     },
     "5": {
+      "accepted_review_evidence": [],
       "blocking_evidence": [
         "syn",
         "sta",
@@ -158,9 +192,29 @@
         "power_analysis_post_impl_all",
         "fusion_analysis_post_impl_all"
       ],
+      "deferred_evidence": [],
+      "development_blocking_evidence": [
+        "syn",
+        "sta",
+        "sdf",
+        "power_estimate",
+        "sim_post_syn_all",
+        "power_analysis_all",
+        "fusion_analysis_all",
+        "pnr",
+        "physical_signoff",
+        "sdf_post_impl",
+        "sta_post_impl",
+        "power_estimate_post_impl",
+        "sim_post_impl_all",
+        "power_analysis_post_impl_all",
+        "fusion_analysis_post_impl_all"
+      ],
+      "development_status": "BLOCKED",
       "name": "Physical / Signoff Complete Digital Macro",
       "required_evidence": [
         "requirements_traceability",
+        "model_tests",
         "lint",
         "regression",
         "cdc_rdc",
@@ -203,10 +257,11 @@
     "formal_csr_prove": "PASS",
     "formal_prove": "PASS",
     "lint": "PASS",
+    "model_tests": "PASS",
     "regression": "PASS",
     "requirements_traceability": "PASS"
   },
-  "pdk": "sky130",
+  "pdk": "ihp-sg13g2",
   "qualification_status": "PASS",
   "reg_interface": "tlul",
   "requested_level": 2,
@@ -215,6 +270,7 @@
     "status": "PASS",
     "total": 14
   },
+  "review_acceptances": {},
   "schema": 1,
   "spec_error": null,
   "target_satisfied": true,

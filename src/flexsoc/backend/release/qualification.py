@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Mapping, Sequence
 
 import yaml
 
+from .artifact_policy import ArtifactPolicy
+
 
 if TYPE_CHECKING:
     from flexsoc.backend.core.core import BackendContext
@@ -74,6 +76,7 @@ LEVEL_ALIASES = {
 EVIDENCE_GROUPS: Mapping[str, tuple[str, ...]] = {
     "lint": ("lint",),
     "functional": ("regression",),
+    "model": ("model_tests",),
     "traceability": ("requirements_traceability",),
     "cdc_rdc": ("cdc_rdc",),
     "formal": (
@@ -110,6 +113,97 @@ GLS_QUALIFICATION_SCENARIOS = ("ss", "tt", "ff")
 GLS_SCENARIO_TO_TIMING_MODE = {"ss": "max", "tt": "typ", "ff": "min"}
 GLS_QUALIFICATION_BACKEND = "sv"
 GLS_MAX_QUALIFICATION_TESTS = 3
+
+@dataclass(slots=True)
+class EvidenceOwnership:
+    """Immutable source and stage-generated inventories for one sealed release.
+
+    Ownership is derived from recorded stage provenance, not filename conventions.
+    A path without a recorded producer stays an immutable input.
+    """
+
+    sources: dict[str, str]
+    generated: dict[str, dict[str, str]]
+
+    @staticmethod
+    def _output_key(root: Path, raw: str, files: Mapping[str, str]) -> str | None:
+        """Resolve recorded producer output across run/package relocation.
+
+        The old provenance may contain an absolute path from the producing run.
+        Match a domain-rooted suffix against the release inventory; never
+        classify a basename without its source domain as generated.
+        """
+        path = Path(raw)
+        if ".." in path.parts or not raw.strip():
+            return None
+        if not path.is_absolute():
+            return path.as_posix()
+        try:
+            return path.relative_to(root.resolve()).as_posix()
+        except ValueError:
+            pass
+        candidates = set()
+        parts = path.parts
+        for index in range(1, len(parts)):
+            suffix = Path(*parts[index:]).as_posix()
+            if any(name == suffix or name.startswith(suffix + "/") for name in files):
+                candidates.add(suffix)
+        # Only domain-rooted paths qualify; a shared filename is not evidence.
+        roots = ("dv/", "syn/", "signoff/", "impl/")
+        return min((key for key in candidates if key.startswith(roots)),
+                   key=len, default=None)
+
+    @classmethod
+    def from_provenance(cls, root: Path, pdk: str, files: Mapping[str, str]) -> "EvidenceOwnership":
+        root = Path(root)
+        producers: dict[str, str] = {}
+        from flexsoc.backend.core.flow.lifecycle import STAGE_CONTRACTS
+        for record in (root / "meta/provenance.json", root / "meta" / pdk / "provenance.json"):
+            if not record.is_file():
+                continue
+            payload = json.loads(record.read_text(encoding="utf-8"))
+            for stage, stage_data in payload.get("stages", {}).items():
+                if not isinstance(stage_data, dict):
+                    continue
+                contract = STAGE_CONTRACTS.get(stage)
+                if contract is not None and (contract.scope == "pdk") != (record.parent != root / "meta"):
+                    continue
+                for output_root in contract.owned_outputs if contract is not None else ():
+                    producers[output_root] = str(stage)
+                for entry in stage_data.get("generated", ()):
+                    if isinstance(entry, dict) and isinstance(entry.get("path"), str):
+                        key = cls._output_key(root, entry["path"], files)
+                        if key is not None:
+                            producers[key] = str(stage)
+        generated: dict[str, dict[str, str]] = {}
+        sources: dict[str, str] = {}
+        for name, digest in files.items():
+            matches = [(len(key), stage) for key, stage in producers.items()
+                       if name == key or name.startswith(key.rstrip("/") + "/")]
+            if matches and not name.startswith(("rtl/", "csr/", "constraints/")):
+                generated[name] = {"sha256": digest, "stage": max(matches)[1]}
+            else:
+                sources[name] = digest
+        return cls(sources, generated)
+
+    @classmethod
+    def from_manifest(cls, data: Mapping[str, object]) -> "EvidenceOwnership":
+        sources = data.get("sources")
+        generated = data.get("generated")
+        if not isinstance(sources, dict) or not isinstance(generated, dict):
+            raise ValueError("invalid evidence ownership manifest")
+        if any(not isinstance(value, str) for value in sources.values()):
+            raise ValueError("invalid source hash")
+        if any(not isinstance(value, dict) or not isinstance(value.get("sha256"), str)
+               or not isinstance(value.get("stage"), str) for value in generated.values()):
+            raise ValueError("invalid stage evidence entry")
+        if set(sources) & set(generated):
+            raise ValueError("conflicting evidence ownership")
+        return cls(dict(sources), dict(generated))
+
+    def as_manifest(self) -> dict[str, object]:
+        return {"schema": 2, "sources": self.sources, "generated": self.generated}
+
 
 @dataclass(slots=True)
 class QualificationFlow:
@@ -158,6 +252,7 @@ class QualificationFlow:
         spec: Mapping[str, object],
         ip_name: str,
         reg_interface: str,
+        allow_updated_generated: bool = False,
     ) -> dict[str, str]:
         """Return reusable evidence from a loaded release whose contract is still valid."""
 
@@ -177,6 +272,10 @@ class QualificationFlow:
             or str(report.get("pdk", "")) != str(paths.pdk)
             or report.get("contract_fingerprint") != spec.get("fingerprint")
         ):
+            return {}
+        # Legacy packages lack integrity metadata: load them, but never infer
+        # a fresh PASS from reports not bound to packaged sources.
+        if not QualificationFlow.evidence_integrity(paths.run, str(paths.pdk), allow_updated_generated=allow_updated_generated):
             return {}
         evidence = report.get("evidence", {})
         if not isinstance(evidence, Mapping):
@@ -223,10 +322,29 @@ class QualificationFlow:
         outcomes = dict(stage_outcomes)
         for stage, outcome in self._frozen_evidence(
             spec_root=spec_root, spec=spec, ip_name=ip_name, reg_interface=reg_interface,
+            allow_updated_generated=write,
         ).items():
             if states.get(stage, "MISSING") in {"MISSING", "STALE"}:
                 states[stage] = "CLEAN"
                 outcomes[stage] = outcome
+        # Model regression is an L2 gate whenever the test plan defines model cases.
+        # Validate the tested Python bytes and contract, not just a recorded PASS.
+        from .traceability import TraceabilityFlow
+
+        model_plan = spec.get("spec_traceability", {}).get("model_cases_to_testplan", {})
+        if model_plan:
+            model_dir = paths.run / "dv" / "functional" / "py" / "model"
+            runtime = model_dir / "results" / "summary.json"
+            frozen = paths.run / "dv" / "functional" / "model_tests" / "summary.json"
+            model = TraceabilityFlow.model_evidence(
+                report=spec["spec_traceability"],
+                summary=runtime if runtime.is_file() else frozen,
+                fingerprint=str(spec["fingerprint"]), model_dir=model_dir, ip=ip_name,
+            )
+            outcome = str(model["status"]).upper()
+            states["model_tests"] = "CLEAN" if outcome in {"PASS", "FAILED"} else "MISSING"
+            outcomes["model_tests"] = outcome if outcome in {"PASS", "FAILED"} else "MISSING"
+
         available_tests = {
             path.name for path in paths.tests.iterdir() if path.is_dir()
         } if paths.tests.is_dir() else set()
@@ -339,15 +457,24 @@ class QualificationFlow:
             print(f"[evidence] {stage:<26} {state}")
 
         if write:
-            output = paths.meta / "qualification.json"
-            output.parent.mkdir(parents=True, exist_ok=True)
-            temporary = output.with_name(f".{output.name}.tmp")
-            temporary.write_text(
-                json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-            )
-            temporary.replace(output)
+            output = self.write_qualification_report(paths.run, str(paths.pdk), report)
             print(f"[qualification] {output}")
         return report
+
+    @staticmethod
+    def write_qualification_report(run: Path, pdk: str, report: Mapping[str, object]) -> Path:
+        """Write a live result and reseal only an already verified loaded run."""
+        root = Path(run)
+        sealed = root / "meta" / pdk / "evidence_integrity.json"
+        reseal = sealed.is_file() and QualificationFlow.evidence_integrity(root, pdk, allow_updated_generated=True)
+        output = root / "meta" / pdk / "qualification.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        temporary = output.with_name(f".{output.name}.tmp")
+        temporary.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temporary.replace(output)
+        if reseal:
+            QualificationFlow.evidence_integrity(root, pdk, write=True)
+        return output
 
     @staticmethod
     def _req_prefix(ip_name: str) -> str:
@@ -763,6 +890,9 @@ class QualificationFlow:
             )
             for group in groups:
                 stages.extend(EVIDENCE_GROUPS[group])
+        if level >= 2 and spec.get("spec_traceability", {}).get("model_cases_to_testplan"):
+            # Display model verification immediately after requirements traceability.
+            stages[1:1] = EVIDENCE_GROUPS["model"]
         if level >= 3:
             stages.extend(EVIDENCE_GROUPS["netlist"])
         if level >= 4:
@@ -1064,6 +1194,102 @@ class QualificationFlow:
         return {"contract": contract, "spec": spec}
 
     @staticmethod
+    def evidence_integrity(
+        root: Path, pdk: str, *, write: bool = False, allow_updated_generated: bool = False,
+    ) -> bool:
+        """Bind reusable qualification to the exact source and evidence bytes shipped."""
+        root = Path(root)
+        record = root / "meta" / pdk / "evidence_integrity.json"
+        def runtime_only(path: Path) -> bool:
+            if ArtifactPolicy.is_transient(root, path):
+                return True
+            relative = path.relative_to(root)
+            return ("__pycache__" in relative.parts
+                    or relative.suffix in (".pyc", ".pyo")
+                    or relative.parts[:5] == ("dv", "functional", "py", "model", "results"))
+
+        paths = [
+            path for folder in (
+                *(root / name for name in ("rtl", "csr", "constraints", "dv")),
+                *(root / name / pdk for name in ("syn", "signoff", "impl")),
+            )
+            if folder.is_dir()
+            for path in folder.rglob("*")
+            if path.is_file() and not runtime_only(path)
+        ]
+        report = root / "meta" / pdk / "qualification.json"
+        if not report.is_file():
+            return False
+        paths.append(report)
+        actual = {
+            path.relative_to(root).as_posix(): QualificationFlow.sha256_file(path)
+            for path in sorted(paths)
+        }
+        if write:
+            ownership = EvidenceOwnership.from_provenance(root, pdk, actual)
+            if record.is_file():
+                previous = json.loads(record.read_text(encoding="utf-8"))
+                if previous.get("schema") == 2:
+                    old = EvidenceOwnership.from_manifest(previous)
+                    # An authored input never becomes mutable on reseal.
+                    for name in old.sources:
+                        if name in actual:
+                            ownership.sources[name] = actual[name]
+                            ownership.generated.pop(name, None)
+                    # Keep a generated stage identity even if provenance was reset.
+                    for name, item in old.generated.items():
+                        if name in actual and name not in old.sources:
+                            ownership.generated[name] = {"sha256": actual[name], "stage": item["stage"]}
+                            ownership.sources.pop(name, None)
+            record.parent.mkdir(parents=True, exist_ok=True)
+            record.write_text(json.dumps(ownership.as_manifest(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            return True
+        if not record.is_file():
+            return False
+        saved = json.loads(record.read_text(encoding="utf-8"))
+        if saved.get("schema") == 2:
+            inventory = EvidenceOwnership.from_manifest(saved)
+            expected = dict(inventory.sources)
+            expected.update({name: item["sha256"] for name, item in inventory.generated.items()})
+            refreshable = set(inventory.generated) if allow_updated_generated else set()
+        elif saved.get("schema") == 1 and isinstance(saved.get("files"), dict):
+            # Old releases are conservative: provenance may prove ownership,
+            # but an unregistered file can never become mutable by guessing a path.
+            expected = {name: digest for name, digest in saved["files"].items()
+                        if not ("__pycache__" in Path(name).parts
+                                or Path(name).suffix in (".pyc", ".pyo")
+                                or Path(name).parts[:5] == ("dv", "functional", "py", "model", "results"))}
+            inventory = EvidenceOwnership.from_provenance(root, pdk, expected)
+            refreshable = set(inventory.generated) if allow_updated_generated else set()
+        else:
+            raise ValueError(f"{pdk}: invalid packaged evidence integrity manifest")
+        # Ignore only producer-declared cache, including historical v1 entries.
+        expected = {name: digest for name, digest in expected.items()
+                    if not ArtifactPolicy.is_transient(root, root / name)}
+        # Shared primitives materialized during load are not packaged content.
+        common = root / "rtl" / "rtl_common.f"
+        shared = set()
+        if common.is_file():
+            shared = {
+                line.strip() for line in common.read_text(encoding="utf-8").splitlines()
+                if line.strip().startswith(("rtl/deps/flexsoc/prim/", "rtl/deps/flexsoc/hw/ips/prim/"))
+                and line.strip().endswith(".sv")
+            }
+        # Generated files are only eligible for *modification*, never deletion;
+        # newly created output files require a fresh stage provenance record.
+        allowed = set(shared) & (set(actual) - set(expected))
+        if allow_updated_generated:
+            provenance = EvidenceOwnership.from_provenance(root, pdk, actual)
+            # New results belong to a recorded producer, never to an authored input.
+            allowed.update(set(provenance.generated) - set(expected))
+        changed = next((name for name in sorted(set(expected) | set(actual))
+                        if name not in allowed and
+                        (name not in refreshable or name not in actual) and
+                        expected.get(name) != actual.get(name)), None)
+        if changed:
+            raise ValueError(f"{pdk}: packaged qualification evidence or sources changed: {changed}")
+        return True
+    @staticmethod
     def validate_release_package(
         package_root: Path, *, spec_root: Path | None = None,
     ) -> dict[str, object]:
@@ -1142,6 +1368,9 @@ class QualificationFlow:
                 if not path.is_file() and not path.is_dir():
                     raise FileNotFoundError(f"qualification evidence reference missing: {value}")
                 checked_refs += 1
+            # New releases bind qualification to the packaged bytes. Older
+            # releases remain readable, but are not trusted for evidence reuse.
+            QualificationFlow.evidence_integrity(root, str(pdk))
             report_ref = evidence.get("qualification")
             if isinstance(report_ref, str):
                 report = json.loads((root / report_ref).read_text(encoding="utf-8"))

@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c131e">
+  <title>FlexSoC RTL Explorer V9 — AST contract excerpt (not compiled)</title><style>
+:root {
+  color-scheme:dark;
+  --bg:#0c131e;--surface:#111c2a;--raised:#182639;--side:#0f1926;
+  --line:#283b50;--line2:#354d62;--ink:#e6eef8;--muted:#899eb3;
+  --accent:#ff9850;--accent-soft:#3d2927;--blue:#57bffc;--amber:#ffad66;
+  --purple:#ed9961;--success:#8bd6a3;--font:Inter,"Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Code",Consolas,monospace;
+}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:13px var(--font);overflow:hidden}
+button,input,select{font:inherit;color:inherit}
+button{border:1px solid var(--line);background:#19283a;border-radius:7px;cursor:pointer;padding:9px 12px;white-space:nowrap;transition:background .12s,border-color .12s}
+button:hover{border-color:#537187;background:#25394d}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.4;cursor:not-allowed}button.active{color:#acf4ec;background:var(--accent-soft);border-color:#397e85}
+[hidden]{display:none!important}
+.shell{height:100%;display:flex;flex-direction:column}
+.header{height:62px;min-height:62px;border-bottom:1px solid #324355;display:flex;align-items:center;padding:0 21px;gap:26px;background:linear-gradient(90deg,#142232,#101a28 55%,#0f1927)}
+.brand{display:flex;align-items:center;gap:11px;font-size:17px;font-weight:760;letter-spacing:-.45px;min-width:221px}
+.brandmark{height:36px;width:36px;border-radius:10px;background:#284b59;color:#f1ffff;display:grid;place-items:center;font-size:19px;font-weight:850;box-shadow:inset 0 0 0 1px #4e8591}
+.brandmark span{color:#8ce4d7}.brandtext small{display:block;margin-top:1px;color:#7d9cb0;font:9px var(--mono);letter-spacing:1.25px}
+.head-mid{flex:1;min-width:0;display:flex;align-items:center;gap:6px;overflow-x:auto;white-space:nowrap;scrollbar-width:thin}
+.head-mid button{border:0;background:transparent;color:#8fa5b9;padding:7px 6px;border-radius:5px;font-size:12px}
+.head-mid button:last-child{background:#1d3242;color:#c8efe9;font-weight:660}.head-mid button:hover{background:#25384b}
+.head-right{display:flex;align-items:center;gap:13px}.status{color:var(--success);font:10px var(--mono);letter-spacing:.35px;white-space:nowrap}
+.icon-button{display:grid;place-items:center;min-width:33px;padding:6px 9px;font-size:17px}
+.body{display:flex;min-height:0;flex:1}
+.sidebar{width:244px;min-width:244px;display:flex;flex-direction:column;padding:23px 14px 14px;background:var(--side);border-right:1px solid var(--line);overflow:hidden}
+.overline,.section-title,.sidebar-caption{font:10px var(--mono);color:#819cb3;letter-spacing:1.15px}
+.overline{padding:0 9px}.project{margin:19px 3px 0;display:flex;align-items:center;gap:9px;font-size:14px}
+.led{height:7px;width:7px;border-radius:50%;background:#8cd5a0;box-shadow:0 0 0 4px #8cd5a012}
+.project strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tag{font:10px var(--mono);padding:3px 7px;background:#18383d;border:1px solid #34636c;border-radius:5px;color:#a9efdf;margin-left:auto}
+.sidebar-info{margin:8px 8px 32px 17px;font:11px var(--mono);color:#7f92a9}
+.section-title{margin:0 4px 12px;display:flex;justify-content:space-between;font-weight:700}.section-count{font:9px var(--mono);color:#647f94}
+.hierarchy{flex:1;min-height:0;overflow:auto}.tree-button{display:block;position:relative;width:100%;text-align:left;overflow:hidden;text-overflow:ellipsis;border:0;border-radius:6px;padding:11px 10px;background:transparent;color:#a6bad0;font:11px var(--mono)}
+.tree-button:hover{background:#23384a}.tree-button.depth1{padding-left:26px;border-left:1px solid #31485d;border-radius:0;margin-left:11px;width:calc(100% - 11px)}
+.tree-button.selected{background:#1c3941;color:#a8f2e8;box-shadow:inset 3px 0 var(--accent)}
+.sidebar-bottom{border-top:1px solid var(--line);padding:18px 8px 3px;display:grid;gap:10px;color:#a3b2c3;font:11px var(--font)}
+.sidebar-caption{margin-bottom:2px}.legend-row{display:flex;align-items:center;gap:10px}.legend-dot{display:inline-block;width:9px;height:9px;border:2px solid var(--amber);border-radius:3px;margin-right:4px}
+.legend-dot.input{border-color:var(--blue)}.legend-dot.flop{border-color:var(--purple)}.legend-dot.module{border-color:var(--accent)}.legend-dot.wire{height:3px;border:0;border-radius:0;background:#7698bb}
+.main{min-width:0;display:flex;flex:1;flex-direction:column}
+.toolbar{min-height:84px;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:14px 20px 14px 25px;border-bottom:1px solid var(--line);background:#101a28}
+.toolbar-title{min-width:115px}.title-overline{font:9px var(--mono);letter-spacing:1.3px;color:#7daea9;margin-bottom:6px}
+.toolbar-title #viewName{font-size:20px;font-weight:720;letter-spacing:-.55px;line-height:1.05}.toolbar-title small{display:block;color:var(--muted);font:10px var(--mono);margin-top:7px;max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toolbar-tools{display:flex;align-items:center;gap:10px;min-width:0}.tool-separator{height:27px;width:1px;background:#2e4056;flex:none}
+.search-box{height:35px;min-width:160px;width:clamp(160px,17vw,265px);display:flex;align-items:center;gap:9px;padding:0 9px;border:1px solid #354a60;background:#172536;border-radius:7px;color:#a6b9cb}
+.search-box span{font-size:21px;line-height:1}.search-box input{background:none;border:0;outline:0;color:var(--ink);min-width:0;width:100%;font-size:11px}.search-box input::placeholder{color:#8196ab}
+kbd{border:1px solid #3a4e60;border-radius:4px;padding:2px 5px;font:10px var(--mono);background:#233346;color:#a7b9c9}
+.view-switch{display:flex;border:1px solid var(--line);border-radius:8px;padding:3px;gap:3px;background:#142235}
+.view-switch button{border:0;background:transparent;font-size:11px;padding:7px 10px;color:#95aabe}.view-switch button:hover{background:#22354a}
+.view-switch button.active{background:#284c55;color:#b7fff5;box-shadow:inset 0 0 0 1px #416e73}
+.zoom-tools{display:flex;align-items:center;gap:4px}.zoom-tools button{padding:7px 10px}.zoom-tools #zoomLabel{font:11px var(--mono);color:#b4c4d6;min-width:45px;text-align:center;font-variant-numeric:tabular-nums}
+.workspace{display:flex;flex:1;min-height:0;position:relative}
+.schematic{position:relative;flex:1;min-width:230px;overflow:hidden;background:#111c2b;background-image:radial-gradient(#31465a7d 0.9px,transparent 0.9px);background-size:23px 23px}
+canvas{display:block;width:100%;height:100%;outline:none;cursor:grab;touch-action:none}canvas:active{cursor:grabbing}#diagram:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
+.canvas-hint{position:absolute;top:17px;left:20px;background:#1a2b3be9;padding:10px 13px;border:1px solid #375063;border-radius:7px;color:#a9bfd1;font:10px var(--mono);pointer-events:none;box-shadow:0 8px 25px #09111a35}
+.hint-icon{display:inline-grid;place-items:center;border-radius:50%;height:15px;width:15px;border:1px solid #477787;color:var(--accent);font-weight:700;margin-right:7px}.canvas-hint b{color:#577489;margin:0 4px}
+.canvas-footer{position:absolute;bottom:0;left:0;right:0;min-height:38px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#142333e8;border-top:1px solid #31475b;padding:8px 17px;color:#92a9bb;font:10px var(--mono)}
+.canvas-footer #message{max-width:62%;color:#c0d4e4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+.a11y{position:absolute;bottom:48px;left:16px;max-height:230px;max-width:320px;overflow:auto;border:1px solid #3a5267;border-radius:6px;background:#1b2e41;font:11px var(--mono)}
+.a11y summary{padding:8px 11px;cursor:pointer;color:#9cdedc}.a11y button{width:100%;text-align:left;border:0;border-radius:0;background:transparent;font:11px var(--mono);padding:6px 12px}
+.context{position:absolute;z-index:20;min-width:226px;display:flex;flex-direction:column;padding:6px;background:#22364b;border:1px solid #4e7085;border-radius:10px;box-shadow:0 18px 48px #02060bd6}
+.context-title{font:10px var(--mono);color:#9bb9cf;padding:10px 10px 8px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.context button{display:flex;justify-content:space-between;gap:10px;background:transparent;text-align:left;border:0;border-radius:6px;width:100%;font-size:12px;padding:10px}.context button:hover{background:#355369}.context button span{color:var(--accent)}.context-divider{border-top:1px solid #385064;margin:5px 4px}
+.search-results{position:absolute;z-index:15;top:8px;right:20px;width:min(355px,calc(100% - 40px));background:#1e3245;border:1px solid #45657b;border-radius:9px;box-shadow:0 15px 35px #0008;padding:7px;max-height:350px;overflow-y:auto}
+.search-results button{display:block;width:100%;text-align:left;background:transparent;border:0;padding:9px 11px;font:11px var(--mono)}.search-results button:hover{background:#2d4b5c}.search-results p{padding:4px 9px;color:var(--muted)}
+.inspector{width:min(42%,570px);min-width:300px;display:flex;flex-direction:column;border-left:1px solid #395065;background:#0e1825;position:relative;box-shadow:-10px 0 35px #070e1720}
+.inspector-resizer{position:absolute;z-index:6;left:-5px;top:0;bottom:0;width:10px;cursor:col-resize;background:transparent}
+.inspector-resizer:hover,.inspector-resizer:focus-visible{background:#56bfb855}
+.inspector-header{height:50px;min-height:50px;display:flex;justify-content:space-between;align-items:center;padding:0 18px;font:10px var(--mono);letter-spacing:1.1px;color:#92aec2}
+.inspector-header button{border:0;background:transparent}.tabs{height:45px;min-height:45px;display:flex;border-bottom:1px solid var(--line);padding:0 13px;gap:8px}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;border-radius:0;padding:11px 10px;color:#8ea5ba;font-size:11px}
+.tabs button.active{border-bottom-color:var(--accent);color:#b8f4e9}
+.pane{min-height:0;display:flex;flex-direction:column;flex:1}.source-head{padding:12px 18px;border-bottom:1px solid var(--line);color:#96acc0;font:11px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.code-wrap{display:flex;overflow:auto;flex:1;min-height:0;font:12px/1.75 var(--mono)}#lineNumbers{position:sticky;left:0;min-width:54px;background:#111f2c;padding:16px 8px 16px 10px;text-align:right;color:#657f96;user-select:none;white-space:pre}
+#sourceCode{margin:0;padding:16px 18px;white-space:pre;tab-size:4;min-width:max-content;color:#d1e2f1;cursor:text}
+#sourceCode .code-line{display:block;min-height:1.75em;cursor:pointer;padding:0 5px;border-left:2px solid transparent}
+#sourceCode .code-line:hover{background:#263a4d}#sourceCode .code-line.focus-line{background:#255054;border-left-color:var(--accent)}
+.inspector-foot{border-top:1px solid var(--line);padding:12px 18px;color:#86a3b8;font:10px var(--mono)}
+.results{padding:18px;overflow:auto;line-height:1.7;color:#b1c8d8;white-space:pre-wrap;overflow-wrap:anywhere}.results article{padding:12px 0;border-bottom:1px solid var(--line)}.results code{font-family:var(--mono);color:var(--amber)}
+.cone-controls{padding:18px;display:flex;flex-direction:column;gap:13px}.cone-controls label{display:flex;align-items:center;justify-content:space-between;color:var(--muted)}.cone-controls select{background:#203247;border:1px solid #375369;border-radius:5px;padding:7px;max-width:75%}
+dialog{max-width:560px;border:1px solid #4c697e;border-radius:12px;background:#1b2d40;color:var(--ink);line-height:1.7;padding:26px;box-shadow:0 25px 75px #0009}dialog::backdrop{background:#02070dc5}dialog h3{font-size:19px;margin:0 0 15px}dialog p{color:#bdd0df}
+@media(max-width:1240px){.search-box{width:175px}.toolbar{padding-left:17px}.toolbar-tools{gap:7px}.sidebar{width:204px;min-width:204px}}
+@media(max-width:1030px){.search-box{width:140px;min-width:120px}.toolbar{flex-wrap:wrap;min-height:95px}.canvas-hint{display:none}.inspector{min-width:280px}}
+@media(max-width:750px){.sidebar{display:none}.brand{min-width:140px}.brandtext small{font-size:7px}.header{gap:12px;padding:0 11px}.toolbar-tools{flex-wrap:wrap}.toolbar{min-height:102px}.inspector{position:absolute;right:0;top:0;bottom:0;min-width:0;width:min(92%,600px)!important;z-index:8}.search-box{width:190px}}
+@media(prefers-reduced-motion:reduce){button{transition:none}}
+
+/* FlexSoC graphite/navy · sky-blue wiring · orange sequential/selection. */
+:root {--toolbar:#101e32;--canvas:#111c2b;--panel:#101c2c;--control:#192d42;--focus:#ff9850;}
+.head-mid{scrollbar-width:thin;scroll-behavior:smooth;min-height:40px}
+.head-mid button{flex:none;white-space:nowrap;padding:8px 10px;color:var(--muted)}
+.head-mid button.current,.head-mid button[aria-current=page]{background:var(--control);border:1px solid var(--line2);color:var(--ink);font-weight:700}
+.crumb-sep{color:var(--muted);font-size:18px;opacity:.65;pointer-events:none}
+.theme-button{flex:none;min-width:85px;border:1px solid var(--line2);background:var(--control);font:11px var(--mono);color:var(--ink)}
+.toolbar{background:var(--toolbar)}
+.schematic{background-color:var(--canvas)}
+.inspector{background:var(--panel)}
+/* Light palette overrides chrome and code while preserving contrast. */
+:root[data-theme=light]{color-scheme:light;--bg:#edf3f9;--surface:#f7fafd;--raised:#e9f2fa;--side:#f4f8fc;--line:#c9d8e5;--line2:#9ebdd1;--ink:#17314e;--muted:#516d84;--accent:#da6926;--accent-soft:#ffe4d1;--blue:#087db5;--amber:#bf6027;--purple:#a4521d;--success:#267f5c;--toolbar:#f8fbfe;--canvas:#f4f9fd;--panel:#f8fbfe;--control:#e8f2fa}
+[data-theme=light] .header{background:linear-gradient(90deg,#e2edf7,#fafcfe);border-bottom-color:var(--line)}
+[data-theme=light] .brandmark{background:#173b60;color:#f6fbff;box-shadow:none}
+[data-theme=light] .brandmark span{color:#ffa35b}
+[data-theme=light] .brandtext small,[data-theme=light] .overline,[data-theme=light] .section-title,[data-theme=light] .sidebar-caption,[data-theme=light] .title-overline{color:#456983}
+[data-theme=light] .head-mid button:hover,[data-theme=light] .tree-button:hover{background:#d9e9f4}
+[data-theme=light] .head-mid button:last-child{background:var(--control);color:var(--ink)}
+[data-theme=light] .tree-button{color:#395a75}
+[data-theme=light] .tree-button.selected{background:#ffebde;color:#a6501b;box-shadow:inset 3px 0 var(--accent)}
+[data-theme=light] .tag{background:#deeff9;border-color:#9abfd5;color:#186d9c}
+[data-theme=light] .toolbar,[data-theme=light] .sidebar,[data-theme=light] .inspector{border-color:var(--line)}
+[data-theme=light] button{background:var(--control);border-color:var(--line);color:var(--ink)}
+[data-theme=light] button:hover{background:#d6e9f5}
+[data-theme=light] .view-switch,[data-theme=light] .search-box{background:#fff;border-color:var(--line)}
+[data-theme=light] .view-switch button{background:transparent;color:#365b79}
+[data-theme=light] .view-switch button.active{background:var(--accent-soft);color:#ad5017;border-color:#efb38b}
+[data-theme=light] .search-box input{color:var(--ink)}
+[data-theme=light] .search-box input::placeholder{color:#728da3}
+[data-theme=light] .canvas-hint,[data-theme=light] .canvas-footer{background:#eaf3faed;border-color:var(--line);color:#3b6481}
+[data-theme=light] .canvas-footer #message{color:#205579}
+[data-theme=light] .schematic{background-image:radial-gradient(#97b9d075 .85px,transparent .85px)}
+[data-theme=light] .context,[data-theme=light] .search-results,[data-theme=light] .a11y{background:#fff;border-color:var(--line2);box-shadow:0 12px 35px #12385230;color:var(--ink)}
+[data-theme=light] .context-title{color:#446882}
+[data-theme=light] .context button,[data-theme=light] .search-results button,[data-theme=light] .a11y button{background:transparent;border:0}
+[data-theme=light] .context button:hover,[data-theme=light] .search-results button:hover{background:#e5f1f9}
+[data-theme=light] .inspector-header,[data-theme=light] .source-head,[data-theme=light] .results,[data-theme=light] .inspector-foot{color:#395b75}
+[data-theme=light] .tabs button{background:transparent;color:#55758f;border:0}
+[data-theme=light] .tabs button.active{color:#bb5a20;border-bottom:2px solid var(--accent)}
+[data-theme=light] #sourceCode{color:#153958}
+[data-theme=light] #lineNumbers{background:#eaf2f8;color:#7791a6}
+[data-theme=light] #sourceCode .code-line:hover{background:#e3f0f8}
+[data-theme=light] #sourceCode .code-line.focus-line{background:#ffe5d3;border-left-color:var(--accent)}
+[data-theme=light] .cone-controls select{background:white;border-color:var(--line2);color:var(--ink)}
+[data-theme=light] kbd{background:#e5eff7;border-color:var(--line);color:#395977}
+[data-theme=light] dialog{background:white;color:var(--ink);border-color:var(--line)}
+[data-theme=light] dialog p{color:#49677e}
+@media(max-width:1050px){.head-mid{max-width:none;flex:1}.theme-button{min-width:64px}}
+
+/* V6: restrained CAD workstation polish — accessible motion, no full-canvas CSS filters. */
+:root{--motion:220ms;--ring:#58c7f7}
+.header{box-shadow:inset 0 -1px #52c8fb16;background:linear-gradient(105deg,#0c1c32 0%,#102b43 48%,#091523 100%)}
+.brandmark{background:linear-gradient(135deg,#ff9c4c,#e25d24 50%,#22618f 51%,#54baf0);box-shadow:0 4px 18px #f5803722,inset 0 1px #ffffff5a}
+.toolbar{background:linear-gradient(115deg,#111f33,#0e1a2c);box-shadow:0 7px 22px #01091220}
+.view-switch button,.tabs button,.head-mid button{transition:color var(--motion) ease,background var(--motion) ease,border-color var(--motion) ease}
+button{transition:transform 150ms ease,background var(--motion) ease,border-color var(--motion) ease,box-shadow var(--motion) ease}
+button:hover:not(:disabled){box-shadow:0 2px 15px #57c4fc12}
+button:active:not(:disabled){transform:translateY(1px)}
+.inspector{animation:inspector-in var(--motion) cubic-bezier(.22,.7,.3,1);box-shadow:-12px 0 55px #03102048}
+@keyframes inspector-in{from{opacity:.45;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
+.context:not([hidden]),.search-results:not([hidden]){animation:context-in 140ms ease-out}
+@keyframes context-in{from{opacity:.4;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+#breadcrumb .current{color:var(--accent);text-shadow:0 0 14px #ff9d4230}
+#diagram{transition:background-color .18s ease}
+:root[data-theme='light'] .header{background:linear-gradient(110deg,#dbeefa,#f8fbff)}
+:root[data-theme='light'] .toolbar{background:linear-gradient(95deg,#edf6fc,#ffffff)}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="header">
+    <div class="brand" aria-label="FlexSoC RTL EXPLORER"><span class="brandmark" aria-hidden="true">F<span>∿</span></span><span class="brandtext">FlexSoC <small>ENGINEERING WORKSPACE</small></span></div>
+    <nav class="head-mid" id="breadcrumb" aria-label="Current elaborated module hierarchy"></nav>
+    <div class="head-right"><button id="themeToggle" class="theme-button" title="Switch light/dark colors" aria-label="Switch color theme">☀ Light</button><span id="status" class="status">AST fixture excerpt · NOT compiled</span><button id="help" class="icon-button" aria-label="Keyboard shortcuts and help" title="Help and shortcuts">?</button></div>
+  </header>
+  <div class="body">
+    <aside class="sidebar" aria-label="Design navigator">
+      <div class="overline">DESIGN NAVIGATOR</div>
+      <div class="project"><span class="led"></span><strong id="topLabel">—</strong><span class="tag">RTL</span></div>
+      <div class="sidebar-info" id="stats">Slang elaboration</div>
+      <div class="section-title">MODULES <span class="section-count">HIERARCHY</span></div>
+      <nav id="hierarchy" class="hierarchy" aria-label="Elaborated hierarchy"></nav>
+      <div class="sidebar-bottom"><div class="sidebar-caption">SCHEMATIC LEGEND</div><div class="legend-row"><span class="legend-dot input"></span>Ports <span class="legend-dot flop"></span>Sequential</div><div class="legend-row"><span class="legend-dot module"></span>Modules <span class="legend-dot wire"></span>Signals</div></div>
+    </aside>
+    <main class="main">
+      <div class="toolbar" role="toolbar" aria-label="Schematic view controls">
+        <div class="toolbar-title"><div class="title-overline">RTL SCHEMATIC</div><div id="viewName">Top module</div><small id="viewDesc">Elaborated connectivity</small></div>
+        <div class="toolbar-tools">
+          <label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Find symbol or wire…" aria-label="Find symbol or wire in this module"/><kbd>/</kbd></label>
+          <div class="tool-separator"></div>
+          <div class="view-switch" aria-label="Inspector views">
+            <button id="toggleSource" aria-pressed="false" title="Toggle SystemVerilog inspector">RTL</button>
+            <button id="toggleLint" aria-pressed="false" title="Toggle lint diagnostics">Lint</button>
+            <button id="toggleCone" aria-pressed="false" title="Explore logical From to To cone">Cone</button>
+          </div>
+          <div class="tool-separator"></div>
+          <div class="zoom-tools" aria-label="Viewport">
+            <button id="zoomOut" class="icon-button" title="Zoom out" aria-label="Zoom out">−</button>
+            <span id="zoomLabel" aria-live="off">100%</span>
+            <button id="zoomIn" class="icon-button" title="Zoom in" aria-label="Zoom in">+</button>
+            <button id="fit" title="Fit schematic to view">Fit</button>
+          </div>
+        </div>
+      </div>
+      <div class="workspace" id="workspace">
+        <section class="schematic" id="schematic" aria-label="Interactive RTL schematic">
+          <canvas id="diagram" tabindex="0" aria-label="RTL schematic. Select symbols and routed wires with mouse; use keyboard accessible element list for alternate navigation."></canvas>
+          <div class="canvas-hint" id="hint"><span class="hint-icon">i</span> Drag to pan <b>·</b> Scroll to zoom <b>·</b> Click a wire to trace <b>·</b> Right-click for symbol actions</div>
+          <div class="canvas-footer"><span id="counts">0 symbols</span><span id="message" role="status" aria-live="polite">Slang AST graph</span></div>
+          <details class="a11y"><summary>Accessible element list</summary><div id="a11yNodes"></div></details>
+          <nav id="context" class="context" hidden aria-label="Symbol context actions" role="menu">
+            <div id="contextTitle" class="context-title">Symbol actions</div>
+            <button id="contextSource" role="menuitem">View SystemVerilog <span>↗</span></button>
+            <button id="contextLint" role="menuitem">View module lint <span>↗</span></button>
+            <div class="context-divider"></div>
+            <button id="contextPin" role="menuitem">Track signal <span>◎</span></button>
+            <button id="contextEnter" role="menuitem">Enter module <span>→</span></button>
+            <button id="contextGenerate" role="menuitem" hidden>Expand instances <span>▥</span></button>
+          </nav>
+          <div id="searchResults" class="search-results" hidden aria-label="Symbol search results"></div>
+        </section>
+        <aside class="inspector" id="inspector" aria-label="Source, lint and analysis inspector" hidden>
+          <div class="inspector-resizer" id="inspectorResizer" role="separator" aria-label="Resize inspector" aria-orientation="vertical" tabindex="0"></div>
+          <div class="inspector-header"><span>DESIGN INSPECTOR</span><button id="closeInspector" class="icon-button" aria-label="Close inspector" title="Close inspector">×</button></div>
+          <div class="tabs" role="tablist" aria-label="Analysis panels"><button id="sourceTab" class="active" role="tab" aria-selected="true">SystemVerilog</button><button id="lintTab" role="tab" aria-selected="false">Lint</button><button id="coneTab" role="tab" aria-selected="false">From → To</button></div>
+          <div id="sourcePane" class="pane"><div class="source-head" id="sourceFile">No source selected</div><div class="code-wrap"><div id="lineNumbers" aria-hidden="true"></div><pre id="sourceCode" tabindex="0" aria-label="SystemVerilog source"></pre></div></div>
+          <div id="lintPane" class="pane" hidden><div class="source-head">Slang diagnostics · current source file</div><div id="lintResults" class="results"></div></div>
+          <div id="conePane" class="pane" hidden><div class="source-head">RTL dependencies — not post-synthesis timing</div><div class="cone-controls"><label>From <select id="fromSelect"></select></label><label>To <select id="toSelect"></select></label><button id="runCone">Trace RTL cone</button></div><div id="coneResults" class="results"></div></div>
+          <div class="inspector-foot" id="inspectorFoot">AST source mapping</div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+<dialog id="helpDialog"><h3>Navigate the RTL schematic</h3><p>Drag the canvas to pan, use the mouse wheel or toolbar for zoom, and double-click a module to enter. Click any routed wire to inspect its signal; hold Ctrl/Cmd while selecting to track through proven direct port bindings.</p><p><strong>Contextual actions:</strong> right-click a generated group to expand only that group, or right-click an individual member to collapse it. Module actions show contextual SystemVerilog and lint. These are intentionally absent from the global toolbar.</p><p><strong>Keyboard:</strong> / focuses symbol search; Esc closes menus or clears selection; + and − zoom; the accessible element list works without a mouse.</p><button id="closeHelp">Close help</button></dialog>
+<script>
+const OFFLINE_FIXTURE = {"overview": {"schema": "flexsoc.rtl_viewer.v1", "source": "imported AST (unverified)", "top": "dsp_system", "sourceFiles": ["dsp_alu.sv", "dsp_round_sat.sv", "dsp_system.sv"], "revision": "625b4ac59df4a984", "instances": 3, "modules": 3, "capabilities": {"hierarchy": true, "generate": "elaborated siblings grouped", "ports": "AST", "signal_follow": "only explicit direct AST port mapping", "cone": "AST-proven intra-module dependencies", "timing": false}}, "graphs": {"/": {"schema": "flexsoc.rtl_viewer.module.v2", "path": "/", "module": "dsp_system", "revision": "625b4ac59df4a984", "ancestors": [{"path": "/", "name": "dsp_system", "module": "dsp_system"}], "expanded": [], "nodes": [{"id": "/::sig:parallel_sum", "name": "parallel_sum", "type": "signal", "classification": "AST", "direction": "", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/::sig:external_offset", "name": "external_offset", "type": "signal", "classification": "AST", "direction": "", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/::sig:external_bypass", "name": "external_bypass", "type": "signal", "classification": "AST", "direction": "", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/::sig:operation", "name": "operation", "type": "signal", "classification": "AST", "direction": "", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/::sig:alu_result", "name": "alu_result", "type": "signal", "classification": "AST", "direction": "", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/::sig:final_output", "name": "final_output", "type": "port", "classification": "AST", "direction": "out", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/::inst:/u_arithmetic", "name": "u_arithmetic", "type": "instance", "module": "dsp_alu", "child": "/u_arithmetic", "group": "", "ports": [{"name": "mac_i", "direction": "in", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "connection": "bound"}, {"name": "offset_i", "direction": "in", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "connection": "bound"}, {"name": "bypass_i", "direction": "in", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "connection": "bound"}, {"name": "chosen_o", "direction": "out", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "connection": "bound"}, {"name": "opcode_i", "direction": "in", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "connection": "bound"}], "line": 5, "file": "dsp_alu.sv"}, {"id": "/::inst:/u_output", "name": "u_output", "type": "instance", "module": "dsp_round_sat", "child": "/u_output", "group": "", "ports": [{"name": "data_i", "direction": "in", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "connection": "bound"}, {"name": "data_o", "direction": "out", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "connection": "bound"}], "line": 5, "file": "dsp_round_sat.sv"}], "edges": [{"id": "/::wire:808c44907e9e20508b9c", "source": "/::sig:parallel_sum", "target": "/::inst:/u_arithmetic", "type": "port_in", "resolved": true, "net": "/::sig:parallel_sum", "width": "logic [15:0]", "port": "mac_i", "pin": "", "count": 1, "mapping": "direct"}, {"id": "/::wire:a9e51e19dcd560a0de3c", "source": "/::sig:external_offset", "target": "/::inst:/u_arithmetic", "type": "port_in", "resolved": true, "net": "/::sig:external_offset", "width": "logic [15:0]", "port": "offset_i", "pin": "", "count": 1, "mapping": "direct"}, {"id": "/::wire:b36072df6b124fb65404", "source": "/::sig:external_bypass", "target": "/::inst:/u_arithmetic", "type": "port_in", "resolved": true, "net": "/::sig:external_bypass", "width": "logic [15:0]", "port": "bypass_i", "pin": "", "count": 1, "mapping": "direct"}, {"id": "/::wire:a15cd2978ec8bb143cbf", "source": "/::inst:/u_arithmetic", "target": "/::sig:alu_result", "type": "port_out", "resolved": true, "net": "/::sig:alu_result", "width": "logic [15:0]", "port": "chosen_o", "pin": "", "count": 1, "mapping": "direct"}, {"id": "/::wire:e5ab16f9c81c7ee16984", "source": "/::sig:operation", "target": "/::inst:/u_arithmetic", "type": "port_in", "resolved": true, "net": "/::sig:operation", "width": "logic [15:0]", "port": "opcode_i", "pin": "", "count": 1, "mapping": "direct"}, {"id": "/::wire:a38f350f31a0b18d681d", "source": "/::sig:alu_result", "target": "/::inst:/u_output", "type": "port_in", "resolved": true, "net": "/::sig:alu_result", "width": "logic [15:0]", "port": "data_i", "pin": "", "count": 1, "mapping": "direct"}, {"id": "/::wire:2cd00f2e9e8514e5a440", "source": "/::inst:/u_output", "target": "/::sig:final_output", "type": "port_out", "resolved": true, "net": "/::sig:final_output", "width": "logic [15:0]", "port": "data_o", "pin": "", "count": 1, "mapping": "direct"}], "children": 2, "connectivity": {"unbound_pins": 0, "unresolved_pins": 0, "partial_pins": 0}, "total": 8, "truncated": false, "limits": ["Sequential markers only where AST explicitly denotes always_ff assignments", "Bindings are derived only from elaborated port expressions; sliced bus bindings indicate partial net dependence, not bit-level correspondence", "Case decision and MUX controls are AST dependencies; encoder/decoder/FSM semantics are not inferred from names", "A wire is a logical RTL dependency, not a physical net or timing path", "Clock/reset/enable not guessed from naming; register/counter only when AST process and feedback prove it"]}, "/u_arithmetic": {"schema": "flexsoc.rtl_viewer.module.v2", "path": "/u_arithmetic", "module": "dsp_alu", "revision": "625b4ac59df4a984", "ancestors": [{"path": "/", "name": "dsp_system", "module": "dsp_system"}, {"path": "/u_arithmetic", "name": "u_arithmetic", "module": "dsp_alu"}], "expanded": [], "nodes": [{"id": "/u_arithmetic::sig:mac_i", "name": "mac_i", "type": "port", "classification": "AST", "direction": "in", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/u_arithmetic::sig:offset_i", "name": "offset_i", "type": "port", "classification": "AST", "direction": "in", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/u_arithmetic::sig:bypass_i", "name": "bypass_i", "type": "port", "classification": "AST", "direction": "in", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/u_arithmetic::sig:chosen_o", "name": "chosen_o", "type": "port", "classification": "AST", "direction": "out", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/u_arithmetic::sig:opcode_i", "name": "opcode_i", "type": "port", "classification": "AST", "direction": "in", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/u_arithmetic::sig:offset_ext", "name": "offset_ext", "type": "signal", "classification": "AST", "direction": "", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/u_arithmetic::sig:arith_d", "name": "arith_d", "type": "signal", "classification": "AST", "direction": "", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/u_arithmetic::op:0", "name": "Conversion", "type": "operator", "kind": "Conversion", "shape": "logic", "line": 0, "pins": ["A", "Y"]}, {"id": "/u_arithmetic::op:1", "name": "CASE", "type": "operator", "kind": "CaseStatement", "shape": "case", "line": 0, "pins": []}, {"id": "/u_arithmetic::op:2", "name": "Add", "type": "operator", "kind": "BinaryOp", "shape": "arith", "line": 0, "pins": ["A", "B", "Y"]}, {"id": "/u_arithmetic::op:3", "name": "ConditionalOp", "type": "operator", "kind": "ConditionalOp", "shape": "mux", "line": 0, "pins": ["A", "B", "S", "Y"]}], "edges": [{"id": "/u_arithmetic::wire:7e797c3abfbf96e67b3b", "source": "/u_arithmetic::sig:offset_i", "target": "/u_arithmetic::op:0", "type": "data", "resolved": true, "net": "/u_arithmetic::sig:offset_i", "width": "logic [15:0]", "port": "", "pin": "IN", "count": 1, "mapping": "partial"}, {"id": "/u_arithmetic::wire:5615b5512d30d286110e", "source": "/u_arithmetic::op:0", "target": "/u_arithmetic::sig:offset_ext", "type": "data", "resolved": true, "net": "/u_arithmetic::sig:offset_ext", "width": "logic [15:0]", "port": "", "pin": "", "count": 1, "mapping": "direct"}, {"id": "/u_arithmetic::wire:55cdee8dcd9b95f5385e", "source": "/u_arithmetic::sig:opcode_i", "target": "/u_arithmetic::op:1", "type": "control", "resolved": true, "net": "/u_arithmetic::sig:opcode_i", "width": "logic [15:0]", "port": "", "pin": "", "count": 1, "mapping": "direct"}, {"id": "/u_arithmetic::wire:7e79d379b262e2d8502f", "source": "/u_arithmetic::op:1", "target": "/u_arithmetic::sig:arith_d", "type": "control", "resolved": true, "net": "/u_arithmetic::sig:arith_d", "width": "logic [15:0]", "port": "", "pin": "", "count": 1, "mapping": "direct"}, {"id": "/u_arithmetic::wire:4f9fb9c166fe675884a2", "source": "/u_arithmetic::sig:mac_i", "target": "/u_arithmetic::op:2", "type": "data", "resolved": true, "net": "/u_arithmetic::sig:mac_i", "width": "logic [15:0]", "port": "", "pin": "A", "count": 1, "mapping": "direct"}, {"id": "/u_arithmetic::wire:6653d1005413d29505ab", "source": "/u_arithmetic::sig:offset_ext", "target": "/u_arithmetic::op:2", "type": "data", "resolved": true, "net": "/u_arithmetic::sig:offset_ext", "width": "logic [15:0]", "port": "", "pin": "B", "count": 1, "mapping": "direct"}, {"id": "/u_arithmetic::wire:ffed403051ec64f83832", "source": "/u_arithmetic::op:2", "target": "/u_arithmetic::sig:arith_d", "type": "data", "resolved": true, "net": "/u_arithmetic::sig:arith_d", "width": "logic [15:0]", "port": "", "pin": "", "count": 1, "mapping": "direct"}, {"id": "/u_arithmetic::wire:2879b0b5fc1a84a5339c", "source": "/u_arithmetic::sig:arith_d", "target": "/u_arithmetic::op:3", "type": "data", "resolved": true, "net": "/u_arithmetic::sig:arith_d", "width": "logic [15:0]", "port": "", "pin": "A", "count": 1, "mapping": "direct"}, {"id": "/u_arithmetic::wire:8c216d77fbf7df79e4aa", "source": "/u_arithmetic::sig:offset_ext", "target": "/u_arithmetic::op:3", "type": "data", "resolved": true, "net": "/u_arithmetic::sig:offset_ext", "width": "logic [15:0]", "port": "", "pin": "B", "count": 1, "mapping": "direct"}, {"id": "/u_arithmetic::wire:566708b1c051e9aa94b9", "source": "/u_arithmetic::sig:bypass_i", "target": "/u_arithmetic::op:3", "type": "data", "resolved": true, "net": "/u_arithmetic::sig:bypass_i", "width": "logic [15:0]", "port": "", "pin": "S", "count": 1, "mapping": "direct"}, {"id": "/u_arithmetic::wire:0742eb69864bc46ad046", "source": "/u_arithmetic::op:3", "target": "/u_arithmetic::sig:chosen_o", "type": "data", "resolved": true, "net": "/u_arithmetic::sig:chosen_o", "width": "logic [15:0]", "port": "", "pin": "", "count": 1, "mapping": "direct"}], "children": 0, "connectivity": {"unbound_pins": 0, "unresolved_pins": 0, "partial_pins": 0}, "total": 11, "truncated": false, "limits": ["Sequential markers only where AST explicitly denotes always_ff assignments", "Bindings are derived only from elaborated port expressions; sliced bus bindings indicate partial net dependence, not bit-level correspondence", "Case decision and MUX controls are AST dependencies; encoder/decoder/FSM semantics are not inferred from names", "A wire is a logical RTL dependency, not a physical net or timing path", "Clock/reset/enable not guessed from naming; register/counter only when AST process and feedback prove it"]}, "/u_output": {"schema": "flexsoc.rtl_viewer.module.v2", "path": "/u_output", "module": "dsp_round_sat", "revision": "625b4ac59df4a984", "ancestors": [{"path": "/", "name": "dsp_system", "module": "dsp_system"}, {"path": "/u_output", "name": "u_output", "module": "dsp_round_sat"}], "expanded": [], "nodes": [{"id": "/u_output::sig:data_i", "name": "data_i", "type": "port", "classification": "AST", "direction": "in", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}, {"id": "/u_output::sig:data_o", "name": "data_o", "type": "port", "classification": "AST", "direction": "out", "width": "logic [15:0]", "dimensions": {"packedDimensions": null, "unpackedDimensions": null}, "line": 5}], "edges": [], "children": 0, "connectivity": {"unbound_pins": 0, "unresolved_pins": 0, "partial_pins": 0}, "total": 2, "truncated": false, "limits": ["Sequential markers only where AST explicitly denotes always_ff assignments", "Bindings are derived only from elaborated port expressions; sliced bus bindings indicate partial net dependence, not bit-level correspondence", "Case decision and MUX controls are AST dependencies; encoder/decoder/FSM semantics are not inferred from names", "A wire is a logical RTL dependency, not a physical net or timing path", "Clock/reset/enable not guessed from naming; register/counter only when AST process and feedback prove it"]}}, "sources": {"/": {"status": "available", "module": "dsp_system", "file": "dsp_system.sv", "line": 5, "code": "// Integrated multi-file DSP: every module port is intentionally connected.\n// Parent nets use different names from child ports to exercise AST bindings.\nmodule dsp_system #(\n  parameter int DATA_W = 16,\n  parameter int TAPS = 8,\n  parameter int FRAME_LEN = 64,\n  parameter int ACC_W = 2*DATA_W + $clog2(TAPS),\n  parameter int ADDR_W = (TAPS > 1) ? $clog2(TAPS) : 1\n)(\n  input  logic                            clk_i,\n  input  logic                            rst_ni,\n  input  logic                            ce_i,\n  input  logic                            in_valid_i,\n  input  logic signed [DATA_W-1:0]        sample_i,\n  input  logic signed [DATA_W-1:0]        offset_i,\n  input  dsp_ops_pkg::dsp_op_e            opcode_i,\n  input  logic                            bypass_i,\n  input  logic                            cfg_write_i,\n  input  logic [ADDR_W-1:0]              cfg_addr_i,\n  input  logic signed [DATA_W-1:0]        cfg_coeff_i,\n  output logic                            ready_o,\n  output logic                            out_valid_o,\n  output logic signed [DATA_W-1:0]        data_o,\n  output logic                            busy_o,\n  output logic [$clog2(FRAME_LEN+1)-1:0]  frame_count_o\n);\n  wire signed [DATA_W-1:0] coeff_words [TAPS];\n  wire signed [ACC_W-1:0] parallel_sum;\n  wire signed [ACC_W-1:0] alu_result;\n  wire                      sum_valid;\n  wire                      accepted;\n\n  dsp_coeff_bank #(.DATA_W(DATA_W), .TAPS(TAPS)) u_coefficients (\n    .clk_i(clk_i), .rst_ni(rst_ni),\n    .write_i(cfg_write_i), .write_addr_i(cfg_addr_i),\n    .write_data_i(cfg_coeff_i), .coeff_o(coeff_words)\n  );\n  dsp_mac_array #(.DATA_W(DATA_W), .TAPS(TAPS), .ACC_W(ACC_W)) u_parallel (\n    .clk_i(clk_i), .rst_ni(rst_ni), .ce_i(ce_i),\n    .valid_i(accepted), .sample_i(sample_i), .coeff_i(coeff_words),\n    .sum_o(parallel_sum), .valid_o(sum_valid)\n  );\n  dsp_alu #(.DATA_W(DATA_W), .ACC_W(ACC_W)) u_arithmetic (\n    .mac_i(parallel_sum), .offset_i(offset_i),\n    .opcode_i(opcode_i), .bypass_i(bypass_i), .chosen_o(alu_result)\n  );\n  dsp_round_sat #(.DATA_W(DATA_W), .ACC_W(ACC_W)) u_output (\n    .clk_i(clk_i), .rst_ni(rst_ni), .ce_i(ce_i),\n    .valid_i(sum_valid), .data_i(alu_result),\n    .data_o(data_o), .valid_o(out_valid_o)\n  );\n  dsp_control #(.FRAME_LEN(FRAME_LEN)) u_controller (\n    .clk_i(clk_i), .rst_ni(rst_ni), .valid_i(in_valid_i),\n    .valid_o(out_valid_o), .accept_o(ready_o),\n    .busy_o(busy_o), .count_o(frame_count_o)\n  );\n  assign accepted = ready_o && in_valid_i;\nendmodule\n"}, "/u_arithmetic": {"status": "available", "module": "dsp_alu", "file": "dsp_alu.sv", "line": 5, "code": "// Explicit arithmetic plus two-input MUX with a dedicated select pin.\nmodule dsp_alu #(\n  parameter int DATA_W = 16,\n  parameter int ACC_W = 35\n)(\n  input  logic signed [ACC_W-1:0]         mac_i,\n  input  logic signed [DATA_W-1:0]        offset_i,\n  input  dsp_ops_pkg::dsp_op_e            opcode_i,\n  input  logic                            bypass_i,\n  output wire signed [ACC_W-1:0]         chosen_o\n);\n  logic signed [ACC_W-1:0] offset_ext;\n  logic signed [ACC_W-1:0] arith_d;\n  assign offset_ext = ACC_W'(offset_i);\n  always_comb begin\n    unique case (opcode_i)\n      dsp_ops_pkg::OP_PASS: arith_d = mac_i;\n      dsp_ops_pkg::OP_ADD:  arith_d = mac_i + offset_ext;\n      dsp_ops_pkg::OP_SUB:  arith_d = mac_i - offset_ext;\n      dsp_ops_pkg::OP_NEG:  arith_d = -mac_i;\n      default:              arith_d = mac_i;\n    endcase\n  end\n  assign chosen_o = bypass_i ? offset_ext : arith_d;\nendmodule\n"}, "/u_output": {"status": "available", "module": "dsp_round_sat", "file": "dsp_round_sat.sv", "line": 5, "code": "// Signed saturation before a registered output; no implicit truncation.\nmodule dsp_round_sat #(\n  parameter int DATA_W = 16,\n  parameter int ACC_W  = 35\n)(\n  input  logic                        clk_i,\n  input  logic                        rst_ni,\n  input  logic                        ce_i,\n  input  logic                        valid_i,\n  input  logic signed [ACC_W-1:0]     data_i,\n  output logic signed [DATA_W-1:0]    data_o,\n  output logic                        valid_o\n);\n  localparam logic signed [ACC_W-1:0] MAX_VAL = (ACC_W'(1) \u003c\u003c\u003c (DATA_W-1)) - 1;\n  localparam logic signed [ACC_W-1:0] MIN_VAL = -(ACC_W'(1) \u003c\u003c\u003c (DATA_W-1));\n  logic signed [DATA_W-1:0] clipped_d;\n  always_comb begin\n    if (data_i > MAX_VAL)      clipped_d = DATA_W'(MAX_VAL);\n    else if (data_i \u003c MIN_VAL) clipped_d = DATA_W'(MIN_VAL);\n    else                       clipped_d = DATA_W'(data_i);\n  end\n  always_ff @(posedge clk_i or negedge rst_ni) begin\n    if (!rst_ni) begin\n      data_o  \u003c= '0;\n      valid_o \u003c= 1'b0;\n    end else if (ce_i) begin\n      data_o  \u003c= clipped_d;\n      valid_o \u003c= valid_i;\n    end\n  end\nendmodule\n"}}};
+window.FlexAPI = async (name, params = {}) => {
+ if (name === 'overview') return OFFLINE_FIXTURE.overview;
+ if (name === 'diagram') return OFFLINE_FIXTURE.graphs[params.path || '/'] || Promise.reject(Error('Unknown scope'));
+ if (name === 'source') return OFFLINE_FIXTURE.sources[params.path || '/'] || {status:'unresolved',code:''};
+ if (name === 'lint') return {status:'unavailable',diagnostics:[]};
+ if (name === 'follow') return {status:'unresolved',reason:'Offline AST fixture — use actual Slang elaboration to trace signals'};
+ if (name === 'cone') return {status:'unavailable',paths:[],reason:'Offline fixture — use actual Slang elaboration for analysis'};
+ throw Error('Unsupported mock API');
+};
+</script>
+<script>
+'use strict';
+/* Pure per-module RTL schematic layout. The AST graph is never mutated.
+ * Rank -> four stable barycentric sweeps -> interval-packed routing channels.
+ * Long/feedback nets travel above the blocks; labels remain RTL dependencies,
+ * not assertions of bit-exact connectivity or physical timing.
+ */
+(function(root){
+ const isInput=p=>['in','input','inout'].includes(p.direction);
+ const isOutput=p=>['out','output','inout'].includes(p.direction);
+function boxSize(n){if(n.type==='instance'||n.type==='generate'){const left=(n.ports||[]).filter(p=>['in','input'].includes(p.direction)).length;const right=(n.ports||[]).filter(p=>['out','output'].includes(p.direction)).length;return {w:220,h:Math.max(100,64+Math.max(left,right)*19)};}if(['register','counter','fsm'].includes(n.type))return {w:133,h:73};if(n.type==='operator')return {w:n.shape==='mux'?112:104,h:82};if(n.type==='port')return {w:144,h:44};return {w:170,h:n.dimensions?.unpackedDimensions?56:42};}
+function baseRank(n){if(n.type==='port')return ['in','input'].includes(n.direction)?0:['out','output'].includes(n.direction)?6:2;if(n.type==='operator'||n.type==='instance'||n.type==='generate')return 3;if(['register','counter','fsm'].includes(n.type))return 4;return 2;}
+// Component pin geometry is shared with Canvas. A/B are data inputs, S is
+// the mux selector *below* the trapezoid, Y is the driven output.
+function pinGeometry(n,rect,pin,side){
+ if(n.type!=='operator')return null;
+ const {x,y,w,h}=rect;
+ if(side==='out')return {x:x+w-9,y:y+h/2,face:'right'};
+ if(n.shape==='mux'){
+  if(pin==='A')return {x:x+9,y:y+22,face:'left'};
+  if(pin==='B')return {x:x+9,y:y+h-22,face:'left'};
+  if(pin==='S')return {x:x+w/2,y:y+h-6,face:'bottom'};
+ }
+ if(pin==='A')return {x:x+7,y:y+23,face:'left'};
+ if(pin==='B')return {x:x+7,y:y+h-23,face:'left'};
+ return {x:x+7,y:y+h/2,face:'left'};
+}
+
+ function compact(points){
+  const clean=points.filter((p,i)=>!i||p[0]!==points[i-1][0]||p[1]!==points[i-1][1]);
+  for(let i=1;i+1<clean.length;){
+   const a=clean[i-1],b=clean[i],c=clean[i+1];
+   if((a[0]===b[0]&&b[0]===c[0])||(a[1]===b[1]&&b[1]===c[1]))clean.splice(i,1);
+   else i++;
+  }
+  return clean;
+ }
+ // Interval partitioning: a track can be reused only for disjoint vertical
+ // segments. This prevents overlay without allocating one column per wire.
+ function tracks(items,clearance=9){
+  const ends=[],slots=new Map();
+  for(const item of [...items].sort((a,b)=>a.lo-b.lo||a.hi-b.h||String(a.id).localeCompare(String(b.id)))){
+   let slot=ends.findIndex(end=>end+clearance<item.lo);
+   if(slot<0){slot=ends.length;ends.push(item.hi);}else ends[slot]=item.hi;
+   slots.set(item.id,slot);
+  }
+  return {slots,count:ends.length};
+ }
+ // Visual bridge metadata at perpendicular crossings of different RTL nets.
+ // Sort vertical segments by x; each horizontal segment tests only the x-range
+ // it spans. This avoids the quadratic all-wires-pairs scan at high parallelism.
+ function bridges(paths,edges){
+  const meta=new Map(edges.map(e=>[e.id,e]));
+  const vertical=[],horizontal=[];
+  for(const [id,points] of paths){
+   for(let i=1;i<points.length;i++){
+    const a=points[i-1],b=points[i];
+    if(a[0]===b[0]&&Math.abs(a[1]-b[1])>16)vertical.push({id,x:a[0],lo:Math.min(a[1],b[1]),hi:Math.max(a[1],b[1])});
+    else if(a[1]===b[1]&&Math.abs(a[0]-b[0])>16)horizontal.push({id,y:a[1],lo:Math.min(a[0],b[0]),hi:Math.max(a[0],b[0])});
+   }
+  }
+  vertical.sort((a,b)=>a.x-b.x);
+  const result=[],last=new Map();
+  for(const h of horizontal){
+   let low=0,high=vertical.length;
+   while(low<high){const mid=(low+high)>>1;if(vertical[mid].x<h.lo+8)low=mid+1;else high=mid;}
+   for(let i=low;i<vertical.length&&vertical[i].x<h.hi-8;i++){
+    const v=vertical[i],x=v.x;
+    if(v.id===h.id||h.y<=v.lo+8||h.y>=v.hi-8)continue;
+    const first=meta.get(h.id),second=meta.get(v.id);
+    if(first?.net&&first.net===second?.net)continue;
+    if(x-(last.get(h.id)||-Infinity)<13)continue;
+    result.push({edge:h.id,x,y:h.y});last.set(h.id,x);
+    if(result.length>=3000)return result;
+   }
+  }
+  return result;
+ }
+ // Conservative geometry verifier + bounded congestion-aware rerouter.
+ // Only geometry changes: RTL edge direction and identity are never inferred
+ // from coordinates. We score box intersections and distinct-net overlapping
+ // conductors independently of line crossings (which have explicit bridges).
+ function segments(points){
+  return points.slice(1).map((b,i)=>({a:points[i],b})).filter(s=>s.a[0]!==s.b[0]||s.a[1]!==s.b[1]);
+ }
+ function rectHit(segment,rect){
+  const {a,b}=segment,margin=2;
+  if(a[0]===b[0])return a[0]>rect.x+margin&&a[0]<rect.x+rect.w-margin&&
+     Math.max(a[1],b[1])>rect.y+margin&&Math.min(a[1],b[1])<rect.y+rect.h-margin;
+  if(a[1]===b[1])return a[1]>rect.y+margin&&a[1]<rect.y+rect.h-margin&&
+     Math.max(a[0],b[0])>rect.x+margin&&Math.min(a[0],b[0])<rect.x+rect.w-margin;
+  return true; // diagonal segments are invalid in a Manhattan router
+ }
+ function sharedLength(first,second){
+  if(first.a[1]===first.b[1]&&second.a[1]===second.b[1]&&Math.abs(first.a[1]-second.a[1])<4)
+   return Math.max(0,Math.min(Math.max(first.a[0],first.b[0]),Math.max(second.a[0],second.b[0]))-
+    Math.max(Math.min(first.a[0],first.b[0]),Math.min(second.a[0],second.b[0])));
+  if(first.a[0]===first.b[0]&&second.a[0]===second.b[0]&&Math.abs(first.a[0]-second.a[0])<4)
+   return Math.max(0,Math.min(Math.max(first.a[1],first.b[1]),Math.max(second.a[1],second.b[1]))-
+    Math.max(Math.min(first.a[1],first.b[1]),Math.min(second.a[1],second.b[1])));
+  return 0;
+ }
+ function geometryScore(id,points,nodes,accepted,meta){
+  const edge=meta.get(id),lines=segments(points);let boxHits=0,overlap=0;
+  for(const s of lines)for(const [node,rect] of nodes){
+   if(node!==edge?.source&&node!==edge?.target&&rectHit(s,rect))boxHits++;
+  }
+  for(const [other,prior] of accepted){
+   const previous=meta.get(other);
+   if(edge?.net&&edge.net===previous?.net)continue; // electrically same net may share a conductor
+   for(const line of lines)for(const priorLine of segments(prior))overlap+=Math.max(0,sharedLength(line,priorLine)-8);
+  }
+  const length=lines.reduce((sum,s)=>sum+Math.abs(s.a[0]-s.b[0])+Math.abs(s.a[1]-s.b[1]),0);
+  return {boxHits,overlap,length,score:boxHits*100000+overlap*800+length};
+ }
+ // Spatially indexed design-rule check. Unlike the old global O(E²)
+ // scan, this also runs when a parallel design has hundreds of wires.
+ // Source/target pin stubs are allowed to touch their own symbol; crossings
+ // and unrelated-net overlaps are evaluated separately.
+ class RoutingOccupancy {
+  constructor(positions,meta,cell=160){
+   this.cell=cell;this.positions=positions;this.meta=meta;
+   this.boxes=new Map();this.wires=new Map();
+   for(const [id,box] of positions)
+    this._put(this.boxes,box.x,box.y,box.x+box.w,box.y+box.h,{id,box});
+  }
+  _cells(x0,y0,x1,y1){
+   const xlo=Math.floor(Math.min(x0,x1)/this.cell),xhi=Math.floor(Math.max(x0,x1)/this.cell);
+   const ylo=Math.floor(Math.min(y0,y1)/this.cell),yhi=Math.floor(Math.max(y0,y1)/this.cell);
+   const out=[];for(let x=xlo;x<=xhi;x++)for(let y=ylo;y<=yhi;y++)out.push(x+':'+y);
+   return out;
+  }
+  _put(map,x0,y0,x1,y1,item){
+   for(const key of this._cells(x0,y0,x1,y1)){
+    if(!map.has(key))map.set(key,[]);
+    map.get(key).push(item);
+   }
+  }
+  _around(map,segment){
+   const result=new Set();
+   for(const key of this._cells(segment.a[0]-3,segment.a[1]-3,segment.b[0]+3,segment.b[1]+3))
+    for(const hit of map.get(key)||[])result.add(hit);
+   return result;
+  }
+  add(id,polyline){
+   for(const segment of segments(polyline))
+    this._put(this.wires,segment.a[0],segment.a[1],segment.b[0],segment.b[1],{id,segment});
+  }
+  score(id,polyline){
+   const edge=this.meta.get(id),lines=segments(polyline);let boxHits=0,overlap=0,length=0;
+   for(const segment of lines){
+    length+=Math.abs(segment.a[0]-segment.b[0])+Math.abs(segment.a[1]-segment.b[1]);
+    for(const {id:node,box} of this._around(this.boxes,segment))
+     if(node!==edge?.source&&node!==edge?.target&&rectHit(segment,box))boxHits++;
+    for(const {id:other,segment:prior} of this._around(this.wires,segment)){
+     const previous=this.meta.get(other);
+     if(edge?.net&&edge.net===previous?.net)continue;
+     overlap+=Math.max(0,sharedLength(segment,prior)-8);
+    }
+   }
+   return {boxHits,overlap,length,score:boxHits*100000+overlap*800+length};
+  }
+ }
+ function refine(graph,positions,paths,height,{maxEdges=5000}={}){
+  const meta=new Map(graph.edges.map(e=>[e.id,e]));
+  const accepted=new Map(), occupancy=new RoutingOccupancy(positions,meta);
+  let before=0,after=0,adjusted=0;
+  // If a graph exceeds the bounded interactive routing budget, flag it
+  // visibly instead of claiming it was collision-checked.
+  if(paths.size>maxEdges)return {paths,stats:{refined:0,skipped:paths.size,quality:'not_audited'}};
+  const order=[...paths.keys()].sort();
+  for(const id of order){
+   const original=paths.get(id);
+   const baseline=occupancy.score(id,original);
+   before+=baseline.boxHits;
+   let best=original,bestScore=baseline;
+   if(baseline.boxHits||baseline.overlap>15){
+    const from=positions.get(meta.get(id).source),to=positions.get(meta.get(id).target);
+    const start=original[0],end=original[original.length-1];
+    if(meta.get(id).pin==='S' && meta.get(id).target &&
+       graph.nodes.some(n=>n.id===meta.get(id).target && n.shape==='mux')){
+     // Every alternative must enter S vertically from *below*. A shortest
+     // path from above / the side changes circuit semantics visually.
+     for(let track=0;track<(paths.size>500?4:12);track++){
+      const below=to.y+to.h+20+track*14;
+      for(const side of [-1,1]){
+       const exit=side<0?from.x-26-track*10:from.x+from.w+26+track*10;
+       const candidate=compact([start,[exit,start[1]],[exit,below],[end[0],below],end]);
+       const score=occupancy.score(id,candidate);
+       if(score.score<bestScore.score){best=candidate;bestScore=score;}
+      }
+     }
+    }else if(['A','B'].includes(meta.get(id).pin) &&
+             graph.nodes.some(n=>n.id===meta.get(id).target && n.type==='operator')){
+     // A/B functional inputs must be approached from the left even when
+     // their logical driver is drawn in a column to the right.
+     for(let track=0;track<(paths.size>500?4:12);track++){
+      const entry=to.x-20-track*12;
+      for(const rail of [Math.max(12,to.y-28-track*14),to.y+to.h+28+track*14]){
+       const exit=from.x+from.w+22+track*8;
+       const candidate=compact([start,[exit,start[1]],[exit,rail],[entry,rail],[entry,end[1]],end]);
+       const score=occupancy.score(id,candidate);
+       if(score.score<bestScore.score){best=candidate;bestScore=score;}
+      }
+     }
+    }else{
+    // For a plain signal/operator endpoint, the glyph has no fixed named
+    // port, so a congested route may enter via the opposite face. Named
+    // instance ports must retain the face chosen by the AST binding.
+    const landing=[end];
+    if(!meta.get(id).port){
+     landing.push([to.x+(end[0]>to.x+to.w/2?8:to.w-8),end[1]]);
+    }
+    for(const finish of landing){
+     const leaving=start[0]>from.x+from.w/2?1:-1;
+     const entering=finish[0]>to.x+to.w/2?1:-1;
+     // Prefer a short, obstacle-free side channel before a long detour to
+     // the top/bottom rail; it preserves visual locality for same-rank nets.
+     for(let track=0;track<(paths.size>500?3:6);track++){
+      const left=Math.max(16,Math.min(from.x,to.x)-24-track*18);
+      const right=Math.max(from.x+from.w,to.x+to.w)+24+track*18;
+      for(const x of [left,right]){
+       const candidate=compact([start,[x,start[1]],[x,finish[1]],finish]);
+       const score=occupancy.score(id,candidate);
+       if(score.score<bestScore.score){best=candidate;bestScore=score;}
+      }
+     }
+     for(let track=0;track<(paths.size>500?4:8);track++)for(const rail of [
+      Math.max(16,Math.min(start[1],finish[1])-48-track*14),
+      Math.max(start[1],finish[1])+48+track*14,
+      18+track*12,height+24+track*12]){
+      const x0=start[0]+leaving*(26+track*7),x1=finish[0]+entering*(26+track*7);
+      const candidate=compact([start,[x0,start[1]],[x0,rail],[x1,rail],[x1,finish[1]],finish]);
+      const score=geometryScore(id,candidate,positions,accepted,meta);
+      if(score.score<bestScore.score){best=candidate;bestScore=score;}
+     }
+    }
+    }
+   }
+   if(best!==original)adjusted++;
+   after+=bestScore.boxHits;
+   accepted.set(id,best);
+   occupancy.add(id,best);
+  }
+  return {paths:accepted,stats:{refined:adjusted,nodeConflictsBefore:before,nodeConflictsAfter:after,skipped:0,quality:'audited'}};
+ }
+ function compute(graph,{boxSize,baseRank}){
+  const nodes=new Map(graph.nodes.map(n=>[n.id,n]));
+  const rank=new Map(graph.nodes.map(n=>[n.id,baseRank(n)]));
+  // Bounded relaxation avoids unbounded ranks on combinational feedback.
+  for(let round=0;round<3;round++){
+   let updated=false;
+   for(const e of graph.edges){
+    const target=nodes.get(e.target);
+    if(!target||target.type==='port'||!nodes.has(e.source))continue;
+    const candidate=Math.min(5,(rank.get(e.source)??2)+1);
+    if(candidate>rank.get(e.target)){rank.set(e.target,candidate);updated=true;}
+   }
+   if(!updated)break;
+  }
+  const columns=Array.from({length:7},()=>[]);
+  for(const n of graph.nodes)columns[rank.get(n.id)].push(n);
+  const inputs=new Map(),outputs=new Map();
+  for(const e of graph.edges){
+   if(!nodes.has(e.source)||!nodes.has(e.target))continue;
+   if(!inputs.has(e.target))inputs.set(e.target,[]);
+   if(!outputs.has(e.source))outputs.set(e.source,[]);
+   inputs.get(e.target).push(e.source);outputs.get(e.source).push(e.target);
+  }
+  // Two-way sweeps reduce crossings compared with an input-order-only sort.
+  // Sorting stays stable for unconnected nodes and does not scan E per compare.
+  for(let sweep=0;sweep<4;sweep++){
+   const forward=sweep%2===0;
+   const order=new Map();columns.forEach(col=>col.forEach((n,i)=>order.set(n.id,i)));
+   const first=forward?1:5,last=forward?6:0,step=forward?1:-1;
+   for(let c=first;forward?c<=last:c>=last;c+=step){
+    const reference=forward?inputs:outputs,weights=new Map();
+    for(const n of columns[c]){
+     const neighbor=(reference.get(n.id)||[]).filter(id=>rank.get(id)===c-step);
+     weights.set(n.id,neighbor.length?neighbor.reduce((a,id)=>a+order.get(id),0)/neighbor.length:order.get(n.id));
+    }
+    columns[c].sort((a,b)=>weights.get(a.id)-weights.get(b.id)||order.get(a.id)-order.get(b.id));
+    columns[c].forEach((n,i)=>order.set(n.id,i));
+   }
+  }
+  const widths=columns.map(col=>Math.max(165,...col.map(n=>boxSize(n).w)));
+  // Position Y before allocating tracks; X depends only on required tracks.
+  const localY=new Map();let contentHeight=200;
+  // Shared row baselines align parallel datapaths even when register and module
+  // symbols have different heights. Per-column independent spacing would turn
+  // a 180-lane straight bus into 180 overlapping diagonal spans.
+  const rows=Math.max(0,...columns.map(col=>col.length));
+  let rowY=0;const corridorRows=[];
+  for(let i=0;i<rows;i++){
+   let rowHeight=0;
+   for(const col of columns){
+    if(!col[i])continue;
+    const d=boxSize(col[i]);rowHeight=Math.max(rowHeight,d.h);
+    localY.set(col[i].id,{y:rowY,h:d.h,w:d.w});
+   }
+   // Three parallel tracks fit inside the 46px gap between aligned rows.
+   corridorRows.push([rowY+rowHeight+9,rowY+rowHeight+21,rowY+rowHeight+33]);
+   rowY+=rowHeight+46;
+  }
+  contentHeight=Math.max(contentHeight,rowY+70);
+  // Spread fanout/fanin stubs over the symbol boundary. Dedicated module ports
+  // preserve their exact symbol pin position, even with multiple fanouts.
+  const orderEdges=(ids,other)=>ids.sort((a,b)=>{
+   const p=localY.get(other(a)),q=localY.get(other(b));
+   return ((p?.y||0)+(p?.h||0)/2)-((q?.y||0)+(q?.h||0)/2)||a.id.localeCompare(b.id);
+  });
+  const outgoing=new Map(),incoming=new Map(),departures=new Map(),arrivals=new Map();
+  for(const e of graph.edges){
+   if(!nodes.has(e.source)||!nodes.has(e.target))continue;
+   if(!outgoing.has(e.source))outgoing.set(e.source,[]);
+   if(!incoming.has(e.target))incoming.set(e.target,[]);
+   outgoing.get(e.source).push(e);incoming.get(e.target).push(e);
+  }
+  const edgeAnchor=(n,edge,side,idx,total)=>{
+   const rect=localY.get(n.id);
+   const componentPin=pinGeometry(n,{x:0,y:rect.y,w:rect.w,h:rect.h},edge.pin,side);
+   if(componentPin)return componentPin.y;
+   if(['instance','generate'].includes(n.type)&&edge.port){
+    const portList=(n.ports||[]).filter(side==='out'?isOutput:isInput);
+    const pos=portList.findIndex(p=>p.name===edge.port);
+    if(pos>=0)return rect.y+(side==='out'?65:53)+19*pos;
+   }
+   return rect.y+rect.h/2+Math.max(-rect.h*.32,Math.min(rect.h*.32,(idx-(total-1)/2)*5));
+  };
+  for(const [id,edges] of outgoing){
+   orderEdges(edges,e=>e.target);
+   edges.forEach((e,i)=>departures.set(e.id,edgeAnchor(nodes.get(id),e,'out',i,edges.length)));
+  }
+  for(const [id,edges] of incoming){
+   orderEdges(edges,e=>e.source);
+   edges.forEach((e,i)=>arrivals.set(e.id,edgeAnchor(nodes.get(id),e,'in',i,edges.length)));
+  }
+  const gaps=Array.from({length:7},()=>[]),overhead=[];
+  for(const e of graph.edges){
+   if(!departures.has(e.id))continue;
+   const ra=rank.get(e.source),rb=rank.get(e.target),ya=departures.get(e.id),yb=arrivals.get(e.id);
+   if(rb===ra+1)gaps[ra].push({id:e.id,lo:Math.min(ya,yb),hi:Math.max(ya,yb)});
+   else overhead.push({id:e.id,lo:Math.min(ra,rb),hi:Math.max(ra,rb)+.1});
+  }
+  const packed=gaps.map(group=>tracks(group,12));
+  // Long and feedback wires first try *free inter-row corridors*. Their
+  // horizontal portion crosses all intermediate columns without touching a
+  // symbol. Reserving rank-span intervals prevents separate nets from sharing
+  // the same corridor track where their spans overlap.
+  const corridors=new Map(),used=new Map(),fallback=[];
+  const choices=corridorRows.slice(0,-1).flat();
+  for(const wire of overhead){
+   const y0=departures.get(wire.id),y1=arrivals.get(wire.id);
+   const candidates=[...choices].sort((a,b)=>Math.abs(a-y0)+Math.abs(a-y1)-Math.abs(b-y0)-Math.abs(b-y1)||a-b);
+   let chosen=null;
+   for(const y of candidates){
+    const reserved=used.get(y)||[];
+    if(reserved.some(w=>wire.lo<=w.hi&&w.lo<=wire.hi))continue;
+    chosen=y;reserved.push(wire);used.set(y,reserved);break;
+   }
+   if(chosen===null)fallback.push(wire);else corridors.set(wire.id,chosen);
+  }
+  // Overflow takes the top duct; unlike the old router, only those nets
+  // consume vertical space above the diagram.
+  const topRails=tracks(fallback,.01);
+  const topOffset=94+topRails.count*17;
+  const start=[];let right=48;
+  columns.forEach((col,c)=>{
+   start[c]=right;
+   if(col.length)right+=widths[c]+Math.max(98,54+packed[c].count*15);
+  });
+  const positions=new Map();
+  for(const col of columns)for(const n of col){
+   const p=localY.get(n.id);positions.set(n.id,{x:start[rank.get(n.id)],y:p.y+topOffset,w:p.w,h:p.h});
+  }
+  const edgePaths=new Map(),portFaces=new Map();
+  for(const e of graph.edges){
+   const from=positions.get(e.source),to=positions.get(e.target);
+   if(!from||!to)continue;
+   const ra=rank.get(e.source),rb=rank.get(e.target);
+   // A backward connection must really flow right -> left, including its
+   // arrowhead. Its source leaves the LEFT face; the sink receives on its
+   // RIGHT face. Pin face is exported for the component renderer.
+   const backward=rb<=ra && from.x>=to.x;
+   const sourcePin=pinGeometry(nodes.get(e.source),from,e.pin,'out');
+   const sinkPin=pinGeometry(nodes.get(e.target),to,e.pin,'in');
+   const x0=sourcePin?.x??(backward?from.x+8:from.x+from.w-8);
+   const x1=sinkPin?.x??(backward?to.x+to.w-8:to.x+8);
+   const y0=sourcePin?.y??(departures.get(e.id)+topOffset);
+   const y1=sinkPin?.y??(arrivals.get(e.id)+topOffset);
+   let path;
+   if(sinkPin?.face==='bottom'){
+    // The select pin is bottom-facing. Approach from *below*, so the wire
+    // cannot masquerade as a data input or pass through the mux body.
+    const below=to.y+to.h+20;
+    const exit=from.x+from.w+22;
+    path=[[x0,y0],[exit,y0],[exit,below],[x1,below],[x1,y1]];
+   }else if(sinkPin?.face==='left' && backward){
+    // Real drivers may be to the right of their consumers. Keep the AST
+    // direction but enter functional-symbol data pins from their left face.
+    const exit=from.x+from.w+23;
+    const entry=to.x-22;
+    const rail=Math.max(14,to.y-34);
+    path=[[x0,y0],[exit,y0],[exit,rail],[entry,rail],[entry,y1],[x1,y1]];
+   }else if(rb===ra+1&&!backward){
+    const track=packed[ra].slots.get(e.id);
+    const channel=start[ra]+widths[ra]+22+track*15;
+    path=[[x0,y0],[channel,y0],[channel,y1],[x1,y1]];
+   }else{
+    const fallbackTrack=topRails.slots.get(e.id);
+    const track=fallbackTrack??0;
+    const rail=corridors.has(e.id)?corridors.get(e.id)+topOffset:60+track*17;
+    // Source exit in the next free gap; target entry in the prior free gap.
+    // Both are outside the module bounding boxes, even on backward edges.
+    const exit=backward?from.x-22-(track%3)*7:from.x+from.w+22+(track%3)*7;
+    const entry=backward?to.x+to.w+23+(track%3)*7:to.x-23-(track%3)*7;
+    path=[[x0,y0],[exit,y0],[exit,rail],[entry,rail],[entry,y1],[x1,y1]];
+   }
+   edgePaths.set(e.id,compact(path));
+   if(e.port){
+    const instance=e.type==='port_out'?e.source:e.target;
+    if(nodes.get(instance)?.type==='instance'||nodes.get(instance)?.type==='generate')
+     portFaces.set(instance+'::'+e.port,backward?(e.type==='port_out'?'left':'right'):(e.type==='port_out'?'right':'left'));
+   }
+  }
+  const polished=refine(graph,positions,edgePaths,contentHeight+topOffset);
+  // Include repaired detours in the canvas extents; otherwise Fit can clip
+  // a valid net routed below or to the right of the original layout.
+  let routedWidth=Math.max(530,right),routedHeight=contentHeight+topOffset;
+  for(const points of polished.paths.values())for(const [x,y] of points){
+   routedWidth=Math.max(routedWidth,x+44);routedHeight=Math.max(routedHeight,y+44);
+  }
+  return {positions,edgePaths:polished.paths,portFaces,bridges:bridges(polished.paths,graph.edges),width:routedWidth,height:routedHeight,
+   stats:{channelTracks:packed.reduce((sum,p)=>sum+p.count,0),corridorWires:corridors.size,overheadTracks:topRails.count,...polished.stats}};
+ }
+ const api={compute,tracks,bridges,geometryScore,refine,RoutingOccupancy,boxSize,baseRank,pinGeometry};
+ if(typeof module==='object'&&module.exports)module.exports=api;
+ else root.FlexRouting=api;
+})(typeof window==='object'?window:globalThis);
+
+</script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const canvas = $('diagram'), ctx = canvas.getContext('2d', {alpha:false});
+const state = {overview:null,graph:null,path:'/',expanded:new Map(),viewport:new Map(),layouts:new Map(),selected:null,pinned:null,hover:null,drag:null,inspector:false,tab:'source',context:null,wire:null,manualView:false};
+// FlexSoC brand system: orange = transformations, sky = connectivity,
+// navy = hierarchy, neutral graphite = chrome. Colors remain legible in both modes.
+const palettes={
+ dark:{counter:'#ffbd70',fsm:'#9de2ee',port:'#53bfff',signal:'#91b2cd',register:'#ff9954',operator:'#ffb56c',instance:'#54c4ec',generate:'#ffa558',wire:'#6faace',binding:'#48c5ee',sequential:'#fb9a5d',selected:'#ffd089',symbolFill:'#1b3046',pickedFill:'#284560',stackFill:'#34475b',stackStroke:'#9b6e4a',text:'#f0f6ff',muted:'#a9c3d8',canvas:'#111c2b'},
+ light:{counter:'#bd5815',fsm:'#1384ba',port:'#0879b2',signal:'#456d88',register:'#d35b1b',operator:'#c36a20',instance:'#0b82bb',generate:'#e06e22',wire:'#4c86aa',binding:'#167eac',sequential:'#c76320',selected:'#ee8429',symbolFill:'#e9f3fa',pickedFill:'#d3e9f9',stackFill:'#dbe4ef',stackStroke:'#b36e3c',text:'#102c4b',muted:'#375b78',canvas:'#f4f9fd'}
+};
+let colors=palettes.dark;
+
+const clamp=(x,lo,hi)=>Math.min(hi,Math.max(lo,x));
+const keyOf=n=>n?.net||n?.id||'';
+const isSignal=n=>n?.id?.includes('::sig:');
+function applyTheme(mode){
+ const next=mode==='light'?'light':'dark';
+ document.documentElement.dataset.theme=next;
+ colors=palettes[next];
+ $('themeToggle').textContent=next==='light'?'☾ Dark':'☀ Light';
+ $('themeToggle').setAttribute('aria-label','Switch to '+(next==='light'?'dark':'light')+' theme');
+ try{localStorage.setItem('flexsoc-rtl-theme',next);}catch(_e){}
+ draw();
+}
+function announce(message){$('message').textContent=message;}
+async function api(name,params={}) {
+ if(typeof window.FlexAPI==='function') return window.FlexAPI(name,params);
+ const url=new URL('/api/'+name,location.protocol==='about:'?'http://localhost':location.href);
+ Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
+ const r=await fetch(url);const data=await r.json();if(!r.ok)throw Error(data.error||r.status);return data;
+}
+function view(){return state.viewport.get(state.path)||{x:90,y:90,z:1};}
+function setView(v){state.viewport.set(state.path,v);}
+let lastCanvasSize={w:0,h:0};
+function resize(){
+ const w=canvas.clientWidth||1,h=canvas.clientHeight||1,scale=Math.min(devicePixelRatio||1,2);
+ const changed=Math.abs(w-lastCanvasSize.w)>2||Math.abs(h-lastCanvasSize.h)>2;
+ lastCanvasSize={w,h};canvas.width=Math.floor(w*scale);canvas.height=Math.floor(h*scale);
+ // The inspector changes the *canvas width*. Refit after ResizeObserver has
+ // measured the new width, not before CSS flexbox has completed its layout.
+ if(changed&&state.graph&&!state.manualView&&w>220&&h>180)fit();else draw();
+}
+new ResizeObserver(resize).observe(canvas);
+const boxSize=FlexRouting.boxSize,baseRank=FlexRouting.baseRank;
+function layout(graph){
+ const id=graph.path+':'+(graph.expanded||[]).join('|')+':'+graph.revision;
+ if(state.layouts.has(id))return state.layouts.get(id);
+ const result=FlexRouting.compute(graph,{boxSize,baseRank});
+ state.layouts.set(id,result);
+ if(state.layouts.size>80)state.layouts.delete(state.layouts.keys().next().value);
+ return result;
+}
+function round(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function visible(p,v,w,h,margin=60){return(p.x+p.w)*v.z+v.x>=-margin&&p.x*v.z+v.x<=w+margin&&(p.y+p.h)*v.z+v.y>=-margin&&p.y*v.z+v.y<=h+margin;}
+function wireVisible(points,v,w,h){const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);return visible({x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)},v,w,h);}
+function highlighted(e){return state.hover?.id===e.id||state.selected===e.id||state.selected===e.net||state.pinned===e.net;}
+function pathDraw(points){ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));}
+function drawWire(e,points,v){
+ const hot=highlighted(e),partial=e.mapping==='partial';
+ ctx.lineWidth=hot?3.8:e.width?.includes('[')?2.6:1.8;
+ ctx.strokeStyle=hot?colors.selected:e.type==='sequential'?colors.sequential:e.type.startsWith('port')?colors.binding:colors.wire;
+ ctx.globalAlpha=hot?1:.88;ctx.lineJoin='round';ctx.lineCap='round';
+ ctx.setLineDash(partial?[3,5]:e.type==='sequential'?[7,4]:[]);
+ pathDraw(points);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+ // Arrow points along the *last nonzero* segment: left-going and vertical
+ // feedback nets must not be drawn with a misleading right-facing arrow.
+ const b=points[points.length-1];let a=points[points.length-2];
+ if(!a||!b)return;
+ const angle=Math.atan2(b[1]-a[1],b[0]-a[0]);
+ ctx.fillStyle=ctx.strokeStyle;ctx.beginPath();ctx.moveTo(b[0],b[1]);
+ ctx.lineTo(b[0]-9*Math.cos(angle-.43),b[1]-9*Math.sin(angle-.43));
+ ctx.lineTo(b[0]-9*Math.cos(angle+.43),b[1]-9*Math.sin(angle+.43));ctx.closePath();ctx.fill();
+ // Packets/slices are displayed as a *proven RTL net type*, never as
+ // fabricated per-bit wiring. Partial mapping is explicitly distinguished.
+ if(e.width?.includes('[')&&v.z>=.78&&!hot){
+  const segment=points.slice(1).map((p,i)=>({a:points[i],b:p})).find(s=>s.a[1]===s.b[1]&&Math.abs(s.a[0]-s.b[0])>75);
+  if(segment){const x=(segment.a[0]+segment.b[0])/2,y=segment.a[1];ctx.font='10px ui-monospace,monospace';ctx.fillStyle=colors.muted;
+   ctx.fillText((partial?'≈ ':'')+String(e.width).slice(0,22),x,y-8);}
+ }
+ if(e.count>1&&v.z>=.55){ctx.font='10px ui-monospace,monospace';ctx.fillStyle=colors.selected;ctx.fillText('×'+e.count,points[1][0]+6,points[1][1]-9);}
+ if(hot&&v.z>=.55){ctx.font='11px ui-monospace,monospace';ctx.fillStyle=colors.selected;
+  const label=(e.port?`${e.port} • `:'')+(e.net?.split('::sig:').pop()||'net')+
+   (partial?' [partial dependency]':'')+(e.width?.includes('[')?' '+e.width:'');
+  ctx.fillText(label.slice(0,83),points[1][0]+5,points[1][1]-9);
+ }
+}
+function symbol(n,p,diagram){const {x,y,w,h}=p,c=colors[n.type]||colors.signal;let picked=state.selected===n.id||state.pinned===n.id||state.hover?.id===n.id;
+ ctx.lineWidth=picked?2.9:1.6;ctx.strokeStyle=picked?colors.selected:c;ctx.fillStyle=picked?colors.pickedFill:colors.symbolFill;
+ if(n.type==='signal'){
+  ctx.lineWidth=picked?3.5:2;ctx.beginPath();ctx.moveTo(x+8,y+h/2);ctx.lineTo(x+w-8,y+h/2);ctx.stroke();ctx.fillStyle=c;ctx.beginPath();ctx.arc(x+w/2,y+h/2,5,0,Math.PI*2);ctx.fill();
+  if(view().z>=.43){ctx.font='12px ui-monospace,monospace';ctx.fillStyle=colors.text;ctx.fillText(n.name.slice(0,21),x+8,y+11);if(view().z>=.7){ctx.font='9px ui-monospace,monospace';ctx.fillStyle=colors.muted;
+   const packed=n.dimensions?.packedDimensions,unpacked=n.dimensions?.unpackedDimensions;
+   const shape=unpacked?'unpacked '+JSON.stringify(unpacked):packed?'packed '+JSON.stringify(packed):n.width||'';
+   if(shape)ctx.fillText(String(shape).slice(0,26),x+9,y+h-3);
+  }}
+  return;}
+ if(n.type==='port'){
+  ctx.beginPath();ctx.moveTo(x+7,y+3);ctx.lineTo(x+w-25,y+3);ctx.lineTo(x+w-7,y+h/2);ctx.lineTo(x+w-25,y+h-3);ctx.lineTo(x+7,y+h-3);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.fillStyle=colors.muted;ctx.font='10px ui-monospace,monospace';ctx.fillText(['out','output'].includes(n.direction)?'OUT':'IN',x+16,y+13);}
+ else if(n.type==='operator'){
+  if(n.shape==='mux'){
+   // IEC-style trapezoidal multiplexer symbol. Selected AST conditional,
+   // not a heuristic based on the name of a signal.
+   ctx.beginPath();ctx.moveTo(x+9,y+6);ctx.lineTo(x+w-15,y+22);ctx.lineTo(x+w-15,y+h-20);ctx.lineTo(x+9,y+h-6);ctx.closePath();ctx.fill();ctx.stroke();
+   // Pin ends come from the same geometry used by the router.
+   const r={x,y,w,h};
+   for(const role of ['A','B','S']){
+    const p=FlexRouting.pinGeometry(n,r,role,'in');
+    ctx.beginPath();
+    if(role==='S'){ctx.moveTo(p.x,p.y+11);ctx.lineTo(p.x,p.y);}
+    else{ctx.moveTo(p.x-12,p.y);ctx.lineTo(p.x,p.y);}
+    ctx.stroke();
+   }
+   const out=FlexRouting.pinGeometry(n,r,'Y','out');
+   ctx.beginPath();ctx.moveTo(out.x,out.y);ctx.lineTo(out.x+8,out.y);ctx.stroke();
+   ctx.font='10px ui-monospace,monospace';ctx.fillStyle=colors.muted;
+   ctx.fillText('A·0',x+13,y+20);ctx.fillText('B·1',x+13,y+h-17);
+   ctx.fillText('S',x+w/2+7,y+h-7);
+  }else if(n.shape==='arith'){
+   ctx.beginPath();ctx.moveTo(x+7,y+8);ctx.lineTo(x+w-9,y+8);ctx.lineTo(x+w-18,y+h/2);ctx.lineTo(x+w-9,y+h-8);ctx.lineTo(x+7,y+h-8);ctx.lineTo(x+16,y+h/2);ctx.closePath();ctx.fill();ctx.stroke();
+   for(const role of ['A','B']){
+    const p=FlexRouting.pinGeometry(n,{x,y,w,h},role,'in');
+    ctx.beginPath();ctx.moveTo(p.x-12,p.y);ctx.lineTo(p.x+3,p.y);ctx.stroke();
+    ctx.font='9px ui-monospace,monospace';ctx.fillStyle=colors.muted;ctx.fillText(role,p.x+5,p.y-4);
+   }
+   const out=FlexRouting.pinGeometry(n,{x,y,w,h},'Y','out');
+   ctx.beginPath();ctx.moveTo(out.x-5,out.y);ctx.lineTo(out.x+7,out.y);ctx.stroke();
+  }else if(['case','encoder','decoder'].includes(n.shape)){
+   // Case-dispatch symbol; ENC/DEC shapes require explicit semantic metadata,
+   // never merely a textual match against the module or signal name.
+   round(x+7,y+9,w-14,h-18,9);ctx.fill();ctx.stroke();
+   ctx.strokeStyle=colors.muted;ctx.beginPath();
+   for(let i=0;i<3;i++){ctx.moveTo(x+1,y+21+i*15);ctx.lineTo(x+8,y+21+i*15);}
+   ctx.moveTo(x+w-7,y+h/2);ctx.lineTo(x+w,y+h/2);ctx.stroke();
+  }else{ctx.beginPath();ctx.moveTo(x+w/2,y+4);ctx.lineTo(x+w-4,y+h/2);ctx.lineTo(x+w/2,y+h-4);ctx.lineTo(x+4,y+h/2);ctx.closePath();ctx.fill();ctx.stroke();}}
+ else if(['register','counter','fsm'].includes(n.type)){
+  round(x+4,y+3,w-8,h-6,5);ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(x+4,y+h-19);ctx.lineTo(x+15,y+h-13);ctx.lineTo(x+4,y+h-7);ctx.stroke();
+  ctx.fillStyle=colors.register;ctx.font='10px ui-monospace,monospace';ctx.fillText('D',x+10,y+16);ctx.fillText('Q',x+w-23,y+16);ctx.fillText('CLK',x+22,y+h-11);if(n.type==='counter'){ctx.fillText('↻',x+w-29,y+h-11);}if(n.type==='fsm')ctx.fillText('ST',x+w-28,y+h-11);}
+ else{
+  if(n.type==='generate'){for(let i=2;i>=1;i--){ctx.fillStyle=colors.stackFill;round(x+i*6,y+i*7,w-4,h-4,6);ctx.fill();ctx.strokeStyle=colors.stackStroke;ctx.stroke();}ctx.strokeStyle=picked?colors.selected:c;ctx.fillStyle=colors.symbolFill;}
+  round(x,y,w-12,h-12,5);ctx.fill();ctx.stroke();ctx.strokeRect(x+7,y+7,w-26,h-26);
+  for(const dir of ['in','out']){const ports=(n.ports||[]).filter(p=>dir==='in'?['in','input'].includes(p.direction):['out','output'].includes(p.direction));ports.forEach((port,i)=>{const py=y+(dir==='out'?65:53)+i*19,left=(diagram.portFaces.get(n.id+'::'+port.name)||dir)==='left'||(!diagram.portFaces.has(n.id+'::'+port.name)&&dir==='in');ctx.strokeStyle=['unbound','unresolved'].includes(port.connection)?colors.generate:port.connection==='partial'?colors.sequential:colors.instance;
+   const px=left?x-7:x+w-6;
+   ctx.beginPath();ctx.moveTo(left?x-7:x+w-20,py);ctx.lineTo(left?x+8:x+w-6,py);ctx.stroke();
+   if(port.connection==='unbound'){ctx.beginPath();ctx.arc(px,py,3.3,0,Math.PI*2);ctx.stroke();}
+   else if(port.connection==='unresolved'){
+    ctx.fillStyle=colors.generate;ctx.font='bold 11px ui-monospace,monospace';
+    ctx.fillText('?',px-3,py-5);
+   }
+   if(view().z>=.48){ctx.fillStyle=['unbound','unresolved'].includes(port.connection)?colors.generate:colors.muted;ctx.font='9px ui-monospace,monospace';ctx.textAlign=left?'left':'right';ctx.fillText(port.name.slice(0,15),left?x+13:x+w-24,py+3);ctx.textAlign='left';}});}}
+ if(view().z<.36)return;
+ ctx.font=n.type==='operator'?'bold 12px ui-monospace,monospace':'600 13px system-ui,sans-serif';ctx.fillStyle=colors.text;
+ if(n.type==='operator'){ctx.textAlign='center';ctx.fillText((n.shape==='mux'?'MUX':n.shape==='case'?'CASE':n.shape==='encoder'?'ENC':n.shape==='decoder'?'DEC':String(n.name)).slice(0,9),x+w/2,y+h/2+5);ctx.textAlign='left';}
+ else{const text=n.name.length>23?n.name.slice(0,22)+'…':n.name;ctx.fillText(text,x+16,y+(['register','counter','fsm'].includes(n.type)?36:n.type==='port'?29:35));}
+ if(n.type==='instance'||n.type==='generate'){ctx.fillStyle=colors.muted;ctx.font='11px ui-monospace,monospace';ctx.fillText(n.type==='generate'?`${n.count} generated instances`:String(n.module||''),x+17,y+18);}
+ if(['register','counter','fsm'].includes(n.type)){ctx.fillStyle=colors.register;ctx.font='10px ui-monospace,monospace';ctx.fillText('always_ff',x+16,y+53);}}
+function draw(){if(!state.graph)return;const w=canvas.clientWidth||1,h=canvas.clientHeight||1,v=view(),d=layout(state.graph);ctx.setTransform(canvas.width/w,0,0,canvas.height/h,0,0);ctx.fillStyle=colors.canvas;ctx.fillRect(0,0,w,h);ctx.save();ctx.translate(v.x,v.y);ctx.scale(v.z,v.z);
+ for(const e of state.graph.edges){const path=d.edgePaths.get(e.id);if(path&&wireVisible(path,v,w,h))drawWire(e,path,v);}
+ // A small wire bridge at crossings prevents a perpendicular intersection
+ // from reading as an electrical junction. It is decoration, not connectivity.
+ if(v.z>=.44){const netById=new Map(state.graph.edges.map(e=>[e.id,e]));
+  for(const hop of d.bridges){
+   if(!visible({x:hop.x-7,y:hop.y-7,w:14,h:14},v,w,h,12))continue;
+   const edge=netById.get(hop.edge);ctx.lineCap='round';ctx.lineWidth=7;ctx.strokeStyle=colors.canvas;
+   ctx.beginPath();ctx.moveTo(hop.x-6,hop.y);ctx.lineTo(hop.x+6,hop.y);ctx.stroke();
+   ctx.lineWidth=highlighted(edge)?3.8:1.8;ctx.strokeStyle=highlighted(edge)?colors.selected:edge.type==='sequential'?colors.sequential:edge.type.startsWith('port')?colors.binding:colors.wire;
+   ctx.beginPath();ctx.moveTo(hop.x-7,hop.y);ctx.quadraticCurveTo(hop.x,hop.y-10,hop.x+7,hop.y);ctx.stroke();
+  }
+ }
+ for(const n of state.graph.nodes){const p=d.positions.get(n.id);if(p&&visible(p,v,w,h))symbol(n,p,d);}
+ ctx.restore();}
+function pointer(ev){const r=canvas.getBoundingClientRect(),v=view();return{x:(ev.clientX-r.left-v.x)/v.z,y:(ev.clientY-r.top-v.y)/v.z};}
+function distSeg(p,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],l=dx*dx+dy*dy;const t=l?clamp(((p.x-a[0])*dx+(p.y-a[1])*dy)/l,0,1):0;return Math.hypot(p.x-a[0]-t*dx,p.y-a[1]-t*dy);}
+function hit(p){if(!state.graph)return null;const d=layout(state.graph);for(let i=state.graph.nodes.length-1;i>=0;i--){const n=state.graph.nodes[i],r=d.positions.get(n.id);if(r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h)return n;}
+ const radius=clamp(9/view().z,5,23);let best=null,minimum=radius;
+ for(const edge of state.graph.edges){const poly=d.edgePaths.get(edge.id);if(!poly)continue;for(let i=1;i<poly.length;i++){const dist=distSeg(p,poly[i-1],poly[i]);if(dist<minimum){minimum=dist;best=edge;}}}return best;}
+let cameraAnimation=0;
+const noMotion=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+function animateView(goal){
+ cancelAnimationFrame(cameraAnimation);
+ if(noMotion()){setView(goal);draw();return;}
+ const from={...view()},start=performance.now(),duration=230;
+ function frame(now){const t=clamp((now-start)/duration,0,1),ease=1-Math.pow(1-t,3);
+  setView({x:from.x+(goal.x-from.x)*ease,y:from.y+(goal.y-from.y)*ease,z:from.z+(goal.z-from.z)*ease});draw();
+  if(t<1)cameraAnimation=requestAnimationFrame(frame);}
+ cameraAnimation=requestAnimationFrame(frame);
+}
+function fit(){state.manualView=false;if(!state.graph)return;const d=layout(state.graph),w=canvas.clientWidth,h=canvas.clientHeight,z=clamp(Math.min((w-90)/d.width,(h-105)/d.height),.13,1.35);animateView({x:(w-d.width*z)/2,y:(h-d.height*z)/2,z});$('zoomLabel').textContent=Math.round(z*100)+'%';}
+function zoom(f,x=canvas.clientWidth/2,y=canvas.clientHeight/2){state.manualView=true;const v=view(),z=clamp(v.z*f,.12,3.5);animateView({z,x:x-(x-v.x)*z/v.z,y:y-(y-v.y)*z/v.z});$('zoomLabel').textContent=Math.round(z*100)+'%';draw();}
+function selection(item,track=false){if(!item)return;const edge=item.source&&item.target;const id=edge?(item.net||item.id):item.id;state.selected=id;if(track&&id.includes('::sig:'))state.pinned=id;const label=edge?`${item.port?item.port+' · ':''}${item.net.split('::sig:').pop()} · ${item.type} wire`+(item.mapping==='partial'?' · bus slice (not bit-exact)':''):item.name+' · '+item.type;announce((track?'Tracking · ':'Selected · ')+label);
+ if(state.inspector&&state.tab==='source'){const node=edge?state.graph.nodes.find(n=>n.id===item.net):item;if(node?.line)focusLine(Number(node.line),node.name);}draw();}
+function focusLine(line,name){const row=$('sourceCode').querySelector(`[data-line="${line}"]`);if(!row)return;$('sourceCode').querySelectorAll('.focus-line').forEach(el=>el.classList.remove('focus-line'));row.classList.add('focus-line');row.scrollIntoView({block:'center',inline:'nearest'});$('inspectorFoot').textContent='AST source line '+line+' · '+name;}
+function nodeList(){const box=$('a11yNodes');box.replaceChildren();for(const n of state.graph.nodes){const button=document.createElement('button');button.textContent=n.name+' · '+n.type;button.onclick=()=>selection(n);box.append(button);}for(const e of state.graph.edges){const button=document.createElement('button');button.textContent='Wire · '+e.net.split('::sig:').pop()+(e.port?' → '+e.port:'');button.onclick=()=>selection(e,true);box.append(button);}}
+function expandedGroups(path=state.path){return state.expanded.get(path)||new Set();}
+async function fetchGraph(path){return api('diagram',{path,expand:[...expandedGroups(path)].join('|')});}
+async function refreshGraph(preserve=true){
+ const previous=state.graph;
+ state.graph=await fetchGraph(state.path);
+ $('viewName').textContent=state.graph.module;
+ $('viewDesc').textContent='Hierarchy ' + state.path + ' · RTL connectivity';
+ syncCounts();breadcrumbs();tree();nodeList();
+ if(!preserve||!previous||!state.viewport.has(state.path))fit();else draw();if($('search').value)searchGraph($('search').value);
+ if(state.inspector)loadTab();
+}
+async function navigate(path){
+ try{state.path=path;await refreshGraph(true);}
+ catch(e){announce(e.message);}
+}
+async function toggleGroup(item){
+ if(!item?.group)return;
+ const group=item.group,groups=new Set(expandedGroups());
+ const wasExpanded=groups.has(group);
+ const before=new Set(groups);
+ if(wasExpanded)groups.delete(group);else groups.add(group);
+ state.expanded.set(state.path,groups);
+ try{await refreshGraph(false);announce((wasExpanded?'Collapsed ':'Expanded ')+group);}
+ catch(e){state.expanded.set(state.path,before);announce('Expand failed: '+e.message);}
+}
+
+function syncCounts(){const c=state.graph.connectivity||{};const unbound=c.unbound_pins||0,unknown=c.unresolved_pins||0,partial=c.partial_pins||0;$('counts').textContent=state.graph.nodes.length+' symbols · '+state.graph.edges.length+' wires'+(unbound?' · '+unbound+' unbound':'')+(unknown?' · '+unknown+' unresolved':'')+(partial?' · '+partial+' partial':'')+(state.graph.truncated?' · limited':'');}
+async function enter(path,track=false){if(!path)return;let followed=null;if(state.pinned&&(track||state.pinned)){try{followed=await api('follow',{path:state.path,child:path,signal:state.pinned});}catch(e){followed={status:'unresolved',reason:e.message};}}await navigate(path);if(followed){if(followed.status==='resolved'){state.pinned=followed.signal_id;state.selected=followed.signal_id;announce('Resolved hierarchical binding → '+followed.signal);}else{state.pinned=null;announce('Signal tracking '+followed.status+' · '+(followed.reason||'Ambiguous mapping'));}}draw();}
+function breadcrumbs(){
+ const box=$('breadcrumb');box.replaceChildren();
+ // Only *real elaborated module scopes* are clickable. Generate-array folder
+ // segments are not modules; linking to those would give invalid navigation.
+ const chain=state.graph.ancestors||[{path:'/',name:state.overview.top}];
+ chain.forEach((scope,i)=>{
+  if(i){const sep=document.createElement('span');sep.className='crumb-sep';sep.textContent='›';sep.setAttribute('aria-hidden','true');box.append(sep);}
+  const button=document.createElement('button');button.textContent=scope.path==='/'?state.overview.top:scope.name;
+  button.title=scope.module+' · '+scope.path;
+  if(scope.path===state.path){button.setAttribute('aria-current','page');button.classList.add('current');}
+  button.onclick=()=>navigate(scope.path);box.append(button);
+ });
+ box.lastElementChild?.scrollIntoView({inline:'nearest',block:'nearest'});
+}
+function tree(){const box=$('hierarchy');box.replaceChildren();const button=document.createElement('button');button.className='tree-button';button.textContent='▣ '+state.overview.top;button.onclick=()=>navigate('/');box.append(button);for(const n of state.graph.nodes.filter(n=>n.child)){const b=document.createElement('button');b.className='tree-button depth1';b.textContent=(n.type==='generate'?'▤ ':'◇ ')+n.name;b.onclick=()=>enter(n.child);box.append(b);}}
+function inspector(show=true,tab='source'){const changed=show!==state.inspector;state.inspector=show;$('inspector').hidden=!show;if(show)setTab(tab);syncInspectorButtons();requestAnimationFrame(()=>{resize();if(changed&&!state.manualView)fit();else draw();});}
+function setTab(tab){
+ state.tab=tab;
+ for(const t of ['source','lint','cone']){
+  $(t+'Pane').hidden=t!==tab;
+  $(t+'Tab').classList.toggle('active',t===tab);
+  $(t+'Tab').setAttribute('aria-selected',String(t===tab));
+ }
+ syncInspectorButtons();
+ if(state.inspector)loadTab();
+}
+function syncInspectorButtons(){
+ for(const [id,tab] of [['toggleSource','source'],['toggleLint','lint'],['toggleCone','cone']]){
+  const active=state.inspector&&state.tab===tab;
+  $(id).classList.toggle('active',active);
+  $(id).setAttribute('aria-pressed',String(active));
+ }
+}
+function togglePanel(tab){
+ if(state.inspector&&state.tab===tab)inspector(false);
+ else inspector(true,tab);
+ syncInspectorButtons();
+}
+
+async function loadTab(){try{if(state.tab==='source'){const result=await api('source',{path:state.path});$('sourceFile').textContent=result.status==='available'?result.file:'Source not mapped';const code=$('sourceCode');code.replaceChildren();$('lineNumbers').textContent='';if(result.code){const fragment=document.createDocumentFragment();result.code.split('\n').forEach((line,i)=>{const span=document.createElement('span');span.className='code-line';span.dataset.line=String(i+1);span.textContent=line||' ';fragment.append(span);});code.append(fragment);$('lineNumbers').textContent=result.code.split('\n').map((_,i)=>i+1).join('\n');}else code.textContent=result.reason||'No source location';$('inspectorFoot').textContent=result.status==='available'?'Click a source line to focus an AST symbol':'Source reference unavailable';const selected=state.graph.nodes.find(n=>n.id===state.selected);if(selected?.line)focusLine(selected.line,selected.name);}
+ if(state.tab==='lint'){const result=await api('lint',{path:state.path}),box=$('lintResults');box.replaceChildren();if(result.status!=='available'||!result.diagnostics.length){box.textContent=result.status==='available'?'No diagnostics for mapped RTL file':'Slang lint report unavailable / no source mapping';return;}for(const warning of result.diagnostics){const article=document.createElement('article'),code=document.createElement('code');code.textContent=String(warning.code||warning.severity||'warning');article.append(code,document.createTextNode(' '+String(warning.message||warning.text||JSON.stringify(warning))));box.append(article);}}
+ if(state.tab==='cone'){const list=state.graph.nodes.filter(n=>['port','register','counter','fsm','signal','operator'].includes(n.type));for(const name of ['fromSelect','toSelect']){const el=$(name),previous=el.value;el.replaceChildren();for(const n of list){const opt=document.createElement('option');opt.value=n.id;opt.textContent=n.name;el.append(opt);}if(list.some(n=>n.id===previous))el.value=previous;}}}catch(e){announce(e.message);}}
+function context(ev,item){
+ ev.preventDefault();
+ state.context=item;
+ if(item)selection(item);
+ const box=$('context'),r=$('schematic').getBoundingClientRect();
+ $('contextTitle').textContent=item ? (item.source ? 'WIRE · '+item.net.split('::sig:').pop() + (item.mapping==='partial'?' · partial slice':'') : item.type.toUpperCase()+' · '+item.name) : 'MODULE · '+state.graph.module;
+ $('contextEnter').hidden=!item?.child;
+ $('contextPin').hidden=!(item?.net||isSignal(item));
+ $('contextGenerate').hidden=!item?.group;
+ if(item?.group)$('contextGenerate').firstChild.textContent=item.type==='generate'?'Expand instances ':'Collapse instances ';
+ box.hidden=false;
+ box.style.left=clamp(ev.clientX-r.left,5,Math.max(5,r.width-245))+'px';
+ box.style.top=clamp(ev.clientY-r.top,5,Math.max(5,r.height-245))+'px';
+}
+
+canvas.addEventListener('contextmenu',ev=>context(ev,hit(pointer(ev))));
+canvas.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;const item=hit(pointer(ev));state.drag={x:ev.clientX,y:ev.clientY,origin:{...view()},item,moved:false};canvas.setPointerCapture(ev.pointerId);});
+canvas.addEventListener('pointermove',ev=>{const d=state.drag;if(d){const dx=ev.clientX-d.x,dy=ev.clientY-d.y;if(Math.abs(dx)+Math.abs(dy)>5)d.moved=true;if(d.moved){state.manualView=true;cancelAnimationFrame(cameraAnimation);setView({...d.origin,x:d.origin.x+dx,y:d.origin.y+dy});draw();}return;}const item=hit(pointer(ev));if(item?.id!==state.hover?.id){state.hover=item;canvas.style.cursor=item?'pointer':'grab';canvas.title=item?.source?`Wire ${item.net.split('::sig:').pop()} ${item.port||''} · ${item.mapping==='partial'?'partial bus dependency': 'direct mapping'}`:(item?.name||'')+(item?.width?' · '+item.width:'')+(item?.dimensions?.unpackedDimensions?' · unpacked '+JSON.stringify(item.dimensions.unpackedDimensions):'');draw();}});
+canvas.addEventListener('pointerup',ev=>{const d=state.drag;state.drag=null;if(!d||d.moved)return;if(d.item)selection(d.item,ev.ctrlKey||ev.metaKey);else{state.selected=null;draw();}});
+canvas.addEventListener('dblclick',ev=>{const item=hit(pointer(ev));if(item?.child)enter(item.child);});
+canvas.addEventListener('wheel',ev=>{ev.preventDefault();const rect=canvas.getBoundingClientRect();zoom(ev.deltaY<0?1.12:.9,ev.clientX-rect.left,ev.clientY-rect.top);},{passive:false});
+canvas.addEventListener('keydown',ev=>{if(ev.key==='Escape'){state.selected=state.pinned=null;$('context').hidden=true;draw();}
+ if(ev.key==='ContextMenu'||(ev.shiftKey&&ev.key==='F10')){
+  const item=[...state.graph.nodes,...state.graph.edges].find(n=>n.id===state.selected||n.net===state.selected);
+  const r=canvas.getBoundingClientRect();
+  context({preventDefault(){},clientX:r.left+r.width/2,clientY:r.top+Math.min(r.height/2,180)},item);
+  $('context').querySelector('button:not([hidden])')?.focus();
+ }
+ if(ev.key==='+'||ev.key==='=')zoom(1.1);if(ev.key==='-')zoom(.9);});
+$('contextGenerate').onclick=async()=>{$('context').hidden=true;await toggleGroup(state.context);};
+$('contextSource').onclick=async()=>{$('context').hidden=true;if(state.context?.child)await enter(state.context.child);inspector(true,'source');};
+$('contextLint').onclick=async()=>{$('context').hidden=true;if(state.context?.child)await enter(state.context.child);inspector(true,'lint');};
+$('contextEnter').onclick=()=>{$('context').hidden=true;if(state.context?.child)enter(state.context.child);};
+$('contextPin').onclick=()=>{$('context').hidden=true;selection(state.context,true);};
+document.addEventListener('click',ev=>{if(!ev.target.closest('#context')&&!ev.target.closest('#diagram'))$('context').hidden=true;if(!ev.target.closest('.search-box')&&!ev.target.closest('#searchResults'))$('searchResults').hidden=true;});
+$('toggleSource').onclick=()=>togglePanel('source');$('toggleLint').onclick=()=>togglePanel('lint');$('toggleCone').onclick=()=>togglePanel('cone');$('closeInspector').onclick=()=>inspector(false);
+
+$('zoomOut').onclick=()=>zoom(.82);$('zoomIn').onclick=()=>zoom(1.2);$('fit').onclick=fit;
+for(const t of ['source','lint','cone'])$(t+'Tab').onclick=()=>setTab(t);
+$('sourceCode').onclick=ev=>{const row=ev.target.closest('[data-line]');if(!row)return;const line=Number(row.dataset.line),node=state.graph.nodes.find(n=>Number(n.line)===line);if(node){selection(node);focusLine(line,node.name);}else announce('Line '+line+' · no exact AST-mapped symbol');};
+$('runCone').onclick=async()=>{try{const r=await api('cone',{path:state.path,from:$('fromSelect').value,to:$('toSelect').value});$('coneResults').textContent=r.status+' · '+r.paths.length+' path(s)\n'+(r.paths.map(p=>p.map(id=>id.split('::').pop()).join(' → ')).join('\n')||r.reason||'No proven path')+'\nSequential boundaries: '+JSON.stringify(r.sequential_boundaries||[]);if(r.paths.length){state.selected=r.paths[0][0];draw();}}catch(e){announce(e.message);}};
+function focusSymbol(item){
+ if(!item)return;
+ selection(item);
+ const node=item.source?state.graph.nodes.find(n=>n.id===item.source):item;
+ const box=layout(state.graph).positions.get(node?.id);
+ if(box){const v=view();setView({...v,x:canvas.clientWidth*.5-(box.x+box.w/2)*v.z,y:canvas.clientHeight*.48-(box.y+box.h/2)*v.z});draw();}
+ $('searchResults').hidden=true;
+}
+function searchGraph(query){
+ const panel=$('searchResults');panel.replaceChildren();
+ const q=query.trim().toLocaleLowerCase();
+ if(!q){panel.hidden=true;return;}
+ const items=[...state.graph.nodes,...state.graph.edges].filter(n=>(n.name||n.net?.split('::sig:').pop()||'').toLocaleLowerCase().includes(q)).slice(0,18);
+ for(const item of items){
+  const button=document.createElement('button');
+  const label=item.name||item.net.split('::sig:').pop();
+  button.textContent=label+'   '+(item.type||'wire');
+  button.onclick=()=>{focusSymbol(item);$('search').value=label;};
+  panel.append(button);
+ }
+ if(!items.length){const empty=document.createElement('p');empty.textContent='No symbol in this module';panel.append(empty);}
+ panel.hidden=false;
+}
+$('search').addEventListener('input',ev=>searchGraph(ev.target.value));
+$('search').addEventListener('keydown',ev=>{
+ if(ev.key==='Escape'){$('searchResults').hidden=true;$('search').blur();}
+ if(ev.key==='Enter'){const first=$('searchResults').querySelector('button');if(first){ev.preventDefault();first.click();}}
+});
+document.addEventListener('keydown',ev=>{
+ if(ev.key==='/'&&!ev.altKey&&!ev.ctrlKey&&!ev.metaKey&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){
+  ev.preventDefault();$('search').focus();
+ }
+ if(ev.key==='Escape'){$('context').hidden=true;$('searchResults').hidden=true;}
+});
+// Inspector width is local UI state; resizing never reruns layout or recompiles Slang.
+let split=null;
+$('inspectorResizer').addEventListener('pointerdown',ev=>{
+ if(ev.button!==0)return;
+ split={start:ev.clientX,width:$('inspector').getBoundingClientRect().width};
+ $('inspectorResizer').setPointerCapture(ev.pointerId);
+});
+$('inspectorResizer').addEventListener('pointermove',ev=>{
+ if(!split)return;
+ const width=clamp(split.width+split.start-ev.clientX,300,Math.min(window.innerWidth*.72,900));
+ $('inspector').style.width=width+'px';
+});
+$('inspectorResizer').addEventListener('pointerup',()=>{split=null;});
+$('inspectorResizer').addEventListener('keydown',ev=>{
+ if(!['ArrowLeft','ArrowRight'].includes(ev.key))return;
+ ev.preventDefault();const width=$('inspector').getBoundingClientRect().width;
+ $('inspector').style.width=clamp(width+(ev.key==='ArrowLeft'?24:-24),300,900)+'px';
+});
+$('themeToggle').onclick=()=>applyTheme(document.documentElement.dataset.theme==='light'?'dark':'light');
+try{applyTheme(localStorage.getItem('flexsoc-rtl-theme')||'dark');}catch(_e){applyTheme('dark');}
+$('help').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=()=>$('helpDialog').close();
+api('overview').then(async data=>{state.overview=data;$('topLabel').textContent=data.top;$('stats').textContent=data.instances+' elaborated scopes · '+data.modules+' modules';$('status').textContent=data.source==='Slang verified'?'● SLANG VERIFIED':'◌ IMPORTED AST';await navigate('/');}).catch(e=>{$('status').textContent='ERROR';announce(e.message);});
+
+</script>
+</body>
+</html>

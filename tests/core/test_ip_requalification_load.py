@@ -31,8 +31,7 @@ def test_requalification_load_is_explicit_and_unqualified(ip: str, tmp_path: Pat
     assert not (loaded / "syn").exists()
     assert not (loaded / "signoff").exists()
     assert (loaded / "dv" / "formal" / "properties").is_dir()
-    with pytest.raises(ValueError, match="fresh run"):
-        flow.load(**args, requalify=True)
+    assert flow.load(**args, requalify=True) == loaded
 
 
 def test_requalification_never_ignores_modified_hardware_source(tmp_path: Path) -> None:
@@ -45,3 +44,24 @@ def test_requalification_never_ignores_modified_hardware_source(tmp_path: Path) 
     with pytest.raises(ValueError, match="source-of-truth artifact is stale"):
         PackageFlow(project, {}).load(ip_name="gpio", reg_interface="tlul", version="1.0.0", run_top="gpio", run_id="l2", workspace=tmp_path / "runs", requalify=True)
     assert not (tmp_path / "runs" / "runs" / "gpio" / "l2" / "rtl").exists()
+
+
+def test_force_reload_existing_uart_run(tmp_path: Path) -> None:
+    """Repeated force loads replace old evidence without changing the run identity."""
+    flow = PackageFlow(ROOT, {})
+    args = dict(ip_name="uart", reg_interface="tlul", run_top="uart", run_id="l2_uart",
+                version="1.0.0", workspace=tmp_path, requalify=True)
+    run = flow.load(**args)
+    (run / "meta").mkdir(exist_ok=True)
+    (run / "meta" / "settings.json").write_text("{}", encoding="utf-8")
+    (run / "meta" / "qualification.json").write_text("old", encoding="utf-8")
+    (run / "rtl" / "old.sv").write_text("old", encoding="utf-8")
+    (run / "logs").mkdir(exist_ok=True)
+    (run / "logs" / "commands.log").write_text("keep", encoding="utf-8")
+
+    assert flow.load(**args) == run
+    assert (run / "csr" / "uart.hjson").is_file()
+    assert not (run / "rtl" / "old.sv").exists()
+    assert not (run / "meta" / "qualification.json").exists()
+    assert (run / "meta" / "settings.json").read_text(encoding="utf-8") == "{}"
+    assert (run / "logs" / "commands.log").read_text(encoding="utf-8") == "keep"

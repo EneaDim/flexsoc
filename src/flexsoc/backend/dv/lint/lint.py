@@ -62,18 +62,22 @@ class Lint:
         *,
         tool: str | None = None,
         priority: str | None = None,
+        scope: str | None = None,
+        warning_type: str | None = None,
         output: str | None = None,
         as_json: bool = False,
     ) -> int:
         """Render canonical lint evidence plus diagnostic hints."""
 
-        return self.show(tool=tool, priority=priority, debug=True, output=output, as_json=as_json)
+        return self.show(tool=tool, priority=priority, scope=scope, warning_type=warning_type, debug=True, output=output, as_json=as_json)
 
     def show(
         self,
         *,
         tool: str | None = None,
         priority: str | None = None,
+        scope: str | None = None,
+        warning_type: str | None = None,
         debug: bool = False,
         summary: bool = False,
         output: str | None = None,
@@ -89,6 +93,14 @@ class Lint:
 
         document = ShowRenderer.load_file(self.context.paths.run, "dv/lint/summary.json")
         data = dict(document.data)
+        data["diagnostics"] = [
+            {**item, "scope": self._scope(str(item.get("file", ""))),
+             "type": str(item.get("code") or "unknown"),
+             "owner": self._owner(str(item.get("file", "")), data.get("top", "ip"))}
+            for item in data.get("diagnostics", ()) if isinstance(item, Mapping)
+        ]
+        if "scopes" not in data:
+            data["scopes"] = self._scope_counts(data["diagnostics"])
         if tool:
             tools = data.get("tools", {})
             selected = tools.get(tool) if isinstance(tools, Mapping) else None
@@ -103,8 +115,20 @@ class Lint:
                 item for item in data.get("diagnostics", ())
                 if isinstance(item, Mapping) and item.get("tool") == tool
             ]
+            data["scopes"] = self._scope_counts(data["diagnostics"])
             document = replace(document, data=data)
 
+        if scope is not None and scope.lower() not in {"common", "ip", "soc", "all"}:
+            raise ValueError("--scope must be common, ip, soc, or all")
+        selected_scope = scope.lower() if scope else "all"
+        data["selected_scope"] = selected_scope
+        data["selected_type"] = warning_type
+        data["diagnostics"] = [
+            item for item in data.get("diagnostics", ())
+            if isinstance(item, Mapping)
+            and (selected_scope == "all" or item.get("scope") == selected_scope)
+            and (warning_type is None or str(item.get("code", "")).lower() == warning_type.lower())
+        ]
         priorities = self._selected_priorities(priority)
         data["selected_priorities"] = list(priorities)
         data["diagnostics"] = [
@@ -171,6 +195,46 @@ class Lint:
             raise ValueError("--priority must be P0, P1, P2, P3, all, or a comma-separated list")
         return tuple(dict.fromkeys(tokens))
 
+    @staticmethod
+    def _scope(filename: str) -> str:
+        """Classify diagnostics by source ownership, never by warning text."""
+        from pathlib import PurePosixPath
+        path = filename.replace("\\", "/").lower()
+        parts = PurePosixPath(path).parts
+        if "soc" in parts or "soc_top" in parts:
+            return "soc"
+        if "vendor" in parts or "deps" in parts or "prim" in parts or "prim_opentitan" in parts or "pkgs" in parts:
+            return "common"
+        if "hw" in parts and "ips" in parts and "prim" not in parts:
+            return "common" if "tlul" in parts else "ip"
+        return "ip"
+
+    @staticmethod
+    def _owner(filename: str, top: str) -> str:
+        """Preserve IP ownership where paths identify the source IP."""
+        parts = filename.replace("\\", "/").split("/")
+        if "ips" in parts:
+            index = parts.index("ips")
+            if index + 1 < len(parts) and parts[index + 1] not in {"pkgs", "prim", "prim_opentitan"}:
+                return parts[index + 1]
+        return str(top)
+
+    @staticmethod
+    def _scope_counts(diagnostics: list[dict[str, Any]]) -> dict[str, Any]:
+        """Build per-scope priority and warning-type totals."""
+        scopes = {name: {"total": 0, "counts": {p: 0 for p in ("P0", "P1", "P2", "P3")}, "types": {}, "owners": {}}
+                  for name in ("soc", "ip", "common")}
+        for item in diagnostics:
+            group = scopes[item["scope"]]
+            group["total"] += 1
+            priority = item.get("priority", "P3")
+            group["counts"][priority] = group["counts"].get(priority, 0) + 1
+            owner = item.get("owner", "-")
+            group["owners"][owner] = group["owners"].get(owner, 0) + 1
+            kind = item["type"]
+            group["types"][kind] = group["types"].get(kind, 0) + 1
+        return scopes
+
     # Summary
 
     def _profile(self) -> str:
@@ -205,7 +269,10 @@ class Lint:
             for priority in counts:
                 counts[priority] += int(item.get("counts", {}).get(priority, 0))
             diagnostics.extend(
-                entry for entry in item.get("diagnostics", ()) if isinstance(entry, dict)
+                {**entry, "scope": self._scope(str(entry.get("file", ""))),
+                 "type": str(entry.get("code") or "unknown"),
+                 "owner": self._owner(str(entry.get("file", "")), self._lint_top())}
+                for entry in item.get("diagnostics", ()) if isinstance(entry, dict)
             )
 
         status = (
@@ -213,6 +280,7 @@ class Lint:
             if len(tools) == 2 and all(item.get("status") == "PASS" for item in tools.values())
             else "FAILED"
         )
+        scopes = self._scope_counts(diagnostics)
         summary = {
             "schema": "flexsoc.lint.v1",
             "stage": "lint",
@@ -222,6 +290,7 @@ class Lint:
             "status": status,
             "order": [name for name in ("slang", "verilator") if name in tools],
             "counts": counts,
+            "scopes": scopes,
             "total": len(diagnostics),
             "tools": tools,
             "artifacts": {"summary": "dv/lint/summary.json"},

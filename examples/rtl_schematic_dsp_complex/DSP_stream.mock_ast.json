@@ -1,0 +1,2337 @@
+{
+  "design": {
+    "kind": "Root",
+    "members": [
+      {
+        "kind": "Instance",
+        "name": "DSP_stream",
+        "sourceRange": {
+          "start": {
+            "file": "DSP_stream.sv",
+            "line": 2
+          }
+        },
+        "body": {
+          "kind": "InstanceBody",
+          "name": "DSP_stream",
+          "sourceRange": {
+            "start": {
+              "file": "DSP_stream.sv",
+              "line": 2
+            }
+          },
+          "members": [
+            {
+              "kind": "Port",
+              "name": "clk_i",
+              "type": "logic",
+              "direction": "In",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 6
+                }
+              }
+            },
+            {
+              "kind": "Port",
+              "name": "rst_ni",
+              "type": "logic",
+              "direction": "In",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 7
+                }
+              }
+            },
+            {
+              "kind": "Port",
+              "name": "en_i",
+              "type": "logic",
+              "direction": "In",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 8
+                }
+              }
+            },
+            {
+              "kind": "Port",
+              "name": "sample_i",
+              "type": "logic [15:0]",
+              "direction": "In",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 9
+                }
+              }
+            },
+            {
+              "kind": "Port",
+              "name": "gain_i",
+              "type": "logic [15:0]",
+              "direction": "In",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 10
+                }
+              }
+            },
+            {
+              "kind": "Port",
+              "name": "coeff_i",
+              "type": "logic signed [TAPS*WIDTH-1:0]",
+              "direction": "In",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 11
+                }
+              }
+            },
+            {
+              "kind": "Port",
+              "name": "data_o",
+              "type": "logic [15:0]",
+              "direction": "Out",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 12
+                }
+              }
+            },
+            {
+              "kind": "Port",
+              "name": "valid_o",
+              "type": "logic",
+              "direction": "Out",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 13
+                }
+              }
+            },
+            {
+              "kind": "Variable",
+              "name": "mix_i",
+              "type": "logic [15:0]",
+              "direction": "",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 15
+                }
+              }
+            },
+            {
+              "kind": "Variable",
+              "name": "fir_raw",
+              "type": "logic [15:0]",
+              "direction": "",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 16
+                }
+              }
+            },
+            {
+              "kind": "Variable",
+              "name": "clamped",
+              "type": "logic [15:0]",
+              "direction": "",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 17
+                }
+              }
+            },
+            {
+              "kind": "Variable",
+              "name": "valid_q",
+              "type": "logic",
+              "direction": "",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 18
+                }
+              }
+            },
+            {
+              "kind": "Instance",
+              "name": "u_gain",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 20
+                }
+              },
+              "body": {
+                "kind": "InstanceBody",
+                "name": "DSP_frontend",
+                "sourceRange": {
+                  "start": {
+                    "file": "DSP_frontend.sv",
+                    "line": 1
+                  }
+                },
+                "members": [
+                  {
+                    "kind": "Port",
+                    "name": "clk_i",
+                    "type": "logic",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_frontend.sv",
+                        "line": 2
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "rst_ni",
+                    "type": "logic",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_frontend.sv",
+                        "line": 2
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "en_i",
+                    "type": "logic",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_frontend.sv",
+                        "line": 2
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "sample_i",
+                    "type": "logic [15:0]",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_frontend.sv",
+                        "line": 3
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "gain_i",
+                    "type": "logic [15:0]",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_frontend.sv",
+                        "line": 3
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "mix_o",
+                    "type": "logic [15:0]",
+                    "direction": "Out",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_frontend.sv",
+                        "line": 4
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Variable",
+                    "name": "product_d",
+                    "type": "logic signed [2*WIDTH-1:0]",
+                    "direction": "",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_frontend.sv",
+                        "line": 6
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Variable",
+                    "name": "mix_q",
+                    "type": "logic [15:0]",
+                    "direction": "",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_frontend.sv",
+                        "line": 7
+                      }
+                    }
+                  },
+                  {
+                    "kind": "ContinuousAssign",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_frontend.sv",
+                        "line": 8
+                      }
+                    },
+                    "assignment": {
+                      "kind": "Assignment",
+                      "left": {
+                        "kind": "NamedValue",
+                        "symbol": "7 product_d"
+                      },
+                      "right": {
+                        "kind": "BinaryOp",
+                        "op": "Mul",
+                        "left": {
+                          "kind": "NamedValue",
+                          "symbol": "7 sample_i"
+                        },
+                        "right": {
+                          "kind": "NamedValue",
+                          "symbol": "7 gain_i"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "kind": "ProceduralBlock",
+                    "procedureKind": "AlwaysFF",
+                    "body": {
+                      "kind": "Block",
+                      "statements": [
+                        {
+                          "kind": "ExpressionStatement",
+                          "expr": {
+                            "kind": "Assignment",
+                            "left": {
+                              "kind": "NamedValue",
+                              "symbol": "7 mix_q"
+                            },
+                            "right": {
+                              "kind": "NamedValue",
+                              "symbol": "7 product_d"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_frontend.sv",
+                        "line": 9
+                      }
+                    }
+                  },
+                  {
+                    "kind": "ContinuousAssign",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_frontend.sv",
+                        "line": 13
+                      }
+                    },
+                    "assignment": {
+                      "kind": "Assignment",
+                      "left": {
+                        "kind": "NamedValue",
+                        "symbol": "7 mix_o"
+                      },
+                      "right": {
+                        "kind": "NamedValue",
+                        "symbol": "7 mix_q"
+                      }
+                    }
+                  }
+                ]
+              },
+              "connections": [
+                {
+                  "port": "clk_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 clk_i"
+                  }
+                },
+                {
+                  "port": "rst_ni",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 rst_ni"
+                  }
+                },
+                {
+                  "port": "en_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 en_i"
+                  }
+                },
+                {
+                  "port": "sample_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 sample_i"
+                  }
+                },
+                {
+                  "port": "gain_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 gain_i"
+                  }
+                },
+                {
+                  "port": "mix_o",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 mix_i"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "Instance",
+              "name": "u_filter",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 24
+                }
+              },
+              "body": {
+                "kind": "InstanceBody",
+                "name": "DSP_fir",
+                "sourceRange": {
+                  "start": {
+                    "file": "DSP_fir.sv",
+                    "line": 1
+                  }
+                },
+                "members": [
+                  {
+                    "kind": "Port",
+                    "name": "clk_i",
+                    "type": "logic",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_fir.sv",
+                        "line": 5
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "rst_ni",
+                    "type": "logic",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_fir.sv",
+                        "line": 5
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "en_i",
+                    "type": "logic",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_fir.sv",
+                        "line": 5
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "sample_i",
+                    "type": "logic [15:0]",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_fir.sv",
+                        "line": 6
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "coeff_i",
+                    "type": "logic signed [TAPS*WIDTH-1:0]",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_fir.sv",
+                        "line": 7
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "result_o",
+                    "type": "logic [15:0]",
+                    "direction": "Out",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_fir.sv",
+                        "line": 8
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Variable",
+                    "name": "products",
+                    "type": "logic signed [TAPS*WIDTH-1:0]",
+                    "direction": "",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_fir.sv",
+                        "line": 10
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Variable",
+                    "name": "acc_d",
+                    "type": "logic [15:0]",
+                    "direction": "",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_fir.sv",
+                        "line": 11
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Variable",
+                    "name": "acc_q",
+                    "type": "logic [15:0]",
+                    "direction": "",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_fir.sv",
+                        "line": 11
+                      }
+                    }
+                  },
+                  {
+                    "kind": "GenerateBlockArray",
+                    "name": "g_taps",
+                    "members": [
+                      {
+                        "kind": "GenerateBlock",
+                        "name": "g_taps[0]",
+                        "members": [
+                          {
+                            "kind": "Instance",
+                            "name": "u_mult",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_fir.sv",
+                                "line": 14
+                              }
+                            },
+                            "body": {
+                              "kind": "InstanceBody",
+                              "name": "DSP_mul_lane",
+                              "sourceRange": {
+                                "start": {
+                                  "file": "DSP_mul_lane.sv",
+                                  "line": 1
+                                }
+                              },
+                              "members": [
+                                {
+                                  "kind": "Port",
+                                  "name": "clk_i",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "rst_ni",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "en_i",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "sample_i",
+                                  "type": "logic [15:0]",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 3
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "coeff_i",
+                                  "type": "logic [15:0]",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 3
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "product_o",
+                                  "type": "logic [15:0]",
+                                  "direction": "Out",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 4
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Variable",
+                                  "name": "product_d",
+                                  "type": "logic signed [2*WIDTH-1:0]",
+                                  "direction": "",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 6
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Variable",
+                                  "name": "product_q",
+                                  "type": "logic [15:0]",
+                                  "direction": "",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 7
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ContinuousAssign",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 8
+                                    }
+                                  },
+                                  "assignment": {
+                                    "kind": "Assignment",
+                                    "left": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_d"
+                                    },
+                                    "right": {
+                                      "kind": "BinaryOp",
+                                      "op": "Mul",
+                                      "left": {
+                                        "kind": "NamedValue",
+                                        "symbol": "7 sample_i"
+                                      },
+                                      "right": {
+                                        "kind": "NamedValue",
+                                        "symbol": "7 coeff_i"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ProceduralBlock",
+                                  "procedureKind": "AlwaysFF",
+                                  "body": {
+                                    "kind": "Block",
+                                    "statements": [
+                                      {
+                                        "kind": "ExpressionStatement",
+                                        "expr": {
+                                          "kind": "Assignment",
+                                          "left": {
+                                            "kind": "NamedValue",
+                                            "symbol": "7 product_q"
+                                          },
+                                          "right": {
+                                            "kind": "NamedValue",
+                                            "symbol": "7 product_d"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 9
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ContinuousAssign",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 13
+                                    }
+                                  },
+                                  "assignment": {
+                                    "kind": "Assignment",
+                                    "left": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_o"
+                                    },
+                                    "right": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_q"
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "connections": [
+                              {
+                                "port": "clk_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 clk_i"
+                                }
+                              },
+                              {
+                                "port": "rst_ni",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 rst_ni"
+                                }
+                              },
+                              {
+                                "port": "en_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 en_i"
+                                }
+                              },
+                              {
+                                "port": "sample_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 sample_i"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "GenerateBlock",
+                        "name": "g_taps[1]",
+                        "members": [
+                          {
+                            "kind": "Instance",
+                            "name": "u_mult",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_fir.sv",
+                                "line": 14
+                              }
+                            },
+                            "body": {
+                              "kind": "InstanceBody",
+                              "name": "DSP_mul_lane",
+                              "sourceRange": {
+                                "start": {
+                                  "file": "DSP_mul_lane.sv",
+                                  "line": 1
+                                }
+                              },
+                              "members": [
+                                {
+                                  "kind": "Port",
+                                  "name": "clk_i",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "rst_ni",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "en_i",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "sample_i",
+                                  "type": "logic [15:0]",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 3
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "coeff_i",
+                                  "type": "logic [15:0]",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 3
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "product_o",
+                                  "type": "logic [15:0]",
+                                  "direction": "Out",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 4
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Variable",
+                                  "name": "product_d",
+                                  "type": "logic signed [2*WIDTH-1:0]",
+                                  "direction": "",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 6
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Variable",
+                                  "name": "product_q",
+                                  "type": "logic [15:0]",
+                                  "direction": "",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 7
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ContinuousAssign",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 8
+                                    }
+                                  },
+                                  "assignment": {
+                                    "kind": "Assignment",
+                                    "left": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_d"
+                                    },
+                                    "right": {
+                                      "kind": "BinaryOp",
+                                      "op": "Mul",
+                                      "left": {
+                                        "kind": "NamedValue",
+                                        "symbol": "7 sample_i"
+                                      },
+                                      "right": {
+                                        "kind": "NamedValue",
+                                        "symbol": "7 coeff_i"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ProceduralBlock",
+                                  "procedureKind": "AlwaysFF",
+                                  "body": {
+                                    "kind": "Block",
+                                    "statements": [
+                                      {
+                                        "kind": "ExpressionStatement",
+                                        "expr": {
+                                          "kind": "Assignment",
+                                          "left": {
+                                            "kind": "NamedValue",
+                                            "symbol": "7 product_q"
+                                          },
+                                          "right": {
+                                            "kind": "NamedValue",
+                                            "symbol": "7 product_d"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 9
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ContinuousAssign",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 13
+                                    }
+                                  },
+                                  "assignment": {
+                                    "kind": "Assignment",
+                                    "left": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_o"
+                                    },
+                                    "right": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_q"
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "connections": [
+                              {
+                                "port": "clk_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 clk_i"
+                                }
+                              },
+                              {
+                                "port": "rst_ni",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 rst_ni"
+                                }
+                              },
+                              {
+                                "port": "en_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 en_i"
+                                }
+                              },
+                              {
+                                "port": "sample_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 sample_i"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "GenerateBlock",
+                        "name": "g_taps[2]",
+                        "members": [
+                          {
+                            "kind": "Instance",
+                            "name": "u_mult",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_fir.sv",
+                                "line": 14
+                              }
+                            },
+                            "body": {
+                              "kind": "InstanceBody",
+                              "name": "DSP_mul_lane",
+                              "sourceRange": {
+                                "start": {
+                                  "file": "DSP_mul_lane.sv",
+                                  "line": 1
+                                }
+                              },
+                              "members": [
+                                {
+                                  "kind": "Port",
+                                  "name": "clk_i",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "rst_ni",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "en_i",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "sample_i",
+                                  "type": "logic [15:0]",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 3
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "coeff_i",
+                                  "type": "logic [15:0]",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 3
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "product_o",
+                                  "type": "logic [15:0]",
+                                  "direction": "Out",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 4
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Variable",
+                                  "name": "product_d",
+                                  "type": "logic signed [2*WIDTH-1:0]",
+                                  "direction": "",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 6
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Variable",
+                                  "name": "product_q",
+                                  "type": "logic [15:0]",
+                                  "direction": "",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 7
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ContinuousAssign",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 8
+                                    }
+                                  },
+                                  "assignment": {
+                                    "kind": "Assignment",
+                                    "left": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_d"
+                                    },
+                                    "right": {
+                                      "kind": "BinaryOp",
+                                      "op": "Mul",
+                                      "left": {
+                                        "kind": "NamedValue",
+                                        "symbol": "7 sample_i"
+                                      },
+                                      "right": {
+                                        "kind": "NamedValue",
+                                        "symbol": "7 coeff_i"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ProceduralBlock",
+                                  "procedureKind": "AlwaysFF",
+                                  "body": {
+                                    "kind": "Block",
+                                    "statements": [
+                                      {
+                                        "kind": "ExpressionStatement",
+                                        "expr": {
+                                          "kind": "Assignment",
+                                          "left": {
+                                            "kind": "NamedValue",
+                                            "symbol": "7 product_q"
+                                          },
+                                          "right": {
+                                            "kind": "NamedValue",
+                                            "symbol": "7 product_d"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 9
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ContinuousAssign",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 13
+                                    }
+                                  },
+                                  "assignment": {
+                                    "kind": "Assignment",
+                                    "left": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_o"
+                                    },
+                                    "right": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_q"
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "connections": [
+                              {
+                                "port": "clk_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 clk_i"
+                                }
+                              },
+                              {
+                                "port": "rst_ni",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 rst_ni"
+                                }
+                              },
+                              {
+                                "port": "en_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 en_i"
+                                }
+                              },
+                              {
+                                "port": "sample_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 sample_i"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "GenerateBlock",
+                        "name": "g_taps[3]",
+                        "members": [
+                          {
+                            "kind": "Instance",
+                            "name": "u_mult",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_fir.sv",
+                                "line": 14
+                              }
+                            },
+                            "body": {
+                              "kind": "InstanceBody",
+                              "name": "DSP_mul_lane",
+                              "sourceRange": {
+                                "start": {
+                                  "file": "DSP_mul_lane.sv",
+                                  "line": 1
+                                }
+                              },
+                              "members": [
+                                {
+                                  "kind": "Port",
+                                  "name": "clk_i",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "rst_ni",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "en_i",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "sample_i",
+                                  "type": "logic [15:0]",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 3
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "coeff_i",
+                                  "type": "logic [15:0]",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 3
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "product_o",
+                                  "type": "logic [15:0]",
+                                  "direction": "Out",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 4
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Variable",
+                                  "name": "product_d",
+                                  "type": "logic signed [2*WIDTH-1:0]",
+                                  "direction": "",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 6
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Variable",
+                                  "name": "product_q",
+                                  "type": "logic [15:0]",
+                                  "direction": "",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 7
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ContinuousAssign",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 8
+                                    }
+                                  },
+                                  "assignment": {
+                                    "kind": "Assignment",
+                                    "left": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_d"
+                                    },
+                                    "right": {
+                                      "kind": "BinaryOp",
+                                      "op": "Mul",
+                                      "left": {
+                                        "kind": "NamedValue",
+                                        "symbol": "7 sample_i"
+                                      },
+                                      "right": {
+                                        "kind": "NamedValue",
+                                        "symbol": "7 coeff_i"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ProceduralBlock",
+                                  "procedureKind": "AlwaysFF",
+                                  "body": {
+                                    "kind": "Block",
+                                    "statements": [
+                                      {
+                                        "kind": "ExpressionStatement",
+                                        "expr": {
+                                          "kind": "Assignment",
+                                          "left": {
+                                            "kind": "NamedValue",
+                                            "symbol": "7 product_q"
+                                          },
+                                          "right": {
+                                            "kind": "NamedValue",
+                                            "symbol": "7 product_d"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 9
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ContinuousAssign",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 13
+                                    }
+                                  },
+                                  "assignment": {
+                                    "kind": "Assignment",
+                                    "left": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_o"
+                                    },
+                                    "right": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_q"
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "connections": [
+                              {
+                                "port": "clk_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 clk_i"
+                                }
+                              },
+                              {
+                                "port": "rst_ni",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 rst_ni"
+                                }
+                              },
+                              {
+                                "port": "en_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 en_i"
+                                }
+                              },
+                              {
+                                "port": "sample_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 sample_i"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "GenerateBlock",
+                        "name": "g_taps[4]",
+                        "members": [
+                          {
+                            "kind": "Instance",
+                            "name": "u_mult",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_fir.sv",
+                                "line": 14
+                              }
+                            },
+                            "body": {
+                              "kind": "InstanceBody",
+                              "name": "DSP_mul_lane",
+                              "sourceRange": {
+                                "start": {
+                                  "file": "DSP_mul_lane.sv",
+                                  "line": 1
+                                }
+                              },
+                              "members": [
+                                {
+                                  "kind": "Port",
+                                  "name": "clk_i",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "rst_ni",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "en_i",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "sample_i",
+                                  "type": "logic [15:0]",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 3
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "coeff_i",
+                                  "type": "logic [15:0]",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 3
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "product_o",
+                                  "type": "logic [15:0]",
+                                  "direction": "Out",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 4
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Variable",
+                                  "name": "product_d",
+                                  "type": "logic signed [2*WIDTH-1:0]",
+                                  "direction": "",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 6
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Variable",
+                                  "name": "product_q",
+                                  "type": "logic [15:0]",
+                                  "direction": "",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 7
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ContinuousAssign",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 8
+                                    }
+                                  },
+                                  "assignment": {
+                                    "kind": "Assignment",
+                                    "left": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_d"
+                                    },
+                                    "right": {
+                                      "kind": "BinaryOp",
+                                      "op": "Mul",
+                                      "left": {
+                                        "kind": "NamedValue",
+                                        "symbol": "7 sample_i"
+                                      },
+                                      "right": {
+                                        "kind": "NamedValue",
+                                        "symbol": "7 coeff_i"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ProceduralBlock",
+                                  "procedureKind": "AlwaysFF",
+                                  "body": {
+                                    "kind": "Block",
+                                    "statements": [
+                                      {
+                                        "kind": "ExpressionStatement",
+                                        "expr": {
+                                          "kind": "Assignment",
+                                          "left": {
+                                            "kind": "NamedValue",
+                                            "symbol": "7 product_q"
+                                          },
+                                          "right": {
+                                            "kind": "NamedValue",
+                                            "symbol": "7 product_d"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 9
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ContinuousAssign",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 13
+                                    }
+                                  },
+                                  "assignment": {
+                                    "kind": "Assignment",
+                                    "left": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_o"
+                                    },
+                                    "right": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_q"
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "connections": [
+                              {
+                                "port": "clk_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 clk_i"
+                                }
+                              },
+                              {
+                                "port": "rst_ni",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 rst_ni"
+                                }
+                              },
+                              {
+                                "port": "en_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 en_i"
+                                }
+                              },
+                              {
+                                "port": "sample_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 sample_i"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "GenerateBlock",
+                        "name": "g_taps[5]",
+                        "members": [
+                          {
+                            "kind": "Instance",
+                            "name": "u_mult",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_fir.sv",
+                                "line": 14
+                              }
+                            },
+                            "body": {
+                              "kind": "InstanceBody",
+                              "name": "DSP_mul_lane",
+                              "sourceRange": {
+                                "start": {
+                                  "file": "DSP_mul_lane.sv",
+                                  "line": 1
+                                }
+                              },
+                              "members": [
+                                {
+                                  "kind": "Port",
+                                  "name": "clk_i",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "rst_ni",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "en_i",
+                                  "type": "logic",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 2
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "sample_i",
+                                  "type": "logic [15:0]",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 3
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "coeff_i",
+                                  "type": "logic [15:0]",
+                                  "direction": "In",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 3
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Port",
+                                  "name": "product_o",
+                                  "type": "logic [15:0]",
+                                  "direction": "Out",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 4
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Variable",
+                                  "name": "product_d",
+                                  "type": "logic signed [2*WIDTH-1:0]",
+                                  "direction": "",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 6
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "Variable",
+                                  "name": "product_q",
+                                  "type": "logic [15:0]",
+                                  "direction": "",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 7
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ContinuousAssign",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 8
+                                    }
+                                  },
+                                  "assignment": {
+                                    "kind": "Assignment",
+                                    "left": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_d"
+                                    },
+                                    "right": {
+                                      "kind": "BinaryOp",
+                                      "op": "Mul",
+                                      "left": {
+                                        "kind": "NamedValue",
+                                        "symbol": "7 sample_i"
+                                      },
+                                      "right": {
+                                        "kind": "NamedValue",
+                                        "symbol": "7 coeff_i"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ProceduralBlock",
+                                  "procedureKind": "AlwaysFF",
+                                  "body": {
+                                    "kind": "Block",
+                                    "statements": [
+                                      {
+                                        "kind": "ExpressionStatement",
+                                        "expr": {
+                                          "kind": "Assignment",
+                                          "left": {
+                                            "kind": "NamedValue",
+                                            "symbol": "7 product_q"
+                                          },
+                                          "right": {
+                                            "kind": "NamedValue",
+                                            "symbol": "7 product_d"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 9
+                                    }
+                                  }
+                                },
+                                {
+                                  "kind": "ContinuousAssign",
+                                  "sourceRange": {
+                                    "start": {
+                                      "file": "DSP_mul_lane.sv",
+                                      "line": 13
+                                    }
+                                  },
+                                  "assignment": {
+                                    "kind": "Assignment",
+                                    "left": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_o"
+                                    },
+                                    "right": {
+                                      "kind": "NamedValue",
+                                      "symbol": "7 product_q"
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "connections": [
+                              {
+                                "port": "clk_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 clk_i"
+                                }
+                              },
+                              {
+                                "port": "rst_ni",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 rst_ni"
+                                }
+                              },
+                              {
+                                "port": "en_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 en_i"
+                                }
+                              },
+                              {
+                                "port": "sample_i",
+                                "expression": {
+                                  "kind": "NamedValue",
+                                  "symbol": "7 sample_i"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "ContinuousAssign",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_fir.sv",
+                        "line": 24
+                      }
+                    },
+                    "assignment": {
+                      "kind": "Assignment",
+                      "left": {
+                        "kind": "NamedValue",
+                        "symbol": "7 acc_d"
+                      },
+                      "right": {
+                        "kind": "NamedValue",
+                        "symbol": "7 products"
+                      }
+                    }
+                  },
+                  {
+                    "kind": "ProceduralBlock",
+                    "procedureKind": "AlwaysFF",
+                    "body": {
+                      "kind": "Block",
+                      "statements": [
+                        {
+                          "kind": "ExpressionStatement",
+                          "expr": {
+                            "kind": "Assignment",
+                            "left": {
+                              "kind": "NamedValue",
+                              "symbol": "7 acc_q"
+                            },
+                            "right": {
+                              "kind": "NamedValue",
+                              "symbol": "7 acc_d"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_fir.sv",
+                        "line": 26
+                      }
+                    }
+                  },
+                  {
+                    "kind": "ContinuousAssign",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_fir.sv",
+                        "line": 30
+                      }
+                    },
+                    "assignment": {
+                      "kind": "Assignment",
+                      "left": {
+                        "kind": "NamedValue",
+                        "symbol": "7 result_o"
+                      },
+                      "right": {
+                        "kind": "NamedValue",
+                        "symbol": "7 acc_q"
+                      }
+                    }
+                  }
+                ]
+              },
+              "connections": [
+                {
+                  "port": "clk_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 clk_i"
+                  }
+                },
+                {
+                  "port": "rst_ni",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 rst_ni"
+                  }
+                },
+                {
+                  "port": "en_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 en_i"
+                  }
+                },
+                {
+                  "port": "sample_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 mix_i"
+                  }
+                },
+                {
+                  "port": "coeff_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 coeff_i"
+                  }
+                },
+                {
+                  "port": "result_o",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 fir_raw"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "Instance",
+              "name": "u_round",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 28
+                }
+              },
+              "body": {
+                "kind": "InstanceBody",
+                "name": "DSP_saturate",
+                "sourceRange": {
+                  "start": {
+                    "file": "DSP_saturate.sv",
+                    "line": 1
+                  }
+                },
+                "members": [
+                  {
+                    "kind": "Port",
+                    "name": "clk_i",
+                    "type": "logic",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_saturate.sv",
+                        "line": 2
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "rst_ni",
+                    "type": "logic",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_saturate.sv",
+                        "line": 2
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "en_i",
+                    "type": "logic",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_saturate.sv",
+                        "line": 2
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "data_i",
+                    "type": "logic [15:0]",
+                    "direction": "In",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_saturate.sv",
+                        "line": 3
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "data_o",
+                    "type": "logic [15:0]",
+                    "direction": "Out",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_saturate.sv",
+                        "line": 4
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Variable",
+                    "name": "clamp_d",
+                    "type": "logic [15:0]",
+                    "direction": "",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_saturate.sv",
+                        "line": 6
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Variable",
+                    "name": "clamp_q",
+                    "type": "logic [15:0]",
+                    "direction": "",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_saturate.sv",
+                        "line": 6
+                      }
+                    }
+                  },
+                  {
+                    "kind": "ContinuousAssign",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_saturate.sv",
+                        "line": 7
+                      }
+                    },
+                    "assignment": {
+                      "kind": "Assignment",
+                      "left": {
+                        "kind": "NamedValue",
+                        "symbol": "7 clamp_d"
+                      },
+                      "right": {
+                        "kind": "ConditionalOp",
+                        "op": "?:",
+                        "left": {
+                          "kind": "NamedValue",
+                          "symbol": "7 data_i"
+                        },
+                        "right": {
+                          "kind": "NamedValue",
+                          "symbol": "7 data_i"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "kind": "ProceduralBlock",
+                    "procedureKind": "AlwaysFF",
+                    "body": {
+                      "kind": "Block",
+                      "statements": [
+                        {
+                          "kind": "ExpressionStatement",
+                          "expr": {
+                            "kind": "Assignment",
+                            "left": {
+                              "kind": "NamedValue",
+                              "symbol": "7 clamp_q"
+                            },
+                            "right": {
+                              "kind": "NamedValue",
+                              "symbol": "7 clamp_d"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_saturate.sv",
+                        "line": 8
+                      }
+                    }
+                  },
+                  {
+                    "kind": "ContinuousAssign",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_saturate.sv",
+                        "line": 12
+                      }
+                    },
+                    "assignment": {
+                      "kind": "Assignment",
+                      "left": {
+                        "kind": "NamedValue",
+                        "symbol": "7 data_o"
+                      },
+                      "right": {
+                        "kind": "NamedValue",
+                        "symbol": "7 clamp_q"
+                      }
+                    }
+                  }
+                ]
+              },
+              "connections": [
+                {
+                  "port": "clk_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 clk_i"
+                  }
+                },
+                {
+                  "port": "rst_ni",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 rst_ni"
+                  }
+                },
+                {
+                  "port": "en_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 en_i"
+                  }
+                },
+                {
+                  "port": "data_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 fir_raw"
+                  }
+                },
+                {
+                  "port": "data_o",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "7 clamped"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "ProceduralBlock",
+              "procedureKind": "AlwaysFF",
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "ExpressionStatement",
+                    "expr": {
+                      "kind": "Assignment",
+                      "left": {
+                        "kind": "NamedValue",
+                        "symbol": "7 valid_q"
+                      },
+                      "right": {
+                        "kind": "NamedValue",
+                        "symbol": "7 en_i"
+                      }
+                    }
+                  }
+                ]
+              },
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 32
+                }
+              }
+            },
+            {
+              "kind": "ContinuousAssign",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 36
+                }
+              },
+              "assignment": {
+                "kind": "Assignment",
+                "left": {
+                  "kind": "NamedValue",
+                  "symbol": "7 data_o"
+                },
+                "right": {
+                  "kind": "NamedValue",
+                  "symbol": "7 clamped"
+                }
+              }
+            },
+            {
+              "kind": "ContinuousAssign",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_stream.sv",
+                  "line": 37
+                }
+              },
+              "assignment": {
+                "kind": "Assignment",
+                "left": {
+                  "kind": "NamedValue",
+                  "symbol": "7 valid_o"
+                },
+                "right": {
+                  "kind": "NamedValue",
+                  "symbol": "7 valid_q"
+                }
+              }
+            }
+          ]
+        },
+        "connections": []
+      }
+    ]
+  }
+}

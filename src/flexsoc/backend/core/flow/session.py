@@ -289,6 +289,8 @@ class TargetSession:
                 inputs = rtl
             elif stage == "cdc_rdc":
                 inputs = self._execution_inputs("cdc_rdc.setup")
+            elif stage == "coverage":
+                inputs = (p.coverage / "sv", p.coverage / "cocotb")
             elif stage == "regression":
                 inputs = (*rtl, p.sdc, p.tests, p.py, *self._execution_inputs("tb.setup"), *self._execution_inputs("cocotb.setup"))
             elif stage.startswith("formal_"):
@@ -395,7 +397,15 @@ class TargetSession:
 
     def _generated_paths(self, stage: str, result: object) -> tuple[Path, ...]:
         if stage in RUNTIME_STAGES:
-            return self._evidence_paths(stage)
+            paths = self._evidence_paths(stage)
+            # Producer-owned trees are declared in StageContract, shared with
+            # release integrity migration and classification.
+            from .lifecycle import STAGE_CONTRACTS
+            for relative in STAGE_CONTRACTS[stage].owned_outputs:
+                candidate = self.paths.run / relative.format(top=self.paths.top, pdk=self.paths.pdk)
+                if candidate.is_dir():
+                    paths += (candidate,)
+            return tuple(dict.fromkeys(paths))
         paths = self._result_paths(result)
         if stage == "cdc_rdc.setup":
             paths = (self.paths.cdc_rdc / "extract.ys",)
@@ -409,9 +419,13 @@ class TargetSession:
                 out / "sky130_clock_gates_formal.v", out / "formal_pdk.v",
             ]
             paths += tuple(path for path in bindings if path.exists() or path.is_symlink())
-        elif stage.startswith("formal.csr_"):
-            mode = "cover" if ".cover." in stage else "prove"
-            paths += (self.paths.formal / "csr" / mode / f"{self.paths.top}_csr_auto_{mode}.sv",)
+        elif stage in {"formal.csr_prove.setup", "formal.csr_cover.setup"}:
+            from .lifecycle import STAGE_CONTRACTS
+            paths += tuple(
+                candidate
+                for relative in STAGE_CONTRACTS[stage].owned_outputs
+                if (candidate := self.paths.run / relative.format(top=self.paths.top, pdk=self.paths.pdk)).is_file()
+            )
         return tuple(dict.fromkeys(path.expanduser().absolute() for path in paths))
 
     def _setup_stages(self, target: str) -> tuple[str, ...]:

@@ -142,6 +142,7 @@ class CoverageFlow:
         *,
         tool: str = "verilator_coverage",
         on: str = "local",
+        source_root: Path | None = None,
     ) -> Path:
         """Create Verilator point annotations for one merged database."""
         from flexsoc.backend.core import CommandRequest, ToolRunner
@@ -162,7 +163,7 @@ class CoverageFlow:
         runner = self.runner or ToolRunner()
         try:
             result = runner.run(
-                CommandRequest(argv, output.parent, {}, log, inputs=(data,), outputs=(output,)),
+                CommandRequest(argv, source_root or output.parent, {}, log, inputs=(data,), outputs=(output,)),
                 on=on,
             )
         except OSError as exc:
@@ -187,7 +188,10 @@ class CoverageFlow:
             else CoverageFlow._resolve_verilator_coverage(context.values)
         )
         merged = self.collect(paths.coverage, tool=tool, on=on)
-        annotated = self.annotate(merged, paths.coverage / "annotated", tool=tool, on=on)
+        annotated = self.annotate(
+            merged, paths.coverage / "annotated", tool=tool, on=on,
+            source_root=paths.run,
+        )
         summary = self.report(
             merged, (paths.rtl_ip, paths.rtl_common), paths.coverage / "summary.txt",
             annotated_dir=annotated,

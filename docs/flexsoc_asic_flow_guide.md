@@ -2277,7 +2277,7 @@ generate register RTL + docs + regmap + driver
 generate/adopt RTL scaffold
 generate ordered filelists
 
-run lint suite
+run `fx lint`
 run CDC/RDC
 run CSR + design formal
 run SV + cocotb functional regression

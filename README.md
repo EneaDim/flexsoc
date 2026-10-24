@@ -164,7 +164,7 @@ fx settings \
 
 fx setup --force
 fx hjson reg doc rtl_stub top_from_core flist --force
-fx lint_suite
+fx lint
 
 # Initialize once, then review/edit as authored timing intent.
 fx sdc --setup --force

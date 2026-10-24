@@ -28,20 +28,20 @@ def test_freeze_rtl_dependencies_makes_release_self_contained(tmp_path: Path) ->
     PackageFlow._freeze_rtl_dependencies(release, project)
     PackageFlow._validate_frozen_filelists(release)
     common_text = (rtl / "rtl_common.f").read_text(encoding="utf-8")
-    assert "+incdir+rtl/deps/flexsoc/pkgs" in common_text
-    assert "rtl/deps/flexsoc/pkgs/pkg.sv" in common_text
-    assert "rtl/deps/flexsoc/vendor/demo/dep.sv" in common_text
-    assert (release / "rtl/deps/flexsoc/pkgs/defs.svh").is_file()
-    assert (release / "rtl/deps/flexsoc/vendor/demo/dep.sv").is_file()
+    assert "+incdir+hw/ips/pkgs" in common_text
+    assert "hw/ips/pkgs/pkg.sv" in common_text
+    assert "vendor/demo/dep.sv" in common_text
+    assert (release / "hw/ips/pkgs/defs.svh").is_file()
+    assert (release / "vendor/demo/dep.sv").is_file()
 
     core = PackageFlow._write_fusesoc_core(release, "demo", "demo")
     assert core is not None
     text = core.read_text(encoding="utf-8")
     assert "ips:dependecies:all" not in text
-    assert "rtl/deps/flexsoc/pkgs/pkg.sv" in text
-    assert "rtl/deps/flexsoc/vendor/demo/dep.sv" in text
+    assert "hw/ips/pkgs/pkg.sv" in text
+    assert "vendor/demo/dep.sv" in text
     assert "is_include_file: true" in text
-    assert "include_path: rtl/deps/flexsoc/pkgs" in text
+    assert "include_path: hw/ips/pkgs" in text
 
 
 def test_staged_release_rejects_external_filelist_paths(tmp_path: Path) -> None:
@@ -80,11 +80,47 @@ def test_freeze_lowrisc_tlul_sources_becomes_explicit_core_dependencies(tmp_path
     (rtl / "rtl_ip.f").write_text("rtl/demo.sv\n", encoding="utf-8")
 
     PackageFlow._freeze_rtl_dependencies(release, project)
-    assert (rtl / "rtl_common.f").read_text(encoding="utf-8").strip() == ""
-    deps = (rtl / "fusesoc_deps.txt").read_text(encoding="utf-8").splitlines()
-    assert deps == ["lowrisc:tlul:common", "lowrisc:tlul:adapter_reg"]
+    PackageFlow._validate_frozen_filelists(release)
+    lines = (rtl / "rtl_common.f").read_text(encoding="utf-8").splitlines()
+    assert lines == [
+        "vendor/lowrisc_ip/ip/tlul/rtl/tlul_pkg.sv",
+        "vendor/lowrisc_ip/ip/tlul/rtl/tlul_data_integ_enc.sv",
+        "vendor/lowrisc_ip/ip/tlul/rtl/tlul_adapter_reg.sv",
+    ]
+    assert not (rtl / "fusesoc_deps.txt").exists()
+    assert all((release / line).is_file() for line in lines)
     core = PackageFlow._write_fusesoc_core(release, "demo", "demo")
     text = core.read_text(encoding="utf-8")
-    assert "- lowrisc:tlul:common" in text
-    assert "- lowrisc:tlul:adapter_reg" in text
-    assert "vendor/lowrisc_ip" not in text
+    assert "vendor/lowrisc_ip/ip/tlul/rtl/tlul_pkg.sv" in text
+    assert "lowrisc:tlul:common" not in text
+    # The staged release remains valid after relocation outside the project tree.
+    moved = tmp_path / "different_mount" / "demo"
+    moved.parent.mkdir()
+    release.rename(moved)
+    PackageFlow._validate_frozen_filelists(moved)
+    assert (moved / "vendor/lowrisc_ip/ip/tlul/rtl/tlul_pkg.sv").is_file()
+
+
+
+def test_freeze_migrates_legacy_run_dependencies(tmp_path: Path) -> None:
+    from flexsoc.backend.release.package import PackageFlow
+
+    project = tmp_path / "project"
+    release = project / "release"
+    rtl = release / "rtl"
+    legacy = rtl / "deps" / "flexsoc" / "hw" / "ips" / "prim"
+    legacy.mkdir(parents=True)
+    (legacy / "prim_ff_2sync.sv").write_text("module prim_ff_2sync; endmodule\n", encoding="utf-8")
+    (rtl / "gpio.sv").write_text("module gpio; endmodule\n", encoding="utf-8")
+    (rtl / "rtl_common.f").write_text(
+        "rtl/deps/flexsoc/hw/ips/prim/prim_ff_2sync.sv\n", encoding="utf-8"
+    )
+    (rtl / "rtl_ip.f").write_text("rtl/gpio.sv\n", encoding="utf-8")
+
+    PackageFlow._freeze_rtl_dependencies(release, project)
+    PackageFlow._validate_frozen_filelists(release)
+    assert (release / "hw/ips/prim/prim_ff_2sync.sv").is_file()
+    assert not (rtl / "deps").exists()
+    assert (rtl / "rtl_common.f").read_text(encoding="utf-8").strip() == (
+        "hw/ips/prim/prim_ff_2sync.sv"
+    )

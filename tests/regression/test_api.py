@@ -11119,6 +11119,26 @@ def test_cli_lint_show_filters_tool_and_keeps_file_last(
     assert "Lint · verilator" in summary and "Diagnostics 1" in summary
     assert "width-trunc" not in summary and "VARHIDDEN" not in summary
 
+    assert app(["lint", "--show", "--scope", "ip", "--priority", "all", *common]) == 0
+    rendered = capsys.readouterr().out
+    assert "width-trunc" in rendered and "VARHIDDEN" in rendered
+
+    assert app(["lint", "--show", "--scope", "common", "--priority", "all", *common]) == 0
+    rendered = capsys.readouterr().out
+    assert "width-trunc" not in rendered and "VARHIDDEN" not in rendered
+
+    assert app(["lint", "--show", "--type", "VARHIDDEN", "--priority", "all", *common]) == 0
+    rendered = capsys.readouterr().out
+    assert "VARHIDDEN" in rendered and "width-trunc" not in rendered
+
+    assert app(["lint", "--show", "--json", "--priority", "all", *common]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["scopes"]["ip"]["total"] == 3
+    assert payload["diagnostics"][0]["scope"] == "ip"
+
+    assert app(["lint", "--show", "--scope", "bad", *common]) == 2
+    assert "--scope must be" in capsys.readouterr().err
+
     assert app(["lint", "--show", "--tool", "unknown", *common]) == 2
     assert "--tool must be slang or verilator" in capsys.readouterr().err
 

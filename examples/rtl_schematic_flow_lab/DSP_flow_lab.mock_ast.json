@@ -1,0 +1,692 @@
+{
+  "design": {
+    "kind": "Root",
+    "members": [
+      {
+        "kind": "Instance",
+        "name": "DSP_flow_lab",
+        "body": {
+          "kind": "InstanceBody",
+          "name": "DSP_flow_lab",
+          "members": [
+            {
+              "kind": "Port",
+              "name": "clk_i",
+              "direction": "In",
+              "addr": 96,
+              "type": "logic",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_flow_lab.sv",
+                  "line": 1
+                }
+              }
+            },
+            {
+              "kind": "Port",
+              "name": "rst_ni",
+              "direction": "In",
+              "addr": 97,
+              "type": "logic",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_flow_lab.sv",
+                  "line": 1
+                }
+              }
+            },
+            {
+              "kind": "Port",
+              "name": "enable_i",
+              "direction": "In",
+              "addr": 98,
+              "type": "logic",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_flow_lab.sv",
+                  "line": 1
+                }
+              }
+            },
+            {
+              "kind": "Port",
+              "name": "select_i",
+              "direction": "In",
+              "addr": 99,
+              "type": "logic",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_flow_lab.sv",
+                  "line": 1
+                }
+              }
+            },
+            {
+              "kind": "Port",
+              "name": "sample_i",
+              "direction": "In",
+              "addr": 100,
+              "type": "logic [11:0]",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_flow_lab.sv",
+                  "line": 1
+                }
+              }
+            },
+            {
+              "kind": "Port",
+              "name": "result_o",
+              "direction": "Out",
+              "addr": 107,
+              "type": "logic [11:0]",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_flow_lab.sv",
+                  "line": 1
+                }
+              }
+            },
+            {
+              "kind": "Variable",
+              "name": "from_producer",
+              "direction": "",
+              "addr": 101,
+              "type": "logic [11:0]",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_flow_lab.sv",
+                  "line": 1
+                }
+              }
+            },
+            {
+              "kind": "Variable",
+              "name": "middle_wire",
+              "direction": "",
+              "addr": 102,
+              "type": "logic [11:0]",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_flow_lab.sv",
+                  "line": 1
+                }
+              }
+            },
+            {
+              "kind": "Variable",
+              "name": "after_consumer",
+              "direction": "",
+              "addr": 103,
+              "type": "logic [11:0]",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_flow_lab.sv",
+                  "line": 1
+                }
+              }
+            },
+            {
+              "kind": "Variable",
+              "name": "tally_q",
+              "direction": "",
+              "addr": 104,
+              "type": "logic [11:0]",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_flow_lab.sv",
+                  "line": 1
+                }
+              }
+            },
+            {
+              "kind": "Variable",
+              "name": "lanes_in",
+              "direction": "",
+              "addr": 105,
+              "type": "logic [11:0] [4]",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_flow_lab.sv",
+                  "line": 1
+                }
+              }
+            },
+            {
+              "kind": "Variable",
+              "name": "lanes_out",
+              "direction": "",
+              "addr": 106,
+              "type": "logic [11:0] [4]",
+              "sourceRange": {
+                "start": {
+                  "file": "DSP_flow_lab.sv",
+                  "line": 1
+                }
+              }
+            },
+            {
+              "kind": "Instance",
+              "name": "u_right",
+              "body": {
+                "kind": "InstanceBody",
+                "name": "DSP_producer",
+                "members": [
+                  {
+                    "kind": "Port",
+                    "name": "operand_i",
+                    "direction": "In",
+                    "addr": 500,
+                    "type": "logic [11:0]",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_flow_lab.sv",
+                        "line": 1
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "produced_o",
+                    "direction": "Out",
+                    "addr": 501,
+                    "type": "logic [11:0]",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_flow_lab.sv",
+                        "line": 1
+                      }
+                    }
+                  }
+                ],
+                "sourceRange": {
+                  "start": {
+                    "file": "DSP_flow_lab.sv",
+                    "line": 1
+                  }
+                }
+              },
+              "connections": [
+                {
+                  "port": "operand_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "100 sample_i"
+                  }
+                },
+                {
+                  "port": "produced_o",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "101 from_producer"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "Instance",
+              "name": "u_left",
+              "body": {
+                "kind": "InstanceBody",
+                "name": "DSP_consumer",
+                "members": [
+                  {
+                    "kind": "Port",
+                    "name": "payload_i",
+                    "direction": "In",
+                    "addr": 600,
+                    "type": "logic [11:0]",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_flow_lab.sv",
+                        "line": 1
+                      }
+                    }
+                  },
+                  {
+                    "kind": "Port",
+                    "name": "consumed_o",
+                    "direction": "Out",
+                    "addr": 601,
+                    "type": "logic [11:0]",
+                    "sourceRange": {
+                      "start": {
+                        "file": "DSP_flow_lab.sv",
+                        "line": 1
+                      }
+                    }
+                  }
+                ],
+                "sourceRange": {
+                  "start": {
+                    "file": "DSP_flow_lab.sv",
+                    "line": 1
+                  }
+                }
+              },
+              "connections": [
+                {
+                  "port": "payload_i",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "102 middle_wire"
+                  }
+                },
+                {
+                  "port": "consumed_o",
+                  "expression": {
+                    "kind": "NamedValue",
+                    "symbol": "103 after_consumer"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "ContinuousAssign",
+              "assignment": {
+                "kind": "Assignment",
+                "left": {
+                  "kind": "NamedValue",
+                  "symbol": "102 different"
+                },
+                "right": {
+                  "kind": "NamedValue",
+                  "symbol": "101 not_from_producer"
+                }
+              }
+            },
+            {
+              "kind": "ProceduralBlock",
+              "procedureKind": "AlwaysFF",
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "ExpressionStatement",
+                    "expr": {
+                      "kind": "Assignment",
+                      "left": {
+                        "kind": "NamedValue",
+                        "symbol": "104 tally_q"
+                      },
+                      "right": {
+                        "kind": "BinaryOp",
+                        "op": "Add",
+                        "left": {
+                          "kind": "NamedValue",
+                          "symbol": "104 tally_q"
+                        },
+                        "right": {
+                          "kind": "NamedValue",
+                          "symbol": "103 after_consumer"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "ContinuousAssign",
+              "assignment": {
+                "kind": "Assignment",
+                "left": {
+                  "kind": "NamedValue",
+                  "symbol": "107 result_o"
+                },
+                "right": {
+                  "kind": "ConditionalOp",
+                  "conditions": [
+                    {
+                      "kind": "NamedValue",
+                      "symbol": "99 select_i"
+                    }
+                  ],
+                  "left": {
+                    "kind": "NamedValue",
+                    "symbol": "104 tally_q"
+                  },
+                  "right": {
+                    "kind": "ElementSelect",
+                    "value": {
+                      "kind": "NamedValue",
+                      "symbol": "106 lanes_out"
+                    },
+                    "index": {
+                      "kind": "IntegerLiteral",
+                      "value": 0
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "kind": "GenerateBlockArray",
+              "name": "g_parallel",
+              "members": [
+                {
+                  "kind": "GenerateBlock",
+                  "name": "g_parallel[0]",
+                  "members": [
+                    {
+                      "kind": "Instance",
+                      "name": "arbitrary_instance_name",
+                      "body": {
+                        "kind": "InstanceBody",
+                        "name": "DSP_lane",
+                        "members": [
+                          {
+                            "kind": "Port",
+                            "name": "source_word_i",
+                            "direction": "In",
+                            "addr": 700,
+                            "type": "logic [11:0]",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_flow_lab.sv",
+                                "line": 1
+                              }
+                            }
+                          },
+                          {
+                            "kind": "Port",
+                            "name": "transformed_o",
+                            "direction": "Out",
+                            "addr": 701,
+                            "type": "logic [11:0]",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_flow_lab.sv",
+                                "line": 1
+                              }
+                            }
+                          }
+                        ],
+                        "sourceRange": {
+                          "start": {
+                            "file": "DSP_flow_lab.sv",
+                            "line": 1
+                          }
+                        }
+                      },
+                      "connections": [
+                        {
+                          "port": "source_word_i",
+                          "expression": {
+                            "kind": "ElementSelect",
+                            "value": {
+                              "kind": "NamedValue",
+                              "symbol": "105 lanes_in"
+                            },
+                            "index": {
+                              "kind": "IntegerLiteral",
+                              "value": 0
+                            }
+                          }
+                        },
+                        {
+                          "port": "transformed_o",
+                          "expression": {
+                            "kind": "ElementSelect",
+                            "value": {
+                              "kind": "NamedValue",
+                              "symbol": "106 lanes_out"
+                            },
+                            "index": {
+                              "kind": "IntegerLiteral",
+                              "value": 0
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "GenerateBlock",
+                  "name": "g_parallel[1]",
+                  "members": [
+                    {
+                      "kind": "Instance",
+                      "name": "arbitrary_instance_name",
+                      "body": {
+                        "kind": "InstanceBody",
+                        "name": "DSP_lane",
+                        "members": [
+                          {
+                            "kind": "Port",
+                            "name": "source_word_i",
+                            "direction": "In",
+                            "addr": 702,
+                            "type": "logic [11:0]",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_flow_lab.sv",
+                                "line": 1
+                              }
+                            }
+                          },
+                          {
+                            "kind": "Port",
+                            "name": "transformed_o",
+                            "direction": "Out",
+                            "addr": 703,
+                            "type": "logic [11:0]",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_flow_lab.sv",
+                                "line": 1
+                              }
+                            }
+                          }
+                        ],
+                        "sourceRange": {
+                          "start": {
+                            "file": "DSP_flow_lab.sv",
+                            "line": 1
+                          }
+                        }
+                      },
+                      "connections": [
+                        {
+                          "port": "source_word_i",
+                          "expression": {
+                            "kind": "ElementSelect",
+                            "value": {
+                              "kind": "NamedValue",
+                              "symbol": "105 lanes_in"
+                            },
+                            "index": {
+                              "kind": "IntegerLiteral",
+                              "value": 1
+                            }
+                          }
+                        },
+                        {
+                          "port": "transformed_o",
+                          "expression": {
+                            "kind": "ElementSelect",
+                            "value": {
+                              "kind": "NamedValue",
+                              "symbol": "106 lanes_out"
+                            },
+                            "index": {
+                              "kind": "IntegerLiteral",
+                              "value": 1
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "GenerateBlock",
+                  "name": "g_parallel[2]",
+                  "members": [
+                    {
+                      "kind": "Instance",
+                      "name": "arbitrary_instance_name",
+                      "body": {
+                        "kind": "InstanceBody",
+                        "name": "DSP_lane",
+                        "members": [
+                          {
+                            "kind": "Port",
+                            "name": "source_word_i",
+                            "direction": "In",
+                            "addr": 704,
+                            "type": "logic [11:0]",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_flow_lab.sv",
+                                "line": 1
+                              }
+                            }
+                          },
+                          {
+                            "kind": "Port",
+                            "name": "transformed_o",
+                            "direction": "Out",
+                            "addr": 705,
+                            "type": "logic [11:0]",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_flow_lab.sv",
+                                "line": 1
+                              }
+                            }
+                          }
+                        ],
+                        "sourceRange": {
+                          "start": {
+                            "file": "DSP_flow_lab.sv",
+                            "line": 1
+                          }
+                        }
+                      },
+                      "connections": [
+                        {
+                          "port": "source_word_i",
+                          "expression": {
+                            "kind": "ElementSelect",
+                            "value": {
+                              "kind": "NamedValue",
+                              "symbol": "105 lanes_in"
+                            },
+                            "index": {
+                              "kind": "IntegerLiteral",
+                              "value": 2
+                            }
+                          }
+                        },
+                        {
+                          "port": "transformed_o",
+                          "expression": {
+                            "kind": "ElementSelect",
+                            "value": {
+                              "kind": "NamedValue",
+                              "symbol": "106 lanes_out"
+                            },
+                            "index": {
+                              "kind": "IntegerLiteral",
+                              "value": 2
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "GenerateBlock",
+                  "name": "g_parallel[3]",
+                  "members": [
+                    {
+                      "kind": "Instance",
+                      "name": "arbitrary_instance_name",
+                      "body": {
+                        "kind": "InstanceBody",
+                        "name": "DSP_lane",
+                        "members": [
+                          {
+                            "kind": "Port",
+                            "name": "source_word_i",
+                            "direction": "In",
+                            "addr": 706,
+                            "type": "logic [11:0]",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_flow_lab.sv",
+                                "line": 1
+                              }
+                            }
+                          },
+                          {
+                            "kind": "Port",
+                            "name": "transformed_o",
+                            "direction": "Out",
+                            "addr": 707,
+                            "type": "logic [11:0]",
+                            "sourceRange": {
+                              "start": {
+                                "file": "DSP_flow_lab.sv",
+                                "line": 1
+                              }
+                            }
+                          }
+                        ],
+                        "sourceRange": {
+                          "start": {
+                            "file": "DSP_flow_lab.sv",
+                            "line": 1
+                          }
+                        }
+                      },
+                      "connections": [
+                        {
+                          "port": "source_word_i",
+                          "expression": {
+                            "kind": "ElementSelect",
+                            "value": {
+                              "kind": "NamedValue",
+                              "symbol": "105 lanes_in"
+                            },
+                            "index": {
+                              "kind": "IntegerLiteral",
+                              "value": 3
+                            }
+                          }
+                        },
+                        {
+                          "port": "transformed_o",
+                          "expression": {
+                            "kind": "ElementSelect",
+                            "value": {
+                              "kind": "NamedValue",
+                              "symbol": "106 lanes_out"
+                            },
+                            "index": {
+                              "kind": "IntegerLiteral",
+                              "value": 3
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "sourceRange": {
+            "start": {
+              "file": "DSP_flow_lab.sv",
+              "line": 1
+            }
+          }
+        }
+      }
+    ]
+  }
+}

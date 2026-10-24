@@ -3,16 +3,16 @@
   "run": {
     "top": "uart",
     "run_top": "uart",
-    "run_id": "l2",
-    "pdk": "sky130",
-    "run_root": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2",
+    "run_id": "l2_uart_model_final",
+    "pdk": "ihp-sg13g2",
+    "run_root": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final",
     "artifacts": {
-      "sdc": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/constraints/uart.sdc",
-      "meta": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/meta/sky130"
+      "sdc": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/constraints/uart.sdc",
+      "meta": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/meta/ihp-sg13g2"
     }
   },
   "git": {
-    "commit": "257bf94d9542c66dbd7705fa8bdc7ae00328ac43",
+    "commit": "259df1a1d3d8d53a3147ab3fa3ae49eebc624002",
     "dirty": true
   },
   "environment": {
@@ -106,10 +106,20 @@
       "cdc_raw": 0,
       "rdc_raw": 0,
       "obligations": 0
+    },
+    "modeling": {
+      "status": "PASS",
+      "cases": {
+        "corners": "PASS",
+        "parity_error": "PASS",
+        "parity_reconfig": "PASS"
+      },
+      "summary": "dv/functional/py/model/results/summary.json"
     }
   },
   "flow": {
     "order": [
+      "modeling",
       "lint",
       "cdc_rdc",
       "functional",
@@ -121,6 +131,7 @@
       "post_implementation_signoff"
     ],
     "stages": {
+      "modeling": "pass",
       "lint": "PASS",
       "cdc_rdc": "pass",
       "functional": "pass",
@@ -139,6 +150,7 @@
   "physical_signoff": null,
   "closure": {
     "order": [
+      "modeling",
       "lint",
       "cdc_rdc",
       "formal",
@@ -161,6 +173,7 @@
       "post_impl_fusion"
     ],
     "stages": {
+      "modeling": "PASS",
       "lint": "PASS",
       "cdc_rdc": "pass",
       "regression": "pass",

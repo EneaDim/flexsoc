@@ -1,24 +1,33 @@
 {
   "schema_version": 18,
   "top": "uart",
-  "run_root": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2",
+  "run_root": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final",
   "technology": {
-    "pdk": "sky130",
+    "pdk": "ihp-sg13g2",
     "artifacts": {
-      "synthesis": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/syn/sky130",
-      "equivalence": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/signoff/sky130/equivalence/rtl_vs_syn",
-      "post_syn_sim": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/dv/functional/sim/post_syn/sky130",
-      "post_impl_sim": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/dv/functional/sim/post_impl/sky130",
-      "implementation": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/impl/sky130",
-      "post_impl_signoff": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/signoff/sky130/post_impl",
-      "sdc": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/constraints/uart.sdc",
-      "sta": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/signoff/sky130/sta",
-      "power": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/signoff/sky130/power",
-      "fusion": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/signoff/sky130/fusion",
-      "sdf": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/signoff/sky130/sdf",
-      "path_view": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/signoff/sky130/path_view",
-      "meta": "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/meta/sky130"
+      "synthesis": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/syn/ihp-sg13g2",
+      "equivalence": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/signoff/ihp-sg13g2/equivalence/rtl_vs_syn",
+      "post_syn_sim": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/dv/functional/sim/post_syn/ihp-sg13g2",
+      "post_impl_sim": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/dv/functional/sim/post_impl/ihp-sg13g2",
+      "implementation": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/impl/ihp-sg13g2",
+      "post_impl_signoff": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/signoff/ihp-sg13g2/post_impl",
+      "sdc": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/constraints/uart.sdc",
+      "sta": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/signoff/ihp-sg13g2/sta",
+      "power": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/signoff/ihp-sg13g2/power",
+      "fusion": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/signoff/ihp-sg13g2/fusion",
+      "sdf": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/signoff/ihp-sg13g2/sdf",
+      "path_view": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/signoff/ihp-sg13g2/path_view",
+      "meta": "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart_model_final/meta/ihp-sg13g2"
     }
+  },
+  "modeling": {
+    "status": "PASS",
+    "cases": {
+      "corners": "PASS",
+      "parity_error": "PASS",
+      "parity_reconfig": "PASS"
+    },
+    "summary": "dv/functional/py/model/results/summary.json"
   },
   "lint": {
     "artifacts": {
@@ -2352,6 +2361,16 @@
         "tool": "slang"
       },
       {
+        "code": "unused-variable",
+        "column": 21,
+        "file": "hw/ips/prim/prim_ff_2sync.sv",
+        "line": 11,
+        "message": "unused variable 'd_o'",
+        "priority": "P2",
+        "severity": "warning",
+        "tool": "slang"
+      },
+      {
         "code": "unused-parameter",
         "column": 26,
         "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
@@ -2417,16 +2436,6 @@
         "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
         "line": 42,
         "message": "unused port signal 'en_i'",
-        "priority": "P2",
-        "severity": "warning",
-        "tool": "slang"
-      },
-      {
-        "code": "unused-variable",
-        "column": 21,
-        "file": "rtl/deps/flexsoc/prim/prim_ff_2sync.sv",
-        "line": 11,
-        "message": "unused variable 'd_o'",
         "priority": "P2",
         "severity": "warning",
         "tool": "slang"
@@ -3423,6 +3432,16 @@
       },
       {
         "code": "UNUSEDSIGNAL",
+        "column": 21,
+        "file": "hw/ips/prim/prim_ff_2sync.sv",
+        "line": 11,
+        "message": "Signal is not driven, nor used: 'd_o'\n... note: In instance 'uart.u_core_reset_sync'",
+        "priority": "P2",
+        "severity": "warning",
+        "tool": "verilator"
+      },
+      {
+        "code": "UNUSEDSIGNAL",
         "column": 34,
         "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
         "line": 37,
@@ -3447,16 +3466,6 @@
         "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
         "line": 42,
         "message": "Signal is not used: 'en_i'\n... note: In instance 'uart.u_uart_reg.u_reg_core.u_prim_reg_we_check.u_prim_onehot_check'",
-        "priority": "P2",
-        "severity": "warning",
-        "tool": "verilator"
-      },
-      {
-        "code": "UNUSEDSIGNAL",
-        "column": 21,
-        "file": "rtl/deps/flexsoc/prim/prim_ff_2sync.sv",
-        "line": 11,
-        "message": "Signal is not driven, nor used: 'd_o'\n... note: In instance 'uart.u_core_reset_sync'",
         "priority": "P2",
         "severity": "warning",
         "tool": "verilator"
@@ -4383,10 +4392,6 @@
     "status": "PASS",
     "tools": {
       "slang": {
-        "artifacts": {
-          "diagnostics": "dv/lint/slang/slang_diag.json",
-          "log": "logs/dv/lint/slang/slang.log"
-        },
         "command": [
           "slang",
           "--single-unit",
@@ -4397,12 +4402,12 @@
           "--diag-hierarchy",
           "never",
           "--diag-json",
-          "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/dv/lint/slang/slang_diag.json",
+          "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/dv/lint/slang/slang_diag.json",
           "-Weverything",
           "-f",
-          "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl/rtl_common.f",
+          "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/rtl/rtl_common.f",
           "-f",
-          "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl/rtl_ip.f"
+          "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/rtl/rtl_ip.f"
         ],
         "counts": {
           "P0": 1,
@@ -4419,10 +4424,6 @@
         "total": 280
       },
       "verilator": {
-        "artifacts": {
-          "diagnostics": "dv/lint/verilator/verilator.sarif",
-          "log": "logs/dv/lint/verilator/verilator.log"
-        },
         "command": [
           "verilator",
           "--lint-only",
@@ -4431,11 +4432,11 @@
           "-Wno-fatal",
           "-Wall",
           "--diagnostics-sarif-output",
-          "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/dv/lint/verilator/verilator.sarif",
+          "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/dv/lint/verilator/verilator.sarif",
           "-f",
-          "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl/rtl_common.f",
+          "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/rtl/rtl_common.f",
           "-f",
-          "/home/eneadim/github/flexsoc/workspace/l2_uart_tlul_66W9yAxi/workspace/runs/uart/l2/rtl/rtl_ip.f",
+          "/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/rtl/rtl_ip.f",
           "--top-module",
           "uart"
         ],
@@ -4506,8 +4507,7 @@
       "safe": 0,
       "warnings": 0
     },
-    "summary": "dv/cdc_rdc/summary.json",
-    "report": "dv/cdc_rdc/cdc_rdc.rpt"
+    "summary": "dv/cdc_rdc/summary.json"
   },
   "formal": {
     "csr": {
@@ -4696,14 +4696,14 @@
         "total": 13356
       },
       "common": {
-        "hit": 1991,
-        "percent": 23.35483870967742,
-        "total": 8525
+        "hit": 2000,
+        "percent": 23.427433524657374,
+        "total": 8537
       },
       "design": {
-        "hit": 1596,
-        "percent": 63.58565737051793,
-        "total": 2510
+        "hit": 1587,
+        "percent": 63.530824659727784,
+        "total": 2498
       },
       "other": {
         "hit": 856,
@@ -4825,14 +4825,14 @@
               "total": 1742
             },
             "toggle": {
-              "hit": 1648,
-              "percent": 53.29883570504528,
-              "total": 3092
+              "hit": 1657,
+              "percent": 53.38273195876289,
+              "total": 3104
             },
             "total": {
-              "hit": 1991,
-              "percent": 23.35483870967742,
-              "total": 8525
+              "hit": 2000,
+              "percent": 23.427433524657374,
+              "total": 8537
             },
             "user": {
               "hit": 0,
@@ -4841,9 +4841,9 @@
             }
           },
           "total": {
-            "hit": 1991,
-            "percent": 23.35483870967742,
-            "total": 8525
+            "hit": 2000,
+            "percent": 23.427433524657374,
+            "total": 8537
           },
           "types": {
             "branch": {
@@ -4862,9 +4862,9 @@
               "total": 1742
             },
             "toggle": {
-              "hit": 1648,
-              "percent": 53.29883570504528,
-              "total": 3092
+              "hit": 1657,
+              "percent": 53.38273195876289,
+              "total": 3104
             }
           }
         },
@@ -4891,14 +4891,14 @@
               "total": 91
             },
             "toggle": {
-              "hit": 1303,
-              "percent": 60.15697137580794,
-              "total": 2166
+              "hit": 1294,
+              "percent": 60.07428040854224,
+              "total": 2154
             },
             "total": {
-              "hit": 1596,
-              "percent": 63.58565737051793,
-              "total": 2510
+              "hit": 1587,
+              "percent": 63.530824659727784,
+              "total": 2498
             },
             "user": {
               "hit": 0,
@@ -4907,9 +4907,9 @@
             }
           },
           "total": {
-            "hit": 1596,
-            "percent": 63.58565737051793,
-            "total": 2510
+            "hit": 1587,
+            "percent": 63.530824659727784,
+            "total": 2498
           },
           "types": {
             "branch": {
@@ -4928,9 +4928,9 @@
               "total": 91
             },
             "toggle": {
-              "hit": 1303,
-              "percent": 60.15697137580794,
-              "total": 2166
+              "hit": 1294,
+              "percent": 60.07428040854224,
+              "total": 2154
             }
           }
         },
@@ -64427,9 +64427,18 @@
     },
     "summary": "dv/functional/regression/summary.json",
     "coverage_summary_json": "dv/functional/coverage/summary.json",
-    "coverage_merged": "dv/functional/coverage/merged.dat"
+    "coverage_merged": null
   },
   "verification": {
+    "modeling": {
+      "status": "PASS",
+      "cases": {
+        "corners": "PASS",
+        "parity_error": "PASS",
+        "parity_reconfig": "PASS"
+      },
+      "summary": "dv/functional/py/model/results/summary.json"
+    },
     "cdc_rdc": {
       "status": "pass",
       "cdc": {
@@ -64493,9 +64502,9 @@
         "total": 13356
       },
       "coverage_design": {
-        "hit": 1596,
-        "percent": 63.58565737051793,
-        "total": 2510
+        "hit": 1587,
+        "percent": 63.530824659727784,
+        "total": 2498
       },
       "coverage_matrix": {
         "artifacts": {
@@ -64606,14 +64615,14 @@
                 "total": 1742
               },
               "toggle": {
-                "hit": 1648,
-                "percent": 53.29883570504528,
-                "total": 3092
+                "hit": 1657,
+                "percent": 53.38273195876289,
+                "total": 3104
               },
               "total": {
-                "hit": 1991,
-                "percent": 23.35483870967742,
-                "total": 8525
+                "hit": 2000,
+                "percent": 23.427433524657374,
+                "total": 8537
               },
               "user": {
                 "hit": 0,
@@ -64622,9 +64631,9 @@
               }
             },
             "total": {
-              "hit": 1991,
-              "percent": 23.35483870967742,
-              "total": 8525
+              "hit": 2000,
+              "percent": 23.427433524657374,
+              "total": 8537
             },
             "types": {
               "branch": {
@@ -64643,9 +64652,9 @@
                 "total": 1742
               },
               "toggle": {
-                "hit": 1648,
-                "percent": 53.29883570504528,
-                "total": 3092
+                "hit": 1657,
+                "percent": 53.38273195876289,
+                "total": 3104
               }
             }
           },
@@ -64672,14 +64681,14 @@
                 "total": 91
               },
               "toggle": {
-                "hit": 1303,
-                "percent": 60.15697137580794,
-                "total": 2166
+                "hit": 1294,
+                "percent": 60.07428040854224,
+                "total": 2154
               },
               "total": {
-                "hit": 1596,
-                "percent": 63.58565737051793,
-                "total": 2510
+                "hit": 1587,
+                "percent": 63.530824659727784,
+                "total": 2498
               },
               "user": {
                 "hit": 0,
@@ -64688,9 +64697,9 @@
               }
             },
             "total": {
-              "hit": 1596,
-              "percent": 63.58565737051793,
-              "total": 2510
+              "hit": 1587,
+              "percent": 63.530824659727784,
+              "total": 2498
             },
             "types": {
               "branch": {
@@ -64709,9 +64718,9 @@
                 "total": 91
               },
               "toggle": {
-                "hit": 1303,
-                "percent": 60.15697137580794,
-                "total": 2166
+                "hit": 1294,
+                "percent": 60.07428040854224,
+                "total": 2154
               }
             }
           },
@@ -124211,6 +124220,7 @@
   "signoff": {},
   "flow": {
     "order": [
+      "modeling",
       "lint",
       "cdc_rdc",
       "functional",
@@ -124222,6 +124232,7 @@
       "post_implementation_signoff"
     ],
     "stages": {
+      "modeling": "pass",
       "lint": "PASS",
       "cdc_rdc": "pass",
       "functional": "pass",
@@ -124237,6 +124248,7 @@
   },
   "closure": {
     "order": [
+      "modeling",
       "lint",
       "cdc_rdc",
       "formal",
@@ -124259,6 +124271,7 @@
       "post_impl_fusion"
     ],
     "stages": {
+      "modeling": "PASS",
       "lint": "PASS",
       "cdc_rdc": "pass",
       "regression": "pass",
@@ -124285,25 +124298,7 @@
   },
   "technical_status": "REVIEW",
   "provenance": {
-    "status": "CLEAN",
-    "stages": {
-      "cdc_rdc": "CLEAN",
-      "cdc_rdc.setup": "CLEAN",
-      "cocotb.setup": "CLEAN",
-      "formal.cover.setup": "CLEAN",
-      "formal.csr_cover.setup": "CLEAN",
-      "formal.csr_prove.setup": "CLEAN",
-      "formal.prove.setup": "CLEAN",
-      "formal_bmc": "CLEAN",
-      "formal_cover": "CLEAN",
-      "formal_csr_bmc": "CLEAN",
-      "formal_csr_cover": "CLEAN",
-      "formal_csr_prove": "CLEAN",
-      "formal_prove": "CLEAN",
-      "lint": "CLEAN",
-      "regression": "CLEAN",
-      "sdc.setup": "CLEAN",
-      "tb.setup": "CLEAN"
-    }
+    "status": "INVALID",
+    "stages": {}
   }
 }

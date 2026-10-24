@@ -1351,6 +1351,24 @@ class ShowRenderer:
             )
         self.console.print(table)
 
+        scopes = data.get("scopes", {})
+        if isinstance(scopes, Mapping):
+            scope_table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+            for column in ("Scope", "Total", "P0", "P1", "P2", "P3", "Types"):
+                scope_table.add_column(column)
+            for name in ("soc", "ip", "common"):
+                group = scopes.get(name, {})
+                if not isinstance(group, Mapping):
+                    continue
+                if not group.get("total") and name == "soc":
+                    continue
+                group_counts = group.get("counts", {})
+                kinds = group.get("types", {})
+                scope_table.add_row(name, str(group.get("total", 0)),
+                    *(str(group_counts.get(priority, 0)) for priority in ("P0", "P1", "P2", "P3")),
+                    ", ".join(f"{kind} ({count})" for kind, count in sorted(kinds.items())) or "-")
+            self.console.print(scope_table)
+
         if data.get("summary_only"):
             return
 
@@ -1374,6 +1392,7 @@ class ShowRenderer:
                 continue
             self.console.print(f"[bold bright_cyan]{tool}[/bold bright_cyan]  [grey70]{len(items)}[/grey70]")
             details = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70", expand=True)
+            details.add_column("Scope", no_wrap=True)
             details.add_column("Pri", no_wrap=True)
             details.add_column("Code", no_wrap=True)
             details.add_column("Line", justify="right", no_wrap=True)
@@ -1388,6 +1407,7 @@ class ShowRenderer:
                 message = str(item.get("message") or "-").splitlines()[0].strip() or "-"
                 file = str(item.get("file") or "<unknown>")
                 details.add_row(
+                    str(item.get("scope", "ip")),
                     f"[{color}]{priority}[/{color}]",
                     str(item.get("code", "-")),
                     line,
@@ -1590,6 +1610,7 @@ class ShowRenderer:
         stages = closure.get("stages", {}) if isinstance(closure.get("stages"), Mapping) else {}
         order = closure.get("order", ()) if isinstance(closure.get("order"), list) else ()
         labels = {
+            "modeling": ("Modeling", "Model tests"),
             "lint": ("Verification", "Lint"),
             "cdc_rdc": ("Verification", "CDC / RDC"),
             "formal": ("Verification", "Formal"),

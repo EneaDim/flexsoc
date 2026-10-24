@@ -117,22 +117,18 @@ class IpDesign:
 
         values, paths = self.context.values, self.context.paths
         root = self.context.project_root
-        # Loaded IP releases must consume a single frozen dependency tree.
-        # Never mix checkout hw/ips with rtl/deps/flexsoc/hw/ips.
-        frozen = paths.rtl / "deps" / "flexsoc"
-        has_frozen = (frozen / "hw" / "ips").is_dir() or (frozen / "vendor").is_dir()
-        library_root = frozen if has_frozen else root
+        # Use package-local libraries when available; older packages still load
+        # from their historical frozen tree until they are saved again.
+        package_root = paths.rtl.parent
+        canonical = package_root if (package_root / "hw" / "ips").is_dir() else None
+        legacy = paths.rtl / "deps" / "flexsoc"
+        library_root = canonical or (legacy if (legacy / "hw" / "ips").is_dir() else root)
         ips_root = library_root / "hw" / "ips"
-        # A loaded package may freeze primitives in either of two legacy
-        # layouts: deps/flexsoc/{prim,prim_opentitan} or
-        # deps/flexsoc/hw/ips/{prim,prim_opentitan}. Pick ONE per library.
-        # Never resolve missing frozen modules against the mutable checkout.
-        common_dirs = [ips_root / "pkgs"]
-        for name in ("prim", "prim_opentitan"):
-            frozen_legacy = frozen / name
-            preferred = frozen_legacy if has_frozen and frozen_legacy.is_dir() else ips_root / name
-            common_dirs.append(preferred)
+        common_dirs = [ips_root / name for name in ("pkgs", "prim", "prim_opentitan")]
+        if library_root == legacy:
+            common_dirs.extend(legacy / name for name in ("prim", "prim_opentitan"))
         common = tuple(path for path in common_dirs if path.is_dir())
+        frozen = library_root != root
         vendor_roots: tuple[Path, ...] = ()
         extra_args = ""
         interface = values.get("REG_ITF", "tlul")
@@ -150,7 +146,7 @@ class IpDesign:
                 "-I", str(pulp / "axi" / "include"),
                 "-I", str(pulp / "register_interface" / "include"),
             ))
-        if has_frozen:
+        if frozen:
             # For a loaded snapshot, do not fall back silently to mutable checkout
             # sources when the frozen library is incomplete.
             for lib in (*common, *vendor_roots):

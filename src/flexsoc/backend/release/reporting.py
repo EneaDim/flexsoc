@@ -177,6 +177,22 @@ class Reporting:
         return text.split(start, 1)[1].split(end, 1)[0]
 
     @staticmethod
+    def collect_modeling(run_dir: Path) -> dict[str, Any] | None:
+        """Read the retained model-test evidence, never a transient JUnit file."""
+        base = run_dir / "dv" / "functional"
+        paths = (base / "py" / "model" / "results" / "summary.json",
+                 base / "model_tests" / "summary.json")
+        for path in paths:
+            summary = Reporting._json_object(path)
+            if summary:
+                return {
+                    "status": str(summary.get("status", "MISSING")).upper(),
+                    "cases": summary.get("cases", {}),
+                    "summary": path.relative_to(run_dir).as_posix(),
+                }
+        return None
+
+    @staticmethod
     def collect_lint(top: str, run_dir: Path) -> dict[str, Any] | None:
         """Load the canonical aggregated lint summary."""
 
@@ -900,6 +916,7 @@ class Reporting:
             post = "missing"
 
         stages = {
+            "modeling": Reporting._metric_status(metrics, "modeling").lower(),
             "lint": Reporting._metric_status(metrics, "lint"),
             "cdc_rdc": Reporting._metric_status(metrics, "cdc_rdc"),
             "functional": Reporting._metric_status(metrics, "regression"),
@@ -923,6 +940,9 @@ class Reporting:
         """Summarize PDK-independent verification in lifecycle order."""
 
         result: dict[str, Any] = {}
+        modeling = metrics.get("modeling")
+        if isinstance(modeling, dict):
+            result["modeling"] = modeling
         cdc_rdc = metrics.get("cdc_rdc")
         if isinstance(cdc_rdc, dict):
             result["cdc_rdc"] = {
@@ -1053,6 +1073,8 @@ class Reporting:
         """Summarize whether the current run contains every standard closure stage."""
 
         stages: dict[str, str] = {}
+        modeling = metrics.get("modeling")
+        stages["modeling"] = str(modeling.get("status")) if isinstance(modeling, dict) else "missing"
         lint = metrics.get("lint")
         stages["lint"] = str(lint.get("status")) if isinstance(lint, dict) else "missing"
         cdc_rdc = metrics.get("cdc_rdc")
@@ -1074,7 +1096,7 @@ class Reporting:
         stages["sdf"] = str(sdf.get("status")) if isinstance(sdf, dict) else "missing"
         stages["sta"] = Reporting._sta_status(metrics.get("sta"))
         stages["power"] = "pass" if metrics.get("power_estimate") else "missing"
-        order = ["lint", "cdc_rdc", "formal", "regression", "synthesis", "equivalence", "sdf", "sta", "power"]
+        order = ["modeling", "lint", "cdc_rdc", "formal", "regression", "synthesis", "equivalence", "sdf", "sta", "power"]
         gls = metrics.get("post_syn_gls")
         stages["post_syn_gls"] = str(gls.get("status", "unknown")) if isinstance(gls, dict) else "missing"
         order.append("post_syn_gls")
@@ -1162,6 +1184,10 @@ class Reporting:
                 "artifacts": layout.as_dict(),
             },
         }
+
+        modeling = Reporting.collect_modeling(run_dir)
+        if modeling is not None:
+            metrics["modeling"] = modeling
 
         # PDK-independent closure is shared by every implementation branch.
         for name, collector in (
@@ -1331,7 +1357,11 @@ class Reporting:
         physical_signoff: dict[str, object] | None = None
         closure: dict[str, object] | None = None
         if run_root_value:
-            evidence = Reporting._analysis_evidence(Path(run_root_value))
+            run_path = Path(run_root_value)
+            evidence = Reporting._analysis_evidence(run_path)
+            modeling = Reporting.collect_modeling(run_path)
+            if modeling is not None:
+                evidence["modeling"] = modeling
             analysis = evidence or None
         if pdk and run_root_value:
             run_root = Path(run_root_value)

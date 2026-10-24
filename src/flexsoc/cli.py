@@ -497,6 +497,9 @@ Use `fx commands` to list every backend target.
                     ("--debug", "Show plus hints, exact tool commands, and native JSON/SARIF/log paths."),
                     ("--tool", "Filter summary/show/debug to slang or verilator; never changes execution."),
                     ("--priority", "Filter show/debug priorities; default P0,P1, use all for every diagnostic."),
+                    ("--scope", "Filter common, ip, soc or all source scopes; works for Slang and Verilator."),
+                    ("--type", "Filter by native warning code (for example width-trunc or WIDTH)."),
+                    ("--json", "Print full filtered diagnostics as JSON."),
                 ),
             ),
         ),
@@ -1201,6 +1204,10 @@ Use `fx commands` to list every backend target.
             examples = (f"fx {public} --setup",) if target in SETUP_ONLY else self._target_examples(target, params)
             for example in examples:
                 console.print(f"  [bold bright_cyan]{example}[/bold bright_cyan]")
+            if normalized == "lint":
+                console.print("  [bright_cyan]fx lint --show --tool slang --scope common --priority all[/bright_cyan]")
+                console.print("  [bright_cyan]fx lint --show --tool slang --scope ip --type width-trunc[/bright_cyan]")
+                console.print("  [bright_cyan]fx lint --show --tool verilator --priority P0,P1[/bright_cyan]")
             if target in SETUP_TARGETS:
                 console.print(
                     "[bold orange1]Setup phase[/bold orange1]  "
@@ -2105,6 +2112,12 @@ Use `fx commands` to list every backend target.
                 str | None,
                 typer.Option("--priority", help="Lint priorities to show: P0,P1 (default), P0/P1/P2/P3, comma-separated, or all.", rich_help_panel="Output"),
             ] = None,
+            scope: Annotated[
+                str | None, typer.Option("--scope", help="Lint scope: common, ip, soc, all.", rich_help_panel="Output"),
+            ] = None,
+            warning_type: Annotated[
+                str | None, typer.Option("--type", help="Filter lint diagnostics by warning code/type.", rich_help_panel="Output"),
+            ] = None,
             save_output: Annotated[
                 Path | None,
                 typer.Option("--save-output", "-o", help="Save filtered --debug output to a file or directory.", rich_help_panel="Output"),
@@ -2283,6 +2296,11 @@ Use `fx commands` to list every backend target.
                     raise click.BadParameter("--priority is only valid with `fx lint`")
                 if not (show or debug):
                     raise click.BadParameter("--priority requires `fx lint --show` or `fx lint --debug`")
+            if scope is not None or warning_type is not None:
+                if args != ("lint",) or not (show or summary or debug):
+                    raise click.BadParameter("--scope/--type require `fx lint --show`, `--summary`, or `--debug`")
+            if scope is not None and scope.lower() not in {"all", "common", "ip", "soc"}:
+                raise click.BadParameter("--scope must be common, ip, soc, or all")
             if supports_evidence and (show or summary or debug):
                 if sum((show, summary, debug)) > 1:
                     raise click.BadParameter("choose only one of --show, --summary, or --debug")
@@ -2292,12 +2310,12 @@ Use `fx commands` to list every backend target.
                     if target.name == "lint":
                         if debug:
                             code = flows.dv.lint.debug(
-                                tool=tool, priority=priority, as_json=as_json,
+                                tool=tool, priority=priority, scope=scope, warning_type=warning_type, as_json=as_json,
                                 output=str(save_output) if save_output is not None else None,
                             )
                         else:
                             code = flows.dv.lint.show(
-                                tool=tool, priority=priority, summary=summary, as_json=as_json,
+                                tool=tool, priority=priority, scope=scope, warning_type=warning_type, summary=summary, as_json=as_json,
                                 output=str(save_output) if save_output is not None else None,
                             )
                     elif target.show == "qualification":

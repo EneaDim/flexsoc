@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence
 
+from .artifact_policy import ArtifactPolicy
 from .qualification import QualificationFlow, SPEC_FILES
 from .reporting import Reporting
 
@@ -169,9 +170,6 @@ class PackageFlow:
         run = Path(workspace) / "runs" / run_top / run_id
         destination = run if run_top == ip_name else run / "ips" / (load_as or ip_name)
         if requalify:
-            # Do not merge a new qualification baseline with previous RTL or evidence.
-            if destination.exists() and any((destination / name).exists() for name in ("csr", "rtl", "ip.json")):
-                raise ValueError("ip_load --force needs a fresh run; use a new RUN_ID or --workdir")
             with tempfile.TemporaryDirectory(prefix=".ip-requalify.", dir=run.parent if run.parent.is_dir() else None) as temp:
                 staged = Path(temp) / "source"
                 shutil.copytree(source, staged, symlinks=True)
@@ -179,15 +177,21 @@ class PackageFlow:
                 self._replace_tree(common_spec, staged / "spec")
                 self._discard_frozen_evidence(staged)
                 PackageFlow._clean_python_cache(staged)
-                # Historical source snapshots may reference checkout-level RTL mirrors.
-                # `fx flist` regenerates the canonical closure for this new run.
+                # Replace the old baseline and evidence, retaining run settings and logs.
+                self._reset_load_destination(destination, run)
                 PackageFlow._copy_contents(staged, destination)
                 self._materialize_shared_rtl(destination)
             print("[ip_load] UNQUALIFIED source baseline: previous qualification and PDK evidence discarded")
             return destination
-        if destination.exists() and destination != run:
-            shutil.rmtree(destination)
+        # A normal reload must replace the previous run contents, not merge
+        # them: leftover RTL/DV files invalidate the frozen package fingerprint.
+        settings_path = run / "meta" / "settings.json" if destination == run else None
+        settings = settings_path.read_bytes() if settings_path and settings_path.is_file() else None
+        self._reset_load_destination(destination, run)
         PackageFlow._copy_contents(source, destination)
+        if settings is not None:
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            settings_path.write_bytes(settings)
         common_spec = source.parent.parent / "spec"
         if common_spec.is_dir():
             self._replace_tree(common_spec, destination / "spec")
@@ -214,6 +218,31 @@ class PackageFlow:
         # Deferred to flist / explicit package validation: PackageFlow._validate_frozen_filelists(destination)
         return destination
 
+    @staticmethod
+    def _reset_load_destination(destination: Path, run: Path) -> None:
+        """Discard stale run artifacts before replacing a source qualification baseline."""
+        if not destination.is_dir():
+            return
+        if destination != run:
+            shutil.rmtree(destination)
+            return
+        for entry in destination.iterdir():
+            if entry.name in {"logs", ".flexsoc"}:
+                continue
+            if entry.name == "meta" and entry.is_dir():
+                for metadata in entry.iterdir():
+                    if metadata.name != "settings.json":
+                        PackageFlow._remove_path(metadata)
+                continue
+            PackageFlow._remove_path(entry)
+
+    @staticmethod
+    def _remove_path(path: Path) -> None:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink(missing_ok=True)
+
     def _materialize_shared_rtl(self, destination: Path) -> None:
         """Populate missing run-local shared RTL from hw/ips, never from IP snapshot."""
         common = destination / "rtl" / "rtl_common.f"
@@ -226,13 +255,15 @@ class PackageFlow:
                 continue
             relative = Path(entry)
             parts = relative.parts
-            if (len(parts) != 5 or parts[:4] != ("rtl", "deps", "flexsoc", "prim")
-                    or relative.suffix != ".sv"):
+            legacy = parts[:4] == ("rtl", "deps", "flexsoc", "prim") and len(parts) == 5
+            nested = parts[:6] == ("rtl", "deps", "flexsoc", "hw", "ips", "prim") and len(parts) == 7
+            canonical = parts[:3] == ("hw", "ips", "prim") and len(parts) == 4
+            if not (legacy or nested or canonical) or relative.name != "prim_ff_2sync.sv":
                 continue
             target = destination / relative
             if target.is_file():
                 continue
-            source = (shared_root / "prim" / parts[4]).resolve()
+            source = (shared_root / "prim" / relative.name).resolve()
             if not source.is_relative_to(shared_root) or not source.is_file():
                 raise FileNotFoundError(f"shared RTL primitive is missing: {source}")
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -403,6 +434,25 @@ class PackageFlow:
         if rtl_only and report.get("contract_fingerprint") != spec_contract["fingerprint"]:
             raise ValueError("ip_save L2 qualification report is stale against current specifications")
 
+        # Old L2 reports predate the model-test gate. Require current model
+        # evidence and a qualification report that explicitly includes it.
+        if release_level is not None and release_level >= 2:
+            from .traceability import TraceabilityFlow
+
+            model_plan = spec_contract["spec_traceability"].get("model_cases_to_testplan", {})
+            if model_plan:
+                model_dir = run / "dv" / "functional" / "py" / "model"
+                runtime = model_dir / "results" / "summary.json"
+                frozen = run / "dv" / "functional" / "model_tests" / "summary.json"
+                evidence = TraceabilityFlow.model_evidence(
+                    report=spec_contract["spec_traceability"],
+                    summary=runtime if runtime.is_file() else frozen,
+                    fingerprint=str(spec_contract["fingerprint"]),
+                    model_dir=model_dir, ip=ip_name,
+                )
+                if evidence["status"] != "PASS" or report.get("evidence", {}).get("model_tests") != "PASS":
+                    raise ValueError("ip_save L2 requires current model tests PASS and a new fx qualify")
+
         library_root = Path(library_root)
         reg_interface = PackageFlow._package_interface(reg_interface)
         release_root = library_root / ip_name
@@ -434,7 +484,12 @@ class PackageFlow:
             else:
                 staged.mkdir(parents=True)
 
+            old_inputs = self._release_inputs(staged)
             self._stage_sources(staged, run)
+            if old_inputs and old_inputs != self._release_inputs(staged):
+                for branch in (staged / "meta").iterdir():
+                    if branch.is_dir() and branch.name != pdk:
+                        self._discard_pdk_branch(staged, branch.name)
             self._stage_dv_evidence(staged, run, top)
             # These run summaries are replaced from the current run when present;
             # never retain an earlier run's formal/RTL regression results.
@@ -470,6 +525,13 @@ class PackageFlow:
                 manifest_json, metrics_json, run / "meta" / pdk / "provenance.json",
                 settings_json, design_intent_json, qualification_json,
             )
+            # Setup stages use run-scope provenance, while implementation stages
+            # use PDK-scope provenance. Both are needed to preserve ownership.
+            run_provenance = run / "meta" / "provenance.json"
+            if run_provenance.is_file():
+                (staged / "meta").mkdir(parents=True, exist_ok=True)
+                shutil.copy2(run_provenance, staged / "meta" / "provenance.json")
+            self._refresh_lint_metrics(staged, top, pdk)
             QualificationFlow.write_contract_snapshot(
                 staged=staged, spec_root=spec_root, ip_name=ip_name,
                 reg_interface=reg_interface, version=version,
@@ -480,11 +542,18 @@ class PackageFlow:
                 shutil.copy2(spec_root / name, staged_spec / name)
             PackageFlow._freeze_rtl_dependencies(staged, self.project_root, run)
             PackageFlow._clean_python_cache(staged)
+            # Model-test JUnit/working summaries are run outputs, not release evidence.
+            shutil.rmtree(staged / "dv" / "functional" / "py" / "model" / "results", ignore_errors=True)
             PackageFlow._clean_hidden_paths(staged)
             self._write_fusesoc_core(staged, ip_name, top)
             self._write_package_manifest(
                 staged, ip_name, top, reg_interface, version=version
             )
+            # Hash only shipped inputs/results, never transient workspace files.
+            # Refresh all retained technology branches against this release.
+            for branch in (staged / "meta").iterdir():
+                if branch.is_dir() and (branch / "qualification.json").is_file():
+                    QualificationFlow.evidence_integrity(staged, branch.name, write=True)
             QualificationFlow.validate_release_package(staged, spec_root=staged_spec)
 
             backup = interface_root / f".{reg_interface}.backup"
@@ -511,6 +580,16 @@ class PackageFlow:
             shutil.rmtree(backup, ignore_errors=True)
             shutil.rmtree(spec_backup, ignore_errors=True)
         return target
+
+    @staticmethod
+    def _release_inputs(root: Path) -> dict[str, str]:
+        """Identify shipped design inputs independently from run artifacts."""
+        return {
+            path.relative_to(root).as_posix(): QualificationFlow.sha256_file(path)
+            for folder in ("rtl", "csr", "constraints")
+            if (root / folder).is_dir()
+            for path in sorted((root / folder).rglob("*")) if path.is_file()
+        }
 
     @staticmethod
     def _discard_pdk_branch(staged: Path, pdk: str) -> None:
@@ -575,6 +654,8 @@ class PackageFlow:
         if (run / "component.xml").is_file():
             shutil.copy2(run / "component.xml", staged / "component.xml")
 
+        ArtifactPolicy.remove_transients(staged)
+
         tb = staged / "dv" / "functional" / "tb"
         if tb.is_dir():
             for name in ("sim_build", "obj_dir", "__pycache__"):
@@ -618,11 +699,24 @@ class PackageFlow:
             shutil.copy2(source, destination / "summary.json")
 
         functional = run / "dv" / "functional"
+        runtime_model = functional / "py" / "model" / "results" / "summary.json"
+        try:
+            runtime_data = json.loads(runtime_model.read_text(encoding="utf-8")) if runtime_model.is_file() else None
+        except (ValueError, OSError):
+            runtime_data = None
+        use_runtime = isinstance(runtime_data, dict) and runtime_data.get("status") == "PASS"
+        if use_runtime:
+            destination = staged / "dv" / "functional" / "model_tests" / "summary.json"
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            data = PackageFlow._portable_qor(runtime_data)
+            data.pop("junit", None)
+            destination.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         for relative in ("model_tests/summary.json", "summary.json"):
             source = functional / relative
             destination = staged / "dv" / "functional" / relative
-            destination.unlink(missing_ok=True)
-            if source.is_file():
+            if not (relative == "model_tests/summary.json" and use_runtime):
+                destination.unlink(missing_ok=True)
+            if source.is_file() and not (relative == "model_tests/summary.json" and use_runtime):
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 if relative == "model_tests/summary.json":
                     data = PackageFlow._portable_qor(json.loads(source.read_text(encoding="utf-8")))
@@ -663,10 +757,7 @@ class PackageFlow:
                 if path.is_absolute() or ".." in path.parts:
                     raise ValueError(f"IP release core source must be release-relative: {value}")
                 if not (staged / path).is_file():
-                    parts = path.parts
-                    if not (len(parts) == 5 and parts[:4] == ("rtl", "deps", "flexsoc", "prim")
-                            and (self_shared := staged / path).suffix == ".sv"):
-                        raise FileNotFoundError(f"IP release RTL source not found: {staged / path}")
+                    raise FileNotFoundError(f"IP release RTL source not found: {staged / path}")
                 relative = path.as_posix()
                 if relative not in sources:
                     sources.append(relative)
@@ -950,6 +1041,40 @@ class PackageFlow:
             target = destination / package_relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, target)
+
+    @staticmethod
+    def _refresh_lint_metrics(staged: Path, top: str, pdk: str) -> None:
+        """Keep saved closure metrics consistent with shipped lint evidence."""
+
+        path = staged / "meta" / pdk / "metrics.json"
+        if not path.is_file():
+            return
+        metrics = json.loads(path.read_text(encoding="utf-8"))
+        lint = Reporting.collect_lint(top, staged)
+        if lint is None:
+            metrics.pop("lint", None)
+        else:
+            metrics["lint"] = lint
+        modeling = Reporting.collect_modeling(staged)
+        if modeling is not None:
+            metrics["modeling"] = modeling
+        else:
+            metrics.pop("modeling", None)
+        metrics["verification"] = Reporting.verification_summary(metrics)
+        metrics["flow"] = Reporting.flow_summary(metrics)
+        metrics["closure"] = Reporting.closure_status(metrics)
+        metrics["technical_status"] = Reporting.technical_status(metrics)
+        path.write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
+        manifest_path = staged / "meta" / pdk / "manifest.json"
+        if manifest_path.is_file():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            analysis = manifest.get("analysis") if isinstance(manifest.get("analysis"), dict) else {}
+            if modeling is None:
+                analysis.pop("modeling", None)
+            else:
+                analysis["modeling"] = modeling
+            manifest["analysis"] = analysis or None
+            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
     @staticmethod
     def _stage_optional_reports(
@@ -1243,13 +1368,11 @@ class PackageFlow:
 
     @staticmethod
     def _freeze_rtl_dependencies(root: Path, project_root: Path, run_root: Path | None = None) -> None:
-        """Freeze repo-local RTL under rtl/deps and record explicit pinned vendor core dependencies."""
+        """Copy local RTL into portable package roots and pin vendor core dependencies."""
 
         root = Path(root).resolve()
         project_root = Path(project_root).resolve()
         run_root = Path(run_root).resolve() if run_root is not None else None
-        deps_root = root / "rtl" / "deps"
-        core_dependencies: list[str] = []
 
         for filelist in (root / "rtl" / "rtl_common.f", root / "rtl" / "rtl_ip.f"):
             if not filelist.is_file():
@@ -1269,18 +1392,27 @@ class PackageFlow:
                 )
                 try:
                     relative = source.relative_to(root)
-                    frozen.append(prefix + relative.as_posix())
-                    continue
                 except ValueError:
-                    pass
-                if prefix and PackageFlow._is_external_mirror_include_dir(source, project_root):
+                    relative = None
+                if relative is not None:
+                    # Migrate old run-local frozen paths into canonical package roots.
+                    parts = relative.parts
+                    if parts[:3] != ("rtl", "deps", "flexsoc"):
+                        frozen.append(prefix + relative.as_posix())
+                        continue
+                    logical_rel = Path(*parts[3:])
+                    if logical_rel.parts[:2] != ("hw", "ips") and logical_rel.parts[:1] != ("vendor",):
+                        logical_rel = Path("hw/ips") / logical_rel
+                    destination = root / logical_rel
+                    if source.resolve() != destination.resolve():
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                        if source.is_dir():
+                            shutil.copytree(source, destination, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(source, destination)
+                    frozen.append(prefix + logical_rel.as_posix())
                     continue
-                external_core = PackageFlow._fusesoc_dependency_for_external_source(
-                    source, project_root
-                )
-                if external_core:
-                    if external_core not in core_dependencies:
-                        core_dependencies.append(external_core)
+                if prefix and PackageFlow._is_external_mirror_include_dir(source, project_root):
                     continue
                 try:
                     source_rel = source.relative_to(project_root)
@@ -1288,8 +1420,8 @@ class PackageFlow:
                     raise ValueError(
                         f"release RTL dependency must be inside the project or release: {source}"
                     ) from exc
-                logical_rel = PackageFlow._release_local_dependency_path(source_rel)
-                destination = deps_root / logical_rel
+                logical_rel = source_rel
+                destination = root / logical_rel
                 if source.is_dir():
                     if destination.exists():
                         shutil.rmtree(destination)
@@ -1301,10 +1433,8 @@ class PackageFlow:
                 frozen.append(prefix + destination.relative_to(root).as_posix())
             filelist.write_text("\n".join(frozen) + "\n", encoding="utf-8")
 
-        # Shared prim RTL is resolved by the run loader, not copied into hw/ips releases.
-        shared_prim = root / "rtl" / "deps" / "flexsoc" / "prim"
-        for primitive in ("prim_ff_2sync.sv",):
-            (shared_prim / primitive).unlink(missing_ok=True)
+        # The release no longer ships a second, shadow RTL tree.
+        shutil.rmtree(root / "rtl" / "deps", ignore_errors=True)
         (root / "rtl" / "fusesoc_deps.txt").unlink(missing_ok=True)
 
     @staticmethod
@@ -1329,7 +1459,4 @@ class PackageFlow:
                 except ValueError as exc:
                     raise ValueError(f"IP release path escapes staged release: {line}") from exc
                 if not resolved.exists():
-                    parts = path.parts
-                    if not (len(parts) == 5 and parts[:4] == ("rtl", "deps", "flexsoc", "prim")
-                            and path.suffix == ".sv"):
-                        raise FileNotFoundError(f"staged IP release dependency not found: {resolved}")
+                    raise FileNotFoundError(f"staged IP release dependency not found: {resolved}")

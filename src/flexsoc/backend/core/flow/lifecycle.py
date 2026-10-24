@@ -27,13 +27,18 @@ class StageContract:
     evidence: tuple[str, ...] = ()
     scope: str = "run"
     tools: tuple[str, ...] = ()
+    owned_outputs: tuple[str, ...] = ()
+    transient_outputs: tuple[str, ...] = ()
 
 
 STAGE_CONTRACTS: dict[str, StageContract] = {
     # Generated setup collateral.
     "model.setup": StageContract((*CLOCKS, "TOP")),
     "tb.setup": StageContract((*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV")),
-    "cocotb.setup": StageContract((*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV")),
+    "cocotb.setup": StageContract(
+        (*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV"),
+        transient_outputs=("dv/functional/tb/cocotb/elaborations",),
+    ),
     "cdc_rdc.setup": StageContract((*CLOCKS, "TOP", "CLK_PERIOD")),
     "formal.prove.setup": StageContract((
         *CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_BMC_DEPTH", "FORMAL_BMC_APPEND",
@@ -43,8 +48,8 @@ STAGE_CONTRACTS: dict[str, StageContract] = {
     "formal.csr_prove.setup": StageContract((
         *CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_BMC_DEPTH", "FORMAL_BMC_APPEND",
         "FORMAL_BMC_ENGINE", "FORMAL_PROVE_ENGINE",
-    )),
-    "formal.csr_cover.setup": StageContract((*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE")),
+    ), owned_outputs=("dv/formal/csr/prove/{top}_csr_auto_prove.sv",)),
+    "formal.csr_cover.setup": StageContract((*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE"), owned_outputs=("dv/formal/csr/cover/{top}_csr_auto_cover.sv",)),
     "syn.setup": StageContract((
         *CLOCKS, "TOP", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "LIB_SYN", "LIBS",
         "ORS", "ORS_TECH", "TIEHI_CELL_AND_PORT", "TIELO_CELL_AND_PORT", "MIN_BUF_CELL_AND_PORTS",
@@ -83,8 +88,12 @@ STAGE_CONTRACTS: dict[str, StageContract] = {
     "lint": StageContract(
         ("TOP", "LINT_PROFILE", "SLANG_WAIVER_FILE", "VERILATOR_WAIVER_FILE"),
         evidence=("dv/lint/summary.json",), tools=("SLANG", "VERILATOR"),
+        owned_outputs=("dv/lint",),
     ),
-    "cdc_rdc": StageContract((*CLOCKS, "TOP", "CDC_RDC_STRICT"), ("cdc_rdc.setup",), ("dv/cdc_rdc/summary.json",), tools=("SLANG", "YOSYS")),
+    "cdc_rdc": StageContract((*CLOCKS, "TOP", "CDC_RDC_STRICT"), ("cdc_rdc.setup",), ("dv/cdc_rdc/summary.json",), tools=("SLANG", "YOSYS"), owned_outputs=("dv/cdc_rdc",)),
+    "coverage": StageContract(("TOP", "COVERAGE_SHOW_LIMIT"),
+                              evidence=("dv/functional/coverage/summary.json",),
+                              tools=("VERILATOR",), owned_outputs=("dv/functional/coverage",)),
     "regression": StageContract(
         (*CLOCKS, "TOP", "COMPILER", "REGRESSION_BACKENDS", "SEED", "RESET_SETTLE_CYCLES"),
         ("tb.setup", "cocotb.setup"),
@@ -95,13 +104,14 @@ STAGE_CONTRACTS: dict[str, StageContract] = {
             "dv/functional/coverage/cocotb",
         ),
         tools=("IVERILOG", "VERILATOR"),
+        owned_outputs=("dv/functional/regression", "dv/functional/sim/rtl", "dv/functional/summary.json"),
     ),
-    "formal_csr_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.csr_prove.setup",), ("logs/dv/formal/csr/{top}_bmc.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
-    "formal_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.prove.setup",), ("logs/dv/formal/properties/{top}_bmc.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
-    "formal_csr_prove": StageContract(("TOP", "FORMAL_PROVE_ENGINE"), ("formal.csr_prove.setup", "formal_csr_bmc"), ("logs/dv/formal/csr/{top}_prove.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
-    "formal_prove": StageContract(("TOP", "FORMAL_PROVE_ENGINE"), ("formal.prove.setup", "formal_bmc"), ("logs/dv/formal/properties/{top}_prove.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
-    "formal_csr_cover": StageContract(("TOP", "FORMAL_COVER_ENGINE"), ("formal.csr_cover.setup",), ("logs/dv/formal/csr/{top}_cover.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
-    "formal_cover": StageContract(("TOP", "FORMAL_COVER_ENGINE"), ("formal.cover.setup",), ("logs/dv/formal/properties/{top}_cover.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR")),
+    "formal_csr_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.csr_prove.setup",), ("logs/dv/formal/csr/{top}_bmc.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR"), owned_outputs=("dv/formal/runs/csr/prove/{top}_csr_bmc",)),
+    "formal_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.prove.setup",), ("logs/dv/formal/properties/{top}_bmc.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR"), owned_outputs=("dv/formal/runs/properties/prove/{top}_bmc",)),
+    "formal_csr_prove": StageContract(("TOP", "FORMAL_PROVE_ENGINE"), ("formal.csr_prove.setup", "formal_csr_bmc"), ("logs/dv/formal/csr/{top}_prove.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR"), owned_outputs=("dv/formal/runs/csr/prove/{top}_csr_prove",)),
+    "formal_prove": StageContract(("TOP", "FORMAL_PROVE_ENGINE"), ("formal.prove.setup", "formal_bmc"), ("logs/dv/formal/properties/{top}_prove.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR"), owned_outputs=("dv/formal/runs/properties/prove/{top}_prove",)),
+    "formal_csr_cover": StageContract(("TOP", "FORMAL_COVER_ENGINE"), ("formal.csr_cover.setup",), ("logs/dv/formal/csr/{top}_cover.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR"), owned_outputs=("dv/formal/runs/csr/cover/{top}_csr_cover",)),
+    "formal_cover": StageContract(("TOP", "FORMAL_COVER_ENGINE"), ("formal.cover.setup",), ("logs/dv/formal/properties/{top}_cover.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR"), owned_outputs=("dv/formal/runs/properties/cover/{top}_cover",)),
     "syn": StageContract(
         ("TOP", "PDK", "TARGET_SYN", "TARGET_OPT", "ORS_TECH"),
         ("syn.setup",),

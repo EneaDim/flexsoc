@@ -1,0 +1,28 @@
+{
+  "name": "flexsoc-rtl-explorer",
+  "displayName": "FlexSoC RTL Explorer",
+  "description": "Slang-backed hierarchical SystemVerilog schematic viewer for VS Code and Cursor",
+  "version": "0.1.0",
+  "publisher": "flexsoc",
+  "license": "Apache-2.0",
+  "engines": {"vscode": "^1.85.0"},
+  "extensionKind": ["workspace"],
+  "main": "./src/extension.js",
+  "activationEvents": ["onCommand:flexsoc.rtlExplorer.open"],
+  "contributes": {
+    "commands": [{"command": "flexsoc.rtlExplorer.open", "title": "FlexSoC: Open RTL Schematic", "category": "FlexSoC"}],
+    "menus": {"editor/context": [{"command": "flexsoc.rtlExplorer.open", "when": "resourceExtname == .sv || resourceExtname == .v", "group": "navigation@60"}]},
+    "configuration": {
+      "title": "FlexSoC RTL Explorer",
+      "properties": {
+        "flexsoc.rtlExplorer.python": {"type": "string", "default": "python3", "description": "Python executable in the same environment as the RTL project (WSL/SSH supported)."},
+        "flexsoc.rtlExplorer.repository": {"type": "string", "default": "", "description": "Absolute path to the FlexSoC checkout containing scripts/rtl_viewer.py. Empty: use workspace root."},
+        "flexsoc.rtlExplorer.filelists": {"type": "array", "default": [], "items": {"type": "string"}, "description": "Slang -F filelists relative to the RTL workspace. Used instead of selecting individual sources."},
+        "flexsoc.rtlExplorer.includes": {"type": "array", "default": [], "items": {"type": "string"}, "description": "Slang include directories relative to the RTL workspace."},
+        "flexsoc.rtlExplorer.defines": {"type": "array", "default": [], "items": {"type": "string"}, "description": "Slang preprocessor definitions."}
+      }
+    }
+  },
+  "scripts": {"test": "node --test test/*.test.js", "check": "node --check src/extension.js && npm test"},
+  "files": ["src", "media", "README.md", "package.json"]
+}
