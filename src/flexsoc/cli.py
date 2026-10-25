@@ -2120,6 +2120,12 @@ Use `fx commands` to list every backend target.
             warning_type: Annotated[
                 str | None, typer.Option("--type", help="Filter lint diagnostics by warning code/type.", rich_help_panel="Output"),
             ] = None,
+            module: Annotated[
+                str | None, typer.Option("--module", help="Filter lint by RTL source module (or source filename stem when module metadata is absent).", rich_help_panel="Output"),
+            ] = None,
+            params: Annotated[
+                bool, typer.Option("--params", help="Show elaborated parameter/localparam values from slang_hier AST.", rich_help_panel="Output"),
+            ] = False,
             save_output: Annotated[
                 Path | None,
                 typer.Option("--save-output", "-o", help="Save filtered --debug output to a file or directory.", rich_help_panel="Output"),
@@ -2260,6 +2266,19 @@ Use `fx commands` to list every backend target.
                 raise typer.Exit(self._model_tests(client, set_args, source, as_json=as_json,
                                                    setup=setup, show=show, summary=summary,
                                                    check=check_generated))
+            if params:
+                if args != ("lint",) or any((show, summary, debug, setup, check_generated, force, reset, info)):
+                    raise click.BadParameter("--params requires `fx lint` without other execution/view modes")
+                if any(value is not None for value in (tool, priority, scope, warning_type)):
+                    raise click.BadParameter("--params supports --module, --json, and --save-output only")
+                flows = client.flows(**self._assignments(set_args))
+                try:
+                    raise typer.Exit(flows.dv.lint.params(
+                        module=module, as_json=as_json,
+                        output=str(save_output) if save_output is not None else None,
+                    ))
+                except (ValueError, OSError, json.JSONDecodeError) as exc:
+                    raise click.ClickException(str(exc)) from exc
             if args[0] == "meta":
                 if len(args) != 1:
                     raise click.BadParameter("fx meta accepts no positional arguments")
@@ -2304,7 +2323,7 @@ Use `fx commands` to list every backend target.
                     raise click.BadParameter("--priority is only valid with `fx lint`")
                 if not (show or debug):
                     raise click.BadParameter("--priority requires `fx lint --show` or `fx lint --debug`")
-            if scope is not None or warning_type is not None:
+            if scope is not None or warning_type is not None or module is not None:
                 if args != ("lint",) or not (show or summary or debug):
                     raise click.BadParameter("--scope/--type require `fx lint --show`, `--summary`, or `--debug`")
             if scope is not None and scope.lower() not in {"all", "common", "ip", "soc"}:
@@ -2318,12 +2337,12 @@ Use `fx commands` to list every backend target.
                     if target.name == "lint":
                         if debug:
                             code = flows.dv.lint.debug(
-                                tool=tool, priority=priority, scope=scope, warning_type=warning_type, as_json=as_json,
+                                tool=tool, priority=priority, scope=scope, warning_type=warning_type, module=module, as_json=as_json,
                                 output=str(save_output) if save_output is not None else None,
                             )
                         else:
                             code = flows.dv.lint.show(
-                                tool=tool, priority=priority, scope=scope, warning_type=warning_type, summary=summary, as_json=as_json,
+                                tool=tool, priority=priority, scope=scope, warning_type=warning_type, module=module, summary=summary, as_json=as_json,
                                 output=str(save_output) if save_output is not None else None,
                             )
                     elif target.show == "qualification":

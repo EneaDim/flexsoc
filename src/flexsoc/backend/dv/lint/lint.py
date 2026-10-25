@@ -55,6 +55,26 @@ class Lint:
         self.verilator.run(profile=profile, on=on)
         return 0 if self._write_summary()["status"] == "PASS" else 1
 
+    def params(self, *, module: str | None = None, as_json: bool = False,
+               output: str | None = None) -> int:
+        """Display Slang-elaborated parameters without rerunning lint."""
+        from .parameters import ParameterView
+        ast = self.context.paths.slang_hier / "ast.json"
+        data = ParameterView.load(ast, module)
+        capture = StringIO() if output else None
+        console = Console(file=capture, force_terminal=False) if capture else Console()
+        if as_json:
+            print(json.dumps(data, indent=2, ensure_ascii=False) + "\n", end="", file=capture or None)
+        else:
+            ParameterView.render(data, console)
+        if output and capture is not None:
+            path = Path(output)
+            if not path.is_absolute():
+                path = self.context.project_root / path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(capture.getvalue(), encoding="utf-8")
+        return 0
+
     # Presentation
 
     def debug(
@@ -64,12 +84,13 @@ class Lint:
         priority: str | None = None,
         scope: str | None = None,
         warning_type: str | None = None,
+        module: str | None = None,
         output: str | None = None,
         as_json: bool = False,
     ) -> int:
         """Render canonical lint evidence plus diagnostic hints."""
 
-        return self.show(tool=tool, priority=priority, scope=scope, warning_type=warning_type, debug=True, output=output, as_json=as_json)
+        return self.show(tool=tool, priority=priority, scope=scope, warning_type=warning_type, module=module, debug=True, output=output, as_json=as_json)
 
     def show(
         self,
@@ -78,6 +99,7 @@ class Lint:
         priority: str | None = None,
         scope: str | None = None,
         warning_type: str | None = None,
+        module: str | None = None,
         debug: bool = False,
         summary: bool = False,
         output: str | None = None,
@@ -96,7 +118,8 @@ class Lint:
         data["diagnostics"] = [
             {**item, "scope": self._scope(str(item.get("file", ""))),
              "type": str(item.get("code") or "unknown"),
-             "owner": self._owner(str(item.get("file", "")), data.get("top", "ip"))}
+             "owner": self._owner(str(item.get("file", "")), data.get("top", "ip")),
+             "source_module": self._source_module(item)}
             for item in data.get("diagnostics", ()) if isinstance(item, Mapping)
         ]
         if "scopes" not in data:
@@ -123,11 +146,13 @@ class Lint:
         selected_scope = scope.lower() if scope else "all"
         data["selected_scope"] = selected_scope
         data["selected_type"] = warning_type
+        data["selected_module"] = module
         data["diagnostics"] = [
             item for item in data.get("diagnostics", ())
             if isinstance(item, Mapping)
             and (selected_scope == "all" or item.get("scope") == selected_scope)
             and (warning_type is None or str(item.get("code", "")).lower() == warning_type.lower())
+            and (module is None or str(item.get("source_module", "")).lower() == module.lower())
         ]
         priorities = self._selected_priorities(priority)
         data["selected_priorities"] = list(priorities)
@@ -178,6 +203,14 @@ class Lint:
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(capture.getvalue(), encoding="utf-8")
         return 0
+
+    @staticmethod
+    def _source_module(item: Mapping[str, Any]) -> str:
+        """Best available source-unit name; not an instance-hierarchy assertion."""
+        explicit = str(item.get("module") or item.get("source_module") or "").strip()
+        if explicit:
+            return explicit
+        return Path(str(item.get("file") or "").replace("\\", "/")).stem or "<unknown>"
 
     @staticmethod
     def _selected_priorities(value: str | None) -> tuple[str, ...]:

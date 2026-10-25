@@ -217,12 +217,15 @@ class SlangLint:
     def _priority(self, code: str, severity: str, message: str = "") -> str:
         """Map one Slang diagnostic to P0-P3 without changing target status."""
 
+        # Priority measures the kind of issue; severity remains unchanged.
+        # The mixed-timescale notice is informational even when Slang emits
+        # it as an error. Actual elaboration failure is still tracked by the
+        # tool return code and must not be converted into a PASS here.
+        normalized = " ".join(message.casefold().split())
+        if "design element does not have a time scale defined but others in the design do" in normalized:
+            return "P3"
         if severity in {"error", "fatal"}:
             return "P0"
-        # A missing per-module timescale is a portability/style notice,
-        # not a functional RTL defect. Keep it visible in the evidence.
-        if "design element does not have a time scale defined but others in the design do" in message.lower():
-            return "P3"
         token = code.lower()
         if any(part in token for part in self._P0):
             return "P0"

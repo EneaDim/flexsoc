@@ -51,3 +51,31 @@ def test_show_filters_existing_lint_report(tmp_path, capsys):
     assert result["diagnostics"][0]["type"] == "UNUSED"
     assert lint.show(scope="soc", priority="all", as_json=True) == 0
     assert json.loads(capsys.readouterr().out)["visible_total"] == 0
+
+
+def test_source_module_selection(tmp_path, capsys):
+    import json
+    from types import SimpleNamespace
+
+    path = tmp_path / "dv/lint/summary.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({
+        "status": "PASS", "top": "ethernet", "profile": "everything",
+        "order": ["slang", "verilator"],
+        "tools": {"slang": {"status": "PASS", "total": 1}, "verilator": {"status": "PASS", "total": 1}},
+        "diagnostics": [
+            {"tool": "slang", "priority": "P1", "code": "WIDTH", "file": "rtl/ethernet_tx.sv", "line": 12, "column": 7},
+            {"tool": "verilator", "priority": "P0", "code": "UNUSED", "file": "rtl/ethernet_rx.sv", "line": 22, "column": 3},
+        ],
+    }))
+    lint = object.__new__(Lint)
+    lint.context = SimpleNamespace(paths=SimpleNamespace(run=tmp_path, lint=path.parent), project_root=tmp_path)
+    assert lint.show(module="ethernet_tx", priority="all", as_json=True) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["visible_total"] == 1
+    assert data["diagnostics"][0]["source_module"] == "ethernet_tx"
+    assert lint.show(module="ethernet_rx", tool="verilator", priority="all", as_json=True) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["visible_total"] == 1
+    assert data["diagnostics"][0]["line"] == 22
+    assert data["diagnostics"][0]["column"] == 3

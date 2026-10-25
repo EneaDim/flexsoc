@@ -1353,68 +1353,62 @@ class ShowRenderer:
             )
         self.console.print(table)
 
-        scopes = data.get("scopes", {})
-        if isinstance(scopes, Mapping):
-            scope_table = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
-            for column in ("Scope", "Total", "P0", "P1", "P2", "P3", "Types"):
-                scope_table.add_column(column)
-            for name in ("soc", "ip", "common"):
-                group = scopes.get(name, {})
-                if not isinstance(group, Mapping):
-                    continue
-                if not group.get("total") and name == "soc":
-                    continue
-                group_counts = group.get("counts", {})
-                kinds = group.get("types", {})
-                scope_table.add_row(name, str(group.get("total", 0)),
-                    *(str(group_counts.get(priority, 0)) for priority in ("P0", "P1", "P2", "P3")),
-                    ", ".join(f"{kind} ({count})" for kind, count in sorted(kinds.items())) or "-")
-            self.console.print(scope_table)
-
         if data.get("summary_only"):
             return
 
-        diagnostics = [
-            item for item in data.get("diagnostics", ())
-            if isinstance(item, Mapping)
-        ]
+        diagnostics = [item for item in data.get("diagnostics", ()) if isinstance(item, Mapping)]
         if not diagnostics:
-            self.console.print("[green]No diagnostics.[/green]")
+            self.console.print("[green]No diagnostics match the filters.[/green]")
             return
 
         priorities = "/".join(map(str, data.get("selected_priorities", ("P0", "P1"))))
         self.console.print(
-            f"[bold]Diagnostics[/bold]  [grey70]showing {priorities} · {data.get('visible_total', len(diagnostics))}[/grey70]"
+            f"[bold]Diagnostics[/bold]  [grey70]{priorities} · "
+            f"{len(diagnostics)} matching · module={data.get('selected_module') or 'all'}[/grey70]"
         )
         colors = {"P0": "red", "P1": "orange1", "P2": "bright_cyan", "P3": "grey70"}
-        order = data.get("order", ()) if isinstance(data, Mapping) else ()
-        for tool in order:
+        for tool in data.get("order", ()):
             items = [item for item in diagnostics if item.get("tool") == tool]
             if not items:
                 continue
-            self.console.print(f"[bold bright_cyan]{tool}[/bold bright_cyan]  [grey70]{len(items)}[/grey70]")
+            self.console.print()
+            self.console.print(f"[bold bright_cyan]{tool.upper()}[/bold bright_cyan]  [grey70]{len(items)} diagnostics[/grey70]")
+            module_counts: dict[str, dict[str, int]] = {}
+            for item in items:
+                name = str(item.get("source_module") or "<unknown>")
+                bucket = module_counts.setdefault(name, {"Total": 0, "P0": 0, "P1": 0, "P2": 0, "P3": 0})
+                bucket["Total"] += 1
+                priority = str(item.get("priority", "P3"))
+                if priority in bucket:
+                    bucket[priority] += 1
+            modules = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+            for column in ("Module", "Total", "P0", "P1", "P2", "P3"):
+                modules.add_column(column, justify="left" if column == "Module" else "right")
+            for name, counts in sorted(module_counts.items()):
+                modules.add_row(name, *(str(counts[column]) for column in ("Total", "P0", "P1", "P2", "P3")))
+            self.console.print(modules)
+
             details = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70", expand=True)
+            details.add_column("Module", no_wrap=True)
             details.add_column("Scope", no_wrap=True)
             details.add_column("Pri", no_wrap=True)
             details.add_column("Code", no_wrap=True)
-            details.add_column("Line", justify="right", no_wrap=True)
-            details.add_column("Message", ratio=4)
+            details.add_column("Message", ratio=4, overflow="fold")
             details.add_column("File", ratio=3, overflow="fold")
-            for item in items:
+            details.add_column("Line", justify="right", no_wrap=True)
+            details.add_column("Column", justify="right", no_wrap=True)
+            for item in sorted(items, key=lambda row: (
+                str(row.get("source_module", "")), str(row.get("priority", "P3")),
+                str(row.get("file", "")), int(row.get("line") or 0), int(row.get("column") or 0)
+            )):
                 priority = str(item.get("priority", "P3"))
                 color = colors.get(priority, "white")
-                line = str(item.get("line") or "-")
-                if item.get("column"):
-                    line += f":{item.get('column')}"
                 message = str(item.get("message") or "-").splitlines()[0].strip() or "-"
-                file = str(item.get("file") or "<unknown>")
                 details.add_row(
-                    str(item.get("scope", "ip")),
-                    f"[{color}]{priority}[/{color}]",
-                    str(item.get("code", "-")),
-                    line,
-                    message,
-                    f"[bright_blue]{file}[/bright_blue]",
+                    str(item.get("source_module") or "<unknown>"), str(item.get("scope", "ip")),
+                    f"[{color}]{priority}[/{color}]", str(item.get("code", "-")),
+                    message, f"[bright_blue]{item.get('file') or '<unknown>'}[/bright_blue]",
+                    str(item.get("line") or "-"), str(item.get("column") or "-"),
                 )
             self.console.print(details)
 
