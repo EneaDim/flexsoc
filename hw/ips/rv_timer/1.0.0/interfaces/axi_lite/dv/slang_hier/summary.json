@@ -1,69 +1,338 @@
 {
   "artifacts": {
     "ast": "dv/slang_hier/ast.json",
+    "ast_log": "logs/dv/slang_hier/slang_ast.log",
     "hierarchy": "dv/slang_hier/hierarchy.txt",
     "log": "logs/dv/slang_hier/slang_hier.log"
   },
+  "ast_command": [
+    "/usr/local/bin/slang",
+    "--top",
+    "rv_timer",
+    "-I/home/eneadim/github/flexsoc/hw/ips/pkgs",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/include",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include/register_interface",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/include/axi",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim/prim_ff_2sync.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/fifo_v3.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/cf_math_pkg.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/lzc.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/rr_arb_tree.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/stream_arbiter_flushable.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/stream_arbiter.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/axi/src/axi_pkg.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/axi/src/axi_intf.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/reg_intf.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_buf.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_onehot_check.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_reg_we_check.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_intr_hw.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer_reg_pkg.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer_reg_core.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer_reg_top.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer_core.sv",
+    "--ast-json",
+    "/home/eneadim/github/flexsoc/workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/dv/slang_hier/ast.json",
+    "--ast-json-source-info",
+    "/home/eneadim/github/flexsoc/workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer.sv"
+  ],
   "command": [
     "/usr/local/bin/slang-hier",
     "--top",
     "rv_timer",
     "--custom-format",
     "{inst}\t{module}\t{file}",
-    "--ast-json",
-    "/home/eneadim/github/flexsoc/workspace/l2_rv_timer_axi_lite_HhSxO3hE/workspace/runs/rv_timer/l2/dv/slang_hier/ast.json",
-    "--ast-json-source-info",
     "-DSYNTHESIS",
-    "-I/home/eneadim/github/flexsoc/workspace/l2_rv_timer_axi_lite_HhSxO3hE/workspace/runs/rv_timer/l2/rtl/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/workspace/l2_rv_timer_axi_lite_HhSxO3hE/workspace/runs/rv_timer/l2/rtl/...",
-    "-I/home/eneadim/github/flexsoc/hw/ips/pkgs/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/hw/ips/pkgs/...",
-    "-I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/...",
-    "-I/home/eneadim/github/flexsoc/hw/ips/prim/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/hw/ips/prim/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/src/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/axi/src/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/include/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/axi/include/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include/register_interface/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include/register_interface/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/include/axi/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/axi/include/axi/...",
-    "/home/eneadim/github/flexsoc/workspace/l2_rv_timer_axi_lite_HhSxO3hE/workspace/runs/rv_timer/l2/rtl/rv_timer.sv"
+    "-I/home/eneadim/github/flexsoc/workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl",
+    "-I/home/eneadim/github/flexsoc/hw/ips/pkgs",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/include",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include/register_interface",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/include/axi",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim/prim_ff_2sync.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/fifo_v3.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/cf_math_pkg.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/lzc.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/rr_arb_tree.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/stream_arbiter_flushable.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/stream_arbiter.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/axi/src/axi_pkg.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/axi/src/axi_intf.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/reg_intf.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_buf.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_onehot_check.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_reg_we_check.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_intr_hw.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer_reg_pkg.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer_reg_core.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer_reg_top.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer_core.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer.sv"
   ],
-  "instances": [],
+  "instances": [
+    {
+      "file": "workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer.sv",
+      "instance": "rv_timer",
+      "module": "rv_timer"
+    },
+    {
+      "file": "hw/ips/prim/prim_ff_2sync.sv",
+      "instance": "rv_timer.u_reg_reset_sync",
+      "module": "prim_ff_2sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "rv_timer.u_reg_reset_sync.u_sync_1",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "rv_timer.u_reg_reset_sync.u_sync_2",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim/prim_ff_2sync.sv",
+      "instance": "rv_timer.u_core_reset_sync",
+      "module": "prim_ff_2sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "rv_timer.u_core_reset_sync.u_sync_1",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "rv_timer.u_core_reset_sync.u_sync_2",
+      "module": "prim_flop"
+    },
+    {
+      "file": "workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer_reg_top.sv",
+      "instance": "rv_timer.u_rv_timer_reg",
+      "module": "rv_timer_reg_top"
+    },
+    {
+      "file": "vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_flexsoc_axi_to_reg",
+      "module": "axi_lite_to_reg"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/fifo_v3.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_flexsoc_axi_to_reg.i_fifo_write_req",
+      "module": "fifo_v3"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/fifo_v3.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_flexsoc_axi_to_reg.i_fifo_write_resp",
+      "module": "fifo_v3"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/fifo_v3.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_flexsoc_axi_to_reg.i_fifo_read",
+      "module": "fifo_v3"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/fifo_v3.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_flexsoc_axi_to_reg.i_fifo_read_resp",
+      "module": "fifo_v3"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/stream_arbiter.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_flexsoc_axi_to_reg.i_stream_arbiter",
+      "module": "stream_arbiter"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/stream_arbiter_flushable.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb",
+      "module": "stream_arbiter_flushable"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/rr_arb_tree.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb.gen_rr_arb.i_arbiter",
+      "module": "rr_arb_tree"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/lzc.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb.gen_rr_arb.i_arbiter.gen_arbiter.gen_int_rr.gen_fair_arb.i_lzc_upper",
+      "module": "lzc"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/lzc.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb.gen_rr_arb.i_arbiter.gen_arbiter.gen_int_rr.gen_fair_arb.i_lzc_lower",
+      "module": "lzc"
+    },
+    {
+      "file": "workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer_reg_core.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core",
+      "module": "rv_timer_reg_core"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_prim_reg_we_check",
+      "module": "prim_reg_we_check"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_buf.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_prim_reg_we_check.u_prim_buf",
+      "module": "prim_buf"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_prim_reg_we_check.u_prim_onehot_check",
+      "module": "prim_onehot_check"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_ctrl_active_0",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_ctrl_active_0.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_ctrl_gpio_intr_0_0",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_ctrl_gpio_intr_0_0.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_ctrl_gpio_intr_1_0",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_ctrl_gpio_intr_1_0.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_intr_enable0",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_intr_enable0.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_intr_state0",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_intr_state0.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_intr_test0",
+      "module": "prim_subreg_ext"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_cfg0_prescale",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_cfg0_prescale.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_cfg0_step",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_cfg0_step.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_timer_v0",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_timer_v0.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_compare_v00_qe",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_compare_v0",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "rv_timer.u_rv_timer_reg.u_reg_core.u_compare_v0.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer_core.sv",
+      "instance": "rv_timer.u_rv_timer_core",
+      "module": "rv_timer_core"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_intr_hw.sv",
+      "instance": "rv_timer.u_rv_timer_core.gen_harts[0].u_intr_hw",
+      "module": "prim_intr_hw"
+    },
+    {
+      "file": "workspace/runs/rv_timer/qualification_rv_timer_axi_lite_l2/rtl/rv_timer_core.sv",
+      "instance": "rv_timer.u_rv_timer_core.gen_harts[0].u_timer",
+      "module": "rv_timer_counter"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "rv_timer.u_rv_timer_core.gen_harts[0].u_timer.u_timer_reset_branch",
+      "module": "prim_flop"
+    }
+  ],
   "metrics": {
-    "ast_bytes": 0,
-    "instances": 0,
+    "ast_bytes": 7917924,
+    "instances": 46,
     "malformed_rows": 0,
-    "modules": 0,
-    "source_files": 0
+    "modules": 20,
+    "non_hierarchy_rows": 3,
+    "source_files": 19
   },
   "run": {
-    "duration_s": 0.030549793998943642,
-    "exit_code": 1
+    "duration_s": 0.10268944200288388,
+    "exit_code": 0
   },
   "schema": "flexsoc.slang_hier.v3",
   "stage": "slang_hier",
-  "status": "FAILED",
+  "status": "PASS",
   "tool": "slang-hier",
   "top": "rv_timer"
 }

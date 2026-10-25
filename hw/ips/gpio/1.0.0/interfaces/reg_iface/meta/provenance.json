@@ -1,0 +1,2058 @@
+{
+  "schema_version": 1,
+  "stages": {
+    "cdc_rdc": {
+      "config": {
+        "CDC_RDC_STRICT": "",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "N_CLOCKS": "1",
+        "TOP": "gpio"
+      },
+      "fingerprint": "610bdfe27a7d84ee6c0f04f9b6533ee7545ec4c508a23b2bf5207240e74ae02e",
+      "generated": [
+        {
+          "effective_sha256": "ccd72d60f35f1961d3a5d52a0de4824e87606da04c37ae920071fa6b2f7bbc30",
+          "generated_sha256": "ccd72d60f35f1961d3a5d52a0de4824e87606da04c37ae920071fa6b2f7bbc30",
+          "path": "dv/cdc_rdc/summary.json"
+        },
+        {
+          "effective_sha256": "114c86ce2a5f0fed7a103c5cf70e1f85dd238cae8491bd62cdc70f57f2e7396f",
+          "generated_sha256": "114c86ce2a5f0fed7a103c5cf70e1f85dd238cae8491bd62cdc70f57f2e7396f",
+          "path": "dv/cdc_rdc"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        },
+        {
+          "path": "constraints/gpio.sdc",
+          "sha256": "6f2ee173e988c70e0e19b30d2f2c73030fadc3709c872ec7c3bf5a54bb98b98d"
+        },
+        {
+          "path": "dv/cdc_rdc/extract.ys",
+          "sha256": "a8933b3bdcc858da2fad0b7ece1199f2bbcd22be4113270ae5ccd53ceaeb99f3"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "cdc_rdc.setup": "89f2cbe9e9a2c8eda91fb3ed800b95acd1c5fed4cb105ca7ce2d6d2458d35257"
+      },
+      "returncode": 0,
+      "tools": {
+        "SLANG": {
+          "ref": "7ddf4059f79eff508dd486eb42fd650cdf320d52",
+          "repo": "https://github.com/MikePopoloski/slang.git",
+          "version": "11.0.0"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "cdc_rdc.setup": {
+      "config": {
+        "CLK_PERIOD": "10",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "N_CLOCKS": "1",
+        "TOP": "gpio"
+      },
+      "fingerprint": "89f2cbe9e9a2c8eda91fb3ed800b95acd1c5fed4cb105ca7ce2d6d2458d35257",
+      "generated": [
+        {
+          "effective_sha256": "a8933b3bdcc858da2fad0b7ece1199f2bbcd22be4113270ae5ccd53ceaeb99f3",
+          "generated_sha256": "a8933b3bdcc858da2fad0b7ece1199f2bbcd22be4113270ae5ccd53ceaeb99f3",
+          "path": "dv/cdc_rdc/extract.ys"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        },
+        {
+          "path": "constraints/gpio.sdc",
+          "sha256": "6f2ee173e988c70e0e19b30d2f2c73030fadc3709c872ec7c3bf5a54bb98b98d"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "cocotb.setup": {
+      "config": {
+        "CLK_PERIOD": "10",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "COMPILER": "",
+        "N_CLOCKS": "1",
+        "REG_ITF": "reg_iface",
+        "TOP": "gpio",
+        "VSV": ""
+      },
+      "fingerprint": "6295fc47f9c6ae65e693bffcaabe74e76cebed6f6840c933f046a1b5d66eaba4",
+      "generated": [
+        {
+          "effective_sha256": "b281233df6f12baf939737eb4a07a34f753ae21dcb91f5ea8ac5ca571cc229e3",
+          "generated_sha256": "b281233df6f12baf939737eb4a07a34f753ae21dcb91f5ea8ac5ca571cc229e3",
+          "path": "dv/functional/tb/cocotb/Makefile"
+        },
+        {
+          "effective_sha256": "79d125ebf0426fbe8513e8cca08c95ec4f080217eadd81fb675f2831ccad1ab8",
+          "generated_sha256": "79d125ebf0426fbe8513e8cca08c95ec4f080217eadd81fb675f2831ccad1ab8",
+          "path": "dv/functional/tb/cocotb/gpio_tb.sv"
+        },
+        {
+          "effective_sha256": "57fe5281bf52072aa02934eb08fa663a4e3dfcdd54e87b45f5660e06927a2315",
+          "generated_sha256": "57fe5281bf52072aa02934eb08fa663a4e3dfcdd54e87b45f5660e06927a2315",
+          "path": "dv/functional/tb/cocotb/gpio_tb.py"
+        },
+        {
+          "effective_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+          "generated_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+          "path": "dv/functional/tb/cocotb/drivers/__init__.py"
+        },
+        {
+          "effective_sha256": "5dde46f241fc9e47028925e7ca330f623920da68a2f82f7d2f42b86c5befe399",
+          "generated_sha256": "5dde46f241fc9e47028925e7ca330f623920da68a2f82f7d2f42b86c5befe399",
+          "path": "dv/functional/tb/cocotb/drivers/reg_driver.py"
+        },
+        {
+          "effective_sha256": "46c4b6710f12d7eb15348cb632c7ee7a49e7859cb2e6ea33e85eabe087eba8fb",
+          "generated_sha256": "46c4b6710f12d7eb15348cb632c7ee7a49e7859cb2e6ea33e85eabe087eba8fb",
+          "path": "dv/functional/tb/cocotb/drivers/vec_driver.py"
+        },
+        {
+          "effective_sha256": "6d24acfe38fa32250b48979823ae763e07c896d280f819c50b664964f6b2fe3e",
+          "generated_sha256": "6d24acfe38fa32250b48979823ae763e07c896d280f819c50b664964f6b2fe3e",
+          "path": "dv/functional/tb/cocotb/drivers/vec_monitor.py"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "csr/gpio.hjson",
+          "sha256": "477e8bbf9740a8edc24a3b3a70e1e0da8a875332ba5f5a92c67f47bf389f5203"
+        },
+        {
+          "path": "constraints/gpio.sdc",
+          "sha256": "6f2ee173e988c70e0e19b30d2f2c73030fadc3709c872ec7c3bf5a54bb98b98d"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "coverage": {
+      "config": {
+        "COVERAGE_SHOW_LIMIT": "0",
+        "TOP": "gpio"
+      },
+      "fingerprint": "03f5c678276f17aeb5e978eb2ef792ab33e2b15560238eca3c6f1ac017a2ae1b",
+      "generated": [
+        {
+          "effective_sha256": "9f860990bfa33111660ef8e3e0394293c3c33e3e152a49f91f8dcea5842c7339",
+          "generated_sha256": "9f860990bfa33111660ef8e3e0394293c3c33e3e152a49f91f8dcea5842c7339",
+          "path": "dv/functional/coverage/summary.json"
+        },
+        {
+          "effective_sha256": "8bfa7fca8f399ea77a5cbaee3425496a9ff3bf69b090b8cd786b0b554761369f",
+          "generated_sha256": "8bfa7fca8f399ea77a5cbaee3425496a9ff3bf69b090b8cd786b0b554761369f",
+          "path": "dv/functional/coverage"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "dv/functional/coverage/sv",
+          "sha256": "31718529251c9531a73dba0b1048f57baebe09600c1fc26e08193210229f241b"
+        },
+        {
+          "path": "dv/functional/coverage/cocotb",
+          "sha256": "981d03cefafef3cd4acfd079f611e38ba098aeba523bfe3fca55a4205026e79b"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {},
+      "returncode": 0,
+      "tools": {
+        "VERILATOR": {
+          "min_version": "5.050",
+          "ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c",
+          "repo": "https://github.com/verilator/verilator.git",
+          "version": "5.050"
+        }
+      }
+    },
+    "formal.cover.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "FORMAL_COVER_ENGINE": "",
+        "FORMAL_DEPTH": "",
+        "N_CLOCKS": "1",
+        "TOP": "gpio"
+      },
+      "fingerprint": "d4db58bc34b8cbc0a9a0ae9915a9388f580c323e7a2d5b9460da571bca72beee",
+      "generated": [
+        {
+          "effective_sha256": "65f8ea71a972c37d630d78be507bdaee6db0d4d03d8648dd3768dacf34173f75",
+          "generated_sha256": "65f8ea71a972c37d630d78be507bdaee6db0d4d03d8648dd3768dacf34173f75",
+          "path": "dv/formal/runs/properties/cover/gpio_cover.sby"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        },
+        {
+          "path": "dv/formal/properties/cover",
+          "sha256": "ba2f518485bb831d7208247734483087e82aa61d66c5a5d0710eb0432eaea8a3"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "formal.csr_cover.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "FORMAL_COVER_ENGINE": "",
+        "FORMAL_DEPTH": "",
+        "N_CLOCKS": "1",
+        "TOP": "gpio"
+      },
+      "fingerprint": "25eb96688d4426d9f4ade95228ecff1d5ebe70478bdc3e54712958c6b5d0a750",
+      "generated": [
+        {
+          "effective_sha256": "09e08e5493e89a5730f426aaa71dc5c5f4db3c4b8982ca743c60f2de7b4806f8",
+          "generated_sha256": "09e08e5493e89a5730f426aaa71dc5c5f4db3c4b8982ca743c60f2de7b4806f8",
+          "path": "dv/formal/runs/csr/cover/gpio_csr_cover.sby"
+        },
+        {
+          "effective_sha256": "3aa3390d20d774a67e9a889345562e76bb888747589113f8618dcc34c6b7eb28",
+          "generated_sha256": "3aa3390d20d774a67e9a889345562e76bb888747589113f8618dcc34c6b7eb28",
+          "path": "dv/formal/csr/cover/gpio_csr_auto_cover.sv"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "formal.csr_prove.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "FORMAL_BMC_APPEND": "",
+        "FORMAL_BMC_DEPTH": "",
+        "FORMAL_BMC_ENGINE": "",
+        "FORMAL_DEPTH": "",
+        "FORMAL_PROVE_ENGINE": "",
+        "N_CLOCKS": "1",
+        "TOP": "gpio"
+      },
+      "fingerprint": "3ac8a98d7f3031ad952168be4ae05ac47ce2eebf5e7ce04ddbe9aa9d3a17652e",
+      "generated": [
+        {
+          "effective_sha256": "6143922165a6ee1ba8e3128e1a47c8e164fef8264e42462b77b9b3eb029517d4",
+          "generated_sha256": "6143922165a6ee1ba8e3128e1a47c8e164fef8264e42462b77b9b3eb029517d4",
+          "path": "dv/formal/runs/csr/prove/gpio_csr_prove.sby"
+        },
+        {
+          "effective_sha256": "7ab83274bab0f3b77658313e70df15b36b66d3d33b7f9435072864b103e45389",
+          "generated_sha256": "7ab83274bab0f3b77658313e70df15b36b66d3d33b7f9435072864b103e45389",
+          "path": "dv/formal/csr/prove/gpio_csr_auto_prove.sv"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "formal.prove.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "FORMAL_BMC_APPEND": "",
+        "FORMAL_BMC_DEPTH": "",
+        "FORMAL_BMC_ENGINE": "",
+        "FORMAL_DEPTH": "",
+        "FORMAL_PROVE_ENGINE": "",
+        "N_CLOCKS": "1",
+        "TOP": "gpio"
+      },
+      "fingerprint": "16488064eae95dfc1763d1221d784c7b53455a028929f8798011ea88e2d17c4d",
+      "generated": [
+        {
+          "effective_sha256": "67d38c5fe85f87939d6fae7926d11625c0b83d7352f14b87f3dee11aa88de794",
+          "generated_sha256": "67d38c5fe85f87939d6fae7926d11625c0b83d7352f14b87f3dee11aa88de794",
+          "path": "dv/formal/runs/properties/prove/gpio_prove.sby"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        },
+        {
+          "path": "dv/formal/properties/prove",
+          "sha256": "c823f8bbafda535d0cd581c1619c37f1275cbd3a53fd1c47196f2469e78b01ae"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "formal_bmc": {
+      "config": {
+        "FORMAL_BMC_DEPTH": "",
+        "FORMAL_BMC_ENGINE": "",
+        "TOP": "gpio"
+      },
+      "fingerprint": "75acd431cb36d81db37c72dd99478110a766e59bbfeccc40ffc67c9c56991c34",
+      "generated": [
+        {
+          "effective_sha256": "bb7c5ad414af34a6008947cb368d3de328186c0eeb430788ad5419862b72aa28",
+          "generated_sha256": "bb7c5ad414af34a6008947cb368d3de328186c0eeb430788ad5419862b72aa28",
+          "path": "logs/dv/formal/properties/gpio_bmc.log"
+        },
+        {
+          "effective_sha256": "267e972a522b350e23fe7db4c83a87cb9ae64deaca84bd93e20a94be8970e849",
+          "generated_sha256": "267e972a522b350e23fe7db4c83a87cb9ae64deaca84bd93e20a94be8970e849",
+          "path": "dv/formal/runs/properties/prove/gpio_bmc"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        },
+        {
+          "path": "dv/formal/properties/prove",
+          "sha256": "c823f8bbafda535d0cd581c1619c37f1275cbd3a53fd1c47196f2469e78b01ae"
+        },
+        {
+          "path": "dv/formal/runs/properties/prove/gpio_prove.sby",
+          "sha256": "67d38c5fe85f87939d6fae7926d11625c0b83d7352f14b87f3dee11aa88de794"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "formal.prove.setup": "16488064eae95dfc1763d1221d784c7b53455a028929f8798011ea88e2d17c4d"
+      },
+      "returncode": 0,
+      "tools": {
+        "BITWUZLA": {
+          "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+          "repo": "https://github.com/bitwuzla/bitwuzla.git",
+          "version": "0.9.1"
+        },
+        "BOOLECTOR": {
+          "sha256": "249c6dbf4e52ea6e8df1ddf7965d47f5c30f2c14905dce9b8f411756b05878bf",
+          "url": "https://codeload.github.com/Boolector/boolector/tar.gz/refs/tags/3.2.4",
+          "version": "3.2.4"
+        },
+        "SBY": {
+          "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+          "repo": "https://github.com/YosysHQ/sby.git",
+          "version": "0.69"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "formal_cover": {
+      "config": {
+        "FORMAL_COVER_ENGINE": "",
+        "TOP": "gpio"
+      },
+      "fingerprint": "3ae76cd91fb27134d6f47cf23445881fcaaa8f35261d079248668b382fc88fc2",
+      "generated": [
+        {
+          "effective_sha256": "df616673264c2391e6a2d052d248fac073fe87f6703c69324654c79289fdbca1",
+          "generated_sha256": "df616673264c2391e6a2d052d248fac073fe87f6703c69324654c79289fdbca1",
+          "path": "logs/dv/formal/properties/gpio_cover.log"
+        },
+        {
+          "effective_sha256": "23fb5ce791db21cb9b92c76dfe013d076cb8d27ddca3ad8744f5b5cf25f47d43",
+          "generated_sha256": "23fb5ce791db21cb9b92c76dfe013d076cb8d27ddca3ad8744f5b5cf25f47d43",
+          "path": "dv/formal/runs/properties/cover/gpio_cover"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        },
+        {
+          "path": "dv/formal/properties/cover",
+          "sha256": "ba2f518485bb831d7208247734483087e82aa61d66c5a5d0710eb0432eaea8a3"
+        },
+        {
+          "path": "dv/formal/runs/properties/cover/gpio_cover.sby",
+          "sha256": "65f8ea71a972c37d630d78be507bdaee6db0d4d03d8648dd3768dacf34173f75"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "formal.cover.setup": "d4db58bc34b8cbc0a9a0ae9915a9388f580c323e7a2d5b9460da571bca72beee"
+      },
+      "returncode": 0,
+      "tools": {
+        "BITWUZLA": {
+          "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+          "repo": "https://github.com/bitwuzla/bitwuzla.git",
+          "version": "0.9.1"
+        },
+        "BOOLECTOR": {
+          "sha256": "249c6dbf4e52ea6e8df1ddf7965d47f5c30f2c14905dce9b8f411756b05878bf",
+          "url": "https://codeload.github.com/Boolector/boolector/tar.gz/refs/tags/3.2.4",
+          "version": "3.2.4"
+        },
+        "SBY": {
+          "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+          "repo": "https://github.com/YosysHQ/sby.git",
+          "version": "0.69"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "formal_csr_bmc": {
+      "config": {
+        "FORMAL_BMC_DEPTH": "",
+        "FORMAL_BMC_ENGINE": "",
+        "TOP": "gpio"
+      },
+      "fingerprint": "a86366740eec958ff7ef5bb6eb048b70aa8160e6ddb8be8b4c1d6cca07ec5371",
+      "generated": [
+        {
+          "effective_sha256": "0ec7ec6f4068cc05a818cccfdd011ada43367949248f70a76d5d83f1d73df607",
+          "generated_sha256": "0ec7ec6f4068cc05a818cccfdd011ada43367949248f70a76d5d83f1d73df607",
+          "path": "logs/dv/formal/csr/gpio_bmc.log"
+        },
+        {
+          "effective_sha256": "ac91bc4f80495e5d77bfb78ebd1a9a9ffbf36f4afae2b7a23158aa1105a10ce8",
+          "generated_sha256": "ac91bc4f80495e5d77bfb78ebd1a9a9ffbf36f4afae2b7a23158aa1105a10ce8",
+          "path": "dv/formal/runs/csr/prove/gpio_csr_bmc"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        },
+        {
+          "path": "dv/formal/runs/csr/prove/gpio_csr_prove.sby",
+          "sha256": "6143922165a6ee1ba8e3128e1a47c8e164fef8264e42462b77b9b3eb029517d4"
+        },
+        {
+          "path": "dv/formal/csr/prove/gpio_csr_auto_prove.sv",
+          "sha256": "7ab83274bab0f3b77658313e70df15b36b66d3d33b7f9435072864b103e45389"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "formal.csr_prove.setup": "3ac8a98d7f3031ad952168be4ae05ac47ce2eebf5e7ce04ddbe9aa9d3a17652e"
+      },
+      "returncode": 0,
+      "tools": {
+        "BITWUZLA": {
+          "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+          "repo": "https://github.com/bitwuzla/bitwuzla.git",
+          "version": "0.9.1"
+        },
+        "BOOLECTOR": {
+          "sha256": "249c6dbf4e52ea6e8df1ddf7965d47f5c30f2c14905dce9b8f411756b05878bf",
+          "url": "https://codeload.github.com/Boolector/boolector/tar.gz/refs/tags/3.2.4",
+          "version": "3.2.4"
+        },
+        "SBY": {
+          "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+          "repo": "https://github.com/YosysHQ/sby.git",
+          "version": "0.69"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "formal_csr_cover": {
+      "config": {
+        "FORMAL_COVER_ENGINE": "",
+        "TOP": "gpio"
+      },
+      "fingerprint": "621ae1d13a6e3022f30f6f00b339154507963fee1b2e98ec4980ca2141a4685c",
+      "generated": [
+        {
+          "effective_sha256": "d570b48814a4e47d4c5eaa1056a3df4abad81f7eca61bada8f895319066ff4dc",
+          "generated_sha256": "d570b48814a4e47d4c5eaa1056a3df4abad81f7eca61bada8f895319066ff4dc",
+          "path": "logs/dv/formal/csr/gpio_cover.log"
+        },
+        {
+          "effective_sha256": "23bc9b1e9017087ad3ea3535160dd5beeb5de7cd51ba9e09db6880c210588f13",
+          "generated_sha256": "23bc9b1e9017087ad3ea3535160dd5beeb5de7cd51ba9e09db6880c210588f13",
+          "path": "dv/formal/runs/csr/cover/gpio_csr_cover"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        },
+        {
+          "path": "dv/formal/runs/csr/cover/gpio_csr_cover.sby",
+          "sha256": "09e08e5493e89a5730f426aaa71dc5c5f4db3c4b8982ca743c60f2de7b4806f8"
+        },
+        {
+          "path": "dv/formal/csr/cover/gpio_csr_auto_cover.sv",
+          "sha256": "3aa3390d20d774a67e9a889345562e76bb888747589113f8618dcc34c6b7eb28"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "formal.csr_cover.setup": "25eb96688d4426d9f4ade95228ecff1d5ebe70478bdc3e54712958c6b5d0a750"
+      },
+      "returncode": 0,
+      "tools": {
+        "BITWUZLA": {
+          "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+          "repo": "https://github.com/bitwuzla/bitwuzla.git",
+          "version": "0.9.1"
+        },
+        "BOOLECTOR": {
+          "sha256": "249c6dbf4e52ea6e8df1ddf7965d47f5c30f2c14905dce9b8f411756b05878bf",
+          "url": "https://codeload.github.com/Boolector/boolector/tar.gz/refs/tags/3.2.4",
+          "version": "3.2.4"
+        },
+        "SBY": {
+          "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+          "repo": "https://github.com/YosysHQ/sby.git",
+          "version": "0.69"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "formal_csr_prove": {
+      "config": {
+        "FORMAL_PROVE_ENGINE": "",
+        "TOP": "gpio"
+      },
+      "fingerprint": "0b1a81ab2869b9a597dc87eb9e6e156216b5158910a3c7cf10381f0a649e5180",
+      "generated": [
+        {
+          "effective_sha256": "0a89c73bbd83db84b034a6e07bd98ac31107cd93426befa6948dfd57ad92327d",
+          "generated_sha256": "0a89c73bbd83db84b034a6e07bd98ac31107cd93426befa6948dfd57ad92327d",
+          "path": "logs/dv/formal/csr/gpio_prove.log"
+        },
+        {
+          "effective_sha256": "497c04d6b9e06b5e414605890c3c57c81fde81c2ac3c4ca8cd3ed5e450944b9f",
+          "generated_sha256": "497c04d6b9e06b5e414605890c3c57c81fde81c2ac3c4ca8cd3ed5e450944b9f",
+          "path": "dv/formal/runs/csr/prove/gpio_csr_prove"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        },
+        {
+          "path": "dv/formal/runs/csr/prove/gpio_csr_prove.sby",
+          "sha256": "6143922165a6ee1ba8e3128e1a47c8e164fef8264e42462b77b9b3eb029517d4"
+        },
+        {
+          "path": "dv/formal/csr/prove/gpio_csr_auto_prove.sv",
+          "sha256": "7ab83274bab0f3b77658313e70df15b36b66d3d33b7f9435072864b103e45389"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "formal.csr_prove.setup": "3ac8a98d7f3031ad952168be4ae05ac47ce2eebf5e7ce04ddbe9aa9d3a17652e",
+        "formal_csr_bmc": "a86366740eec958ff7ef5bb6eb048b70aa8160e6ddb8be8b4c1d6cca07ec5371"
+      },
+      "returncode": 0,
+      "tools": {
+        "BITWUZLA": {
+          "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+          "repo": "https://github.com/bitwuzla/bitwuzla.git",
+          "version": "0.9.1"
+        },
+        "BOOLECTOR": {
+          "sha256": "249c6dbf4e52ea6e8df1ddf7965d47f5c30f2c14905dce9b8f411756b05878bf",
+          "url": "https://codeload.github.com/Boolector/boolector/tar.gz/refs/tags/3.2.4",
+          "version": "3.2.4"
+        },
+        "SBY": {
+          "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+          "repo": "https://github.com/YosysHQ/sby.git",
+          "version": "0.69"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "formal_prove": {
+      "config": {
+        "FORMAL_PROVE_ENGINE": "",
+        "TOP": "gpio"
+      },
+      "fingerprint": "2779bbe908af1b303ffe14842f38e237ae7c59c0e9d7e3e65cad260a1c917ecd",
+      "generated": [
+        {
+          "effective_sha256": "907608dca77fdb6de2a388508f31b32a6f65cf068873cb61fc14420379894954",
+          "generated_sha256": "907608dca77fdb6de2a388508f31b32a6f65cf068873cb61fc14420379894954",
+          "path": "logs/dv/formal/properties/gpio_prove.log"
+        },
+        {
+          "effective_sha256": "335bef031e8959950d5a3b26cc014a58918e7e56e18ff32f357fd7c2ba15b7a8",
+          "generated_sha256": "335bef031e8959950d5a3b26cc014a58918e7e56e18ff32f357fd7c2ba15b7a8",
+          "path": "dv/formal/runs/properties/prove/gpio_prove"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        },
+        {
+          "path": "dv/formal/properties/prove",
+          "sha256": "c823f8bbafda535d0cd581c1619c37f1275cbd3a53fd1c47196f2469e78b01ae"
+        },
+        {
+          "path": "dv/formal/runs/properties/prove/gpio_prove.sby",
+          "sha256": "67d38c5fe85f87939d6fae7926d11625c0b83d7352f14b87f3dee11aa88de794"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "formal.prove.setup": "16488064eae95dfc1763d1221d784c7b53455a028929f8798011ea88e2d17c4d",
+        "formal_bmc": "75acd431cb36d81db37c72dd99478110a766e59bbfeccc40ffc67c9c56991c34"
+      },
+      "returncode": 0,
+      "tools": {
+        "BITWUZLA": {
+          "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+          "repo": "https://github.com/bitwuzla/bitwuzla.git",
+          "version": "0.9.1"
+        },
+        "BOOLECTOR": {
+          "sha256": "249c6dbf4e52ea6e8df1ddf7965d47f5c30f2c14905dce9b8f411756b05878bf",
+          "url": "https://codeload.github.com/Boolector/boolector/tar.gz/refs/tags/3.2.4",
+          "version": "3.2.4"
+        },
+        "SBY": {
+          "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+          "repo": "https://github.com/YosysHQ/sby.git",
+          "version": "0.69"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "lint": {
+      "config": {
+        "LINT_PROFILE": "everything",
+        "SLANG_WAIVER_FILE": "",
+        "TOP": "gpio",
+        "VERILATOR_WAIVER_FILE": ""
+      },
+      "fingerprint": "d530b37c880296f551f78d8060fc94231450c6e12b1349cca24bbbd3db7eae4f",
+      "generated": [
+        {
+          "effective_sha256": "feaee7d1c67835fe0e22940979fd565bdb7c025df96ea6dbe7ed3c592e33d010",
+          "generated_sha256": "feaee7d1c67835fe0e22940979fd565bdb7c025df96ea6dbe7ed3c592e33d010",
+          "path": "dv/lint/summary.json"
+        },
+        {
+          "effective_sha256": "2e49f5fb9cee7b0a27e7b6597a5a5ae016b8301d4d6f79bbda1a942c630792c5",
+          "generated_sha256": "2e49f5fb9cee7b0a27e7b6597a5a5ae016b8301d4d6f79bbda1a942c630792c5",
+          "path": "dv/lint"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {},
+      "returncode": 0,
+      "tools": {
+        "SLANG": {
+          "ref": "7ddf4059f79eff508dd486eb42fd650cdf320d52",
+          "repo": "https://github.com/MikePopoloski/slang.git",
+          "version": "11.0.0"
+        },
+        "VERILATOR": {
+          "min_version": "5.050",
+          "ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c",
+          "repo": "https://github.com/verilator/verilator.git",
+          "version": "5.050"
+        }
+      }
+    },
+    "model.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "N_CLOCKS": "1",
+        "TOP": "gpio"
+      },
+      "fingerprint": "61776a837b2452ced6851c3e163e63a7e664fd4a1a806c739f3d0a7e4cd2830e",
+      "generated": [
+        {
+          "effective_sha256": "a0aba93ce574d0591b399b7820e6b7e28e681efbf8cab1dc6c1b2e2b31aeb600",
+          "generated_sha256": "a0aba93ce574d0591b399b7820e6b7e28e681efbf8cab1dc6c1b2e2b31aeb600",
+          "path": "dv/functional/py/rtl/gpio_regmap.py"
+        },
+        {
+          "effective_sha256": "223647b4380c08739c21fa21745f42b54bc232f52a463424583febfb5a1a1920",
+          "generated_sha256": "223647b4380c08739c21fa21745f42b54bc232f52a463424583febfb5a1a1920",
+          "path": "dv/functional/py/model/gpio_model.py"
+        },
+        {
+          "effective_sha256": "277a2de3e2a0915108da8d44b8916ab4e76be0c44d6349275f701b9c4c80769f",
+          "generated_sha256": "277a2de3e2a0915108da8d44b8916ab4e76be0c44d6349275f701b9c4c80769f",
+          "path": "dv/functional/py/model/gpio_tests.py"
+        },
+        {
+          "effective_sha256": "fd8b66f45260b9c25143a9a1efd73c065f277e06c010cff3f404178add0f7318",
+          "generated_sha256": "fd8b66f45260b9c25143a9a1efd73c065f277e06c010cff3f404178add0f7318",
+          "path": "dv/functional/py/rtl/gpio_regmap_tests.py"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "csr/gpio.hjson",
+          "sha256": "477e8bbf9740a8edc24a3b3a70e1e0da8a875332ba5f5a92c67f47bf389f5203"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "regression": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "COMPILER": "",
+        "N_CLOCKS": "1",
+        "REGRESSION_BACKENDS": "",
+        "RESET_SETTLE_CYCLES": "8",
+        "SEED": "",
+        "TOP": "gpio"
+      },
+      "fingerprint": "b962766d0c445a99e32f2d1701f0b674750a6c6f8196f6e6fc5ec97835da31e6",
+      "generated": [
+        {
+          "effective_sha256": "facb9baa1d5ba542541188c440a831a7670088d2c3f971db42a1c68acfe829d9",
+          "generated_sha256": "facb9baa1d5ba542541188c440a831a7670088d2c3f971db42a1c68acfe829d9",
+          "path": "dv/functional/regression/summary.json"
+        },
+        {
+          "effective_sha256": "15f8724cc0584dba236bca4f68b0417401627e6427490ef822e71d7365dd6667",
+          "generated_sha256": "15f8724cc0584dba236bca4f68b0417401627e6427490ef822e71d7365dd6667",
+          "path": "logs/dv/functional/regression"
+        },
+        {
+          "effective_sha256": "31718529251c9531a73dba0b1048f57baebe09600c1fc26e08193210229f241b",
+          "generated_sha256": "31718529251c9531a73dba0b1048f57baebe09600c1fc26e08193210229f241b",
+          "path": "dv/functional/coverage/sv"
+        },
+        {
+          "effective_sha256": "981d03cefafef3cd4acfd079f611e38ba098aeba523bfe3fca55a4205026e79b",
+          "generated_sha256": "981d03cefafef3cd4acfd079f611e38ba098aeba523bfe3fca55a4205026e79b",
+          "path": "dv/functional/coverage/cocotb"
+        },
+        {
+          "effective_sha256": "0d9f1b62451071e196a2db394bd237270513f075d0cf9ae810cc16495751a5a1",
+          "generated_sha256": "0d9f1b62451071e196a2db394bd237270513f075d0cf9ae810cc16495751a5a1",
+          "path": "dv/functional/regression"
+        },
+        {
+          "effective_sha256": "c5123b8eff72c65a7627f266b5293fcc1bbde11cb978b19da6034337740b15b6",
+          "generated_sha256": "c5123b8eff72c65a7627f266b5293fcc1bbde11cb978b19da6034337740b15b6",
+          "path": "dv/functional/sim/rtl"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "8859911fb5ed6f2aae9ff908a41a186b8f5112116bb3af6666b917d902da3e80"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "3c2cc507a98d7d6c0a6e7f97d6a382c76042dc482990685339baca909cab872f"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/gpio_reg_pkg.sv",
+          "sha256": "19738dbda7275077463355f19af2de15cd5f866ff9263ecfd64838884f75eae5"
+        },
+        {
+          "path": "rtl/gpio_reg_core.sv",
+          "sha256": "3d08bfc996b005654ed39f74ee566e8ac37622724cf20dec029b8ae7daf5d2b7"
+        },
+        {
+          "path": "rtl/gpio_reg_top.sv",
+          "sha256": "21cbddaf79fd6fd89dd234e97baf0267c0492a933fb5d042a68674906ef10da1"
+        },
+        {
+          "path": "rtl/gpio_core.sv",
+          "sha256": "8e349f526a64cb3dd62257044ba3a1a260e8f336b3d96c44f0dc397f86763e2d"
+        },
+        {
+          "path": "rtl/gpio.sv",
+          "sha256": "54c9e17659859084211b7bf7c92d4cde82c191f652f903af47e34b6abda2cd78"
+        },
+        {
+          "path": "constraints/gpio.sdc",
+          "sha256": "6f2ee173e988c70e0e19b30d2f2c73030fadc3709c872ec7c3bf5a54bb98b98d"
+        },
+        {
+          "path": "dv/functional/tests",
+          "sha256": "fa45496aed747fbe7e39e800e334e4cf75afcee683eeb416c8c1e3f2a95c1dee"
+        },
+        {
+          "path": "dv/functional/py/rtl",
+          "sha256": "e221ebf9da479cf3371d8934f264714c754afa5aaf6e6340f886a531cf69e64f"
+        },
+        {
+          "path": "csr/gpio.hjson",
+          "sha256": "477e8bbf9740a8edc24a3b3a70e1e0da8a875332ba5f5a92c67f47bf389f5203"
+        },
+        {
+          "path": "dv/functional/tb/sv/drivers/gpio_reg_driver.svh",
+          "sha256": "eb2b4043656fead5d37f76ad176669462a85b732efa2185265e14d3251e793da"
+        },
+        {
+          "path": "dv/functional/tb/sv/drivers/gpio_vec_driver.svh",
+          "sha256": "e7c097655a64d7f8539b3929e576335bdc5bb35e2df558556023c3d59815f4d2"
+        },
+        {
+          "path": "dv/functional/tb/sv/drivers/gpio_vec_monitor.svh",
+          "sha256": "26bc533f70e37ee1e1b34d2adbf99cf9a53b8f4a11583c054ebaa31571e1491d"
+        },
+        {
+          "path": "dv/functional/tb/sv/gpio_tb.sv",
+          "sha256": "e87b608756bb93690cc0c9fed844e0cde49eda84059cdba9655c40789c06a7aa"
+        },
+        {
+          "path": "dv/functional/tb/sv/include_gpio_tb.sv",
+          "sha256": "004a7772b4917ea5ca7d3c3e4cccc6c9bb70c5580bc21ecfddee5e7f5933756e"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/Makefile",
+          "sha256": "b281233df6f12baf939737eb4a07a34f753ae21dcb91f5ea8ac5ca571cc229e3"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/gpio_tb.sv",
+          "sha256": "79d125ebf0426fbe8513e8cca08c95ec4f080217eadd81fb675f2831ccad1ab8"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/gpio_tb.py",
+          "sha256": "57fe5281bf52072aa02934eb08fa663a4e3dfcdd54e87b45f5660e06927a2315"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/drivers/__init__.py",
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/drivers/reg_driver.py",
+          "sha256": "5dde46f241fc9e47028925e7ca330f623920da68a2f82f7d2f42b86c5befe399"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/drivers/vec_driver.py",
+          "sha256": "46c4b6710f12d7eb15348cb632c7ee7a49e7859cb2e6ea33e85eabe087eba8fb"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/drivers/vec_monitor.py",
+          "sha256": "6d24acfe38fa32250b48979823ae763e07c896d280f819c50b664964f6b2fe3e"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "cocotb.setup": "6295fc47f9c6ae65e693bffcaabe74e76cebed6f6840c933f046a1b5d66eaba4",
+        "tb.setup": "5fe4d21b304d41e081f44595bd53e3493722ab98cdd6b764f44ffcca561ce376"
+      },
+      "returncode": 0,
+      "tools": {
+        "IVERILOG": {
+          "archive": "tar.gz",
+          "min_version": "13.0",
+          "sha256": "c897bbfa9848688982c6d5c30529fc29d68df0b9ff22ffa73bad89db73a7ce49",
+          "url": "https://codeload.github.com/steveicarus/iverilog/tar.gz/v13_0",
+          "version": "13.0"
+        },
+        "VERILATOR": {
+          "min_version": "5.050",
+          "ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c",
+          "repo": "https://github.com/verilator/verilator.git",
+          "version": "5.050"
+        }
+      }
+    },
+    "sdc.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "N_CLOCKS": "1",
+        "SDC_IO_DELAY_PCT": "",
+        "TOP": "gpio"
+      },
+      "fingerprint": "293e348b600449b5b7712ee40ae9efe1686687837e07b281114b8e9b7994691c",
+      "generated": [
+        {
+          "effective_sha256": "6f2ee173e988c70e0e19b30d2f2c73030fadc3709c872ec7c3bf5a54bb98b98d",
+          "generated_sha256": "6f2ee173e988c70e0e19b30d2f2c73030fadc3709c872ec7c3bf5a54bb98b98d",
+          "path": "constraints/gpio.sdc"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [],
+      "parents": {},
+      "tools": {}
+    },
+    "tb.setup": {
+      "config": {
+        "CLK_PERIOD": "10",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "COMPILER": "",
+        "N_CLOCKS": "1",
+        "REG_ITF": "reg_iface",
+        "TOP": "gpio",
+        "VSV": ""
+      },
+      "fingerprint": "5fe4d21b304d41e081f44595bd53e3493722ab98cdd6b764f44ffcca561ce376",
+      "generated": [
+        {
+          "effective_sha256": "eb2b4043656fead5d37f76ad176669462a85b732efa2185265e14d3251e793da",
+          "generated_sha256": "eb2b4043656fead5d37f76ad176669462a85b732efa2185265e14d3251e793da",
+          "path": "dv/functional/tb/sv/drivers/gpio_reg_driver.svh"
+        },
+        {
+          "effective_sha256": "e7c097655a64d7f8539b3929e576335bdc5bb35e2df558556023c3d59815f4d2",
+          "generated_sha256": "e7c097655a64d7f8539b3929e576335bdc5bb35e2df558556023c3d59815f4d2",
+          "path": "dv/functional/tb/sv/drivers/gpio_vec_driver.svh"
+        },
+        {
+          "effective_sha256": "26bc533f70e37ee1e1b34d2adbf99cf9a53b8f4a11583c054ebaa31571e1491d",
+          "generated_sha256": "26bc533f70e37ee1e1b34d2adbf99cf9a53b8f4a11583c054ebaa31571e1491d",
+          "path": "dv/functional/tb/sv/drivers/gpio_vec_monitor.svh"
+        },
+        {
+          "effective_sha256": "e87b608756bb93690cc0c9fed844e0cde49eda84059cdba9655c40789c06a7aa",
+          "generated_sha256": "e87b608756bb93690cc0c9fed844e0cde49eda84059cdba9655c40789c06a7aa",
+          "path": "dv/functional/tb/sv/gpio_tb.sv"
+        },
+        {
+          "effective_sha256": "004a7772b4917ea5ca7d3c3e4cccc6c9bb70c5580bc21ecfddee5e7f5933756e",
+          "generated_sha256": "004a7772b4917ea5ca7d3c3e4cccc6c9bb70c5580bc21ecfddee5e7f5933756e",
+          "path": "dv/functional/tb/sv/include_gpio_tb.sv"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "csr/gpio.hjson",
+          "sha256": "477e8bbf9740a8edc24a3b3a70e1e0da8a875332ba5f5a92c67f47bf389f5203"
+        },
+        {
+          "path": "constraints/gpio.sdc",
+          "sha256": "6f2ee173e988c70e0e19b30d2f2c73030fadc3709c872ec7c3bf5a54bb98b98d"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    }
+  }
+}

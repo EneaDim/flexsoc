@@ -1,69 +1,385 @@
 {
   "artifacts": {
     "ast": "dv/slang_hier/ast.json",
+    "ast_log": "logs/dv/slang_hier/slang_ast.log",
     "hierarchy": "dv/slang_hier/hierarchy.txt",
     "log": "logs/dv/slang_hier/slang_hier.log"
   },
+  "ast_command": [
+    "/usr/local/bin/slang",
+    "--top",
+    "gpio",
+    "-I/home/eneadim/github/flexsoc/hw/ips/pkgs",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/include",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include/register_interface",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/include/axi",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim/prim_ff_2sync.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/fifo_v3.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/cf_math_pkg.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/lzc.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/rr_arb_tree.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/stream_arbiter_flushable.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/stream_arbiter.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/axi/src/axi_pkg.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/axi/src/axi_intf.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/reg_intf.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_buf.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_onehot_check.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_reg_we_check.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio_reg_pkg.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio_reg_core.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio_reg_top.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio_core.sv",
+    "--ast-json",
+    "/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_axi_lite_l2/dv/slang_hier/ast.json",
+    "--ast-json-source-info",
+    "/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio.sv"
+  ],
   "command": [
     "/usr/local/bin/slang-hier",
     "--top",
     "gpio",
     "--custom-format",
     "{inst}\t{module}\t{file}",
-    "--ast-json",
-    "/home/eneadim/github/flexsoc/workspace/l2_batch_20261015-201247/gpio-axi_lite/workspace/runs/gpio/l2/dv/slang_hier/ast.json",
-    "--ast-json-source-info",
     "-DSYNTHESIS",
-    "-I/home/eneadim/github/flexsoc/workspace/l2_batch_20261015-201247/gpio-axi_lite/workspace/runs/gpio/l2/rtl/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/workspace/l2_batch_20261015-201247/gpio-axi_lite/workspace/runs/gpio/l2/rtl/...",
-    "-I/home/eneadim/github/flexsoc/hw/ips/pkgs/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/hw/ips/pkgs/...",
-    "-I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/...",
-    "-I/home/eneadim/github/flexsoc/hw/ips/prim/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/hw/ips/prim/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/src/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/axi/src/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/include/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/axi/include/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include/register_interface/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include/register_interface/...",
-    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/include/axi/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/vendor/pulp/axi/include/axi/...",
-    "/home/eneadim/github/flexsoc/workspace/l2_batch_20261015-201247/gpio-axi_lite/workspace/runs/gpio/l2/rtl/gpio.sv"
+    "-I/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl",
+    "-I/home/eneadim/github/flexsoc/hw/ips/pkgs",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/include",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include/register_interface",
+    "-I/home/eneadim/github/flexsoc/vendor/pulp/axi/include/axi",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim/prim_ff_2sync.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/fifo_v3.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/cf_math_pkg.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/lzc.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/rr_arb_tree.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/stream_arbiter_flushable.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/stream_arbiter.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/axi/src/axi_pkg.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/axi/src/axi_intf.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/reg_intf.sv",
+    "/home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_buf.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_onehot_check.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_reg_we_check.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio_reg_pkg.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio_reg_core.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio_reg_top.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio_core.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio.sv"
   ],
-  "instances": [],
+  "instances": [
+    {
+      "file": "workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio.sv",
+      "instance": "gpio",
+      "module": "gpio"
+    },
+    {
+      "file": "hw/ips/prim/prim_ff_2sync.sv",
+      "instance": "gpio.u_reg_reset_sync",
+      "module": "prim_ff_2sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_reg_reset_sync.u_sync_1",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_reg_reset_sync.u_sync_2",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim/prim_ff_2sync.sv",
+      "instance": "gpio.u_core_reset_sync",
+      "module": "prim_ff_2sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_core_reset_sync.u_sync_1",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_core_reset_sync.u_sync_2",
+      "module": "prim_flop"
+    },
+    {
+      "file": "workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio_reg_top.sv",
+      "instance": "gpio.u_gpio_reg",
+      "module": "gpio_reg_top"
+    },
+    {
+      "file": "vendor/pulp/register_interface/src/axi_lite_to_reg.sv",
+      "instance": "gpio.u_gpio_reg.u_flexsoc_axi_to_reg",
+      "module": "axi_lite_to_reg"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/fifo_v3.sv",
+      "instance": "gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_fifo_write_req",
+      "module": "fifo_v3"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/fifo_v3.sv",
+      "instance": "gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_fifo_write_resp",
+      "module": "fifo_v3"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/fifo_v3.sv",
+      "instance": "gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_fifo_read",
+      "module": "fifo_v3"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/fifo_v3.sv",
+      "instance": "gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_fifo_read_resp",
+      "module": "fifo_v3"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/stream_arbiter.sv",
+      "instance": "gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_stream_arbiter",
+      "module": "stream_arbiter"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/stream_arbiter_flushable.sv",
+      "instance": "gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb",
+      "module": "stream_arbiter_flushable"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/rr_arb_tree.sv",
+      "instance": "gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb.gen_rr_arb.i_arbiter",
+      "module": "rr_arb_tree"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/lzc.sv",
+      "instance": "gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb.gen_rr_arb.i_arbiter.gen_arbiter.gen_int_rr.gen_fair_arb.i_lzc_upper",
+      "module": "lzc"
+    },
+    {
+      "file": "vendor/pulp/common_cells/src/lzc.sv",
+      "instance": "gpio.u_gpio_reg.u_flexsoc_axi_to_reg.i_stream_arbiter.i_arb.gen_rr_arb.i_arbiter.gen_arbiter.gen_int_rr.gen_fair_arb.i_lzc_lower",
+      "module": "lzc"
+    },
+    {
+      "file": "workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio_reg_core.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core",
+      "module": "gpio_reg_core"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_prim_reg_we_check",
+      "module": "prim_reg_we_check"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_buf.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_prim_reg_we_check.u_prim_buf",
+      "module": "prim_buf"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_prim_reg_we_check.u_prim_onehot_check",
+      "module": "prim_onehot_check"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_data_in",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_data_in.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_direct_gpio_o",
+      "module": "prim_subreg_ext"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_direct_gpio_oe",
+      "module": "prim_subreg_ext"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_intr_ctrl_en_rising",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_intr_ctrl_en_rising.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_intr_ctrl_en_falling",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_intr_ctrl_en_falling.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_intr_ctrl_en_lvlhigh",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_intr_ctrl_en_lvlhigh.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_intr_ctrl_en_lvllow",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_intr_ctrl_en_lvllow.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_intr_ctrl_en_input_filter",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "gpio.u_gpio_reg.u_reg_core.u_intr_ctrl_en_input_filter.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "workspace/runs/gpio/qualification_gpio_axi_lite_l2/rtl/gpio_core.sv",
+      "instance": "gpio.u_gpio_core",
+      "module": "gpio_core"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_gpio_core.u_filter_reset_branch",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_gpio_core.u_state_reset_branch",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[0].u_filter",
+      "module": "prim_filter_ctr"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[0].u_filter.gen_async.prim_flop_2sync",
+      "module": "prim_flop_2sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[0].u_filter.gen_async.prim_flop_2sync.u_sync_1",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[0].u_filter.gen_async.prim_flop_2sync.u_sync_2",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[1].u_filter",
+      "module": "prim_filter_ctr"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[1].u_filter.gen_async.prim_flop_2sync",
+      "module": "prim_flop_2sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[1].u_filter.gen_async.prim_flop_2sync.u_sync_1",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[1].u_filter.gen_async.prim_flop_2sync.u_sync_2",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[2].u_filter",
+      "module": "prim_filter_ctr"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[2].u_filter.gen_async.prim_flop_2sync",
+      "module": "prim_flop_2sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[2].u_filter.gen_async.prim_flop_2sync.u_sync_1",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[2].u_filter.gen_async.prim_flop_2sync.u_sync_2",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_filter_ctr.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[3].u_filter",
+      "module": "prim_filter_ctr"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[3].u_filter.gen_async.prim_flop_2sync",
+      "module": "prim_flop_2sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[3].u_filter.gen_async.prim_flop_2sync.u_sync_1",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "gpio.u_gpio_core.gen_input_filter[3].u_filter.gen_async.prim_flop_2sync.u_sync_2",
+      "module": "prim_flop"
+    }
+  ],
   "metrics": {
-    "ast_bytes": 0,
-    "instances": 0,
+    "ast_bytes": 6552439,
+    "instances": 55,
     "malformed_rows": 0,
-    "modules": 0,
-    "source_files": 0
+    "modules": 20,
+    "non_hierarchy_rows": 3,
+    "source_files": 20
   },
   "run": {
-    "duration_s": 0.009733221000715275,
-    "exit_code": 1
+    "duration_s": 0.08657689400570234,
+    "exit_code": 0
   },
   "schema": "flexsoc.slang_hier.v3",
   "stage": "slang_hier",
-  "status": "FAILED",
+  "status": "PASS",
   "tool": "slang-hier",
   "top": "gpio"
 }

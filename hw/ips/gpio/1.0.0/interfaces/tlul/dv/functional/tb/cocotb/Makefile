@@ -54,7 +54,7 @@ else
 
   # RTL sources expanded from rtl_common.f and rtl_ip.f
   VERILOG_SOURCES := \
-    /home/eneadim/github/flexsoc/workspace/gpio_tlul_final/runs/gpio/l2_gpio_tlul/rtl/gpio.sv
+    /home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_tlul_l2/rtl/gpio.sv
 
   COMPILE_ARGS += --sv --timing
   WAVE_FORMAT ?= fst
@@ -70,7 +70,7 @@ else
   COMPILE_ARGS += -Wno-UNOPTFLAT
 endif
 
-COMPILE_ARGS += -I/home/eneadim/github/flexsoc/workspace/gpio_tlul_final/runs/gpio/l2_gpio_tlul/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/hw/ips/tlul
+COMPILE_ARGS += -I/home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_tlul_l2/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/hw/ips/tlul
 export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
 TEST_NAME ?= smoke
 SEED ?= 1
@@ -105,7 +105,7 @@ export CFG ?= $(REG_CONFIG)
 export DATA_IN  ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
 export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
 export PYTHONPATH := $(PWD):$(PYTHONPATH)
-VERILOG_SOURCES += /home/eneadim/github/flexsoc/workspace/gpio_tlul_final/runs/gpio/l2_gpio_tlul/dv/functional/tb/cocotb/gpio_tb.sv
+VERILOG_SOURCES += /home/eneadim/github/flexsoc/workspace/runs/gpio/qualification_gpio_tlul_l2/dv/functional/tb/cocotb/gpio_tb.sv
 
 COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
 ifeq ($(strip $(COCOTB_MAKEFILES)),)
