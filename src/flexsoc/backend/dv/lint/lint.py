@@ -173,6 +173,11 @@ class Lint:
             text = json.dumps(data, indent=2, sort_keys=True) + "\n"
             print(text, end="", file=capture or None)
         else:
+            # Paths in the terminal are relative to the caller's cwd, not the run.
+            # Keep canonical report JSON paths unchanged.
+            data["display_run"] = str(self.context.paths.run)
+            data["display_project_root"] = str(self.context.project_root)
+            document = replace(document, data=data)
             ShowRenderer(console).render(document)
             if debug:
                 counts = data.get("counts", {}) if isinstance(data.get("counts"), Mapping) else {}

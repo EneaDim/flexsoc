@@ -201,6 +201,10 @@ class VerilatorLint:
 
         if severity in {"error", "fatal"}:
             return "P0"
+        # FlexSoC lint risk policy: width and arithmetic/type mismatch => P0.
+        risk_code = str(code).upper()
+        if "WIDTH" in risk_code or "MISMATCH" in risk_code or risk_code == "SIGNCOMPARE":
+            return "P0"
         if code in self._P0:
             return "P0"
         if code in self._P1:

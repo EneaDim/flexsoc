@@ -132,8 +132,14 @@ class SlangLint:
             if not waiver.is_absolute():
                 waiver = self.context.project_root / waiver
             waiver_args = ("--waiver-file", str(waiver))
+        # Match the elaboration default used by the RTL flow, rather than
+        # manufacturing timescale diagnostics by invoking Slang differently.
+        from ...design.ip.rtl import RtlFlow
+        top_file = paths.run / "rtl" / f"{top}.sv"
+        timescale_args = tuple(RtlFlow._default_timescale_args(top_file)) if top_file.is_file() else ()
         return (
             values.get("SLANG", "slang"), "--single-unit", "--top", top, "-DSYNTHESIS",
+            "--error-limit=0", *timescale_args,
             "--diag-abs-paths", "--diag-hierarchy", "never", "--diag-json", str(diagnostics),
             *warnings, *waiver_args, *source_args,
         )
@@ -227,6 +233,10 @@ class SlangLint:
         if severity in {"error", "fatal"}:
             return "P0"
         token = code.lower()
+        # FlexSoC lint risk policy: width and arithmetic/type mismatch => P0.
+        risk_code = str(code).lower()
+        if "width" in risk_code or "mismatch" in risk_code or risk_code == "sign-compare":
+            return "P0"
         if any(part in token for part in self._P0):
             return "P0"
         if any(part in token for part in self._P1):

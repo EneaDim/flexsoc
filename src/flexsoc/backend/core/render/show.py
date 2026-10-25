@@ -11,6 +11,7 @@ import yaml
 from rich.console import Console
 from rich.json import JSON
 from rich.panel import Panel
+from rich.markup import escape
 from rich.table import Table
 
 from ..flow.target import BACKEND_TARGETS
@@ -1317,6 +1318,21 @@ class ShowRenderer:
             )
         self.console.print(table)
 
+    @staticmethod
+    def _lint_root_relative_path(file: str, *, run: Path, project_root: Path) -> str:
+        """Show a short, accurate path relative to the displayed source roots."""
+        if not file or file == "<unknown>":
+            return "<unknown>"
+        source = Path(file)
+        if source.is_absolute():
+            for root in (run, project_root):
+                try:
+                    return source.relative_to(root).as_posix()
+                except ValueError:
+                    continue
+            return source.as_posix()  # External file: never invent a root.
+        return source.as_posix()
+
     def _show_lint(self, document: Any) -> None:
         """Render compact lint summary and diagnostics without boxed tables."""
 
@@ -1325,6 +1341,13 @@ class ShowRenderer:
         tools = data.get("tools", {}) if isinstance(data, Mapping) else {}
         selected = data.get("selected_tool") if isinstance(data, Mapping) else None
         title = f"Lint · {selected}" if selected else "Lint"
+        run = Path(data.get("display_run") or document.path.parents[2]).resolve()
+        project_root = Path(data.get("display_project_root") or Path.cwd()).resolve()
+        # Print both source roots before all lint tables. File cells stay short
+        # and can be interpreted unambiguously without wrapped workspace paths.
+        self.console.print(f"[bold yellow]Workspace RTL root[/bold yellow]  [bright_blue]{escape(str(run))}[/bright_blue]  [grey70](rtl/)[/grey70]")
+        self.console.print(f"[bold yellow]FlexSoC root[/bold yellow]        [bright_blue]{escape(str(project_root))}[/bright_blue]  [grey70](hw/, vendor/)[/grey70]")
+        self.console.print()
         self.console.print(
             f"[bold bright_cyan]{title}[/bold bright_cyan]  "
             f"{self.status(data.get('status', 'MISSING'))}  "
@@ -1346,7 +1369,7 @@ class ShowRenderer:
             item_counts = item.get("counts", {}) if isinstance(item, Mapping) else {}
             table.add_row(
                 str(name), self.status(item.get("status", "MISSING")), str(item.get("total", 0)),
-                f"[red]{item_counts.get('P0', 0)}[/red]",
+                f"[bold orange1]{item_counts.get('P0', 0)}[/bold orange1]",
                 f"[orange1]{item_counts.get('P1', 0)}[/orange1]",
                 f"[bright_cyan]{item_counts.get('P2', 0)}[/bright_cyan]",
                 f"[grey70]{item_counts.get('P3', 0)}[/grey70]",
@@ -1366,7 +1389,7 @@ class ShowRenderer:
             f"[bold]Diagnostics[/bold]  [grey70]{priorities} · "
             f"{len(diagnostics)} matching · module={data.get('selected_module') or 'all'}[/grey70]"
         )
-        colors = {"P0": "red", "P1": "orange1", "P2": "bright_cyan", "P3": "grey70"}
+        colors = {"P0": "bold orange1", "P1": "orange3", "P2": "bright_cyan", "P3": "grey70"}
         for tool in data.get("order", ()):
             items = [item for item in diagnostics if item.get("tool") == tool]
             if not items:
@@ -1381,33 +1404,41 @@ class ShowRenderer:
                 priority = str(item.get("priority", "P3"))
                 if priority in bucket:
                     bucket[priority] += 1
-            modules = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70")
+            modules = Table(box=None, show_edge=False, pad_edge=False, header_style="bold yellow")
             for column in ("Module", "Total", "P0", "P1", "P2", "P3"):
-                modules.add_column(column, justify="left" if column == "Module" else "right")
-            for name, counts in sorted(module_counts.items()):
+                modules.add_column(column, style="orange1" if column == "Module" else None, justify="left" if column == "Module" else "right")
+            for name, counts in sorted(
+                module_counts.items(),
+                key=lambda pair: (-pair[1]["P0"], -pair[1]["P1"], -pair[1]["P2"], -pair[1]["P3"], pair[0]),
+            ):
                 modules.add_row(name, *(str(counts[column]) for column in ("Total", "P0", "P1", "P2", "P3")))
             self.console.print(modules)
 
-            details = Table(box=None, show_edge=False, pad_edge=False, header_style="bold grey70", expand=True)
-            details.add_column("Module", no_wrap=True)
+            details = Table(box=None, show_edge=False, pad_edge=False, header_style="bold yellow", expand=True)
+            details.add_column("Module", style="orange1", no_wrap=True)
             details.add_column("Scope", no_wrap=True)
             details.add_column("Pri", no_wrap=True)
-            details.add_column("Code", no_wrap=True)
+            details.add_column("Code", style="bright_cyan", no_wrap=True)
             details.add_column("Message", ratio=4, overflow="fold")
-            details.add_column("File", ratio=3, overflow="fold")
+            details.add_column("File", style="bright_blue", no_wrap=True, overflow="ellipsis")
             details.add_column("Line", justify="right", no_wrap=True)
             details.add_column("Column", justify="right", no_wrap=True)
             for item in sorted(items, key=lambda row: (
-                str(row.get("source_module", "")), str(row.get("priority", "P3")),
-                str(row.get("file", "")), int(row.get("line") or 0), int(row.get("column") or 0)
+                {"P0": 0, "P1": 1, "P2": 2, "P3": 3}.get(str(row.get("priority")), 4),
+                str(row.get("source_module", "")), str(row.get("file", "")),
+                int(row.get("line") or 0), int(row.get("column") or 0),
             )):
                 priority = str(item.get("priority", "P3"))
                 color = colors.get(priority, "white")
                 message = str(item.get("message") or "-").splitlines()[0].strip() or "-"
+                displayed_file = self._lint_root_relative_path(
+                    str(item.get("file") or ""), run=run, project_root=project_root,
+                )
                 details.add_row(
-                    str(item.get("source_module") or "<unknown>"), str(item.get("scope", "ip")),
-                    f"[{color}]{priority}[/{color}]", str(item.get("code", "-")),
-                    message, f"[bright_blue]{item.get('file') or '<unknown>'}[/bright_blue]",
+                    escape(str(item.get("source_module") or "<unknown>")),
+                    escape(str(item.get("scope", "ip"))),
+                    f"[{color}]{priority}[/{color}]", escape(str(item.get("code", "-"))),
+                    escape(message), escape(displayed_file),
                     str(item.get("line") or "-"), str(item.get("column") or "-"),
                 )
             self.console.print(details)
