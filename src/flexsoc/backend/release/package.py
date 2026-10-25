@@ -123,14 +123,15 @@ class PackageFlow:
             eqy_view=eqy / f"{paths.top}_eqy_view.sv",
             filelists=(paths.rtl_common, paths.rtl_ip),
             netlist=paths.syn / f"{paths.top}_synth.v",
-            liberty=Path(values["LIB_SYN"]), cell_models=cell_models,
+            liberty=Path(values.get("LIB_SYN", "")), cell_models=cell_models,
             clock_gate_model=eqy / "sky130_clock_gates_formal.v",
             impl_dir=paths.impl if impl_available else None,
             post_syn_sim_dir=context.layout.post_syn_sim_dir,
             coverage_dir=paths.coverage, manifest_json=paths.manifest, metrics_json=paths.metrics,
             settings_json=paths.meta / "settings.json",
             design_intent_json=paths.run / "meta" / "design_intent.json",
-            qualification_json=paths.meta / "qualification.json",
+            qualification_json=(paths.run / "meta" / "rtl_qualification.json"
+                                if package_level <= 2 else paths.meta / "qualification.json"),
             release_level=package_level,
             version=values.get("IP_VERSION") or None,
         )
@@ -159,6 +160,7 @@ class PackageFlow:
         PackageFlow._validate_package_manifest(
             source, ip_name=ip_name, reg_interface=reg_interface, version=version
         )
+        PackageFlow._validate_shared_rtl(source, self.project_root)
         if requalify:
             snapshot = QualificationFlow.validate_contract_snapshot(source, allow_spec_drift=True)
             if snapshot["contract"].get("ip") != ip_name:
@@ -180,7 +182,9 @@ class PackageFlow:
                 # Replace the old baseline and evidence, retaining run settings and logs.
                 self._reset_load_destination(destination, run)
                 PackageFlow._copy_contents(staged, destination)
-                self._materialize_shared_rtl(destination)
+                if not (destination / "meta/shared_rtl.json").is_file():
+                    self._materialize_shared_rtl(destination)
+                self._prune_unused_rtl_dependencies(destination)
             print("[ip_load] UNQUALIFIED source baseline: previous qualification and PDK evidence discarded")
             return destination
         # A normal reload must replace the previous run contents, not merge
@@ -214,7 +218,9 @@ class PackageFlow:
                     self._replace_tree(post_impl, run_pdk / "post_impl")
             shutil.rmtree(staged_signoff)
         PackageFlow._clean_python_cache(destination)
-        self._materialize_shared_rtl(destination)
+        if not (destination / "meta/shared_rtl.json").is_file():
+            self._materialize_shared_rtl(destination)
+        self._prune_unused_rtl_dependencies(destination)
         # Deferred to flist / explicit package validation: PackageFlow._validate_frozen_filelists(destination)
         return destination
 
@@ -242,6 +248,30 @@ class PackageFlow:
             shutil.rmtree(path)
         else:
             path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _prune_unused_rtl_dependencies(destination: Path) -> None:
+        """Remove legacy shadow RTL only when no declared source refers to it.
+
+        Never silently delete a dependency that is still needed for a frozen
+        package; repairing such a package belongs to the save/migration path.
+        """
+
+        rtl = destination / "rtl"
+        shadow = rtl / "deps"
+        if not shadow.is_dir():
+            return
+        declarations = [rtl / "rtl_common.f", rtl / "rtl_ip.f", *destination.glob("*.core")]
+        for declaration in declarations:
+            if not declaration.is_file():
+                continue
+            for line in declaration.read_text(encoding="utf-8").splitlines():
+                # Core manifests and filelists may both declare shadow sources.
+                if re.search(r"(?:^|[\s/+])rtl/deps(?:/|\b)", line):
+                    # Legacy releases may legitimately depend on frozen copies.
+                    # Keep them until an explicit, integrity-checked migration.
+                    return
+        shutil.rmtree(shadow)
 
     def _materialize_shared_rtl(self, destination: Path) -> None:
         """Populate missing run-local shared RTL from hw/ips, never from IP snapshot."""
@@ -413,11 +443,12 @@ class PackageFlow:
         missing = [path for path in required if path is None or not Path(path).is_file()] if rtl_only else [path for path in required if not Path(path).exists()]
         if missing:
             raise FileNotFoundError("required ip_save input not found: " + ", ".join(map(str, missing)))
+        neutral_l2 = rtl_only and Path(qualification_json).name == "rtl_qualification.json"
         if rtl_only:
             report = json.loads(Path(qualification_json).read_text(encoding="utf-8"))
             levels = report.get("levels", {})
             if (report.get("ip") != ip_name or report.get("reg_interface") != reg_interface
-                    or report.get("pdk") != pdk
+                    or (report.get("pdk") is not None if neutral_l2 else report.get("pdk") != pdk)
                     or levels.get(str(release_level), {}).get("status") != "PASS"
                     or int(report.get("maximum_level", 0)) < release_level):
                 raise ValueError(
@@ -484,6 +515,14 @@ class PackageFlow:
             else:
                 staged.mkdir(parents=True)
 
+            # An L2 release has one shared qualification, not a technology
+            # branch for each PDK that happened to be selected during RTL DV.
+            if neutral_l2:
+                for branch in (staged / "meta").glob("*/qualification.json"):
+                    data = json.loads(branch.read_text(encoding="utf-8"))
+                    if int(data.get("maximum_level", 0)) <= 2:
+                        self._discard_pdk_branch(staged, branch.parent.name)
+
             old_inputs = self._release_inputs(staged)
             self._stage_sources(staged, run)
             if old_inputs and old_inputs != self._release_inputs(staged):
@@ -520,11 +559,34 @@ class PackageFlow:
                 if impl_root.is_dir() and not any(impl_root.iterdir()):
                     impl_root.rmdir()
                 shutil.rmtree(staged / "signoff" / pdk / "post_impl", ignore_errors=True)
-            self._stage_optional_reports(
-                staged, pdk, None if rtl_only else post_syn_sim_dir, coverage_dir,
-                manifest_json, metrics_json, run / "meta" / pdk / "provenance.json",
-                settings_json, design_intent_json, qualification_json,
-            )
+            if neutral_l2:
+                common_meta = staged / "meta"
+                common_meta.mkdir(parents=True, exist_ok=True)
+                for filename in ("manifest.json", "metrics.json", "rtl_qualification.json",
+                                 "provenance.json"):
+                    source = run / "meta" / filename
+                    if source.is_file():
+                        shutil.copy2(source, common_meta / filename)
+                self._stage_optional_reports(
+                    staged, pdk, None, coverage_dir, None, None, None,
+                    None, design_intent_json, None,
+                )
+            else:
+                self._stage_optional_reports(
+                    staged, pdk, None if rtl_only else post_syn_sim_dir, coverage_dir,
+                    manifest_json, metrics_json, run / "meta" / pdk / "provenance.json",
+                    settings_json, design_intent_json, qualification_json,
+                )
+            # Preserve a PDK-neutral L1/L2 qualification record when present.
+            rtl_source = run / "meta" / "rtl_qualification.json"
+            if rtl_source.is_file():
+                expected = QualificationFlow.rtl_qualification_report(
+                    json.loads(Path(qualification_json).read_text(encoding="utf-8"))
+                )
+                if json.loads(rtl_source.read_text(encoding="utf-8")) != expected:
+                    raise ValueError("RTL qualification is stale against the current report")
+                (staged / "meta").mkdir(parents=True, exist_ok=True)
+                shutil.copy2(rtl_source, staged / "meta" / "rtl_qualification.json")
             # Setup stages use run-scope provenance, while implementation stages
             # use PDK-scope provenance. Both are needed to preserve ownership.
             run_provenance = run / "meta" / "provenance.json"
@@ -541,11 +603,14 @@ class PackageFlow:
             for name in spec_contract["hashes"]:
                 shutil.copy2(spec_root / name, staged_spec / name)
             PackageFlow._freeze_rtl_dependencies(staged, self.project_root, run)
+            PackageFlow._validate_shared_rtl(staged, self.project_root)
             PackageFlow._clean_python_cache(staged)
             # Model-test JUnit/working summaries are run outputs, not release evidence.
             shutil.rmtree(staged / "dv" / "functional" / "py" / "model" / "results", ignore_errors=True)
             PackageFlow._clean_hidden_paths(staged)
             self._write_fusesoc_core(staged, ip_name, top)
+            if neutral_l2:
+                QualificationFlow.rtl_evidence_integrity(staged, write=True)
             self._write_package_manifest(
                 staged, ip_name, top, reg_interface, version=version
             )
@@ -736,7 +801,9 @@ class PackageFlow:
 
         sources: list[str] = []
         include_dirs: list[str] = []
-        for filelist in (rtl / "rtl_common.f", ip_filelist):
+        shared_record = staged / "meta/shared_rtl.json"
+        shared = json.loads(shared_record.read_text(encoding="utf-8"))["files"] if shared_record.is_file() else {}
+        for filelist in (ip_filelist,):
             if not filelist.is_file():
                 continue
             for raw in filelist.read_text(encoding="utf-8").splitlines():
@@ -747,6 +814,10 @@ class PackageFlow:
                     directory = value[8:]
                     path = staged / directory
                     if not path.is_dir():
+                        # Checkout-owned includes remain pinned in shared_rtl.json,
+                        # not copied into the IP's FuseSoC fileset.
+                        if any(name.startswith(directory.rstrip("/") + "/") for name in shared):
+                            continue
                         raise FileNotFoundError(f"IP release include directory not found: {path}")
                     if directory not in include_dirs:
                         include_dirs.append(directory)
@@ -850,6 +921,19 @@ class PackageFlow:
             if (staged / relative).is_dir():
                 content[key] = relative
 
+        # Model sources and verification are independent deliverables.  Index
+        # their canonical locations explicitly, rather than relying on clients
+        # to infer them from the generic functional_python directory.
+        model_root = staged / "dv" / "functional" / "py" / "model"
+        for key, name in (("behavioral_model", f"{ip_name}_model.py"),
+                          ("behavioral_model_tests", f"{ip_name}_model_tests.py"),
+                          ("behavioral_scenarios", "scenarios.py")):
+            if (model_root / name).is_file():
+                content[key] = (model_root / name).relative_to(staged).as_posix()
+        model_evidence = staged / "dv" / "functional" / "model_tests" / "summary.json"
+        if model_evidence.is_file():
+            content["behavioral_model_evidence"] = model_evidence.relative_to(staged).as_posix()
+
         sdc = staged / "constraints" / f"{top}.sdc"
         if sdc.is_file():
             content["timing_constraints"] = f"constraints/{top}.sdc"
@@ -864,6 +948,8 @@ class PackageFlow:
         core = staged / f"{ip_name}.core"
         if core.is_file():
             content["fusesoc_core"] = core.name
+        if (staged / "meta/shared_rtl.json").is_file():
+            content["shared_rtl"] = "meta/shared_rtl.json"
         qualification = {}
         meta = staged / "meta"
         if meta.is_dir():
@@ -897,7 +983,10 @@ class PackageFlow:
             if isinstance(item, dict)
         ]
         contract_level = 1 if (staged / "meta" / "contract.json").is_file() else 0
-        maximum = max([contract_level, *levels])
+        neutral = staged / "meta" / "rtl_qualification.json"
+        neutral_level = (int(json.loads(neutral.read_text(encoding="utf-8")).get("maximum_level", 0))
+                         if (staged / "meta" / "rtl_evidence_integrity.json").is_file() else 0)
+        maximum = max([contract_level, neutral_level, *levels])
         summary = {
             "maximum_level": maximum,
             "maximum_qualification": QualificationFlow.qualification_name(maximum),
@@ -909,7 +998,9 @@ class PackageFlow:
             "top": top,
             "reg_interface": reg_interface,
             "content": content,
-            "qualification": {"summary": summary, "technologies": qualification},
+            "qualification": {"summary": summary, "technologies": qualification,
+                              **({"rtl": "meta/rtl_qualification.json"}
+                                 if (staged / "meta" / "rtl_qualification.json").is_file() else {})},
         }
         if version:
             data["version"] = version
@@ -1121,6 +1212,15 @@ class PackageFlow:
         if design_intent_json and Path(design_intent_json).is_file():
             common_meta.mkdir(parents=True, exist_ok=True)
             shutil.copy2(design_intent_json, common_meta / "design_intent.json")
+        # Persist the canonical technology-independent run reports alongside
+        # frozen L1/L2 evidence. The per-PDK reports remain available for
+        # existing L3-L5 consumers and backward-compatible reloads.
+        for source_file in (manifest_json, metrics_json):
+            if source_file:
+                common_source = Path(source_file).parent.parent / Path(source_file).name
+                if common_source.is_file():
+                    common_meta.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(common_source, common_meta / common_source.name)
         target = staged / "meta" / pdk
         target.mkdir(parents=True, exist_ok=True)
         if manifest_json and Path(manifest_json).is_file():
@@ -1366,82 +1466,109 @@ class PackageFlow:
             source_rel = Path(*parts[2:])
         return Path("flexsoc") / source_rel
 
+    SHARED_RTL_ROOTS = (("hw", "ips"), ("vendor", "lowrisc_ip"), ("vendor", "pulp"))
+
     @staticmethod
     def _freeze_rtl_dependencies(root: Path, project_root: Path, run_root: Path | None = None) -> None:
-        """Copy local RTL into portable package roots and pin vendor core dependencies."""
+        """Pin shared checkout RTL by content, without vendoring it into each IP.
 
+        IP RTL remains release-local. Shared source identities are project-root
+        relative; the loader verifies all pinned hashes before importing a release.
+        """
         root = Path(root).resolve()
         project_root = Path(project_root).resolve()
         run_root = Path(run_root).resolve() if run_root is not None else None
-
-        for filelist in (root / "rtl" / "rtl_common.f", root / "rtl" / "rtl_ip.f"):
+        shared: dict[str, str] = {}
+        for filelist in (root / "rtl/rtl_common.f", root / "rtl/rtl_ip.f"):
             if not filelist.is_file():
                 continue
-            frozen: list[str] = []
+            entries = []
             for raw in filelist.read_text(encoding="utf-8").splitlines():
                 line = raw.strip()
-                if not line or line.startswith("#"):
-                    frozen.append(raw)
-                    continue
-                if line.startswith("+") and not line.startswith("+incdir+"):
-                    frozen.append(raw)
+                if not line or line.startswith("#") or (line.startswith("+") and not line.startswith("+incdir+")):
+                    entries.append(raw)
                     continue
                 prefix, value = ("+incdir+", line[8:]) if line.startswith("+incdir+") else ("", line)
-                source = PackageFlow._resolve_release_source(
-                    value, root=root, project_root=project_root, run_root=run_root
-                )
+                source = PackageFlow._resolve_release_source(value, root=root, project_root=project_root, run_root=run_root)
                 try:
-                    relative = source.relative_to(root)
+                    local = source.relative_to(root)
                 except ValueError:
-                    relative = None
-                if relative is not None:
-                    # Migrate old run-local frozen paths into canonical package roots.
-                    parts = relative.parts
-                    if parts[:3] != ("rtl", "deps", "flexsoc"):
-                        frozen.append(prefix + relative.as_posix())
+                    local = None
+                if local is not None and local.parts[:3] == ("rtl", "deps", "flexsoc"):
+                    canonical = root / "rtl" / source.name
+                    if canonical.is_file() and not prefix:
+                        if canonical.read_bytes() != source.read_bytes():
+                            raise ValueError(f"conflicting frozen RTL dependency: {source} != {canonical}")
+                        entries.append("rtl/" + source.name)
                         continue
-                    logical_rel = Path(*parts[3:])
-                    if logical_rel.parts[:2] != ("hw", "ips") and logical_rel.parts[:1] != ("vendor",):
-                        logical_rel = Path("hw/ips") / logical_rel
-                    destination = root / logical_rel
-                    if source.resolve() != destination.resolve():
-                        destination.parent.mkdir(parents=True, exist_ok=True)
-                        if source.is_dir():
-                            shutil.copytree(source, destination, dirs_exist_ok=True)
-                        else:
-                            shutil.copy2(source, destination)
-                    frozen.append(prefix + logical_rel.as_posix())
+                if local is not None and local.parts[:2] == ("rtl", "deps"):
+                    raise ValueError(f"legacy shadow RTL requires explicit migration: {source}")
+                if local is not None and local.parts[:1] != ("dependencies",):
+                    entries.append(prefix + local.as_posix())
                     continue
-                if prefix and PackageFlow._is_external_mirror_include_dir(source, project_root):
-                    continue
+                if local is not None and local.parts[:1] == ("dependencies",):
+                    # Normalize packages produced by previous FlexSoC versions.
+                    logical = Path(*local.parts[1:])
+                    source_in_checkout = project_root / logical
+                    if not source_in_checkout.exists():
+                        raise FileNotFoundError(f"shared RTL missing from checkout: {source_in_checkout}")
+                    if source.is_file() and source.read_bytes() != source_in_checkout.read_bytes():
+                        raise ValueError(f"shared RTL differs from checkout: {logical}")
+                    source = source_in_checkout.resolve()
                 try:
-                    source_rel = source.relative_to(project_root)
+                    relative = source.relative_to(project_root)
                 except ValueError as exc:
-                    raise ValueError(
-                        f"release RTL dependency must be inside the project or release: {source}"
-                    ) from exc
-                logical_rel = source_rel
-                destination = root / logical_rel
-                if source.is_dir():
-                    if destination.exists():
-                        shutil.rmtree(destination)
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copytree(source, destination, symlinks=False)
-                else:
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(source, destination)
-                frozen.append(prefix + destination.relative_to(root).as_posix())
-            filelist.write_text("\n".join(frozen) + "\n", encoding="utf-8")
-
-        # The release no longer ships a second, shadow RTL tree.
-        shutil.rmtree(root / "rtl" / "deps", ignore_errors=True)
-        (root / "rtl" / "fusesoc_deps.txt").unlink(missing_ok=True)
+                    raise ValueError(f"RTL dependency outside package and project: {source}") from exc
+                if relative.parts[:2] not in PackageFlow.SHARED_RTL_ROOTS:
+                    raise ValueError(f"unmanaged shared RTL dependency: {relative}")
+                if not source.exists():
+                    raise FileNotFoundError(f"missing shared RTL: {relative}")
+                files = sorted(source.rglob("*")) if source.is_dir() else [source]
+                for item in files:
+                    if item.is_file():
+                        key = item.relative_to(project_root).as_posix()
+                        shared[key] = QualificationFlow.sha256_file(item)
+                entries.append(prefix + relative.as_posix())
+            filelist.write_text("\n".join(entries) + "\n", encoding="utf-8")
+        # Never retain copies from an older package or run.
+        shutil.rmtree(root / "dependencies", ignore_errors=True)
+        shutil.rmtree(root / "hw", ignore_errors=True)
+        shutil.rmtree(root / "vendor", ignore_errors=True)
+        shutil.rmtree(root / "rtl/deps", ignore_errors=True)
+        (root / "rtl/fusesoc_deps.txt").unlink(missing_ok=True)
+        metadata = root / "meta"
+        metadata.mkdir(exist_ok=True)
+        record = metadata / "shared_rtl.json"
+        record.write_text(json.dumps({"schema": 1, "files": shared}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     @staticmethod
-    def _validate_frozen_filelists(root: Path) -> None:
-        """Require staged release filelists to reference only files inside the staged release."""
+    def _validate_shared_rtl(package: Path, project_root: Path) -> None:
+        """Ensure referenced shared RTL is exactly the version L2 qualified."""
+        record = package / "meta/shared_rtl.json"
+        if not record.is_file():
+            return  # Historical releases use frozen source copies.
+        data = json.loads(record.read_text(encoding="utf-8"))
+        if data.get("schema") != 1 or not isinstance(data.get("files"), dict):
+            raise ValueError("invalid shared RTL inventory")
+        root = project_root.resolve()
+        for name, digest in sorted(data["files"].items()):
+            path = Path(name)
+            if path.is_absolute() or ".." in path.parts or path.parts[:2] not in PackageFlow.SHARED_RTL_ROOTS:
+                raise ValueError(f"invalid shared RTL path: {name}")
+            source = (root / path).resolve()
+            if not source.is_relative_to(root) or not source.is_file():
+                raise FileNotFoundError(f"required shared RTL is missing: {name}")
+            if QualificationFlow.sha256_file(source) != digest:
+                raise ValueError(f"shared RTL changed since qualification: {name}")
+
+
+    @staticmethod
+    def _validate_frozen_filelists(root: Path, project_root: Path | None = None) -> None:
+        """Validate package-local RTL and pinned checkout-managed shared sources."""
 
         root = Path(root).resolve()
+        inventory = root / "meta/shared_rtl.json"
+        shared = json.loads(inventory.read_text(encoding="utf-8"))["files"] if inventory.is_file() else {}
         for filelist in (root / "rtl" / "rtl_common.f", root / "rtl" / "rtl_ip.f"):
             if not filelist.is_file():
                 continue
@@ -1453,6 +1580,12 @@ class PackageFlow:
                 path = Path(value)
                 if path.is_absolute() or ".." in path.parts:
                     raise ValueError(f"non-self-contained IP release filelist entry: {line}")
+                if shared and path.parts[:2] in PackageFlow.SHARED_RTL_ROOTS:
+                    if project_root is not None:
+                        PackageFlow._validate_shared_rtl(root, Path(project_root))
+                    if not any(key == value or key.startswith(value.rstrip("/") + "/") for key in shared):
+                        raise ValueError(f"undeclared shared RTL dependency: {line}")
+                    continue
                 resolved = (root / path).resolve()
                 try:
                     resolved.relative_to(root)

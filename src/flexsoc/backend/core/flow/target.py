@@ -154,6 +154,7 @@ DV_TARGETS: dict[str, Target] = {
 
     "lint": Target("lint", "lint", debug="lint", show="lint", domain="dv"),
     "slang_hier": Target("slang_hier", "slang_hier", show="slang_hier", debug="slang_hier", domain="dv"),
+    "rtl_view": Target("rtl_view", "rtl_view", domain="dv"),
     "cdc_rdc.setup": Target("cdc_rdc.setup", "cdc_setup", domain="dv"),
     "cdc_rdc": Target("cdc_rdc", "cdc", setup=("cdc_rdc.setup",), debug="cdc_rdc", show="cdc_rdc", domain="dv"),
 

@@ -58,9 +58,9 @@ function pathDraw(points){ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo
 function drawWire(e,points,v){
  const hot=highlighted(e),partial=e.mapping==='partial';
  ctx.lineWidth=hot?3.8:e.width?.includes('[')?2.6:1.8;
- ctx.strokeStyle=hot?colors.selected:e.type==='sequential'?colors.sequential:e.type.startsWith('port')?colors.binding:colors.wire;
+ ctx.strokeStyle=hot?colors.selected:['sequential','event'].includes(e.type)?colors.sequential:e.type.startsWith('port')?colors.binding:colors.wire;
  ctx.globalAlpha=hot?1:.88;ctx.lineJoin='round';ctx.lineCap='round';
- ctx.setLineDash(partial?[3,5]:e.type==='sequential'?[7,4]:[]);
+ ctx.setLineDash(partial?[3,5]:e.type==='event'?[2,6]:e.type==='sequential'?[7,4]:[]);
  pathDraw(points);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
  // Arrow points along the *last nonzero* segment: left-going and vertical
  // feedback nets must not be drawn with a misleading right-facing arrow.
@@ -135,7 +135,7 @@ function symbol(n,p,diagram){const {x,y,w,h}=p,c=colors[n.type]||colors.signal;l
   }else{ctx.beginPath();ctx.moveTo(x+w/2,y+4);ctx.lineTo(x+w-4,y+h/2);ctx.lineTo(x+w/2,y+h-4);ctx.lineTo(x+4,y+h/2);ctx.closePath();ctx.fill();ctx.stroke();}}
  else if(['register','counter','fsm'].includes(n.type)){
   round(x+4,y+3,w-8,h-6,5);ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(x+4,y+h-19);ctx.lineTo(x+15,y+h-13);ctx.lineTo(x+4,y+h-7);ctx.stroke();
-  ctx.fillStyle=colors.register;ctx.font='10px ui-monospace,monospace';ctx.fillText('D',x+10,y+16);ctx.fillText('Q',x+w-23,y+16);ctx.fillText('CLK',x+22,y+h-11);if(n.type==='counter'){ctx.fillText('↻',x+w-29,y+h-11);}if(n.type==='fsm')ctx.fillText('ST',x+w-28,y+h-11);}
+  ctx.fillStyle=colors.register;ctx.font='10px ui-monospace,monospace';ctx.fillText('D',x+10,y+16);ctx.fillText('Q',x+w-23,y+16);ctx.fillText('CLK',x+22,y+h-11);ctx.fillText('EVT',x+10,y+h-28);if(n.type==='counter'){ctx.fillText('↻',x+w-29,y+h-11);}if(n.type==='fsm')ctx.fillText('ST',x+w-28,y+h-11);}
  else{
   if(n.type==='generate'){for(let i=2;i>=1;i--){ctx.fillStyle=colors.stackFill;round(x+i*6,y+i*7,w-4,h-4,6);ctx.fill();ctx.strokeStyle=colors.stackStroke;ctx.stroke();}ctx.strokeStyle=picked?colors.selected:c;ctx.fillStyle=colors.symbolFill;}
   round(x,y,w-12,h-12,5);ctx.fill();ctx.stroke();ctx.strokeRect(x+7,y+7,w-26,h-26);
@@ -143,6 +143,10 @@ function symbol(n,p,diagram){const {x,y,w,h}=p,c=colors[n.type]||colors.signal;l
    const px=left?x-7:x+w-6;
    ctx.beginPath();ctx.moveTo(left?x-7:x+w-20,py);ctx.lineTo(left?x+8:x+w-6,py);ctx.stroke();
    if(port.connection==='unbound'){ctx.beginPath();ctx.arc(px,py,3.3,0,Math.PI*2);ctx.stroke();}
+   else if(port.connection==='constant'){
+    ctx.fillStyle=colors.binding;ctx.font='bold 11px ui-monospace,monospace';
+    ctx.fillText('C',px-3,py-5);
+   }
    else if(port.connection==='unresolved'){
     ctx.fillStyle=colors.generate;ctx.font='bold 11px ui-monospace,monospace';
     ctx.fillText('?',px-3,py-5);

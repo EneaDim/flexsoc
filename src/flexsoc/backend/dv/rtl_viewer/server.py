@@ -40,6 +40,16 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     payload = design.diagram(path, explode=arg("explode") == "1",
                                              expanded=tuple(filter(None, arg("expand").split("|"))),
                                              limit=int(arg("limit", "320")))
+                elif resource == "behavior":
+                    payload = design.behavior(path)
+                elif resource == "lowering":
+                    payload = design.lowering(path)
+                elif resource == "circuit":
+                    payload = design.circuit(path)
+                elif resource == "canonical":
+                    payload = design.canonical(path)
+                elif resource == "schematic":
+                    payload = design.schematic(path)
                 elif resource == "source":
                     payload = design.source(path)
                 elif resource == "follow":
@@ -53,7 +63,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     return
                 self._respond(json.dumps(payload).encode(), "application/json; charset=utf-8")
                 return
-            static = {"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/router.js": "router.js", "/style.css": "style.css"}
+            static = {"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/router.js": "router.js", "/style.css": "style.css", "/cad": "cad.html", "/cad.html": "cad.html", "/cad.js": "cad.js", "/cad-layout.js": "cad-layout.js", "/cad.css": "cad.css"}
             file = static.get(route.path)
             if not file:
                 self.send_error(404)

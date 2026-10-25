@@ -83,13 +83,7 @@ else
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv \
     /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv \
-    /home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/rtl/uart_reg_pkg.sv \
-    /home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/rtl/uart_reg_core.sv \
-    /home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/rtl/uart_reg_top.sv \
-    /home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/rtl/uart_tx.sv \
-    /home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/rtl/uart_rx.sv \
-    /home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/rtl/uart_core.sv \
-    /home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/rtl/uart.sv
+    /home/eneadim/github/flexsoc/workspace/runs/uart/qualification_l2/rtl/uart.sv
 
   COMPILE_ARGS += --sv --timing
   WAVE_FORMAT ?= fst
@@ -105,7 +99,7 @@ else
   COMPILE_ARGS += -Wno-UNOPTFLAT
 endif
 
-COMPILE_ARGS += -I/home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/hw/ips/tlul
+COMPILE_ARGS += -I/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_l2/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/hw/ips/tlul
 export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
 TEST_NAME ?= smoke
 SEED ?= 1
@@ -140,7 +134,7 @@ export CFG ?= $(REG_CONFIG)
 export DATA_IN  ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
 export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
 export PYTHONPATH := $(PWD):$(PYTHONPATH)
-VERILOG_SOURCES += /home/eneadim/github/flexsoc/workspace/runs/uart/l2_uart/dv/functional/tb/cocotb/uart_tb.sv
+VERILOG_SOURCES += /home/eneadim/github/flexsoc/workspace/runs/uart/qualification_l2/dv/functional/tb/cocotb/uart_tb.sv
 
 COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
 ifeq ($(strip $(COCOTB_MAKEFILES)),)

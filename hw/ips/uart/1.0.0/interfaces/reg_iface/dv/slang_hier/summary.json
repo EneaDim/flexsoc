@@ -1,48 +1,380 @@
 {
   "artifacts": {
     "ast": "dv/slang_hier/ast.json",
+    "ast_log": "logs/dv/slang_hier/slang_ast.log",
     "hierarchy": "dv/slang_hier/hierarchy.txt",
     "log": "logs/dv/slang_hier/slang_hier.log"
   },
+  "ast_command": [
+    "/usr/local/bin/slang",
+    "-I/home/eneadim/github/flexsoc/hw/ips/pkgs",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim/prim_ff_2sync.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_buf.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_onehot_check.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_reg_we_check.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_count_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_count.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_reg_pkg.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_reg_core.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_reg_top.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_tx.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_rx.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_core.sv",
+    "--ast-json",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/dv/slang_hier/ast.json",
+    "--ast-json-source-info",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart.sv"
+  ],
   "command": [
     "/usr/local/bin/slang-hier",
     "--top",
     "uart",
     "--custom-format",
     "{inst}\t{module}\t{file}",
-    "--ast-json",
-    "/home/eneadim/github/flexsoc/workspace/l2_uart_reg_iface_3FEIpLvi/workspace/runs/uart/l2/dv/slang_hier/ast.json",
-    "--ast-json-source-info",
     "-DSYNTHESIS",
-    "-I/home/eneadim/github/flexsoc/workspace/l2_uart_reg_iface_3FEIpLvi/workspace/runs/uart/l2/rtl/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/workspace/l2_uart_reg_iface_3FEIpLvi/workspace/runs/uart/l2/rtl/...",
-    "-I/home/eneadim/github/flexsoc/hw/ips/pkgs/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/hw/ips/pkgs/...",
-    "-I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/...",
-    "-I/home/eneadim/github/flexsoc/hw/ips/prim/...",
-    "--libdir",
-    "/home/eneadim/github/flexsoc/hw/ips/prim/...",
-    "/home/eneadim/github/flexsoc/workspace/l2_uart_reg_iface_3FEIpLvi/workspace/runs/uart/l2/rtl/uart.sv"
+    "-I/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl",
+    "-I/home/eneadim/github/flexsoc/hw/ips/pkgs",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim/prim_ff_2sync.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_buf.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_onehot_check.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_reg_we_check.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_count_pkg.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_count.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv",
+    "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_reg_pkg.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_reg_core.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_reg_top.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_tx.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_rx.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_core.sv",
+    "/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_reg_iface_l2/rtl/uart.sv"
   ],
-  "instances": [],
+  "instances": [
+    {
+      "file": "workspace/runs/uart/qualification_reg_iface_l2/rtl/uart.sv",
+      "instance": "uart",
+      "module": "uart"
+    },
+    {
+      "file": "hw/ips/prim/prim_ff_2sync.sv",
+      "instance": "uart.u_reg_reset_sync",
+      "module": "prim_ff_2sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "uart.u_reg_reset_sync.u_sync_1",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "uart.u_reg_reset_sync.u_sync_2",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim/prim_ff_2sync.sv",
+      "instance": "uart.u_core_reset_sync",
+      "module": "prim_ff_2sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "uart.u_core_reset_sync.u_sync_1",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "uart.u_core_reset_sync.u_sync_2",
+      "module": "prim_flop"
+    },
+    {
+      "file": "workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_reg_top.sv",
+      "instance": "uart.u_uart_reg",
+      "module": "uart_reg_top"
+    },
+    {
+      "file": "workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_reg_core.sv",
+      "instance": "uart.u_uart_reg.u_reg_core",
+      "module": "uart_reg_core"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_prim_reg_we_check",
+      "module": "prim_reg_we_check"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_buf.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_prim_reg_we_check.u_prim_buf",
+      "module": "prim_buf"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_prim_reg_we_check.u_prim_onehot_check",
+      "module": "prim_onehot_check"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_tx",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_tx.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_rx",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_rx.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_nf",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_nf.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_slpbk",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_slpbk.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_llpbk",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_llpbk.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_parity_en",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_parity_en.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_parity_odd",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_parity_odd.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_nco",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_ctrl_nco.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_status_txfull",
+      "module": "prim_subreg_ext"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_status_rxfull",
+      "module": "prim_subreg_ext"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_status_txempty",
+      "module": "prim_subreg_ext"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_status_txidle",
+      "module": "prim_subreg_ext"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_status_rxidle",
+      "module": "prim_subreg_ext"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_status_rxempty",
+      "module": "prim_subreg_ext"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_rdata",
+      "module": "prim_subreg_ext"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_wdata0_qe",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_wdata",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_wdata.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_fifo_ctrl0_qe",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_fifo_ctrl_rxrst",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_fifo_ctrl_rxrst.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_fifo_ctrl_txrst",
+      "module": "prim_subreg"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_fifo_ctrl_txrst.wr_en_data_arb",
+      "module": "prim_subreg_arb"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_fifo_status_txlvl",
+      "module": "prim_subreg_ext"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+      "instance": "uart.u_uart_reg.u_reg_core.u_fifo_status_rxlvl",
+      "module": "prim_subreg_ext"
+    },
+    {
+      "file": "workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_core.sv",
+      "instance": "uart.u_uart_core",
+      "module": "uart_core"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "uart.u_uart_core.u_timing_reset_branch",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "uart.u_uart_core.u_tx_reset_branch",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "uart.u_uart_core.u_rx_reset_branch",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_fifo_sync.sv",
+      "instance": "uart.u_uart_core.u_uart_txfifo",
+      "module": "prim_fifo_sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv",
+      "instance": "uart.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt",
+      "module": "prim_fifo_sync_cnt"
+    },
+    {
+      "file": "workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_tx.sv",
+      "instance": "uart.u_uart_core.uart_tx",
+      "module": "uart_tx"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop_2sync.sv",
+      "instance": "uart.u_uart_core.sync_rx",
+      "module": "prim_flop_2sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "uart.u_uart_core.sync_rx.u_sync_1",
+      "module": "prim_flop"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_flop.sv",
+      "instance": "uart.u_uart_core.sync_rx.u_sync_2",
+      "module": "prim_flop"
+    },
+    {
+      "file": "workspace/runs/uart/qualification_reg_iface_l2/rtl/uart_rx.sv",
+      "instance": "uart.u_uart_core.uart_rx",
+      "module": "uart_rx"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_fifo_sync.sv",
+      "instance": "uart.u_uart_core.u_uart_rxfifo",
+      "module": "prim_fifo_sync"
+    },
+    {
+      "file": "hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv",
+      "instance": "uart.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt",
+      "module": "prim_fifo_sync_cnt"
+    }
+  ],
   "metrics": {
-    "ast_bytes": 0,
-    "instances": 0,
+    "ast_bytes": 5906293,
+    "instances": 58,
     "malformed_rows": 0,
-    "modules": 0,
-    "source_files": 0
+    "modules": 17,
+    "non_hierarchy_rows": 3,
+    "source_files": 17
   },
   "run": {
-    "duration_s": 0.026436641999680432,
-    "exit_code": 1
+    "duration_s": 0.14318677399933222,
+    "exit_code": 0
   },
   "schema": "flexsoc.slang_hier.v3",
   "stage": "slang_hier",
-  "status": "FAILED",
+  "status": "PASS",
   "tool": "slang-hier",
   "top": "uart"
 }

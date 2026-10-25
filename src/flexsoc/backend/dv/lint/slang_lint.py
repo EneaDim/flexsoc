@@ -10,6 +10,7 @@ from typing import Any, Mapping
 
 from ...core import BackendContext, CommandRequest, ToolRunner
 from ...core.runtime.execution import Terminal
+from .sources import LintSources
 
 
 @dataclass(slots=True)
@@ -110,7 +111,9 @@ class SlangLint:
         paths, values = self.context.paths, self.context.values
         top = self.top or paths.top
         source_args = tuple(
-            item for path in self._source_filelists() for item in ("-f", str(path))
+            item for path in LintSources(
+                self.context.project_root, paths.run
+            ).prepare(self._source_filelists()) for item in ("-f", str(path))
         )
         warnings = (
             ("-Weverything",)

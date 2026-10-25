@@ -47,7 +47,7 @@ docker run --rm \
     for command_name in \
       slang slang-hier verilator \
       bitwuzla boolector btormc btorsim eqy sby yosys \
-      fst2vcd gtkwave iverilog surfer sv2v \
+      fst2vcd gtkwave iverilog surfer \
       openroad sta klayout; do
       command -v "$command_name"
     done

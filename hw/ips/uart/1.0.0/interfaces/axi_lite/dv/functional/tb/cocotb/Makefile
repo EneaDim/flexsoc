@@ -54,37 +54,7 @@ else
 
   # RTL sources expanded from rtl_common.f and rtl_ip.f
   VERILOG_SOURCES := \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim/prim_ff_2sync.sv \
-    /home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/fifo_v3.sv \
-    /home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/cf_math_pkg.sv \
-    /home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/lzc.sv \
-    /home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/rr_arb_tree.sv \
-    /home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/stream_arbiter_flushable.sv \
-    /home/eneadim/github/flexsoc/vendor/pulp/common_cells/src/stream_arbiter.sv \
-    /home/eneadim/github/flexsoc/vendor/pulp/axi/src/axi_pkg.sv \
-    /home/eneadim/github/flexsoc/vendor/pulp/register_interface/src/axi_lite_to_reg.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_buf.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_onehot_check.sv \
-    /home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_reg_we_check.sv \
-    /home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv \
-    /home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv \
-    /home/eneadim/github/flexsoc/hw/ips/pkgs/prim_count_pkg.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_count.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv \
-    /home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv \
-    /home/eneadim/github/flexsoc/workspace/l2_uart_axi_lite_jWQf0G6W/workspace/runs/uart/l2/rtl/uart_reg_pkg.sv \
-    /home/eneadim/github/flexsoc/workspace/l2_uart_axi_lite_jWQf0G6W/workspace/runs/uart/l2/rtl/uart_reg_core.sv \
-    /home/eneadim/github/flexsoc/workspace/l2_uart_axi_lite_jWQf0G6W/workspace/runs/uart/l2/rtl/uart_reg_top.sv \
-    /home/eneadim/github/flexsoc/workspace/l2_uart_axi_lite_jWQf0G6W/workspace/runs/uart/l2/rtl/uart_tx.sv \
-    /home/eneadim/github/flexsoc/workspace/l2_uart_axi_lite_jWQf0G6W/workspace/runs/uart/l2/rtl/uart_rx.sv \
-    /home/eneadim/github/flexsoc/workspace/l2_uart_axi_lite_jWQf0G6W/workspace/runs/uart/l2/rtl/uart_core.sv \
-    /home/eneadim/github/flexsoc/workspace/l2_uart_axi_lite_jWQf0G6W/workspace/runs/uart/l2/rtl/uart.sv
+    /home/eneadim/github/flexsoc/workspace/runs/uart/qualification_axi_lite_l2/rtl/uart.sv
 
   COMPILE_ARGS += --sv --timing
   WAVE_FORMAT ?= fst
@@ -100,7 +70,7 @@ else
   COMPILE_ARGS += -Wno-UNOPTFLAT
 endif
 
-COMPILE_ARGS += -I/home/eneadim/github/flexsoc/workspace/l2_uart_axi_lite_jWQf0G6W/workspace/runs/uart/l2/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/vendor/pulp/axi/include -I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include
+COMPILE_ARGS += -I/home/eneadim/github/flexsoc/workspace/runs/uart/qualification_axi_lite_l2/rtl -I/home/eneadim/github/flexsoc/hw/ips/pkgs -I/home/eneadim/github/flexsoc/hw/ips/prim -I/home/eneadim/github/flexsoc/hw/ips/prim_opentitan -I/home/eneadim/github/flexsoc/vendor/pulp/axi/include -I/home/eneadim/github/flexsoc/vendor/pulp/register_interface/include
 export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
 TEST_NAME ?= smoke
 SEED ?= 1
@@ -135,7 +105,7 @@ export CFG ?= $(REG_CONFIG)
 export DATA_IN  ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
 export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
 export PYTHONPATH := $(PWD):$(PYTHONPATH)
-VERILOG_SOURCES += /home/eneadim/github/flexsoc/workspace/l2_uart_axi_lite_jWQf0G6W/workspace/runs/uart/l2/dv/functional/tb/cocotb/uart_tb.sv
+VERILOG_SOURCES += /home/eneadim/github/flexsoc/workspace/runs/uart/qualification_axi_lite_l2/dv/functional/tb/cocotb/uart_tb.sv
 
 COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
 ifeq ($(strip $(COCOTB_MAKEFILES)),)

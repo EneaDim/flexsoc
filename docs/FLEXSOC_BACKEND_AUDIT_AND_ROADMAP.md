@@ -100,3 +100,203 @@ The initial command `pytest -q tests/core/test_package_l2.py tests/core/test_ip_
 ## Audit continuation
 
 This document is an initial map and active issue register. It intentionally does not claim a completed backend/API/CLI symbol-by-symbol inventory, comprehensive tests, or a successful five-IP L2 flow. Expand it based on actual call traces and test evidence, preserving the AS-IS/TO-BE distinction.
+
+## Verification update — 2026-10-24 (uploaded 2026-10-24 archive)
+
+The current archive supersedes the earlier snapshot referred to above. A separate local Git baseline was created from the ZIP; it does not preserve upstream Git ancestry.
+
+### Package/qualification characterization (AS-IS)
+
+`PackageFlow.load` validates frozen releases via `QualificationFlow.validate_release_package`; `requalify=True` validates source-of-truth inputs but strips frozen qualification and stage artifacts. `PackageFlow.save` checks the matching L2 report, including identity, PDK, PASS status, spec fingerprint, and model-test evidence when required. These checks must not be bypassed for convenience.
+
+The uploaded release set is heterogeneous, so `test_ip_requalification_load` now describes the observed contract explicitly:
+
+| IP | Frozen `ip_load` | Explicit `requalify=True` |
+|---|---|---|
+| gpio 1.0.0 tlul | Loads successfully | Creates unqualified source baseline |
+| rv_timer 1.0.0 tlul | Loads successfully | Creates unqualified source baseline |
+| uart 1.0.0 tlul | Rejected: packaged RTL evidence/source inventory mismatch (contains workspace-derived path) | Creates unqualified source baseline |
+| uart_master 1.0.0 tlul | Rejected: common specification fingerprint mismatch | Creates unqualified source baseline |
+
+The previous test uniformly expected a spec-fingerprint error for all four IPs, contradicting the actual frozen release validation contract. The test has been corrected to characterize both valid and invalid cases, without changing production validation. Model tests are stored under `dv/functional/py/model/` for these test fixtures.
+
+Executed commands:
+
+- `pytest -q tests/core/test_package_l2.py tests/core/test_ip_requalification_load.py`: **33 passed**.
+- `pytest -q tests/rtl_viewer`: **65 passed, 4 skipped**.
+
+These are unit/integration tests in the available Python environment, **not** proof that a full EDA-backed L2 qualification ran for UART or Ethernet. The external EDA executables were not available in this workspace. No save/reload/status end-to-end qualification of a newly produced UART/Ethernet L2 release is claimed.
+
+### CI image failure triage (AS-IS)
+
+The logged failure occurs inside `install_sv2v` in `src/flexsoc/backend/core/runtime/deps.sh`, where a distro-provided `haskell-stack` calls `stack build --copy-bins` and Hackage TUF root verification fails. `GHC ... FP_PROG_LD_BUILD_ID` and `ar: conftest.a` occur earlier and are not the final terminating error. The mismatched stack/Cabal compatibility warning is worth checking separately. **Do not** disable Hackage signature verification or lower the signature threshold to make CI green. Preferred remediation for a dedicated follow-up change: pin a compatible, current Stack executable with a verified digest, test its Hackage root trust bootstrap in the Ubuntu 24.04 image, and retain reproducibility through the toolchain lock. Re-run a clean CI build (not only cached artifacts) before marking this fixed.
+
+### Remaining milestone blockers (TO-BE)
+
+1. Reconcile frozen UART provenance path mismatch against source inventory; do not rewrite valid history or ignore digest errors.
+2. Reconcile the UART Master common-spec fingerprint mismatch, preserving the package contract.
+3. Execute real `ip_load -> L2 evidence generation -> qualify -> ip_save -> reload -> check/status` for UART using installed EDA toolchain and a separate release root, recording each result.
+4. Keep Ethernet interface-only tests distinctly scoped from full Ethernet RTL qualification.
+5. Complete the backend/API/CLI call-graph inventory before any broad OOP refactor. RTL viewer has existing passing tests; no viewer behavior was changed in this increment.
+
+## CI toolchain correction — base profile (2026-10-24)
+
+The base dependency profile and CI command verifier no longer require sv2v or Haskell Stack. Slang and slang-hier remain mandatory and the existing viewer pipeline is unchanged. Legacy explicit sv2v installation and lock metadata are retained for compatibility; sv2v is not installed by the base profile. A real Docker image build was not possible in this workspace; dependency-plan tests and shell syntax checks were executed.
+
+## Qualification L2 — ASIC-design order and lineage contract (2026-10-24)
+
+### AS-IS verified in code and UART run log
+
+- The run successfully produced lint, CDC/RDC, regression and formal evidence; `fx mtest` was executed **after** RTL regression.
+- After `fx mtest`, `fx status` reported `model_tests=PASS` but `regression=STALE`. The RTL regression input snapshot used the **entire** `dv/functional/py` tree, including model-test result files written after regression. The regression ownership list also included the shared `dv/functional/summary.json` updated by the model-run evidence aggregator.
+- `STAGE_CONTRACTS` covers tool execution/setup but is **not** yet the full upstream ASIC artifact graph (spec → implementation → DV). CLI commands can therefore be issued in an order that is not the intended design process.
+- `QUAL_LEVEL=rtl` is logically pre-technology; the run status and qualification report are still displayed/stored with an active PDK identity. Technology-independent qualification must not depend on the chosen PDK, technology corners or synthesis libraries.
+
+### TO-BE: required semantic execution graph (not yet implemented)
+
+```mermaid
+flowchart TD
+  A[Specification] --> B[Technical specification]
+  B --> C[Requirements]
+  C --> D[Test plan]
+  D --> E[Behavioral model]
+  E --> F[Model tests]
+  F --> G[Validated CSR HJSON]
+  G --> H[Regtool register RTL / regmap]
+  H --> I[Authored RTL _code.sv]
+  I --> J[Generated top RTL]
+  J --> K[Technology-neutral SDC]
+  K --> L[Slang / Verilator lint]
+  L --> M[CDC / RDC]
+  M --> N[Testbench scaffold]
+  N --> O[Python RTL test definitions]
+  O --> P[Generated test vectors]
+  P --> Q[RTL regression / coverage]
+  Q --> R[Cross-check traceability and all required test outcomes]
+  R --> S[Formal BMC / prove / cover]
+  S --> T[L2 qualification gate]
+  T --> U[Save / frozen reload / integrity / status]
+```
+
+Edges represent mandatory upstream **closure prerequisites**; independent checks may execute in parallel after all their prerequisites are valid. Authored `_code.sv` is not overwritten by generated top or regtool RTL. For imported IP, source stages may be fulfilled by validated existing artifacts rather than newly generated artifacts. A detailed implementation of graph contracts must reflect actual producers/consumers and support these two modes without bypassing validation.
+
+### Stage state versus stage result
+
+| State | Meaning | Required action |
+|---|---|---|
+| `MISSING` | Artifact / provenance not produced | Build prerequisite then stage |
+| `CLEAN` | Inputs, config, tool identity, parent fingerprints and generated outputs match | Reuse |
+| `MODIFIED` | Generated output differs from recorded effective output while inputs remain current | Explicit review and validate or regenerate |
+| `VALIDATED_OVERRIDE` | Reviewed generated edit matches accepted effective hash | Reuse with audit trail |
+| `STALE` | Upstream input, config, tool identity, or parent lineage changed | Rebuild affected descendants, not unrelated stages |
+| `INVALID` | Missing/corrupt required file or invalid provenance structure | Repair or regenerate; no PASS |
+
+Runtime `PASS`, `FAILED`, `REVIEW` are **orthogonal** to these freshness states. A `PASS` with `STALE` provenance never qualifies. Shared dashboards, timestamps, logs and unrelated stage results must not enter input fingerprints unless the consuming tool truly uses them. Generated stage outputs must have a single authoritative owner; aggregate indexes are derived views, not evidence that a stage itself owns.
+
+### Technology independence boundary
+
+L2 consumes source RTL, logical clock/reset intent, generic SDC, lint, CDC/RDC, model verification, RTL tests, traceability and formal results. Do not fingerprint PDK choice, liberty, physical corners, floorplan or synthesis/PnR options into L2 closure. PDK selection is a downstream L3+ concern. The existing PDK-specific metadata placement and active-PDK display remain an **open migration**: preserve backward compatibility, do not silently rewrite release packages before a compatible schema/test strategy exists.
+
+### Implemented in this increment
+
+RTL regression now fingerprints Python RTL test generators rather than the complete `py/` tree, and no longer claims ownership of the shared functional summary. A regression test checks model-result isolation and true generator invalidation. This is a dependency-boundary correction, **not** completion of the end-to-end ASIC-stage graph or L2 qualification.
+
+### L2 dependency graph guardrails (2026-10-24)
+
+AS-IS: `StageContract.parents` specifies runtime/setup provenance prerequisites.
+`StageGraph` now validates the existing declarations and resolves them into
+stable prerequisite order. Missing parents, cycles and run-scoped stages that
+require PDK-scoped parents are errors; technology-scoped stages may depend on
+run-scoped stages. `TargetSession` uses this resolver instead of an unchecked
+recursive traversal. This makes the **existing** dependencies safer; it does
+not claim that the complete ASIC design sequence has already been encoded.
+
+TO-BE: Represent spec, technical spec, requirements, testplan, model tests,
+CSR HJSON/regtool, RTL/top/SDC generation, test definitions, traceability and
+formal prerequisites using validated producer-owned inputs and artifacts.
+Keep authored-source changes separate from generated-output edits. Ensure
+qualification L2 requires only technology-independent stages, and verify
+selective invalidation with tests that alter one input at a time.
+
+### L2 dependency impact analysis (incremental milestone)
+
+`StageGraph.affected(changed)` computes the transitive set of dependent stage
+contracts in deterministic topological order. A changed model stage invalidates
+its model tests and downstream consumers but not unrelated CSR/lint evidence;
+a technology-specific stage cannot invalidate run-scoped RTL qualification.
+The graph validates unknown names, missing prerequisites and cycles before
+computing impact. This is a **planning and validation primitive**, not yet an
+automatic file-to-stage mapping or complete ASIC phase orchestration. The
+source ownership and provenance of spec, technical specification, requirements,
+testplan, HJSON/regtool, RTL/top/SDC, Python tests and traceability still need
+explicit contracts before full L2 can be declared end-to-end complete.
+
+### Distinct behavioral and RTL verification gates (incremental milestone)
+
+`StageContract.parents` represents **provenance-consuming** dependencies: when
+an input changes, `StageGraph.affected()` propagates staleness through those
+edges. New optional `StageContract.gates` names **execution/qualification**
+prerequisites only: `StageGraph.prerequisites()` validates them, orders them and
+rejects PDK-specific prerequisites for technology-independent stages, but a
+gate changing does not overwrite or stale otherwise independent test evidence.
+Both kinds of dependency participate in cycle validation.
+
+Behavioral-model tests and RTL regression have independent evidence. The model
+test plan covers behavioral obligations; RTL verification covers behavioral plus
+cycle-accurate, CSR and protocol obligations. The intended closeout order is
+model verification, RTL creation, SDC/lint/CDC-RDC, RTL regression,
+traceability, formal and L2. These ordering relationships are gates where the
+stage does not consume the other stage's artifacts. Tests illustrate the intended
+DAG without hardcoding fictitious production contracts.
+
+**Not yet wired:** the complete spec-to-L2 stage graph, executable CLI order,
+source-to-stage fingerprint mapping, tech-independent L2 persistence and UART
+save/reload/check round trip. This change only makes the existing graph capable
+of representing those dependencies correctly. No EDA end-to-end validation has
+been performed for this increment.
+
+### 2026-10-24 — Partial requirement coverage, evidence truthfulness
+
+The spec validator now preserves unplanned baselined requirement IDs in
+`uncovered_requirements`; missing test-plan links are no longer a malformed
+specification. The extended CRS/TDS mapping similarly records
+`unplanned_requirements` as `PARTIAL`. L2 is **not** silently certified:
+`requirements_coverage` explicitly blocks L2 until the missing coverage is
+closed. This is a first step toward a separately defined audited conditional
+qualification (not implemented). No partial coverage is reclassified PASS.
+
+Baseline warning: running the broader `test_functional_python_contract.py`
+suite on this ZIP yields missing `scenarios.py` and `*_model{,_tests}.py`
+under packaged interface directories (20 failed, 113 passed, 4 skipped in
+that selected run). These are not fixed by inventing behavioral models.
+The real Slang generate-instance collisions reported on the user's host also
+remain a separate schematic-viewer issue (Slang absent here).
+
+### Iteration: model/RTL source boundaries and partial coverage development gate (2026-10-24)
+
+**AS-IS confirmed:** bundled GPIO, UART, RV Timer and UART Master interfaces
+store the independent Python behavioral models and known-answer tests in
+`dv/functional/py/model/`, whereas RTL vector and CSR generators live in
+`dv/functional/py/rtl/`. Older functional-contract tests expected all those
+files directly in `py/`, and therefore reported false missing-source errors.
+Their assertions now describe the actual split; no generated model assertions
+or release artifacts were fabricated.
+
+**Policy:** uncovered requirements are exposed as `requirements_coverage=REVIEW`
+and remain listed by identifier. L2 stays `BLOCKED` and `target_satisfied=false`.
+An explicitly fingerprint-bound, owned, reasoned and dated engineering deferral
+can mark the *development* readiness as `CONDITIONAL` when no other issues
+remain. This is not `L2 PASS`, does not create verification evidence, and must
+not authorize an unqualified sealed release. The existing `fx defer` command
+can record this gate just like other missing evidence.
+
+**Tests run:** 42 qualification/graph/package regression tests passed;
+10/10 actual bundled model regression variants passed; 10/10 IP vector
+contract variants passed. No full UART toolchain L2 end-to-end or package
+save/reload was executed in this isolated environment, and no production
+Slang/Verilator qualification result is inferred from these Python tests.
+
+**TO-BE remaining:** establish explicit documented conditional release policy,
+complete full AS-IS stage-artifact dependency registration, run physical EDA
+verification for RTL/fomal/CDC, verify UART L2 save/reload/check, then revisit
+viewer elaboration generate-instance paths independently of qualification.

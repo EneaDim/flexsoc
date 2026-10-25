@@ -167,6 +167,7 @@ Use `fx commands` to list every backend target.
             (
                 ("fx lint", "Run one Slang pass and one Verilator pass with P0-P3 classification."),
                 ("fx slang_hier", "Generate elaborated hierarchy and AST evidence in one Slang run."),
+                ("fx rtl-view", "Open the configured IP in the local RTL schematic viewer."),
                 ("fx formal --setup | fx formal", "Run all applicable formal stages; use --csr/--bmc/--prove/--cover to select one view."),
             ),
         ),
@@ -935,6 +936,7 @@ Use `fx commands` to list every backend target.
             """Return the canonical CLI spelling for one backend target."""
 
             return {
+                "rtl_view": "rtl-view",
                 "power_estimate": "power-estimate",
                 "power_analysis": "power-analysis",
                 "fusion_analysis": "fusion",
@@ -2191,7 +2193,13 @@ Use `fx commands` to list every backend target.
             if args and args[0] == "settings":
                 self._settings(root, workdir, args[1:], set_args, unset_args, reset, as_json)
                 return
-            stored_settings = WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS)
+            # Loading an IP creates a run: it must work even when a populated
+            # workspace has no settings.json. All other commands retain the
+            # fail-closed guard against silently selecting another run.
+            if args and args[0] == "ip_load" and workdir is not None and not WorkspaceFlow.settings_path(root, workdir).is_file():
+                stored_settings = dict(DEFAULT_SETTINGS)
+            else:
+                stored_settings = WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS)
             effective_settings = WorkspaceFlow.effective_settings(root, workdir, stored_settings)
             client = FlexSoC(FlexSoCConfig(root, workdir), **effective_settings)
             if not args:

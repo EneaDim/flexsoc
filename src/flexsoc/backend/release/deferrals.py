@@ -68,3 +68,33 @@ def manage_deferrals(meta: Path, args: Sequence[str], settings: Mapping[str, str
     temporary.replace(path)
     print(f"Updated {path}; qualification evidence unchanged. Re-run fx qualify.")
     return 0
+
+
+class QualificationDeferrals:
+    """Read advisory deferrals without altering technical qualification gates."""
+
+    REQUIRED = ("stage", "reason", "owner", "resolve_by", "fingerprint")
+
+    @classmethod
+    def load(
+        cls, path: Path, *, fingerprint: str | None, allowed_stages: tuple[str, ...]
+    ) -> dict[str, dict[str, str]]:
+        if not path.is_file():
+            return {}
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or payload.get("schema") != 1 or not isinstance(payload.get("deferrals"), list):
+            raise ValueError("qualification_deferrals.json must contain schema=1 and a deferrals list")
+        result: dict[str, dict[str, str]] = {}
+        for entry in payload["deferrals"]:
+            if not isinstance(entry, dict) or any(
+                not isinstance(entry.get(key), str) or not entry[key].strip()
+                for key in cls.REQUIRED
+            ):
+                raise ValueError("qualification deferral requires nonempty stage, reason, owner, resolve_by, fingerprint")
+            stage = entry["stage"]
+            if stage not in allowed_stages or stage in result:
+                raise ValueError(f"unknown or duplicate deferred stage: {stage}")
+            if entry["fingerprint"] != fingerprint:
+                raise ValueError(f"deferred {stage} has a stale contract fingerprint")
+            result[stage] = {key: entry[key] for key in cls.REQUIRED}
+        return result

@@ -222,11 +222,10 @@ class TraceabilityFlow:
         if any(not links for links in tds_to_req.values()):
             orphans = [key for key, links in tds_to_req.items() if not links]
             raise ValueError("unallocated technical specification(s): " + ", ".join(orphans))
-        if any(not links for links in req_to_tp.values()):
-            orphans = [key for key, links in req_to_tp.items() if not links]
-            raise ValueError("requirement(s) without testplan: " + ", ".join(orphans))
+        unplanned = sorted(key for key, links in req_to_tp.items() if not links)
         return {
-            "status": "MAPPED_NOT_EXECUTED", "customer_to_technical": crs_to_tds,
+            "status": "PARTIAL" if unplanned else "MAPPED_NOT_EXECUTED",
+            "unplanned_requirements": unplanned, "customer_to_technical": crs_to_tds,
             "technical_to_customer": tds_to_crs, "technical_to_requirements": tds_to_req,
             "requirements_to_technical": req_to_tds, "requirements_to_testplan": req_to_tp,
             "testplan_to_tests": tp_to_tests, "tests_to_testplan": test_to_tp,

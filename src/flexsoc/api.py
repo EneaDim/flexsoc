@@ -199,6 +199,7 @@ TARGETS: dict[str, TargetSpec] = {
     "lint": ("Linting", "Run one Slang pass and one Verilator pass, then classify P0-P3", LINT),
     "cdc_rdc": ("Domain analysis", "Run structural CDC/RDC, protocol, reset, setup, and glitch checks", CDC_RDC),
     "slang_hier": ("Linting", "Elaborate hierarchy and write canonical structural evidence", SLANG_HIER),
+    "rtl_view": ("Viewing", "Open RTL schematic viewer for the configured IP run", NONE),
     "slang_flist": ("Linting", "Generate a trimmed topological RTL filelist with Slang", SLANG_FLIST),
     "regmap_py": ("DV functional", "Regenerate only <top>_regmap.py from HJSON", SIM),
     "tests_gen": ("DV functional", "Generate all vector tests from <top>_tests.py", SIM),
@@ -742,7 +743,7 @@ class FlexSoC:
 
             if not capture:
                 Terminal.print_target_start(command.display_name(), description)
-                if command.target in TECHNOLOGY_TARGETS and not live and not stream:
+                if self._requires_technology(command) and not live and not stream:
                     Terminal.print_label(
                         "technology",
                         f"pdk={command.values.get('PDK')} syn={command.values.get('SYNDIR')}",
@@ -816,11 +817,24 @@ class FlexSoC:
         """Normalize a backend result to one public target return code."""
         return TargetSession.returncode(value)
 
+    @staticmethod
+    def _requires_technology(command: FlexSoCCommand) -> bool:
+        if command.target not in TECHNOLOGY_TARGETS:
+            return False
+        # L1/L2 packages contain neither synthesized cells nor PDK-specific
+        # signoff collateral. Do not require an activated PDK to save them.
+        if command.target == "ip_save":
+            level = str(command.values.get("QUAL_LEVEL", "auto")).strip().lower()
+            if level in {"1", "l1", "contract", "contract_valid",
+                         "2", "l2", "rtl", "rtl_qualified"}:
+                return False
+        return True
+
     def _preflight(self, command: FlexSoCCommand) -> None:
         """Validate technology requirements before any target mutates the run."""
         if str(command.values.get("DEBUG", "")).strip().lower() in {"1", "true", "yes", "on"}:
             return
-        if command.target not in TECHNOLOGY_TARGETS:
+        if not self._requires_technology(command):
             return
         root = command.values.get("PDK_ROOT")
         if root and Path(root).expanduser().is_dir() and command.values.get("LIB_SYN"):
@@ -906,7 +920,7 @@ class FlexSoC:
                     self._scenario_log_value(values.get("POWER_TIMING_MODE", "typ")),
                 )
                 name = "_".join((name, *(self._safe_log_name(value) for value in selectors)))
-        if command.target in TECHNOLOGY_TARGETS and values.get("COMMAND_LOGDIR"):
+        if self._requires_technology(command) and values.get("COMMAND_LOGDIR"):
             return Path(values["COMMAND_LOGDIR"]) / f"{name}.log"
         return workspace / "runs" / run_top / run_id / "logs" / "commands" / f"{name}.log"
 

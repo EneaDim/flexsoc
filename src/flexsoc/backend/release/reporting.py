@@ -52,20 +52,37 @@ class Reporting:
 
         paths = context.paths
         if target.action == "metrics":
-            return self.write_metrics(
-                paths.top, paths.run, paths.metrics, pdk=paths.pdk, provenance=provenance,
-            )
+            # Canonical RTL snapshot first; technology metrics remain an independent
+            # implementation branch and cannot determine L1/L2 identity.
+            full = self.metrics(paths.top, paths.run, pdk=paths.pdk, provenance=provenance)
+            destination = paths.run / "meta" / "metrics.json"
+            self._write_json(destination, self.rtl_metrics_snapshot(full))
+            level = str(getattr(context, "values", {}).get("QUAL_LEVEL", "auto")).lower()
+            if level not in {"rtl", "l2", "2", "contract", "l1", "1"}:
+                self._write_json(paths.metrics, full)
+            return destination
         if target.action == "manifest":
-            return self.write_manifest(
+            full = self.manifest(
                 top=paths.top, run_top=paths.run_top, run_id=paths.run_id,
-                repo_root=context.project_root, output=paths.manifest,
-                pdk=paths.pdk, run_root=paths.run, on=on,
+                repo_root=context.project_root, pdk=paths.pdk,
+                run_root=paths.run, on=on,
             )
+            destination = paths.run / "meta" / "manifest.json"
+            self._write_json(destination, self.rtl_manifest_snapshot(full))
+            level = str(getattr(context, "values", {}).get("QUAL_LEVEL", "auto")).lower()
+            if level not in {"rtl", "l2", "2", "contract", "l1", "1"}:
+                self._write_json(paths.manifest, full)
+            return destination
         if target.action == "show" and target.show:
             from ..core.render.show import ShowRenderer
 
             return ShowRenderer.load_and_render(paths.run, top=paths.top, pdk=paths.pdk, key=target.show)
         raise ValueError(f"unsupported reporting target: {target.name}")
+
+    @staticmethod
+    def _write_json(path: Path, data: Mapping[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
     def metrics(
         self, top: str, run_dir: Path, *, pdk: str | None = None,
@@ -131,6 +148,35 @@ class Reporting:
         output.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         return output
 
+
+    @staticmethod
+    def rtl_metrics_snapshot(full: Mapping[str, Any]) -> dict[str, Any]:
+        """Stable RTL-only measurements. Never include PDK or signoff data."""
+
+        keys = ("modeling", "lint", "cdc_rdc", "formal", "regression", "verification", "rtl_closure")
+        result: dict[str, Any] = {
+            "schema_version": 1,
+            "scope": "rtl",
+            "top": full["top"],
+            "qualification_authority": "fx qualify",
+        }
+        for key in keys:
+            if key in full:
+                result[key] = full[key]
+        return result
+
+    @staticmethod
+    def rtl_manifest_snapshot(full: Mapping[str, Any]) -> dict[str, Any]:
+        """Run identity without the selected implementation technology."""
+
+        run = full.get("run", {})
+        result = {key: full[key] for key in ("git", "environment", "toolchain", "analysis", "tools") if key in full}
+        result.update({
+            "schema_version": 1,
+            "scope": "rtl",
+            "run": {key: run.get(key) for key in ("top", "run_top", "run_id")},
+        })
+        return result
 
     @staticmethod
     def read_text(path: Path) -> str:
@@ -1246,10 +1292,36 @@ class Reporting:
         metrics["signoff"] = Reporting.signoff_summary(metrics)
         metrics["flow"] = Reporting.flow_summary(metrics)
         metrics["closure"] = Reporting.closure_status(metrics)
+        metrics["rtl_closure"] = Reporting.rtl_closure(metrics)
         metrics["technical_status"] = Reporting.technical_status(metrics)
         if provenance is not None:
             metrics["provenance"] = dict(provenance)
         return metrics
+
+    @staticmethod
+    def rtl_closure(metrics: Mapping[str, Any]) -> dict[str, Any]:
+        """Describe technology-neutral evidence, not a qualification decision.
+
+        PASS here is an evidence summary; only QualificationFlow can award L2.
+        Uncollected evidence remains missing, never implicitly passed.
+        """
+
+        closure = metrics.get("closure")
+        stages = closure.get("stages", {}) if isinstance(closure, Mapping) else {}
+        keys = ("modeling", "lint", "cdc_rdc", "formal", "regression")
+        statuses = {key: str(stages.get(key, "missing")).lower() for key in keys}
+        values = set(statuses.values())
+        if values & {"fail", "error"}:
+            state = "fail"
+        elif values <= {"pass"}:
+            state = "pass"
+        elif values & {"review", "warn"} and not values & {"missing", "unknown", "partial"}:
+            state = "review"
+        else:
+            state = "incomplete"
+        return {"scope": "technology_independent", "stages": statuses,
+                "status": state, "complete": state == "pass",
+                "qualification_authority": "fx qualify"}
 
     @staticmethod
     def technical_status(metrics: Mapping[str, Any]) -> str:

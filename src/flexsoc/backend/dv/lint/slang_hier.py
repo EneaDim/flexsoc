@@ -119,6 +119,24 @@ class SlangHierarchy:
             destination.write_text(capture.getvalue(), encoding="utf-8")
         return 0
 
+    def _resolve_filelist_path(self, item: str, *, filelist: Path, number: int) -> Path:
+        """Resolve portable paths in their declared namespace.
+
+        ``rtl/`` belongs to the active run. Shared ``hw/`` and ``vendor/``
+        belong to the FlexSoC project, never to a run or a frozen IP package.
+        Refuse absolute and escaping paths rather than silently using host files.
+        """
+        rel = Path(item)
+        if rel.is_absolute() or ".." in rel.parts:
+            raise ValueError(f"nonportable filelist path: {filelist}:{number}: {item}")
+        project = self.context.project_root.resolve()
+        run = self.context.paths.run.resolve()
+        base = project if rel.parts and rel.parts[0] in {"hw", "vendor"} else run
+        result = (base / rel).resolve()
+        if not result.is_relative_to(base):
+            raise ValueError(f"filelist path escapes its root: {filelist}:{number}: {item}")
+        return result
+
     def _inputs(self) -> tuple[Path, Path, tuple[Path, ...], str]:
         """Resolve the top file, search roots and extra Slang arguments."""
 
@@ -148,13 +166,14 @@ class SlangHierarchy:
             for filelist in (paths.rtl_common, paths.rtl_ip):
                 if not filelist.is_file():
                     continue
-                for raw in filelist.read_text(encoding="utf-8").splitlines():
+                for number, raw in enumerate(filelist.read_text(encoding="utf-8").splitlines(), 1):
                     item = raw.strip()
                     if item.startswith("+incdir+"):
                         for entry in item.removeprefix("+incdir+").split("+"):
                             if entry:
-                                path = Path(entry)
-                                roots.append((paths.run / path if not path.is_absolute() else path).resolve())
+                                roots.append(self._resolve_filelist_path(
+                                    entry, filelist=filelist, number=number
+                                ))
         roots = list(dict.fromkeys(roots))
         extra_args = shlex.join((*shlex.split(values.get("SLANG_ARGS", "")), *extra))
         return root, top_file, tuple(roots), extra_args
@@ -206,14 +225,9 @@ class SlangHierarchy:
                     continue
                 if item.startswith(("-", "+")):
                     raise ValueError(f"unsupported filelist directive: {filelist}:{number}: {item}")
-                rel = Path(item)
-                if rel.is_absolute():
-                    raise ValueError(f"nonportable absolute filelist source: {filelist}:{number}")
-                source_file = (self.context.paths.run / rel).resolve()
-                try:
-                    source_file.relative_to(self.context.paths.run.resolve())
-                except ValueError as exc:
-                    raise ValueError(f"source escapes release: {filelist}:{number}: {item}") from exc
+                source_file = self._resolve_filelist_path(
+                    item, filelist=filelist, number=number
+                )
                 if not source_file.is_file():
                     raise FileNotFoundError(f"filelist source missing: {filelist}:{number}: {source_file}")
                 if source_file not in sources:
@@ -254,6 +268,7 @@ class SlangHierarchy:
                 raise FileNotFoundError(f"Slang AST driver not found: {tool}")
         return (
             executable,
+            "--top", hierarchy_command[2],
             *hierarchy_command[7:-1],
             "--ast-json", str(ast), "--ast-json-source-info",
             *hierarchy_command[-1:],

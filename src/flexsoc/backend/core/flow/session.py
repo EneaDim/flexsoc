@@ -12,7 +12,7 @@ from typing import Mapping, Sequence
 
 from ...impl import ImplementationFlow
 from ...signoff.sta import SDF_MODE_TO_CORNER
-from .lifecycle import Lifecycle, PROVENANCE_SETUPS, RUNTIME_STAGES, STAGE_CONTRACTS
+from .lifecycle import Lifecycle, PROVENANCE_SETUPS, RUNTIME_STAGES, STAGE_CONTRACTS, StageGraph
 from ..core import BackendContext
 from ..runtime.execution import CommandRequest, ToolRunner
 from .target import BACKEND_TARGETS, Target as BackendTarget
@@ -32,7 +32,7 @@ DEFAULT_SETTINGS = {
 
 DEBUG_TARGETS = frozenset(name for name, target in BACKEND_TARGETS.items() if target.debug)
 TECHNOLOGY_TARGETS = {name for name, target in BACKEND_TARGETS.items() if target.technology} | {
-    "path_view", "ip_save", "metrics", "manifest", "manifest_show", "check",
+    "path_view", "ip_save",
     "clean_syn", "clean_signoff", "clean_pnr", "clean_meta",
 }
 SETUP_TARGETS: dict[str, tuple[str, ...]] = {
@@ -292,7 +292,10 @@ class TargetSession:
             elif stage == "coverage":
                 inputs = (p.coverage / "sv", p.coverage / "cocotb")
             elif stage == "regression":
-                inputs = (*rtl, p.sdc, p.tests, p.py, *self._execution_inputs("tb.setup"), *self._execution_inputs("cocotb.setup"))
+                # Model results and aggregate reports are outputs of independent stages.
+                # Only authored RTL test generators can influence the RTL regression.
+                generators = (*sorted(p.py.glob("*.py")), p.py / "rtl")
+                inputs = (*rtl, p.sdc, p.tests, *generators, *self._execution_inputs("tb.setup"), *self._execution_inputs("cocotb.setup"))
             elif stage.startswith("formal_"):
                 setup = {
                     "formal_csr_bmc": "formal.csr_prove.setup",
@@ -558,15 +561,7 @@ class TargetSession:
 
         if target not in STAGE_CONTRACTS:
             return self._setup_stages(target)
-        found: list[str] = []
-        self._collect_contract_parents(target, found)
-        return tuple(found)
-
-    def _collect_contract_parents(self, stage: str, found: list[str]) -> None:
-        for parent in STAGE_CONTRACTS[stage].parents:
-            self._collect_contract_parents(parent, found)
-            if parent not in found:
-                found.append(parent)
+        return StageGraph(STAGE_CONTRACTS).prerequisites(target)
 
     def _require_provenance(self, target: str) -> None:
         for stage in self._contract_parents(target):

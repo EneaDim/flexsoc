@@ -177,7 +177,8 @@ fx model --setup --force
 fx tests_gen --force
 fx tb cocotb --setup --force
 fx regression
-fx coverage_detail
+fx coverage --summary
+fx coverage --show
 
 fx formal --setup --force
 fx formal

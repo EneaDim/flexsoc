@@ -348,7 +348,9 @@ class ShowRenderer:
 
         run = Path(run)
         meta = run / "meta" / pdk
-        metrics = meta / "metrics.json"
+        metrics = run / "meta" / "metrics.json"
+        if not metrics.is_file():
+            metrics = meta / "metrics.json"
         signoff = run / "signoff" / pdk
         sim = run / "dv" / "functional" / "sim"
         contract = run / "meta" / "contract.json"
@@ -357,7 +359,7 @@ class ShowRenderer:
             ShowSpec("evidence", "Qualification evidence", meta / "qualification.json", ("evidence",)),
             ShowSpec("levels", "Qualification levels", meta / "qualification.json", ("levels",)),
             ShowSpec("metrics", "Collected flow metrics", metrics),
-            ShowSpec("manifest", "Run manifest", meta / "manifest.json"),
+            ShowSpec("manifest", "Run manifest", (run / "meta" / "manifest.json") if (run / "meta" / "manifest.json").is_file() else meta / "manifest.json"),
             ShowSpec("provenance", "Stage provenance", meta / "provenance.json"),
             ShowSpec("settings", "Effective PDK settings", meta / "settings.json"),
             ShowSpec("design_intent", "Common design intent", run / "meta" / "design_intent.json"),
@@ -1606,6 +1608,19 @@ class ShowRenderer:
         """Render the saved metrics snapshot in lifecycle order."""
 
         data = document.data if isinstance(document.data, Mapping) else {}
+        if data.get("scope") == "rtl":
+            evidence = data.get("rtl_closure", {})
+            stages = evidence.get("stages", {}) if isinstance(evidence, Mapping) else {}
+            table = Table(title="RTL evidence — technology independent", expand=True)
+            table.add_column("Stage")
+            table.add_column("Evidence status")
+            for key, label in (("modeling", "Model tests"), ("lint", "Lint"),
+                               ("cdc_rdc", "CDC / RDC"), ("formal", "Formal"),
+                               ("regression", "RTL regression")):
+                table.add_row(label, self.status(stages.get(key, "MISSING")))
+            self.console.print(table)
+            self.console.print("[grey70]Evidence summary only · L2 qualification authority: fx qualify[/grey70]")
+            return
         closure = data.get("closure", {}) if isinstance(data.get("closure"), Mapping) else {}
         stages = closure.get("stages", {}) if isinstance(closure.get("stages"), Mapping) else {}
         order = closure.get("order", ()) if isinstance(closure.get("order"), list) else ()
@@ -1642,6 +1657,13 @@ class ShowRenderer:
             phase, label = labels.get(str(key), ("Other", str(key)))
             table.add_row(str(index), phase, label, self.status(stages.get(str(key), "MISSING")))
         self.console.print(table)
+        rtl_closure = data.get("rtl_closure")
+        if isinstance(rtl_closure, Mapping):
+            self.console.print(
+                "[grey70]RTL evidence (PDK-independent)[/grey70] "
+                f"{self.status(rtl_closure.get('status', 'MISSING'))} "
+                "[grey70]· L2 authority: fx qualify[/grey70]"
+            )
         self.console.print(
             f"[grey70]technical status[/grey70] {self.status(data.get('technical_status', 'REVIEW'))} · "
             f"[grey70]closure[/grey70] {self.status(closure.get('status', 'MISSING'))}"
@@ -1654,8 +1676,9 @@ class ShowRenderer:
         run = data.get("run", {}) if isinstance(data.get("run"), Mapping) else {}
         git = data.get("git", {}) if isinstance(data.get("git"), Mapping) else {}
         env = data.get("environment", {}) if isinstance(data.get("environment"), Mapping) else {}
+        pdk_label = "" if data.get("scope") == "rtl" else f" · PDK: [white]{run.get('pdk', '-')}[/white]"
         self.console.print(Panel.fit(
-            f"Top: [white]{run.get('top', '-')}[/white] · Run: [white]{run.get('run_id', '-')}[/white] · PDK: [white]{run.get('pdk', '-')}[/white]\n"
+            f"Top: [white]{run.get('top', '-')}[/white] · Run: [white]{run.get('run_id', '-')}[/white]{pdk_label}\n"
             f"FlexSoC: [white]{env.get('flexsoc', '-')}[/white] · Python: [white]{env.get('python', '-')}[/white]\n"
             f"Git: [white]{git.get('commit', '-')}[/white] · dirty=[white]{git.get('dirty', '-')}[/white]",
             title=document.title, border_style="orange1",

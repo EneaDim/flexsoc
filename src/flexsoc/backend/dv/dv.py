@@ -53,6 +53,9 @@ class DvFlow:
             return self.lint.run(on=on)
         if action == "slang_hier":
             return self.hierarchy.run(on=on)
+        if action == "rtl_view":
+            from .rtl_viewer.launch import open_viewer
+            return open_viewer(self.context, self.hierarchy, on=on)
         if action == "cdc_setup":
             return self.cdc.setup()
         if action == "cdc":

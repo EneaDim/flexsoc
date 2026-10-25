@@ -117,22 +117,17 @@ class IpDesign:
 
         values, paths = self.context.values, self.context.paths
         root = self.context.project_root
-        # Use package-local libraries when available; older packages still load
-        # from their historical frozen tree until they are saved again.
-        package_root = paths.rtl.parent
-        canonical = package_root if (package_root / "hw" / "ips").is_dir() else None
-        legacy = paths.rtl / "deps" / "flexsoc"
-        library_root = canonical or (legacy if (legacy / "hw" / "ips").is_dir() else root)
-        ips_root = library_root / "hw" / "ips"
-        common_dirs = [ips_root / name for name in ("pkgs", "prim", "prim_opentitan")]
-        if library_root == legacy:
-            common_dirs.extend(legacy / name for name in ("prim", "prim_opentitan"))
-        common = tuple(path for path in common_dirs if path.is_dir())
-        frozen = library_root != root
+        # Single source of truth: shared RTL belongs to the project checkout.
+        # The run owns only its generated / authored IP RTL.
+        ips_root = root / "hw" / "ips"
+        common = tuple(
+            path for name in ("pkgs", "prim", "prim_opentitan")
+            if (path := ips_root / name).is_dir()
+        )
+        vendor = root / "vendor"
         vendor_roots: tuple[Path, ...] = ()
         extra_args = ""
         interface = values.get("REG_ITF", "tlul")
-        vendor = library_root / "vendor"
         if interface == "tlul":
             vendor_roots = (vendor / "lowrisc_ip" / "ip" / "tlul" / "rtl",)
         elif interface == "axi_lite":
@@ -146,12 +141,10 @@ class IpDesign:
                 "-I", str(pulp / "axi" / "include"),
                 "-I", str(pulp / "register_interface" / "include"),
             ))
-        if frozen:
-            # For a loaded snapshot, do not fall back silently to mutable checkout
-            # sources when the frozen library is incomplete.
-            for lib in (*common, *vendor_roots):
-                if not lib.is_dir():
-                    raise FileNotFoundError(f"frozen RTL dependency root missing: {lib}")
+        required = (*common, *vendor_roots)
+        for lib in required:
+            if not lib.is_dir():
+                raise FileNotFoundError(f"shared RTL dependency root missing: {lib}")
         return self.rtl.setup_filelists(
             root=root,
             top_file=paths.rtl / f"{paths.top}.sv",

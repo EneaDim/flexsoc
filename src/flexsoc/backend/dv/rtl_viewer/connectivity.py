@@ -312,7 +312,16 @@ class PortResolver:
                 continue
             actuals = self.symbols.port_actuals(expression)
             if not actuals:
-                states[port] = "unresolved"  # syntax/binding present but cannot be projected
+                # Constants are deliberately not represented as a fabricated net.
+                # Slang's elaborated AST supplies their evaluated value.
+                operand = expression
+                while isinstance(operand, Mapping) and operand.get("kind") in CONVERSIONS:
+                    operand = operand.get("operand")
+                if isinstance(operand, Mapping) and (operand.get("kind") in {"IntegerLiteral", "RealLiteral", "StringLiteral"}
+                                                    or (operand.get("constant") is not None and not self.symbols.reads(expression))):
+                    states[port] = "constant"
+                else:
+                    states[port] = "unresolved"  # expression present, cannot be projected
             else:
                 states[port] = "partial" if any(mapping != "direct" for _, mapping in actuals) else "bound"
             for signal, mapping in actuals:

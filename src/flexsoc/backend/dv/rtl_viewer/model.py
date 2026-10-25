@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterator
 
+from .slang import SlangReferences
 from .compiler import ast_revision
 from .connectivity import GraphEdges, OperatorResolver, PortResolver, SymbolTable as ASTReferences
 
@@ -46,11 +47,23 @@ def module_of(node: dict) -> str:
 
 
 def is_instance(node: dict) -> bool:
-    return node.get("kind") == "Instance" and isinstance(node.get("body"), dict)
+    return node.get("kind") == "Instance" and isinstance(node.get("body"), (dict, str))
 
 
 def extract_location(node: dict) -> tuple[str, int]:
     """Conservative source-location adapter; no source-text parsing."""
+    # Public Slang JSON emits source_file/source_line on elaborated symbols.
+    file = node.get("source_file")
+    if isinstance(file, str) and file:
+        try:
+            return file, int(node.get("source_line") or 0)
+        except (TypeError, ValueError):
+            return file, 0
+    if isinstance(node.get("source_file_start"), str) and node["source_file_start"]:
+        try:
+            return node["source_file_start"], int(node.get("source_line_start") or 0)
+        except (TypeError, ValueError):
+            return node["source_file_start"], 0
     for key in ("sourceRange", "location", "sourceLocation", "source"):
         value = node.get(key)
         if isinstance(value, dict):
@@ -94,13 +107,14 @@ class RtlDesign:
         self.top = top
         self.verified = verified
         self.revision = ast_revision(ast, top=top)
+        self.references = SlangReferences(ast)
         self.scopes: dict[str, Scope] = {}
         self._diagrams: dict[tuple[str, bool, int], dict[str, Any]] = {}
         roots = [item for item in ast["design"].get("members", ()) if isinstance(item, dict) and is_instance(item)]
         matches = [item for item in roots if name_of(item) == top]
         if len(matches) != 1:
             raise ValueError(f"top {top!r} missing or ambiguous in Slang's elaborated design")
-        self._index(matches[0], "/", "")
+        self._index(self.references.instance(matches[0]), "/", "")
 
     def _index(self, node: dict, path: str, group: str) -> None:
         # The inspector shows the module definition, not the parent instance's
@@ -144,7 +158,7 @@ class RtlDesign:
                         stem, bracket, index = part.rpartition("[")
                         group_parts.append(stem if bracket and index.endswith("]") and index[:-1].isdigit() else part)
                     generated = "/".join(group_parts) if ancestors else ""
-                    self._index(member, child_path, generated)
+                    self._index(self.references.instance(member), child_path, generated)
                 elif kind in BLOCK_KINDS:
                     label = name_of(member)
                     # A generate block without a name is transparent to the
@@ -221,10 +235,10 @@ class RtlDesign:
         symbols = ASTReferences(scope.node["body"].get("members", ()), declared)
         operands = OperatorResolver(symbols)
 
-        def walk(node: Any, sequential: bool = False) -> None:
+        def walk(node: Any, sequential: bool = False, controls: tuple[str, ...] = ()) -> None:
             if isinstance(node, list):
                 for item in node:
-                    walk(item, sequential)
+                    walk(item, sequential, controls)
                 return
             if not isinstance(node, dict):
                 return
@@ -233,6 +247,34 @@ class RtlDesign:
                 return
             process = sequential or (kind == "ProceduralBlock" and str(
                 node.get("procedureKind", node.get("procedure", ""))).lower() in ("alwaysff", "always_ff"))
+            # Context-sensitive traversal: predicates affect every assignment
+            # reachable inside the elaborated branch, including nested blocks.
+            if kind in {"Conditional", "ConditionalStatement", "IfStatement"}:
+                predicates = symbols.refs(node.get("conditions", node.get("condition", node.get("predicate"))))
+                active = tuple(dict.fromkeys((*controls, *predicates)))
+                for branch in ("ifTrue", "ifFalse", "then", "else"):
+                    if branch in node:
+                        walk(node[branch], process, active)
+                return
+            if kind in {"Case", "CaseStatement", "CaseStmt"}:
+                selected = symbols.refs(node.get("expr", node.get("expression", node.get("selector"))))
+                case_selectors.update(selected)
+                destinations = tuple(dict.fromkeys(dst for branch in objects(node)
+                                     if branch.get("kind") in ASSIGN_KINDS
+                                     for dst in symbols.writes(branch.get("left", branch.get("lhs")))))
+                if selected and destinations:
+                    op_id = "op:" + str(len(operators))
+                    operators.append({"name": "CASE", "key": op_id, "kind": kind,
+                                      "shape": "case", "line": extract_location(node)[1]})
+                    for signal in selected:
+                        edges.append({"source": signal, "target": op_id, "type": "control", "net": signal})
+                    for dest in destinations:
+                        edges.append({"source": op_id, "target": dest, "type": "control", "net": dest})
+                active = tuple(dict.fromkeys((*controls, *selected)))
+                for branch in ("items", "defaultCase", "branches", "default"):
+                    if branch in node:
+                        walk(node[branch], process, active)
+                return
             if kind in ASSIGN_KINDS or ("Assignment" in kind and "Pattern" not in kind):
                 lhs = node.get("left", node.get("lhs"))
                 rhs = node.get("right", node.get("rhs"))
@@ -244,6 +286,9 @@ class RtlDesign:
                                         and symbols.direct(rhs) is not None)
                     mapping = "direct" if exact_assignment else "partial"
                     for dst in destinations:
+                        for signal in controls:
+                            edges.append({"source": signal, "target": dst, "type": "control", "net": signal,
+                                          "mapping": "partial"})
                         for src in address_sources:
                             edges.append({"source": src, "target": dst, "type": "address", "net": src,
                                           "mapping": "partial"})
@@ -300,9 +345,40 @@ class RtlDesign:
                         edges.append({"source": op_id, "target": dst, "type": "control", "net": dst})
             for value in node.values():
                 if isinstance(value, (list, dict)):
-                    walk(value, process)
+                    walk(value, process, controls)
 
         walk(scope.node["body"].get("members", []))
+        # Clock and asynchronous reset are declared in the elaborated event
+        # controls, not in the assignment RHS. Bind them to the actual state
+        # destinations by declaration identity. Never infer timing from names.
+        for member in scope.node["body"].get("members", ()):
+            if not isinstance(member, dict) or member.get("kind") != "ProceduralBlock":
+                continue
+            if str(member.get("procedureKind", "")).lower() not in ("alwaysff", "always_ff"):
+                continue
+            body = member.get("body", {})
+            if not isinstance(body, dict) or body.get("kind") != "Timed":
+                continue
+            timing = body.get("timing", {})
+            if not isinstance(timing, dict):
+                continue
+            events = timing.get("events", ()) if timing.get("kind") == "EventList" else (timing,)
+            destinations = set()
+            statement = body.get("stmt")
+            for item in objects(statement):
+                if item.get("kind") in ASSIGN_KINDS or ("Assignment" in str(item.get("kind", "")) and "Pattern" not in str(item.get("kind", ""))):
+                    destinations.update(symbols.writes(item.get("left", item.get("lhs"))))
+            for event in events:
+                if not isinstance(event, dict) or event.get("kind") != "SignalEvent":
+                    continue
+                edge_kind = str(event.get("edge", ""))
+                if edge_kind not in ("PosEdge", "NegEdge"):
+                    continue
+                for source in symbols.refs(event.get("expr")):
+                    for target in sorted(destinations):
+                        edges.append({"source": source, "target": target, "type": "event", "net": source,
+                                      "pin": "CLK" if edge_kind == "PosEdge" else "EVENT",
+                                      "eventEdge": edge_kind, "mapping": "direct"})
         # This is a *candidate* FSM marker, not synthesis-state extraction.
         # Require an elaborated enum type, a sequential state write and a
         # case that reads the same state. No text-name heuristics.
@@ -457,6 +533,8 @@ class RtlDesign:
                 states = [states_by_child[child.path].get(port["name"], "unbound") for child in represented]
                 if all(s == "bound" for s in states):
                     connection = "bound"
+                elif all(s == "constant" for s in states):
+                    connection = "constant"
                 elif all(s == "unbound" for s in states):
                     connection = "unbound"
                 elif any(s == "unresolved" for s in states):
@@ -488,6 +566,36 @@ class RtlDesign:
             self._diagrams.clear()
         self._diagrams[key] = payload
         return payload
+
+    def behavior(self, path: str = "/") -> dict[str, Any]:
+        """Return process-level semantic dependencies without graphical interpretation."""
+        from .process import BehavioralIR
+
+        return BehavioralIR(self, path).serialize()
+
+    def lowering(self, path: str = "/") -> dict[str, Any]:
+        """Return guarded symbolic process values; unsupported operations are explicit."""
+        from .lowering import LoweredIR
+
+        return LoweredIR(self, path).serialize()
+
+    def circuit(self, path: str = "/") -> dict[str, Any]:
+        """Expose scope-local net identity and instance terminals independently of layout."""
+        from .circuit import Circuit
+
+        return Circuit(self, path).serialize()
+
+    def canonical(self, path: str = "/") -> dict[str, Any]:
+        """Validated structural and behavioral IR without graphical assumptions."""
+        from .canonical import CanonicalCircuit
+
+        return CanonicalCircuit(self, path).serialize()
+
+    def schematic(self, path: str = "/") -> dict[str, Any]:
+        """Net-centric CAD contract; no placement or inferred electrical edges."""
+        from .schematic import Schematic
+
+        return Schematic(self, path).serialize()
 
     def audit(self, *, limit: int = 1500) -> dict[str, Any]:
         """Audit every elaborated scope, without pretending to prove net equivalence.

@@ -515,3 +515,235 @@ def test_setup_provenance_preserved_through_save_load_and_requalify(tmp_path: Pa
     (loaded / "rtl/demo.sv").write_text("tampered\n")
     with pytest.raises(ValueError, match="rtl/demo.sv"):
         QualificationFlow.write_qualification_report(loaded, "sky130", {"maximum_level": 2})
+
+
+def test_freeze_deduplicates_historical_run_local_rtl(tmp_path: Path) -> None:
+    root = tmp_path / "package"
+    rtl = root / "rtl"
+    rtl.mkdir(parents=True)
+    canonical = rtl / "uart.sv"
+    canonical.write_text("module uart; endmodule\n", encoding="utf-8")
+    relative = "rtl/deps/flexsoc/workspace/runs/uart/l2_uart/rtl/uart.sv"
+    duplicate = root / relative
+    duplicate.parent.mkdir(parents=True)
+    duplicate.write_bytes(canonical.read_bytes())
+    (rtl / "rtl_ip.f").write_text(relative + "\n", encoding="utf-8")
+
+    PackageFlow._freeze_rtl_dependencies(root, tmp_path)
+
+    assert (rtl / "rtl_ip.f").read_text(encoding="utf-8") == "rtl/uart.sv\n"
+    assert not (rtl / "deps").exists()
+    PackageFlow._validate_frozen_filelists(root)
+
+
+def test_freeze_rejects_conflicting_historical_rtl(tmp_path: Path) -> None:
+    root = tmp_path / "package"
+    rtl = root / "rtl"
+    rtl.mkdir(parents=True)
+    (rtl / "uart.sv").write_text("module uart; endmodule\n", encoding="utf-8")
+    relative = "rtl/deps/flexsoc/workspace/runs/uart/l2_uart/rtl/uart.sv"
+    duplicate = root / relative
+    duplicate.parent.mkdir(parents=True)
+    duplicate.write_text("module uart; wire changed; endmodule\n", encoding="utf-8")
+    (rtl / "rtl_ip.f").write_text(relative + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="conflicting frozen RTL dependency"):
+        PackageFlow._freeze_rtl_dependencies(root, tmp_path)
+
+
+@pytest.mark.parametrize("referred", [False, True])
+def test_load_shadow_dependency_pruning_is_safe(tmp_path: Path, referred: bool) -> None:
+    destination = tmp_path / "run"
+    rtl = destination / "rtl"
+    shadow = rtl / "deps" / "flexsoc" / "workspace" / "runs" / "old" / "rtl"
+    shadow.mkdir(parents=True)
+    (shadow / "demo.sv").write_text("module demo; endmodule\n", encoding="utf-8")
+    (rtl / "demo.sv").write_text("module demo; endmodule\n", encoding="utf-8")
+    (rtl / "rtl_ip.f").write_text(
+        "rtl/deps/flexsoc/workspace/runs/old/rtl/demo.sv\n" if referred else "rtl/demo.sv\n",
+        encoding="utf-8",
+    )
+    if referred:
+        PackageFlow._prune_unused_rtl_dependencies(destination)
+        assert shadow.exists()
+    else:
+        PackageFlow._prune_unused_rtl_dependencies(destination)
+        assert not (rtl / "deps").exists()
+        PackageFlow._prune_unused_rtl_dependencies(destination)
+
+
+def test_l2_save_indexes_technology_neutral_qualification(tmp_path: Path) -> None:
+    flow, args = _run(tmp_path, passing=True)
+    run = args["qualification_json"].parents[2]
+    report = json.loads(args["qualification_json"].read_text(encoding="utf-8"))
+    QualificationFlow.write_rtl_qualification_report(run, report)
+    saved = flow.save(**args)
+    manifest = json.loads((saved / "ip.json").read_text(encoding="utf-8"))
+    assert manifest["qualification"]["rtl"] == "meta/rtl_qualification.json"
+    assert QualificationFlow.validate_release_package(saved)["ip"] == "demo"
+    rtl = saved / "meta/rtl_qualification.json"
+    altered = json.loads(rtl.read_text(encoding="utf-8"))
+    altered["levels"]["2"]["status"] = "BLOCKED"
+    rtl.write_text(json.dumps(altered), encoding="utf-8")
+    with pytest.raises(ValueError, match="canonical RTL|L1/L2 qualification"):
+        QualificationFlow.validate_release_package(saved)
+
+
+def test_managed_shared_rtl_pinned_without_copy(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    shared = project / "hw/ips/prim/prim_ff_2sync.sv"
+    shared.parent.mkdir(parents=True)
+    shared.write_text("module prim_ff_2sync; endmodule\n", encoding="utf-8")
+    vendor = project / "vendor/lowrisc_ip/ip/tlul/rtl/tlul_pkg.sv"
+    vendor.parent.mkdir(parents=True)
+    vendor.write_text("package tlul_pkg; endpackage\n", encoding="utf-8")
+    release = tmp_path / "release"
+    rtl = release / "rtl"
+    rtl.mkdir(parents=True)
+    (rtl / "uart.sv").write_text("module uart; endmodule\n", encoding="utf-8")
+    (rtl / "rtl_ip.f").write_text("rtl/uart.sv\n", encoding="utf-8")
+    (rtl / "rtl_common.f").write_text(
+        "+incdir+hw/ips/prim\nhw/ips/prim/prim_ff_2sync.sv\n"
+        "vendor/lowrisc_ip/ip/tlul/rtl/tlul_pkg.sv\n", encoding="utf-8"
+    )
+    PackageFlow._freeze_rtl_dependencies(release, project)
+    PackageFlow._validate_frozen_filelists(release, project)
+    PackageFlow._validate_shared_rtl(release, project)
+    assert not (release / "dependencies").exists()
+    assert not (release / "hw").exists()
+    assert not (release / "vendor").exists()
+    assert (rtl / "rtl_ip.f").read_text() == "rtl/uart.sv\n"
+    assert "hw/ips/prim/prim_ff_2sync.sv" in (rtl / "rtl_common.f").read_text()
+    manifest = json.loads((release / "meta/shared_rtl.json").read_text())
+    assert set(manifest["files"]) == {
+        "hw/ips/prim/prim_ff_2sync.sv",
+        "vendor/lowrisc_ip/ip/tlul/rtl/tlul_pkg.sv",
+    }
+    shared.write_text("module tampered; endmodule\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="shared RTL changed"):
+        PackageFlow._validate_shared_rtl(release, project)
+
+
+def test_package_manifest_indexes_canonical_behavioral_model(tmp_path: Path) -> None:
+    """Published model, tests and evidence must be discoverable independently."""
+    staged = tmp_path / "uart"
+    model = staged / "dv/functional/py/model"
+    model.mkdir(parents=True)
+    for name in ("uart_model.py", "uart_model_tests.py", "scenarios.py"):
+        (model / name).write_text("# source\n", encoding="utf-8")
+    evidence = staged / "dv/functional/model_tests/summary.json"
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text('{"status":"PASS"}\n', encoding="utf-8")
+
+    PackageFlow(tmp_path, {})._write_package_manifest(
+        staged, "uart", "uart", "tlul", version="1.0.0"
+    )
+    content = json.loads((staged / "ip.json").read_text())["content"]
+    for key, expected in (
+        ("behavioral_model", "uart_model.py"),
+        ("behavioral_model_tests", "uart_model_tests.py"),
+        ("behavioral_scenarios", "scenarios.py"),
+    ):
+        path = staged / content[key]
+        assert path.is_file() and path.name == expected
+    assert content["behavioral_model_evidence"] == "dv/functional/model_tests/summary.json"
+
+
+def test_package_manifest_does_not_invent_missing_model(tmp_path: Path) -> None:
+    staged = tmp_path / "demo"
+    staged.mkdir()
+    PackageFlow(tmp_path, {})._write_package_manifest(staged, "demo", "demo", "tlul")
+    content = json.loads((staged / "ip.json").read_text())["content"]
+    assert not any(name.startswith("behavioral_") for name in content)
+
+
+def test_l2_save_reload_managed_shared_sources_and_model(tmp_path: Path) -> None:
+    """Release carries UART-like sources and model but not shared libraries."""
+    import shutil
+
+    flow, args = _run(tmp_path, passing=True)
+    project = flow.project_root
+    shared = project / "hw/ips/pkgs/top_pkg.sv"
+    shared.parent.mkdir(parents=True, exist_ok=True)
+    shared.write_text("package top_pkg; endpackage\n", encoding="utf-8")
+    vendor = project / "vendor/lowrisc_ip/ip/tlul/rtl/tlul_pkg.sv"
+    vendor.parent.mkdir(parents=True, exist_ok=True)
+    vendor.write_text("package tlul_pkg; endpackage\n", encoding="utf-8")
+    run = Path(args["qualification_json"]).parents[2]
+    (run / "rtl/rtl_common.f").write_text(
+        "+incdir+hw/ips/pkgs\nhw/ips/pkgs/top_pkg.sv\n"
+        "vendor/lowrisc_ip/ip/tlul/rtl/tlul_pkg.sv\n", encoding="utf-8")
+    model = run / "dv/functional/py/model"
+    model.mkdir(parents=True)
+    (model / "demo_model.py").write_text("class DemoModel: pass\n", encoding="utf-8")
+    (model / "demo_model_tests.py").write_text("def test_demo(): pass\n", encoding="utf-8")
+
+    saved = flow.save(**args)
+    PackageFlow._validate_frozen_filelists(saved, project)
+    assert not (saved / "dependencies").exists()
+    assert not (saved / "hw").exists()
+    assert not (saved / "vendor").exists()
+    assert (saved / "dv/functional/py/model/demo_model.py").is_file()
+    index = json.loads((saved / "ip.json").read_text())
+    assert index["content"]["behavioral_model"].endswith("demo_model.py")
+    assert index["content"]["shared_rtl"] == "meta/shared_rtl.json"
+    loaded = flow.load(ip_name="demo", reg_interface="tlul", version="1.0.0",
+                       run_top="demo", run_id="reload", workspace=tmp_path / "loaded")
+    assert (loaded / "rtl/demo.sv").read_bytes() == (saved / "rtl/demo.sv").read_bytes()
+    assert not (loaded / "dependencies").exists()
+    assert QualificationFlow.evidence_integrity(loaded, "sky130")
+    # Relocate the checkout: managed paths must not retain the old absolute root.
+    portable_root = tmp_path / "other_machine" / "project"
+    shutil.copytree(project, portable_root)
+    portable = PackageFlow(portable_root, {})
+    imported = portable.load(ip_name="demo", reg_interface="tlul", version="1.0.0",
+                             run_top="demo", run_id="portable", workspace=tmp_path / "relocated_runs")
+    assert (imported / "rtl/demo.sv").is_file()
+    assert QualificationFlow.evidence_integrity(imported, "sky130")
+    assert str(project) not in (imported / "rtl/rtl_common.f").read_text()
+    shared.write_text("package altered; endpackage\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="shared RTL changed"):
+        flow.load(ip_name="demo", reg_interface="tlul", version="1.0.0",
+                  run_top="demo", run_id="reload", workspace=tmp_path / "loaded")
+    # Rejection happens before resetting the previous run.
+    assert (loaded / "rtl/demo.sv").is_file()
+
+
+def test_l2_neutral_save_load_and_tamper_rejection(tmp_path: Path) -> None:
+    """L2 release is one PDK-independent sealed unit, not a per-PDK branch."""
+    flow, args = _run(tmp_path, passing=True)
+    run = Path(args["synth_dir"]).parents[1]
+    legacy = json.loads(Path(args["qualification_json"]).read_text(encoding="utf-8"))
+    legacy["evidence"] = {"lint": "PASS", "regression": "PASS"}
+    neutral = QualificationFlow.rtl_qualification_report(legacy)
+    canonical = run / "meta" / "rtl_qualification.json"
+    canonical.write_text(json.dumps(neutral) + "\n", encoding="utf-8")
+    args["qualification_json"] = canonical
+
+    package = flow.save(**args)
+    manifest = json.loads((package / "ip.json").read_text(encoding="utf-8"))
+    assert manifest["qualification"]["summary"]["maximum_level"] == 2
+    assert manifest["qualification"]["technologies"] == {}
+    assert not (package / "meta" / "sky130").exists()
+    assert QualificationFlow.rtl_evidence_integrity(package)
+
+    loaded = flow.load(ip_name="demo", reg_interface="tlul", version="1.0.0",
+                       run_top="demo", run_id="import", workspace=tmp_path / "reloaded")
+    assert QualificationFlow.rtl_evidence_integrity(loaded)
+    from types import SimpleNamespace
+    context = SimpleNamespace(paths=SimpleNamespace(run=loaded, pdk="ihp-sg13g2"))
+    spec = QualificationFlow.validate_spec_bundle(loaded / "spec", ip_name="demo")
+    frozen = QualificationFlow(context)._frozen_evidence(
+        spec_root=loaded / "spec", spec=spec, ip_name="demo", reg_interface="tlul"
+    )
+    assert frozen["lint"] == "PASS"
+    assert frozen["regression"] == "PASS"
+
+    rtl = package / "rtl" / "demo.sv"
+    rtl.write_text(rtl.read_text(encoding="utf-8") + "// tampered\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="stale|changed"):
+        QualificationFlow.validate_release_package(package)
+    with pytest.raises(ValueError, match="stale|changed"):
+        flow.load(ip_name="demo", reg_interface="tlul", version="1.0.0",
+                  run_top="demo", run_id="tamper", workspace=tmp_path / "reloaded")
+    assert not (tmp_path / "reloaded" / "runs" / "demo" / "tamper").exists()

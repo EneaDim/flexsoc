@@ -12,8 +12,15 @@ function baseRank(n){if(n.type==='port')return ['in','input'].includes(n.directi
 // Component pin geometry is shared with Canvas. A/B are data inputs, S is
 // the mux selector *below* the trapezoid, Y is the driven output.
 function pinGeometry(n,rect,pin,side){
- if(n.type!=='operator')return null;
  const {x,y,w,h}=rect;
+ if(['register','counter','fsm'].includes(n.type)){
+  // Dedicated pins coincide with the sequential symbol drawn by Canvas.
+  if(side==='out')return {x:x+w-4,y:y+20,face:'right'};
+  if(pin==='CLK')return {x:x+4,y:y+h-13,face:'left'};
+  if(pin==='EVENT')return {x:x+4,y:y+h-30,face:'left'};
+  return {x:x+4,y:y+20,face:'left'};
+ }
+ if(n.type!=='operator')return null;
  if(side==='out')return {x:x+w-9,y:y+h/2,face:'right'};
  if(n.shape==='mux'){
   if(pin==='A')return {x:x+9,y:y+22,face:'left'};

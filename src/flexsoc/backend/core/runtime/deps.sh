@@ -107,7 +107,7 @@ as_root() {
 
 BASE_PACKAGES=(
     autoconf automake bison build-essential ca-certificates cmake curl flex gawk git gperf
-    graphviz haskell-stack help2man libbz2-dev libeigen3-dev libffi-dev libfl-dev libgmp-dev
+    graphviz help2man libbz2-dev libeigen3-dev libffi-dev libfl-dev libgmp-dev
     libgtk-3-dev libjudy-dev liblz4-dev liblzma-dev libmpfr-dev libreadline-dev libtool
     libtool-bin m4 meson ninja-build nodejs npm perl pkg-config python3 python3-click swig tcl-dev tk-dev
     unzip xdot zlib1g-dev
@@ -115,7 +115,7 @@ BASE_PACKAGES=(
 
 BASE_COMMANDS=(
     gcc g++ make autoconf automake bison flex gawk git gperf cmake curl help2man libtoolize
-    m4 meson ninja node npm perl pkg-config python3 stack swig tclsh unzip dot xdot
+    m4 meson ninja node npm perl pkg-config python3 swig tclsh unzip dot xdot
 )
 BASE_PYTHON_MODULES=(click)
 
@@ -417,7 +417,7 @@ install_netlistsvg() {
 
 profile_tools() {
     profile_ready
-    echo "verilator slang verible iverilog yosys sby eqy bitwuzla boolector opensta gtkwave surfer sv2v netlistsvg"
+    echo "verilator slang verible iverilog yosys sby eqy bitwuzla boolector opensta gtkwave surfer netlistsvg"
 }
 
 tool_key() { printf '%s' "${1^^}"; }
@@ -802,7 +802,7 @@ versions() {
     printf 'FlexSoC toolchain %s  lock=%s\n' "$TOOLCHAIN_ID" "$LOCK_HASH"
     echo '  [base]'
     local key
-    for key in VERILATOR SLANG VERIBLE IVERILOG YOSYS SBY EQY BITWUZLA BOOLECTOR CUDD OPENSTA GTKWAVE SURFER SV2V NETLISTSVG; do
+    for key in VERILATOR SLANG VERIBLE IVERILOG YOSYS SBY EQY BITWUZLA BOOLECTOR CUDD OPENSTA GTKWAVE SURFER NETLISTSVG; do
         printf '    %-12s %-14s %s\n' "${key,,}" "$(version_var "$key")" "$(source_id "$key")"
     done
     printf '    %-12s %-14s %s\n' boost-build "$(version_var BOOST)" "$(source_id BOOST)"

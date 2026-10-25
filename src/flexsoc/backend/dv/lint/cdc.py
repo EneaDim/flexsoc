@@ -16,6 +16,8 @@ from typing import Any, Callable, Mapping, Sequence, TypeVar
 from rich.console import Console
 from rich.table import Table
 
+from .sources import LintSources
+
 from flexsoc.backend.core import (
     BackendContext, ClockConfig, ClockDomain, CommandRequest, ToolRunner,
 )
@@ -211,7 +213,10 @@ class CdcFlow:
         design_json = paths.cdc_rdc / "design.json"
         script.parent.mkdir(parents=True, exist_ok=True)
         design_json.parent.mkdir(parents=True, exist_ok=True)
-        projected_filelists = self._yosys_filelists(contract.filelists, contract.root, paths.cdc_rdc)
+        tool_filelists = LintSources(self.context.project_root, contract.root).prepare(
+            tuple(contract.filelists), directory=paths.cdc_rdc / "inputs"
+        )
+        projected_filelists = self._yosys_filelists(tool_filelists, contract.root, paths.cdc_rdc)
         script.write_text(
             self.render_extract_script(
                 top=contract.top,

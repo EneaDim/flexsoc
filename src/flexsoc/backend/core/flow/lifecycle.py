@@ -29,6 +29,70 @@ class StageContract:
     tools: tuple[str, ...] = ()
     owned_outputs: tuple[str, ...] = ()
     transient_outputs: tuple[str, ...] = ()
+    gates: tuple[str, ...] = ()  # Qualification/execution prerequisites, not provenance inputs.
+
+
+@dataclass(frozen=True, slots=True)
+class StageGraph:
+    """Validate stage lineage and return prerequisites in execution order."""
+
+    contracts: Mapping[str, StageContract]
+
+    def prerequisites(self, target: str) -> tuple[str, ...]:
+        if target not in self.contracts:
+            raise ValueError(f"Unknown stage: {target}")
+        ordered: list[str] = []
+        visited: set[str] = set()
+        visiting: set[str] = set()
+
+        def visit(stage: str) -> None:
+            if stage in visiting:
+                raise ValueError(f"Stage dependency cycle at {stage}")
+            if stage in visited:
+                return
+            visiting.add(stage)
+            for parent in (*self.contracts[stage].parents, *self.contracts[stage].gates):
+                if parent not in self.contracts:
+                    raise ValueError(f"{stage}: unknown prerequisite {parent}")
+                if self.contracts[stage].scope == "run" and self.contracts[parent].scope == "pdk":
+                    raise ValueError(f"{stage}: technology-independent stage depends on PDK stage {parent}")
+                visit(parent)
+            visiting.remove(stage)
+            visited.add(stage)
+            ordered.append(stage)
+
+        visit(target)
+        return tuple(ordered[:-1])
+
+    def affected(self, changed: Sequence[str]) -> tuple[str, ...]:
+        """Return provenance consumers; execution/qualification gates do not cause staleness.
+
+        A gate can block qualification without invalidating independent evidence.
+        """
+        changed_set = set(changed)
+        unknown = changed_set.difference(self.contracts)
+        if unknown:
+            raise ValueError(f"Unknown stage: {sorted(unknown)[0]}")
+        self.validate()
+        affected = set(changed_set)
+        remaining = set(self.contracts)
+        ordered: list[str] = []
+        while remaining:
+            ready = [name for name in self.contracts if name in remaining
+                     and not (set((*self.contracts[name].parents, *self.contracts[name].gates)) & remaining)]
+            if not ready:
+                raise ValueError("Stage dependency cycle")
+            for name in ready:
+                if set(self.contracts[name].parents) & affected:
+                    affected.add(name)
+                if name in affected:
+                    ordered.append(name)
+                remaining.remove(name)
+        return tuple(ordered)
+
+    def validate(self) -> None:
+        for stage in self.contracts:
+            self.prerequisites(stage)
 
 
 STAGE_CONTRACTS: dict[str, StageContract] = {
@@ -104,7 +168,7 @@ STAGE_CONTRACTS: dict[str, StageContract] = {
             "dv/functional/coverage/cocotb",
         ),
         tools=("IVERILOG", "VERILATOR"),
-        owned_outputs=("dv/functional/regression", "dv/functional/sim/rtl", "dv/functional/summary.json"),
+        owned_outputs=("dv/functional/regression", "dv/functional/sim/rtl"),
     ),
     "formal_csr_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.csr_prove.setup",), ("logs/dv/formal/csr/{top}_bmc.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR"), owned_outputs=("dv/formal/runs/csr/prove/{top}_csr_bmc",)),
     "formal_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.prove.setup",), ("logs/dv/formal/properties/{top}_bmc.log",), tools=("SBY", "YOSYS", "BITWUZLA", "BOOLECTOR"), owned_outputs=("dv/formal/runs/properties/prove/{top}_bmc",)),

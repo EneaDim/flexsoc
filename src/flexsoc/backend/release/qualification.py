@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Mapping, Sequence
 import yaml
 
 from .artifact_policy import ArtifactPolicy
+from .deferrals import QualificationDeferrals
 
 
 if TYPE_CHECKING:
@@ -257,35 +258,74 @@ class QualificationFlow:
         """Return reusable evidence from a loaded release whose contract is still valid."""
 
         paths = self.context.paths
-        report_path = paths.meta / "qualification.json"
         contract_path = paths.run / "meta" / "contract.json"
-        if not report_path.is_file() or not contract_path.is_file():
+        if not contract_path.is_file():
             return {}
         try:
             QualificationFlow.validate_contract_snapshot(paths.run, spec_root=spec_root)
-            report = json.loads(report_path.read_text(encoding="utf-8"))
         except (OSError, ValueError, json.JSONDecodeError):
             return {}
-        if (
-            report.get("ip") != ip_name
-            or report.get("reg_interface") != reg_interface
-            or str(report.get("pdk", "")) != str(paths.pdk)
-            or report.get("contract_fingerprint") != spec.get("fingerprint")
-        ):
-            return {}
-        # Legacy packages lack integrity metadata: load them, but never infer
-        # a fresh PASS from reports not bound to packaged sources.
-        if not QualificationFlow.evidence_integrity(paths.run, str(paths.pdk), allow_updated_generated=allow_updated_generated):
-            return {}
-        evidence = report.get("evidence", {})
-        if not isinstance(evidence, Mapping):
-            return {}
-        durable = {"PASS", "FAILED", "REVIEW", "WAIVED"}
-        return {
-            str(stage): state
-            for stage, value in evidence.items()
-            if (state := str(value).upper()) in durable
-        }
+
+        rtl_path = paths.run / "meta" / "rtl_qualification.json"
+        rtl_report = None
+        if rtl_path.is_file():
+            try:
+                candidate = json.loads(rtl_path.read_text(encoding="utf-8"))
+                if (candidate.get("ip") == ip_name
+                        and candidate.get("reg_interface") == reg_interface
+                        and candidate.get("contract_fingerprint") == spec.get("fingerprint")
+                        and candidate == QualificationFlow.rtl_qualification_report(candidate)):
+                    rtl_report = candidate
+            except (OSError, ValueError, json.JSONDecodeError, TypeError):
+                pass
+
+        # Frozen RTL is reusable across implementation technologies, but only
+        # when the original sealed technology branch still authenticates the
+        # shipped RTL and DV evidence. A free-standing JSON PASS is not proof.
+        technology_roots = paths.run / "meta"
+        branches = [paths.pdk]
+        if rtl_report is not None and technology_roots.is_dir():
+            branches.extend(sorted(folder.name for folder in technology_roots.iterdir()
+                                   if folder.is_dir() and folder.name != paths.pdk))
+        if rtl_report is not None:
+            try:
+                if QualificationFlow.rtl_evidence_integrity(paths.run):
+                    durable = {"PASS", "FAILED", "REVIEW", "WAIVED"}
+                    return {str(stage): state for stage, value in rtl_report.get("evidence", {}).items()
+                            if (state := str(value).upper()) in durable}
+            except (OSError, ValueError, json.JSONDecodeError):
+                pass
+        for branch in dict.fromkeys(branches):
+            report_path = technology_roots / branch / "qualification.json"
+            if not report_path.is_file():
+                continue
+            try:
+                report = json.loads(report_path.read_text(encoding="utf-8"))
+                if (report.get("ip") != ip_name
+                        or report.get("reg_interface") != reg_interface
+                        or str(report.get("pdk", "")) != str(branch)
+                        or report.get("contract_fingerprint") != spec.get("fingerprint")):
+                    continue
+                if branch != paths.pdk:
+                    if rtl_report is None or rtl_report != QualificationFlow.rtl_qualification_report(report):
+                        continue
+                if not QualificationFlow.evidence_integrity(
+                    paths.run, branch, allow_updated_generated=allow_updated_generated,
+                ):
+                    continue
+            except (OSError, ValueError, json.JSONDecodeError, TypeError):
+                continue
+            evidence = (rtl_report or report).get("evidence", {}) if branch != paths.pdk else report.get("evidence", {})
+            if not isinstance(evidence, Mapping):
+                continue
+            durable = {"PASS", "FAILED", "REVIEW", "WAIVED"}
+            result = {str(stage): state for stage, value in evidence.items()
+                      if (state := str(value).upper()) in durable}
+            if branch != paths.pdk:
+                result = {stage: state for stage, state in result.items()
+                          if stage in QualificationFlow.required_stages(spec, 2)}
+            return result
+        return {}
 
     def status(
         self,
@@ -324,7 +364,7 @@ class QualificationFlow:
             spec_root=spec_root, spec=spec, ip_name=ip_name, reg_interface=reg_interface,
             allow_updated_generated=write,
         ).items():
-            if states.get(stage, "MISSING") in {"MISSING", "STALE"}:
+            if states.get(stage, "MISSING") in {"MISSING", "STALE", "INVALID"}:
                 states[stage] = "CLEAN"
                 outcomes[stage] = outcome
         # Model regression is an L2 gate whenever the test plan defines model cases.
@@ -373,25 +413,11 @@ class QualificationFlow:
             and any(paths.csr.glob("*.hjson"))
         )
         # Engineering deferrals are annotations, never replacements for tool results.
-        deferral_file = paths.meta / "qualification_deferrals.json"
-        deferrals: dict[str, dict[str, str]] = {}
-        if deferral_file.is_file():
-            payload = json.loads(deferral_file.read_text(encoding="utf-8"))
-            if not isinstance(payload, dict) or payload.get("schema") != 1 or not isinstance(payload.get("deferrals"), list):
-                raise ValueError("qualification_deferrals.json must contain schema=1 and a deferrals list")
-            known = set(QualificationFlow.required_stages(spec, 5))
-            for item in payload["deferrals"]:
-                if not isinstance(item, dict):
-                    raise ValueError("qualification deferral must be an object")
-                required_fields = ("stage", "reason", "owner", "resolve_by", "fingerprint")
-                if any(not isinstance(item.get(key), str) or not item[key].strip() for key in required_fields):
-                    raise ValueError("qualification deferral requires nonempty stage, reason, owner, resolve_by, fingerprint")
-                stage = item["stage"]
-                if stage not in known or stage in deferrals:
-                    raise ValueError(f"unknown or duplicate deferred stage: {stage}")
-                if item["fingerprint"] != spec.get("fingerprint"):
-                    raise ValueError(f"deferred {stage} has a stale contract fingerprint")
-                deferrals[stage] = {key: item[key] for key in required_fields}
+        deferrals = QualificationDeferrals.load(
+            paths.meta / "qualification_deferrals.json",
+            fingerprint=spec.get("fingerprint"),
+            allowed_stages=(*QualificationFlow.required_stages(spec, 5), "requirements_coverage"),
+        )
         review_acceptance = QualificationFlow.cdc_rdc_review_acceptance(
             paths.cdc_rdc / "summary.json",
             enabled=str(values.get("CDC_RDC_L2_ACCEPT_REVIEW", "0")).strip().lower()
@@ -439,27 +465,78 @@ class QualificationFlow:
             f"[contract] {report['contract']} fingerprint={report.get('contract_fingerprint')} "
             f"requirements={report['requirements']['covered']}/{report['requirements']['total']}"
         )
+        requested_level = report.get("requested_level")
+        rtl_only = (requested_level if requested_level is not None
+                    else report.get("maximum_level", 0)) <= 2
+        view = self.rtl_qualification_report(report) if rtl_only else report
         print(
-            f"[release] level={report['maximum_level']} "
-            f"{report['maximum_qualification']} interface={reg_interface} pdk={paths.pdk}"
+            f"[release] level={view['maximum_level']} "
+            f"{view['maximum_qualification']} interface={reg_interface}"
+            + ("" if rtl_only else f" pdk={paths.pdk}")
         )
-        for level, item in report["levels"].items():
+        for level, item in view["levels"].items():
             blocking = item["blocking_evidence"]
             suffix = "" if not blocking else " blocking=" + ",".join(blocking)
             print(f"[level] L{level} {item['name']}: {item['status']}{suffix}")
-        for level, item in report["levels"].items():
+        for level, item in view["levels"].items():
             if item["deferred_evidence"]:
                 print(f"[development] L{level} {item['development_status']} deferred=" + ",".join(item["deferred_evidence"]))
         for stage, note in sorted(deferrals.items()):
             print(f"[deferral] {stage} owner={note['owner']} resolve_by={note['resolve_by']} reason={note['reason']}")
-        for stage in QualificationFlow.required_stages(spec, 5):
-            state = report["evidence"].get(stage, "MISSING")
+        for stage in QualificationFlow.required_stages(spec, 2 if rtl_only else 5):
+            state = view["evidence"].get(stage, "MISSING")
             print(f"[evidence] {stage:<26} {state}")
 
         if write:
-            output = self.write_qualification_report(paths.run, str(paths.pdk), report)
-            print(f"[qualification] {output}")
+            self.write_rtl_qualification_report(paths.run, report)
+            if not rtl_only:
+                self.write_qualification_report(paths.run, str(paths.pdk), report)
+            print(f"[qualification] {paths.run / 'meta' / 'rtl_qualification.json' if rtl_only else paths.meta / 'qualification.json'}")
         return report
+
+    @staticmethod
+    def rtl_qualification_report(report: Mapping[str, object]) -> dict[str, object]:
+        """Technology-neutral L1/L2 projection of a live qualification decision.
+
+        Physical/implementation evidence never enters the RTL release contract.
+        A technology branch may still retain its legacy aggregate report.
+        """
+        from copy import deepcopy
+
+        result = deepcopy(dict(report))
+        result.pop("pdk", None)
+        levels = result.get("levels", {})
+        result["levels"] = {key: value for key, value in levels.items() if key in {"1", "2"}}
+        rtl_stages = {stage for group, stages in EVIDENCE_GROUPS.items()
+                      if group not in {"netlist", "technology", "physical_signoff"}
+                      for stage in stages}
+        for key in ("evidence", "freshness", "outcomes", "engineering_deferrals", "review_acceptances"):
+            values = result.get(key)
+            if isinstance(values, dict):
+                result[key] = {stage: value for stage, value in values.items() if stage in rtl_stages}
+        level = max((int(key) for key, value in result["levels"].items()
+                     if value.get("status") == "PASS"), default=0)
+        result["maximum_level"] = level
+        result["maximum_qualification"] = QualificationFlow.qualification_name(level)
+        result["maximum_pass_level"] = level
+        result["maximum_pass_qualification"] = QualificationFlow.qualification_name(level)
+        result["qualification_status"] = result["levels"].get(str(level), {}).get("status", "BLOCKED")
+        requested = result.get("requested_level")
+        if requested is not None and requested > 2:
+            result["requested_level"] = 2
+        result["target_status"] = result["levels"].get(str(result.get("requested_level") or level), {}).get("status", "BLOCKED")
+        result["target_satisfied"] = result["target_status"] == "PASS"
+        return result
+
+    @staticmethod
+    def write_rtl_qualification_report(run: Path, report: Mapping[str, object]) -> Path:
+        """Publish portable L1/L2 evidence at IP scope, independently of PDK."""
+        output = Path(run) / "meta" / "rtl_qualification.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        temporary = output.with_name(f".{output.name}.tmp")
+        temporary.write_text(json.dumps(QualificationFlow.rtl_qualification_report(report), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temporary.replace(output)
+        return output
 
     @staticmethod
     def write_qualification_report(run: Path, pdk: str, report: Mapping[str, object]) -> Path:
@@ -825,8 +902,6 @@ class QualificationFlow:
             raise ValueError("duplicate test-plan item id")
 
         uncovered = sorted(baselined - covered)
-        if uncovered:
-            raise ValueError("baselined requirements without test-plan coverage: " + ", ".join(uncovered))
 
         qualification = testplan_doc.get("qualification", {}) or {}
         if not isinstance(qualification, dict):
@@ -860,6 +935,7 @@ class QualificationFlow:
             "requirements": len(req_ids),
             "baselined_requirements": len(baselined),
             "covered_requirements": len(baselined & covered),
+            "uncovered_requirements": uncovered,
             "testplan_items": len(plan_ids),
             "tests": sorted(test_names),
             "properties": sorted(properties),
@@ -990,6 +1066,11 @@ class QualificationFlow:
         for stage, outcome in outcomes.items():
             if stage not in evidence and outcome is not None:
                 evidence[stage] = str(outcome).upper()
+        # Coverage is a reviewable qualification gate, not a synthetic EDA PASS.
+        # Keep uncovered IDs in the report even when an engineering deferral exists.
+        evidence["requirements_coverage"] = (
+            "REVIEW" if spec.get("uncovered_requirements") else "PASS"
+        )
         maximum = 1 if contract_ready else 0
         maximum_pass = maximum
         levels: dict[str, object] = {}
@@ -1001,6 +1082,8 @@ class QualificationFlow:
                 and not (stage == "cdc_rdc" and evidence.get(stage) == "REVIEW"
                          and stage in accepted_reviews)
             ]
+            if level >= 2 and evidence["requirements_coverage"] != "PASS":
+                blocking.append("requirements_coverage")
             if level >= 3 and evidence.get("eqy") == "FAILED":
                 blocking.append("eqy")
             blocking = list(dict.fromkeys(blocking))
@@ -1045,7 +1128,8 @@ class QualificationFlow:
             "requirements": {
                 "total": spec.get("baselined_requirements", 0),
                 "covered": spec.get("covered_requirements", 0),
-                "status": "PASS" if spec.get("baselined_requirements") == spec.get("covered_requirements") else "FAILED",
+                "uncovered": list(spec.get("uncovered_requirements", ())),
+                "status": "PASS" if not spec.get("uncovered_requirements") else "PARTIAL",
             },
             "maximum_level": maximum,
             "maximum_qualification": QualificationFlow.qualification_name(maximum),
@@ -1192,6 +1276,47 @@ class QualificationFlow:
                     )
 
         return {"contract": contract, "spec": spec}
+
+    @staticmethod
+    def rtl_evidence_integrity(root: Path, *, write: bool = False) -> bool:
+        """Seal exactly the portable L1/L2 files without a PDK identity.
+
+        This record authenticates both source bytes and the stored verification
+        summaries; adding unexpected non-transient evidence is an integrity error.
+        """
+        root = Path(root)
+        output = root / "meta" / "rtl_evidence_integrity.json"
+        report = root / "meta" / "rtl_qualification.json"
+        if not report.is_file():
+            return False
+        files = [report]
+        for folder in ("rtl", "csr", "constraints", "dv"):
+            path = root / folder
+            if path.is_dir():
+                files.extend(file for file in path.rglob("*") if file.is_file()
+                             and not ArtifactPolicy.is_transient(root, file)
+                             and "__pycache__" not in file.relative_to(root).parts
+                             and file.suffix not in {".pyc", ".pyo"}
+                             and file.relative_to(root).parts[:5]
+                             != ("dv", "functional", "py", "model", "results"))
+        actual = {file.relative_to(root).as_posix(): QualificationFlow.sha256_file(file)
+                  for file in sorted(set(files))}
+        if write:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(json.dumps({"schema": 1, "files": actual}, indent=2, sort_keys=True) + "\n",
+                              encoding="utf-8")
+            return True
+        if not output.is_file():
+            return False
+        saved = json.loads(output.read_text(encoding="utf-8"))
+        if saved.get("schema") != 1 or not isinstance(saved.get("files"), dict):
+            raise ValueError("invalid RTL evidence integrity manifest")
+        expected = saved["files"]
+        if expected != actual:
+            changed = next((name for name in sorted(set(expected) | set(actual))
+                            if expected.get(name) != actual.get(name)), "unknown")
+            raise ValueError(f"RTL qualification evidence or sources changed: {changed}")
+        return True
 
     @staticmethod
     def evidence_integrity(
@@ -1346,6 +1471,21 @@ class QualificationFlow:
         qualification = manifest.get("qualification", {}) or {}
         if not isinstance(qualification, dict):
             raise ValueError("ip.json qualification must be a mapping")
+        rtl_path = root / "meta" / "rtl_qualification.json"
+        if rtl_path.is_file():
+            rtl = json.loads(rtl_path.read_text(encoding="utf-8"))
+            if rtl.get("pdk") is not None:
+                raise ValueError("L1/L2 qualification must not contain PDK metadata")
+            if rtl.get("contract_fingerprint") != contract.get("spec_fingerprint"):
+                raise ValueError("L1/L2 qualification fingerprint mismatch")
+            if rtl.get("ip") != manifest.get("name") or rtl.get("reg_interface") != reg_interface:
+                raise ValueError("L1/L2 qualification IP/interface mismatch")
+            if rtl != QualificationFlow.rtl_qualification_report(rtl):
+                raise ValueError("L1/L2 qualification report is not canonical")
+        neutral_seal = root / "meta" / "rtl_evidence_integrity.json"
+        if neutral_seal.is_file():
+            if not rtl_path.is_file() or not QualificationFlow.rtl_evidence_integrity(root):
+                raise ValueError("invalid technology-independent RTL evidence")
         technologies = qualification.get("technologies", {}) or {}
         if not isinstance(technologies, dict):
             raise ValueError("ip.json qualification.technologies must be a mapping")
@@ -1397,7 +1537,8 @@ class QualificationFlow:
         summary = qualification.get("summary", {}) or {}
         if not isinstance(summary, dict):
             raise ValueError("ip.json qualification.summary must be a mapping")
-        expected_level = max([1, *report_levels])
+        rtl_level = int(rtl.get("maximum_level", 0)) if rtl_path.is_file() and neutral_seal.is_file() else 0
+        expected_level = max([1, rtl_level, *report_levels])
         try:
             declared_level = int(summary.get("maximum_level", -1))
         except (TypeError, ValueError) as exc:

@@ -31,11 +31,13 @@ def test_ip_python_and_vectors(name: str, interface: str, tmp_path: Path) -> Non
     source = _package(name, interface)
     assert not tuple((source / "model").glob("*.py"))
     py = source / "py"
-    assert (py / "scenarios.py").is_file()
-    assert (py / f"{name}_model_tests.py").is_file()
-    assert (py / f"{name}_tests.py").is_file()
-    assert (py / f"{name}_regmap_tests.py").is_file()
-    assert (py / f"{name}_regmap.py").is_file()
+    model, rtl = py / "model", py / "rtl"
+    assert (model / "scenarios.py").is_file()
+    assert (model / f"{name}_model.py").is_file()
+    assert (model / f"{name}_model_tests.py").is_file()
+    assert (rtl / f"{name}_tests.py").is_file()
+    assert (rtl / f"{name}_regmap_tests.py").is_file()
+    assert (rtl / f"{name}_regmap.py").is_file()
     functional = tmp_path / "dv" / "functional"
     shutil.copytree(py, functional / "py", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     flow = FunctionalFlow()
@@ -56,7 +58,7 @@ def test_model_evidence_and_index(name: str, interface: str, tmp_path: Path) -> 
     functional = tmp_path / "dv" / "functional"
     output = functional / "model_tests"
     result = FunctionalFlow().run_model_tests(
-        model_dir=source / "py", top=name, output_dir=output,
+        model_dir=source / "py" / "model", top=name, output_dir=output,
         log_dir=tmp_path / "logs" / "dv" / "functional" / "model_tests",
     )
     assert result["status"] == "PASS"

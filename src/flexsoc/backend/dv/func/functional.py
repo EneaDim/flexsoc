@@ -335,11 +335,19 @@ class FunctionalFlow:
             source, top, params, sim_dir / "elaboration" / f"{testbench}.sv"
         )
         rtl_dir = ip_filelist.parent.resolve()
+        from flexsoc.backend.dv.lint.sources import LintSources
+
+        project = Path(runner.project_root).resolve()
+        filelists = LintSources(project, rtl_dir.parent).prepare(
+            (common_filelist, ip_filelist),
+            directory=sim_dir / "inputs",
+        )
+        common_input, ip_input = filelists
         if compiler == "iverilog":
             argv = (
                 "iverilog", "-g2012", "-v",
                 "-I", str(sv_dir), "-I", str(rtl_dir),
-                "-f", str(common_filelist), "-f", str(ip_filelist),
+                "-f", str(common_input), "-f", str(ip_input),
                 "-o", str(sim_dir / f"{testbench}.vvp"), str(source),
             )
         elif compiler == "verilator":
@@ -349,18 +357,17 @@ class FunctionalFlow:
                 "--Mdir", str(build), "--trace-fst", "--trace-structs",
                 *( ("--coverage",) if coverage else () ),
                 f"-I{sv_dir}", f"-I{rtl_dir}",
-                "-f", str(common_filelist), "-f", str(ip_filelist), str(source),
+                "-f", str(common_input), "-f", str(ip_input), str(source),
                 "--top-module", testbench,
             )
         else:
             raise ValueError("compiler must be iverilog or verilator")
         tb_inputs = tuple(sorted(path for path in sv_dir.rglob("*") if path.is_file()))
         inputs = tuple(
-            path for path in (common_filelist, ip_filelist, source, *tb_inputs) if path.exists()
+            path for path in (common_filelist, ip_filelist, *filelists, source, *tb_inputs) if path.exists()
         )
         FunctionalFlow._print_command(argv)
-        # Filelists are rooted at the run directory (entries begin with rtl/).
-        # Compile from the run root, not from dv/functional/tb/sv.
+        # Canonical filelists remain portable; execution inputs are fully resolved.
         return runner.run(CommandRequest(tuple(argv), rtl_dir.parent, {}, log, inputs=inputs), on=on)
 
     def run_systemverilog(
@@ -463,10 +470,17 @@ class FunctionalFlow:
         # executes `make -C dv/functional/tb/cocotb`. Pass absolute paths to
         # make, without rewriting the portable filelists or changing their order.
         run_root = tb_dir.resolve().parents[2]
+        from flexsoc.backend.dv.lint.sources import LintSources
+
+        project = getattr(runner, "project_root", None)
+        if project is None:
+            # Standard layout: <project>/workspace/runs/<ip>/<run>.
+            project = run_root.parents[3]
+        sources = LintSources(Path(project), run_root)
         resolved_rtl_sources = []
         for source in rtl_sources:
             candidate = Path(source)
-            resolved = candidate.resolve() if candidate.is_absolute() else (run_root / candidate).resolve()
+            resolved = candidate.resolve() if candidate.is_absolute() else sources.resolve(str(candidate))
             if not resolved.is_file():
                 raise FileNotFoundError(f"cocotb RTL source not found: {source} (resolved as {resolved})")
             resolved_rtl_sources.append(resolved)

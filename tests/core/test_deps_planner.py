@@ -67,7 +67,7 @@ def _fake_bin(tmp_path: Path) -> Path:
         "verilator", "slang", "slang-hier", "verible-verilog-syntax",
         "verible-verilog-lint", "iverilog", "yosys", "yosys-config", "sby", "eqy",
         "bitwuzla", "boolector", "btormc", "btorsim", "sta", "gtkwave",
-        "fst2vcd", "surfer", "sv2v", "netlistsvg",
+        "fst2vcd", "surfer", "netlistsvg",
     ):
         (bindir / name).symlink_to(driver.name)
     plugins = bindir.parent / "share" / "yosys" / "plugins"
@@ -125,6 +125,8 @@ def test_plan_reuses_exact_external_tools_without_fetching(tmp_path: Path) -> No
     assert "sby          reuse    external" in output
     assert "eqy          reuse    external" in output
     assert "install  family" not in output
+    assert "sv2v" not in output
+    assert "slang" in output
 
 
 def test_yosys_family_moves_together_when_one_member_mismatches(tmp_path: Path) -> None:
