@@ -1,0 +1,159 @@
+{
+  "name": "ethernet",
+  "human_name": "FlexSoC Tri-Speed Ethernet MAC",
+  "one_line_desc": "CSR control/status for a 10/100/1000 Mbit/s MII/GMII Ethernet MAC.",
+  "one_paragraph_desc": "DRAFT register interface for a separately clocked tri-speed MII/GMII Ethernet MAC. This register file configures TX and RX enables and inter-frame gap, observes speed, and records asynchronous MAC error events. It does NOT transport Ethernet frames, implement a PHY management interface, or prove link state.",
+  "cip_id": "1",
+  "design_spec": "",
+  "dv_doc": "",
+  "hw_checklist": "",
+  "sw_checklist": "",
+  "revisions": [
+    {
+      "version": "1.0.0",
+      "life_stage": "L0",
+      "design_stage": "D0",
+      "verification_stage": "V0",
+      "commit_id": "",
+      "notes": "DRAFT: register contract, not qualified or approved"
+    }
+  ],
+  "clocking": [
+    {
+      "clock": "clk_i",
+      "reset": "rst_ni"
+    }
+  ],
+  "bus_interfaces": [
+    {
+      "protocol": "reg_iface",
+      "direction": "device"
+    }
+  ],
+  "regwidth": "32",
+  "interrupt_list": [
+    {
+      "name": "tx_underflow",
+      "desc": "TX frame underflow event captured across TX->CSR CDC.",
+      "type": "event"
+    },
+    {
+      "name": "rx_bad_frame",
+      "desc": "RX malformed/error frame event captured across RX->CSR CDC.",
+      "type": "event"
+    },
+    {
+      "name": "rx_bad_fcs",
+      "desc": "RX FCS mismatch event captured across RX->CSR CDC.",
+      "type": "event"
+    }
+  ],
+  "registers": [
+    {
+      "name": "CTRL",
+      "desc": "TX/RX enable requests. Software writes are held in CSR clock domain and transferred to respective MAC clock domains.",
+      "swaccess": "rw",
+      "hwaccess": "hro",
+      "fields": [
+        {
+          "bits": "0",
+          "name": "TX_ENABLE",
+          "desc": "Request TX enable; default 0 after reset.",
+          "resval": "0"
+        },
+        {
+          "bits": "1",
+          "name": "RX_ENABLE",
+          "desc": "Request RX enable; default 0 after reset.",
+          "resval": "0"
+        }
+      ]
+    },
+    {
+      "name": "IFG",
+      "desc": "Requested TX inter-frame gap in octet-times. Hardware must follow preserved upstream behavior; legal range and update policy await specification approval.",
+      "swaccess": "rw",
+      "hwaccess": "hro",
+      "fields": [
+        {
+          "bits": "7:0",
+          "name": "VALUE",
+          "desc": "Inter-frame gap parameter delivered coherently to TX clock domain; reset 12 octet-times.",
+          "resval": "12"
+        }
+      ]
+    },
+    {
+      "name": "STATUS",
+      "desc": "Synchronized view of MAC configuration and detected speed; NOT PHY link state.",
+      "swaccess": "ro",
+      "hwaccess": "hwo",
+      "fields": [
+        {
+          "bits": "1:0",
+          "name": "SPEED",
+          "desc": "Detected speed: 0=10M,1=100M,2=1000M,3=invalid/unknown. Sampled via coherent CDC."
+        },
+        {
+          "bits": "2",
+          "name": "SPEED_VALID",
+          "desc": "Detector has held a stable speed for the specified qualification interval."
+        },
+        {
+          "bits": "3",
+          "name": "TX_ENABLED",
+          "desc": "Effective TX enable acknowledged by TX domain."
+        },
+        {
+          "bits": "4",
+          "name": "RX_ENABLED",
+          "desc": "Effective RX enable acknowledged by RX domain."
+        },
+        {
+          "bits": "5",
+          "name": "CFG_PENDING",
+          "desc": "At least one CTRL/IFG update has not yet been acknowledged by its destination domain."
+        }
+      ]
+    },
+    {
+      "name": "TX_UNDERFLOW_COUNT",
+      "desc": "Number of TX underflow events captured in CSR domain since reset; wraps modulo 2^32.",
+      "swaccess": "ro",
+      "hwaccess": "hwo",
+      "fields": [
+        {
+          "bits": "31:0",
+          "name": "VALUE",
+          "desc": "CSR-domain event counter, coherently readable as 32-bit register."
+        }
+      ]
+    },
+    {
+      "name": "RX_BAD_FRAME_COUNT",
+      "desc": "Number of RX bad frame events captured in CSR domain since reset; wraps modulo 2^32.",
+      "swaccess": "ro",
+      "hwaccess": "hwo",
+      "fields": [
+        {
+          "bits": "31:0",
+          "name": "VALUE",
+          "desc": "CSR-domain event counter, coherently readable as 32-bit register."
+        }
+      ]
+    },
+    {
+      "name": "RX_BAD_FCS_COUNT",
+      "desc": "Number of RX bad-FCS events captured in CSR domain since reset; wraps modulo 2^32.",
+      "swaccess": "ro",
+      "hwaccess": "hwo",
+      "fields": [
+        {
+          "bits": "31:0",
+          "name": "VALUE",
+          "desc": "CSR-domain event counter, coherently readable as 32-bit register."
+        }
+      ]
+    }
+  ]
+}

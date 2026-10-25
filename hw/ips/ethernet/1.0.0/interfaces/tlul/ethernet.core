@@ -1,0 +1,47 @@
+CAPI=2:
+name: "prj:ip:ethernet:0.1"
+description: "FlexSoC reusable ethernet IP release"
+filesets:
+  files_rtl:
+    depend:
+      - lowrisc:prim:flop
+      - lowrisc:prim:secded
+      - lowrisc:constants:top_pkg
+      - lowrisc:prim:mubi
+      - lowrisc:tlul:common
+      - lowrisc:tlul:adapter_reg
+      - lowrisc:prim:buf
+      - lowrisc:prim:onehot_check
+      - lowrisc:prim:util
+      - lowrisc:prim:reg_we_check
+      - lowrisc:prim:subreg
+    files:
+      - rtl/ethernet_reg_pkg.sv
+      - rtl/ethernet_reg_core.sv
+      - rtl/ethernet_reg_top.sv
+      - rtl/ssio_sdr_in.sv
+      - rtl/oddr.sv
+      - rtl/ssio_sdr_out.sv
+      - rtl/ethernet_phy_if.sv
+      - rtl/lfsr.sv
+      - rtl/ethernet_tx.sv
+      - rtl/ethernet_rx.sv
+      - rtl/ethernet_core.sv
+      - rtl/ethernet.sv
+    file_type: systemVerilogSource
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+    toplevel: ethernet
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-fatal"

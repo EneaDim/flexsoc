@@ -191,7 +191,7 @@ class SlangLint:
                 or item.get("column") or item.get("columnNumber") or 0
             )
             diagnostics.append({
-                "tool": "slang", "priority": self._priority(code, severity),
+                "tool": "slang", "priority": self._priority(code, severity, message),
                 "severity": severity, "code": code, "message": message,
                 "file": self._relative(file), "line": int(line), "column": int(column),
             })
@@ -214,11 +214,15 @@ class SlangLint:
 
     # Priority policy
 
-    def _priority(self, code: str, severity: str) -> str:
+    def _priority(self, code: str, severity: str, message: str = "") -> str:
         """Map one Slang diagnostic to P0-P3 without changing target status."""
 
         if severity in {"error", "fatal"}:
             return "P0"
+        # A missing per-module timescale is a portability/style notice,
+        # not a functional RTL defect. Keep it visible in the evidence.
+        if "design element does not have a time scale defined but others in the design do" in message.lower():
+            return "P3"
         token = code.lower()
         if any(part in token for part in self._P0):
             return "P0"

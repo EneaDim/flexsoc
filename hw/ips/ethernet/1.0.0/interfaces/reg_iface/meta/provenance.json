@@ -1,0 +1,2370 @@
+{
+  "schema_version": 1,
+  "stages": {
+    "cdc_rdc": {
+      "config": {
+        "CDC_RDC_STRICT": "",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,gtx:phy_gtx_clk_i:phy_rst_i:8:high,gmii_rx:phy_gmii_rx_clk_i:phy_rst_i:8:high,mii_tx:phy_mii_tx_clk_i:phy_rst_i:40:high",
+        "CLOCK_RELATIONSHIPS": "",
+        "N_CLOCKS": "4",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "b82deb91f00f3794091a57b1a9e3ca5c544bcbf636fd7d4e5eb6af24aa7031b5",
+      "generated": [
+        {
+          "effective_sha256": "c28f0321c841272defbc056ee3f3cbad13295036f21f7822958b9a3ed612a26d",
+          "generated_sha256": "c28f0321c841272defbc056ee3f3cbad13295036f21f7822958b9a3ed612a26d",
+          "path": "dv/cdc_rdc/summary.json"
+        },
+        {
+          "effective_sha256": "c60cd18a175a2104cf8504ee9d9d935c46a93760d06c2187857344ba890d1d20",
+          "generated_sha256": "c60cd18a175a2104cf8504ee9d9d935c46a93760d06c2187857344ba890d1d20",
+          "path": "dv/cdc_rdc"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        },
+        {
+          "path": "constraints/ethernet.sdc",
+          "sha256": "465c3814c97c6f18cacd9016378a1e47f6f4d84454e5f590a0e12fe479706e1e"
+        },
+        {
+          "path": "dv/cdc_rdc/extract.ys",
+          "sha256": "f686c8db3e6da71e4e6de4fb8174cfb0ec19b6c71e72fbca4b47054dca8e7ef6"
+        }
+      ],
+      "outcome": "REVIEW",
+      "parents": {
+        "cdc_rdc.setup": "519ee3a9a9c4399dbeb05a3958983a54e1e6a99beac5f903e8f4015da61d1480"
+      },
+      "returncode": 0,
+      "tools": {
+        "SLANG": {
+          "ref": "7ddf4059f79eff508dd486eb42fd650cdf320d52",
+          "repo": "https://github.com/MikePopoloski/slang.git",
+          "version": "11.0.0"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "cdc_rdc.setup": {
+      "config": {
+        "CLK_PERIOD": "8",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,gtx:phy_gtx_clk_i:phy_rst_i:8:high,gmii_rx:phy_gmii_rx_clk_i:phy_rst_i:8:high,mii_tx:phy_mii_tx_clk_i:phy_rst_i:40:high",
+        "CLOCK_RELATIONSHIPS": "",
+        "N_CLOCKS": "4",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "519ee3a9a9c4399dbeb05a3958983a54e1e6a99beac5f903e8f4015da61d1480",
+      "generated": [
+        {
+          "effective_sha256": "f686c8db3e6da71e4e6de4fb8174cfb0ec19b6c71e72fbca4b47054dca8e7ef6",
+          "generated_sha256": "f686c8db3e6da71e4e6de4fb8174cfb0ec19b6c71e72fbca4b47054dca8e7ef6",
+          "path": "dv/cdc_rdc/extract.ys"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        },
+        {
+          "path": "constraints/ethernet.sdc",
+          "sha256": "465c3814c97c6f18cacd9016378a1e47f6f4d84454e5f590a0e12fe479706e1e"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "cocotb.setup": {
+      "config": {
+        "CLK_PERIOD": "8",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,gtx:phy_gtx_clk_i:phy_rst_i:8:high,gmii_rx:phy_gmii_rx_clk_i:phy_rst_i:8:high,mii_tx:phy_mii_tx_clk_i:phy_rst_i:40:high",
+        "CLOCK_RELATIONSHIPS": "",
+        "COMPILER": "",
+        "N_CLOCKS": "4",
+        "REG_ITF": "reg_iface",
+        "TOP": "ethernet",
+        "VSV": ""
+      },
+      "fingerprint": "7ef2c2a17735384bcbd01e248b98303653a65a6aeecfa2cb333ca2b831c940dd",
+      "generated": [
+        {
+          "effective_sha256": "6974a8ef035a942f0d6b39bbb64665db5b71b0b1249c1761eb7863a97e1f7d55",
+          "generated_sha256": "6974a8ef035a942f0d6b39bbb64665db5b71b0b1249c1761eb7863a97e1f7d55",
+          "path": "dv/functional/tb/cocotb/Makefile"
+        },
+        {
+          "effective_sha256": "bf696669e4906d78cc8c3a95c9eac46d5cb20ba4db78cba0b3fd98238cc76ced",
+          "generated_sha256": "bf696669e4906d78cc8c3a95c9eac46d5cb20ba4db78cba0b3fd98238cc76ced",
+          "path": "dv/functional/tb/cocotb/ethernet_tb.sv"
+        },
+        {
+          "effective_sha256": "df224cce6007d88ab5798623a738998fdb8adc13dfdf7f03e05f4931b8bd753e",
+          "generated_sha256": "df224cce6007d88ab5798623a738998fdb8adc13dfdf7f03e05f4931b8bd753e",
+          "path": "dv/functional/tb/cocotb/ethernet_tb.py"
+        },
+        {
+          "effective_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+          "generated_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+          "path": "dv/functional/tb/cocotb/drivers/__init__.py"
+        },
+        {
+          "effective_sha256": "b2220c7513f50b25d6a69fef24e2f851c17cac858b3e999cfcd282e295b3fa7c",
+          "generated_sha256": "b2220c7513f50b25d6a69fef24e2f851c17cac858b3e999cfcd282e295b3fa7c",
+          "path": "dv/functional/tb/cocotb/drivers/reg_driver.py"
+        },
+        {
+          "effective_sha256": "71975c24d6524854ea555a79111e4882ebb1382172c2bc5262baef604d354331",
+          "generated_sha256": "71975c24d6524854ea555a79111e4882ebb1382172c2bc5262baef604d354331",
+          "path": "dv/functional/tb/cocotb/drivers/vec_driver.py"
+        },
+        {
+          "effective_sha256": "83025d89b19a8ece3d7af29bb9c04c2f9013241034a3e3116cf4c6c9851faea2",
+          "generated_sha256": "83025d89b19a8ece3d7af29bb9c04c2f9013241034a3e3116cf4c6c9851faea2",
+          "path": "dv/functional/tb/cocotb/drivers/vec_monitor.py"
+        },
+        {
+          "effective_sha256": "a35bc658515c61fd2b217c5bffbb66bc30c6030c5903b407ee4f653a82bb968f",
+          "generated_sha256": "a35bc658515c61fd2b217c5bffbb66bc30c6030c5903b407ee4f653a82bb968f",
+          "path": "dv/functional/tb/cocotb/ethernet_packet_test.py"
+        },
+        {
+          "effective_sha256": "f8187f67cda267ac61665da027285143b5ca6cfc39339b94e766bef80f1e7a03",
+          "generated_sha256": "f8187f67cda267ac61665da027285143b5ca6cfc39339b94e766bef80f1e7a03",
+          "path": "dv/functional/tb/cocotb/packet_phy_vectors.py"
+        },
+        {
+          "effective_sha256": "2cf2e141fc7d9bf8c69c77f05aeb2176c7403c48abc5f58ed9b581bf6aabf188",
+          "generated_sha256": "2cf2e141fc7d9bf8c69c77f05aeb2176c7403c48abc5f58ed9b581bf6aabf188",
+          "path": "dv/functional/tb/cocotb/scenarios.py"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "csr/ethernet.hjson",
+          "sha256": "eda6eac90592db35692f931c3f5553e36987c7a6b7cdcd2bd415a1d2d5fbb13b"
+        },
+        {
+          "path": "constraints/ethernet.sdc",
+          "sha256": "465c3814c97c6f18cacd9016378a1e47f6f4d84454e5f590a0e12fe479706e1e"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "coverage": {
+      "config": {
+        "COVERAGE_SHOW_LIMIT": "0",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "8bf80f753ce2463dfdb68ae28626b7ea4ad46b5f04a069f2ea780bb3e6b17f07",
+      "generated": [
+        {
+          "effective_sha256": "67a14f23c9b664a660573e37309a5169193a621eec4912dcdbb6266c1469298f",
+          "generated_sha256": "67a14f23c9b664a660573e37309a5169193a621eec4912dcdbb6266c1469298f",
+          "path": "dv/functional/coverage/summary.json"
+        },
+        {
+          "effective_sha256": "b292a64149b884d06aed9748ccd38f951668e44ff671479ae4619b6ff2f2dffe",
+          "generated_sha256": "b292a64149b884d06aed9748ccd38f951668e44ff671479ae4619b6ff2f2dffe",
+          "path": "dv/functional/coverage"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "dv/functional/coverage/sv",
+          "sha256": "06355fd03c1763778e29907ae17848b14d31e5b03583a2e000b15bfa28e7404e"
+        },
+        {
+          "path": "dv/functional/coverage/cocotb",
+          "sha256": "a5ec46b52837899fb85bc9e1deba9d7ea96157fa556674d9786f1219c3affd87"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {},
+      "returncode": 0,
+      "tools": {
+        "VERILATOR": {
+          "min_version": "5.050",
+          "ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c",
+          "repo": "https://github.com/verilator/verilator.git",
+          "version": "5.050"
+        }
+      }
+    },
+    "formal.cover.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,gtx:phy_gtx_clk_i:phy_rst_i:8:high,gmii_rx:phy_gmii_rx_clk_i:phy_rst_i:8:high,mii_tx:phy_mii_tx_clk_i:phy_rst_i:40:high",
+        "CLOCK_RELATIONSHIPS": "",
+        "FORMAL_COVER_ENGINE": "",
+        "FORMAL_DEPTH": "",
+        "N_CLOCKS": "4",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "bdb9d9043eeffb857caa6d7bc3dbb2949ca65a7aaef5f182f510a26901f9af0d",
+      "generated": [
+        {
+          "effective_sha256": "349fff19b110917149d8020cde2bdf55971217937b1fc5eaa20e424f3f79dbc3",
+          "generated_sha256": "349fff19b110917149d8020cde2bdf55971217937b1fc5eaa20e424f3f79dbc3",
+          "path": "dv/formal/runs/properties/cover/ethernet_cover.sby"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        },
+        {
+          "path": "dv/formal/properties/cover",
+          "sha256": "0895fe126584dd6e87dd66db747ec4c7df42d6a224e5de5eef75b68cf2d9833c"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "formal.csr_cover.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,gtx:phy_gtx_clk_i:phy_rst_i:8:high,gmii_rx:phy_gmii_rx_clk_i:phy_rst_i:8:high,mii_tx:phy_mii_tx_clk_i:phy_rst_i:40:high",
+        "CLOCK_RELATIONSHIPS": "",
+        "FORMAL_COVER_ENGINE": "",
+        "FORMAL_DEPTH": "",
+        "N_CLOCKS": "4",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "2addb36c0a1269e5e824f21d8a953ba09d025530ab2d677f3fb5735804753c8e",
+      "generated": [
+        {
+          "effective_sha256": "5555b08af60d61c060785c77e699868ebd4c1b5501bf8f2b6246e413c4517318",
+          "generated_sha256": "5555b08af60d61c060785c77e699868ebd4c1b5501bf8f2b6246e413c4517318",
+          "path": "dv/formal/runs/csr/cover/ethernet_csr_cover.sby"
+        },
+        {
+          "effective_sha256": "3aa3390d20d774a67e9a889345562e76bb888747589113f8618dcc34c6b7eb28",
+          "generated_sha256": "3aa3390d20d774a67e9a889345562e76bb888747589113f8618dcc34c6b7eb28",
+          "path": "dv/formal/csr/cover/ethernet_csr_auto_cover.sv"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "formal.csr_prove.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,gtx:phy_gtx_clk_i:phy_rst_i:8:high,gmii_rx:phy_gmii_rx_clk_i:phy_rst_i:8:high,mii_tx:phy_mii_tx_clk_i:phy_rst_i:40:high",
+        "CLOCK_RELATIONSHIPS": "",
+        "FORMAL_BMC_APPEND": "",
+        "FORMAL_BMC_DEPTH": "",
+        "FORMAL_BMC_ENGINE": "",
+        "FORMAL_DEPTH": "",
+        "FORMAL_PROVE_ENGINE": "",
+        "N_CLOCKS": "4",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "cc00601455bfda9409f4ad70ec2e881dbebacae662eaaeda53939f8918a4e1e0",
+      "generated": [
+        {
+          "effective_sha256": "8af6d457a08b7801341f70f2349926da95defda0a81e78901a7471e89fa0abd7",
+          "generated_sha256": "8af6d457a08b7801341f70f2349926da95defda0a81e78901a7471e89fa0abd7",
+          "path": "dv/formal/runs/csr/prove/ethernet_csr_prove.sby"
+        },
+        {
+          "effective_sha256": "7ab83274bab0f3b77658313e70df15b36b66d3d33b7f9435072864b103e45389",
+          "generated_sha256": "7ab83274bab0f3b77658313e70df15b36b66d3d33b7f9435072864b103e45389",
+          "path": "dv/formal/csr/prove/ethernet_csr_auto_prove.sv"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "formal.prove.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,gtx:phy_gtx_clk_i:phy_rst_i:8:high,gmii_rx:phy_gmii_rx_clk_i:phy_rst_i:8:high,mii_tx:phy_mii_tx_clk_i:phy_rst_i:40:high",
+        "CLOCK_RELATIONSHIPS": "",
+        "FORMAL_BMC_APPEND": "",
+        "FORMAL_BMC_DEPTH": "",
+        "FORMAL_BMC_ENGINE": "",
+        "FORMAL_DEPTH": "",
+        "FORMAL_PROVE_ENGINE": "",
+        "N_CLOCKS": "4",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "ca863d8e80ecb1ab5518e3e895ad717b2b16bff4cde8ba0fca6532aebfeee978",
+      "generated": [
+        {
+          "effective_sha256": "4ab7ae013e4f852d48e71b84839322ff076e3cfc4e3c485bb3a7ab06e5d7a0bc",
+          "generated_sha256": "4ab7ae013e4f852d48e71b84839322ff076e3cfc4e3c485bb3a7ab06e5d7a0bc",
+          "path": "dv/formal/runs/properties/prove/ethernet_prove.sby"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        },
+        {
+          "path": "dv/formal/properties/prove",
+          "sha256": "d8fb41f699343adce4b2cd961f44d20afaa4b3641496449e7bed41f1cdba6819"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "formal_bmc": {
+      "config": {
+        "FORMAL_BMC_DEPTH": "",
+        "FORMAL_BMC_ENGINE": "",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "a023ad0fba9d7c42349984cabbd1547b2b74b0bdf8e31f6b2b87882a0a2cb44b",
+      "generated": [
+        {
+          "effective_sha256": "bc9afa2665409f8ffe0d93ae86948889f3a6513dbd1f0c33af7740722be319a8",
+          "generated_sha256": "bc9afa2665409f8ffe0d93ae86948889f3a6513dbd1f0c33af7740722be319a8",
+          "path": "logs/dv/formal/properties/ethernet_bmc.log"
+        },
+        {
+          "effective_sha256": "c13b94e02dd173e1253a3e09626a24804fd0c33df2cc4a8ad0d192fc17c5200e",
+          "generated_sha256": "c13b94e02dd173e1253a3e09626a24804fd0c33df2cc4a8ad0d192fc17c5200e",
+          "path": "dv/formal/runs/properties/prove/ethernet_bmc"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        },
+        {
+          "path": "dv/formal/properties/prove",
+          "sha256": "d8fb41f699343adce4b2cd961f44d20afaa4b3641496449e7bed41f1cdba6819"
+        },
+        {
+          "path": "dv/formal/runs/properties/prove/ethernet_prove.sby",
+          "sha256": "4ab7ae013e4f852d48e71b84839322ff076e3cfc4e3c485bb3a7ab06e5d7a0bc"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "formal.prove.setup": "ca863d8e80ecb1ab5518e3e895ad717b2b16bff4cde8ba0fca6532aebfeee978"
+      },
+      "returncode": 0,
+      "tools": {
+        "BITWUZLA": {
+          "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+          "repo": "https://github.com/bitwuzla/bitwuzla.git",
+          "version": "0.9.1"
+        },
+        "BOOLECTOR": {
+          "sha256": "249c6dbf4e52ea6e8df1ddf7965d47f5c30f2c14905dce9b8f411756b05878bf",
+          "url": "https://codeload.github.com/Boolector/boolector/tar.gz/refs/tags/3.2.4",
+          "version": "3.2.4"
+        },
+        "SBY": {
+          "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+          "repo": "https://github.com/YosysHQ/sby.git",
+          "version": "0.69"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "formal_cover": {
+      "config": {
+        "FORMAL_COVER_ENGINE": "",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "9f5ab379ac061280b565e7c41afa8b439fe8376dc32ebfb6fb9b2a385911e2a3",
+      "generated": [
+        {
+          "effective_sha256": "e20ea5111696bb151326921aabf1ad987f176563defc0cdbce2e3e6161c480e9",
+          "generated_sha256": "e20ea5111696bb151326921aabf1ad987f176563defc0cdbce2e3e6161c480e9",
+          "path": "logs/dv/formal/properties/ethernet_cover.log"
+        },
+        {
+          "effective_sha256": "c773feafbc16ba5a926231789e1cdabd7f35f2e6123e246a2d9497d7c175dc12",
+          "generated_sha256": "c773feafbc16ba5a926231789e1cdabd7f35f2e6123e246a2d9497d7c175dc12",
+          "path": "dv/formal/runs/properties/cover/ethernet_cover"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        },
+        {
+          "path": "dv/formal/properties/cover",
+          "sha256": "0895fe126584dd6e87dd66db747ec4c7df42d6a224e5de5eef75b68cf2d9833c"
+        },
+        {
+          "path": "dv/formal/runs/properties/cover/ethernet_cover.sby",
+          "sha256": "349fff19b110917149d8020cde2bdf55971217937b1fc5eaa20e424f3f79dbc3"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "formal.cover.setup": "bdb9d9043eeffb857caa6d7bc3dbb2949ca65a7aaef5f182f510a26901f9af0d"
+      },
+      "returncode": 0,
+      "tools": {
+        "BITWUZLA": {
+          "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+          "repo": "https://github.com/bitwuzla/bitwuzla.git",
+          "version": "0.9.1"
+        },
+        "BOOLECTOR": {
+          "sha256": "249c6dbf4e52ea6e8df1ddf7965d47f5c30f2c14905dce9b8f411756b05878bf",
+          "url": "https://codeload.github.com/Boolector/boolector/tar.gz/refs/tags/3.2.4",
+          "version": "3.2.4"
+        },
+        "SBY": {
+          "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+          "repo": "https://github.com/YosysHQ/sby.git",
+          "version": "0.69"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "formal_csr_bmc": {
+      "config": {
+        "FORMAL_BMC_DEPTH": "",
+        "FORMAL_BMC_ENGINE": "",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "6fd51e5963c5efd6a400111d0f09e43aac17ce651a827d14a5d42e90c7186e8b",
+      "generated": [
+        {
+          "effective_sha256": "a787bc861da922281190ca42165eed75bfa518350bf084f42a904f1867f16a16",
+          "generated_sha256": "a787bc861da922281190ca42165eed75bfa518350bf084f42a904f1867f16a16",
+          "path": "logs/dv/formal/csr/ethernet_bmc.log"
+        },
+        {
+          "effective_sha256": "b2ffd37a0ee64b02e415558996e6d0f4916b0f4eae1cffabaec03375356b5393",
+          "generated_sha256": "b2ffd37a0ee64b02e415558996e6d0f4916b0f4eae1cffabaec03375356b5393",
+          "path": "dv/formal/runs/csr/prove/ethernet_csr_bmc"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        },
+        {
+          "path": "dv/formal/runs/csr/prove/ethernet_csr_prove.sby",
+          "sha256": "8af6d457a08b7801341f70f2349926da95defda0a81e78901a7471e89fa0abd7"
+        },
+        {
+          "path": "dv/formal/csr/prove/ethernet_csr_auto_prove.sv",
+          "sha256": "7ab83274bab0f3b77658313e70df15b36b66d3d33b7f9435072864b103e45389"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "formal.csr_prove.setup": "cc00601455bfda9409f4ad70ec2e881dbebacae662eaaeda53939f8918a4e1e0"
+      },
+      "returncode": 0,
+      "tools": {
+        "BITWUZLA": {
+          "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+          "repo": "https://github.com/bitwuzla/bitwuzla.git",
+          "version": "0.9.1"
+        },
+        "BOOLECTOR": {
+          "sha256": "249c6dbf4e52ea6e8df1ddf7965d47f5c30f2c14905dce9b8f411756b05878bf",
+          "url": "https://codeload.github.com/Boolector/boolector/tar.gz/refs/tags/3.2.4",
+          "version": "3.2.4"
+        },
+        "SBY": {
+          "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+          "repo": "https://github.com/YosysHQ/sby.git",
+          "version": "0.69"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "formal_csr_cover": {
+      "config": {
+        "FORMAL_COVER_ENGINE": "",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "4e4eb348646d224894e23bda8c1ca61c2efd347071c6c0a7f1dcf7287be93ef4",
+      "generated": [
+        {
+          "effective_sha256": "afc56655fff24b3b625653861dfa71777bfe0c713ca200132baab816001dd4cd",
+          "generated_sha256": "afc56655fff24b3b625653861dfa71777bfe0c713ca200132baab816001dd4cd",
+          "path": "logs/dv/formal/csr/ethernet_cover.log"
+        },
+        {
+          "effective_sha256": "13dd3c75f526128712cf401b8203b8ab95bd3a140bedba8a8be58cff40d33c06",
+          "generated_sha256": "13dd3c75f526128712cf401b8203b8ab95bd3a140bedba8a8be58cff40d33c06",
+          "path": "dv/formal/runs/csr/cover/ethernet_csr_cover"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        },
+        {
+          "path": "dv/formal/runs/csr/cover/ethernet_csr_cover.sby",
+          "sha256": "5555b08af60d61c060785c77e699868ebd4c1b5501bf8f2b6246e413c4517318"
+        },
+        {
+          "path": "dv/formal/csr/cover/ethernet_csr_auto_cover.sv",
+          "sha256": "3aa3390d20d774a67e9a889345562e76bb888747589113f8618dcc34c6b7eb28"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "formal.csr_cover.setup": "2addb36c0a1269e5e824f21d8a953ba09d025530ab2d677f3fb5735804753c8e"
+      },
+      "returncode": 0,
+      "tools": {
+        "BITWUZLA": {
+          "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+          "repo": "https://github.com/bitwuzla/bitwuzla.git",
+          "version": "0.9.1"
+        },
+        "BOOLECTOR": {
+          "sha256": "249c6dbf4e52ea6e8df1ddf7965d47f5c30f2c14905dce9b8f411756b05878bf",
+          "url": "https://codeload.github.com/Boolector/boolector/tar.gz/refs/tags/3.2.4",
+          "version": "3.2.4"
+        },
+        "SBY": {
+          "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+          "repo": "https://github.com/YosysHQ/sby.git",
+          "version": "0.69"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "formal_csr_prove": {
+      "config": {
+        "FORMAL_PROVE_ENGINE": "",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "4e83cda0c3dea5f1f00515287da35ca4428af6ec1cc8e964e0242311285f5767",
+      "generated": [
+        {
+          "effective_sha256": "8f42b447a29f1394cb5324a53113ea53326de416efe75f978fadcd35d730bac5",
+          "generated_sha256": "8f42b447a29f1394cb5324a53113ea53326de416efe75f978fadcd35d730bac5",
+          "path": "logs/dv/formal/csr/ethernet_prove.log"
+        },
+        {
+          "effective_sha256": "a5fdcde0dc5ab1cbb82223b2f68292ab74516b70222879740a3ca1a60ec718d2",
+          "generated_sha256": "a5fdcde0dc5ab1cbb82223b2f68292ab74516b70222879740a3ca1a60ec718d2",
+          "path": "dv/formal/runs/csr/prove/ethernet_csr_prove"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        },
+        {
+          "path": "dv/formal/runs/csr/prove/ethernet_csr_prove.sby",
+          "sha256": "8af6d457a08b7801341f70f2349926da95defda0a81e78901a7471e89fa0abd7"
+        },
+        {
+          "path": "dv/formal/csr/prove/ethernet_csr_auto_prove.sv",
+          "sha256": "7ab83274bab0f3b77658313e70df15b36b66d3d33b7f9435072864b103e45389"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "formal.csr_prove.setup": "cc00601455bfda9409f4ad70ec2e881dbebacae662eaaeda53939f8918a4e1e0",
+        "formal_csr_bmc": "6fd51e5963c5efd6a400111d0f09e43aac17ce651a827d14a5d42e90c7186e8b"
+      },
+      "returncode": 0,
+      "tools": {
+        "BITWUZLA": {
+          "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+          "repo": "https://github.com/bitwuzla/bitwuzla.git",
+          "version": "0.9.1"
+        },
+        "BOOLECTOR": {
+          "sha256": "249c6dbf4e52ea6e8df1ddf7965d47f5c30f2c14905dce9b8f411756b05878bf",
+          "url": "https://codeload.github.com/Boolector/boolector/tar.gz/refs/tags/3.2.4",
+          "version": "3.2.4"
+        },
+        "SBY": {
+          "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+          "repo": "https://github.com/YosysHQ/sby.git",
+          "version": "0.69"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "formal_prove": {
+      "config": {
+        "FORMAL_PROVE_ENGINE": "",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "791e82a040487d81db97c3c67db93addbc14939bd92ff5b5c5e4a830a4c3cce3",
+      "generated": [
+        {
+          "effective_sha256": "587f3a8138417d8408196a7529b4a7b262175397ff5fdb5990bd3c4b46d4a8e6",
+          "generated_sha256": "587f3a8138417d8408196a7529b4a7b262175397ff5fdb5990bd3c4b46d4a8e6",
+          "path": "logs/dv/formal/properties/ethernet_prove.log"
+        },
+        {
+          "effective_sha256": "c932c4eeba65c18323d8265e3137ecb8b16c710f59782fe1ee4b71cdf8654102",
+          "generated_sha256": "c932c4eeba65c18323d8265e3137ecb8b16c710f59782fe1ee4b71cdf8654102",
+          "path": "dv/formal/runs/properties/prove/ethernet_prove"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        },
+        {
+          "path": "dv/formal/properties/prove",
+          "sha256": "d8fb41f699343adce4b2cd961f44d20afaa4b3641496449e7bed41f1cdba6819"
+        },
+        {
+          "path": "dv/formal/runs/properties/prove/ethernet_prove.sby",
+          "sha256": "4ab7ae013e4f852d48e71b84839322ff076e3cfc4e3c485bb3a7ab06e5d7a0bc"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "formal.prove.setup": "ca863d8e80ecb1ab5518e3e895ad717b2b16bff4cde8ba0fca6532aebfeee978",
+        "formal_bmc": "a023ad0fba9d7c42349984cabbd1547b2b74b0bdf8e31f6b2b87882a0a2cb44b"
+      },
+      "returncode": 0,
+      "tools": {
+        "BITWUZLA": {
+          "ref": "8d1eb01093ae54d9b4586456b69c3bf31000a4c2",
+          "repo": "https://github.com/bitwuzla/bitwuzla.git",
+          "version": "0.9.1"
+        },
+        "BOOLECTOR": {
+          "sha256": "249c6dbf4e52ea6e8df1ddf7965d47f5c30f2c14905dce9b8f411756b05878bf",
+          "url": "https://codeload.github.com/Boolector/boolector/tar.gz/refs/tags/3.2.4",
+          "version": "3.2.4"
+        },
+        "SBY": {
+          "ref": "b1a1e98cba941ec8433f8dc27f416cd7bb7f14be",
+          "repo": "https://github.com/YosysHQ/sby.git",
+          "version": "0.69"
+        },
+        "YOSYS": {
+          "ref": "9f75ca1f9834a39a863915b5dae0c7b1e33533bc",
+          "repo": "https://github.com/YosysHQ/yosys.git",
+          "version": "0.69"
+        }
+      }
+    },
+    "lint": {
+      "config": {
+        "LINT_PROFILE": "everything",
+        "SLANG_WAIVER_FILE": "",
+        "TOP": "ethernet",
+        "VERILATOR_WAIVER_FILE": ""
+      },
+      "fingerprint": "20a1209984fefa254d1353cd92d2a900af0921c9dfe4f14488bd65c12f1ad1ba",
+      "generated": [
+        {
+          "effective_sha256": "aa14b1b0ee8c339aafbc8a621e5408f2528689df410b41c9d5f0b685674fe0c9",
+          "generated_sha256": "aa14b1b0ee8c339aafbc8a621e5408f2528689df410b41c9d5f0b685674fe0c9",
+          "path": "dv/lint/summary.json"
+        },
+        {
+          "effective_sha256": "ecc39016d1f595002722ce45f46e7f0c7305e5f54281c2dad89ef72770f8989f",
+          "generated_sha256": "ecc39016d1f595002722ce45f46e7f0c7305e5f54281c2dad89ef72770f8989f",
+          "path": "dv/lint"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {},
+      "returncode": 0,
+      "tools": {
+        "SLANG": {
+          "ref": "7ddf4059f79eff508dd486eb42fd650cdf320d52",
+          "repo": "https://github.com/MikePopoloski/slang.git",
+          "version": "11.0.0"
+        },
+        "VERILATOR": {
+          "min_version": "5.050",
+          "ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c",
+          "repo": "https://github.com/verilator/verilator.git",
+          "version": "5.050"
+        }
+      }
+    },
+    "model.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,gtx:phy_gtx_clk_i:phy_rst_i:8:high,gmii_rx:phy_gmii_rx_clk_i:phy_rst_i:8:high,mii_tx:phy_mii_tx_clk_i:phy_rst_i:40:high",
+        "CLOCK_RELATIONSHIPS": "",
+        "N_CLOCKS": "4",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "1065739dba066508baaab841abd82a9f51b76e47c9fc12ac14e2f796dc7887bc",
+      "generated": [
+        {
+          "effective_sha256": "d58566a8a1b3fe179409c81cea484170646d9174847c9ff57a3303905d3ca6aa",
+          "generated_sha256": "d58566a8a1b3fe179409c81cea484170646d9174847c9ff57a3303905d3ca6aa",
+          "path": "dv/functional/py/rtl/ethernet_regmap.py"
+        },
+        {
+          "effective_sha256": "4be8a81af39a9a9de1d049bbac1cebeb95d1450b25899e1f98741b77cb6b2371",
+          "generated_sha256": "4be8a81af39a9a9de1d049bbac1cebeb95d1450b25899e1f98741b77cb6b2371",
+          "path": "dv/functional/py/model/ethernet_model.py"
+        },
+        {
+          "effective_sha256": "e0eea09e9fb7cccd03330fbec5e564efaf5537b20905e92f79f3d3d4c47eddde",
+          "generated_sha256": "e0eea09e9fb7cccd03330fbec5e564efaf5537b20905e92f79f3d3d4c47eddde",
+          "path": "dv/functional/py/model/ethernet_tests.py"
+        },
+        {
+          "effective_sha256": "07a17e08f78f9c3d672c8c435eca5863c9336c8e6458b08e61e1f64811f77ca1",
+          "generated_sha256": "07a17e08f78f9c3d672c8c435eca5863c9336c8e6458b08e61e1f64811f77ca1",
+          "path": "dv/functional/py/rtl/ethernet_regmap_tests.py"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "csr/ethernet.hjson",
+          "sha256": "eda6eac90592db35692f931c3f5553e36987c7a6b7cdcd2bd415a1d2d5fbb13b"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": null
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "regression": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,gtx:phy_gtx_clk_i:phy_rst_i:8:high,gmii_rx:phy_gmii_rx_clk_i:phy_rst_i:8:high,mii_tx:phy_mii_tx_clk_i:phy_rst_i:40:high",
+        "CLOCK_RELATIONSHIPS": "",
+        "COMPILER": "",
+        "N_CLOCKS": "4",
+        "REGRESSION_BACKENDS": "",
+        "RESET_SETTLE_CYCLES": "8",
+        "SEED": "",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "c8fec1d352957f68a77e1ce62c6661d2e8a42ba3d62a23d90ca8249d7621e8be",
+      "generated": [
+        {
+          "effective_sha256": "5a46f1a5455e463bbd3b9a61f4165c372d88df7287ca2ac0d78a3a770052b086",
+          "generated_sha256": "5a46f1a5455e463bbd3b9a61f4165c372d88df7287ca2ac0d78a3a770052b086",
+          "path": "dv/functional/regression/summary.json"
+        },
+        {
+          "effective_sha256": "51a00bfcb6d8e7959ed4ab4c4b5244fd56f2d410065f8c7920a01e36f87b9f41",
+          "generated_sha256": "51a00bfcb6d8e7959ed4ab4c4b5244fd56f2d410065f8c7920a01e36f87b9f41",
+          "path": "logs/dv/functional/regression"
+        },
+        {
+          "effective_sha256": "06355fd03c1763778e29907ae17848b14d31e5b03583a2e000b15bfa28e7404e",
+          "generated_sha256": "06355fd03c1763778e29907ae17848b14d31e5b03583a2e000b15bfa28e7404e",
+          "path": "dv/functional/coverage/sv"
+        },
+        {
+          "effective_sha256": "a5ec46b52837899fb85bc9e1deba9d7ea96157fa556674d9786f1219c3affd87",
+          "generated_sha256": "a5ec46b52837899fb85bc9e1deba9d7ea96157fa556674d9786f1219c3affd87",
+          "path": "dv/functional/coverage/cocotb"
+        },
+        {
+          "effective_sha256": "915821a3b9c3343f9f659a9a772dce9dfc6efdea0d97e563f2cd1fe3d03f54d4",
+          "generated_sha256": "915821a3b9c3343f9f659a9a772dce9dfc6efdea0d97e563f2cd1fe3d03f54d4",
+          "path": "dv/functional/regression"
+        },
+        {
+          "effective_sha256": "12e0e50c89a9aa0b642efa0a413647288c246dcda6076908293e91f622bb6186",
+          "generated_sha256": "12e0e50c89a9aa0b642efa0a413647288c246dcda6076908293e91f622bb6186",
+          "path": "dv/functional/sim/rtl"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "48795bd6cf31a1acacf28dd3569943d15ba052e4672f8dac64307fb9e98f3610"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "51160739f62bd5e7aeb97784f1808b306f7a9c435c27e8cf3c1ae6978b004207"
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim/prim_ff_2sync.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_buf.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_onehot_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_reg_we_check.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": null
+        },
+        {
+          "path": "hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": null
+        },
+        {
+          "path": "rtl/ethernet_reg_pkg.sv",
+          "sha256": "d0a6eb4a2f4da3789a5cd66058466480994fa776ac0f1f72ace7c17b8f613e4c"
+        },
+        {
+          "path": "rtl/ethernet_reg_core.sv",
+          "sha256": "f0eb72d174b44dbc396b65ea29dbc033b3380fa10abf1303f2f79dd94675e0b5"
+        },
+        {
+          "path": "rtl/ethernet_reg_top.sv",
+          "sha256": "f4d1b04de840f64348866106101c54a18013dbb05e59c410c480cf98f545a671"
+        },
+        {
+          "path": "rtl/ssio_sdr_in.sv",
+          "sha256": "b71edd7c90d19ebe30850f20ef8e781d74e1233ab4b01bc613d652d853d88d2b"
+        },
+        {
+          "path": "rtl/oddr.sv",
+          "sha256": "402394a215bd8b748f880e31cb17f525a313ecb758234fd5b01d447cc4581402"
+        },
+        {
+          "path": "rtl/ssio_sdr_out.sv",
+          "sha256": "36ad2c5a8a9453552d46b3bd3518f9309d61f28b04df5ba3308ae54d10a7a0e1"
+        },
+        {
+          "path": "rtl/ethernet_phy_if.sv",
+          "sha256": "40667a1e3c9dd73438728a8aa54b34e566f436f8bc7c1a7f231d86d40221867d"
+        },
+        {
+          "path": "rtl/lfsr.sv",
+          "sha256": "5502c8203b0dfc7246c1a2de93e60c199ded3c1d7840b106350d714f72a9a079"
+        },
+        {
+          "path": "rtl/ethernet_tx.sv",
+          "sha256": "e394e4092284ba3d009db94b847ac10f3e95449373cbf0633bf4acb23c84f749"
+        },
+        {
+          "path": "rtl/ethernet_rx.sv",
+          "sha256": "cf888ba3586871c9b2f1b174b1ca8f042d211891e02f9c198740cd094500b3c9"
+        },
+        {
+          "path": "rtl/ethernet_core.sv",
+          "sha256": "53167a691b4e4ee646b101306a7d1edaeabd593a744c01c8a866bc397da405d7"
+        },
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        },
+        {
+          "path": "constraints/ethernet.sdc",
+          "sha256": "465c3814c97c6f18cacd9016378a1e47f6f4d84454e5f590a0e12fe479706e1e"
+        },
+        {
+          "path": "dv/functional/tests",
+          "sha256": "c5653e5b15576b195051d4506d68f4ebbf2f2cd6d1004b8f2c85ba87fcd1f456"
+        },
+        {
+          "path": "dv/functional/py/rtl",
+          "sha256": "f44797adaec8360cc6c4dfc3f544dc906818be0b74f86c3d783183d994bc8a5d"
+        },
+        {
+          "path": "csr/ethernet.hjson",
+          "sha256": "eda6eac90592db35692f931c3f5553e36987c7a6b7cdcd2bd415a1d2d5fbb13b"
+        },
+        {
+          "path": "dv/functional/tb/sv/drivers/ethernet_reg_driver.svh",
+          "sha256": "2127650bd28ccd728620ed80f8d3cad2c2a425066f76ba34064161fca4dfc080"
+        },
+        {
+          "path": "dv/functional/tb/sv/drivers/ethernet_vec_driver.svh",
+          "sha256": "f42baee2d0bccce08ae55927318c4d753aaed841dd0f1fb1f4ab7f3a2d396db7"
+        },
+        {
+          "path": "dv/functional/tb/sv/drivers/ethernet_vec_monitor.svh",
+          "sha256": "67baab765be40c9ab4bba0a8f262c4f0168967d86152355b16d7fc7a4fa85945"
+        },
+        {
+          "path": "dv/functional/tb/sv/ethernet_tb.sv",
+          "sha256": "2d000cbde0828521486108f1614588274950f87bc8a949eea5e1dc8697f58f3f"
+        },
+        {
+          "path": "dv/functional/tb/sv/include_ethernet_tb.sv",
+          "sha256": "2d35e9713a852cbe99c0f7787937ec67a4a50ecb4a59ae85c5e37025a711c161"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/Makefile",
+          "sha256": "6974a8ef035a942f0d6b39bbb64665db5b71b0b1249c1761eb7863a97e1f7d55"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/ethernet_tb.sv",
+          "sha256": "bf696669e4906d78cc8c3a95c9eac46d5cb20ba4db78cba0b3fd98238cc76ced"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/ethernet_tb.py",
+          "sha256": "df224cce6007d88ab5798623a738998fdb8adc13dfdf7f03e05f4931b8bd753e"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/drivers/__init__.py",
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/drivers/reg_driver.py",
+          "sha256": "b2220c7513f50b25d6a69fef24e2f851c17cac858b3e999cfcd282e295b3fa7c"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/drivers/vec_driver.py",
+          "sha256": "71975c24d6524854ea555a79111e4882ebb1382172c2bc5262baef604d354331"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/drivers/vec_monitor.py",
+          "sha256": "83025d89b19a8ece3d7af29bb9c04c2f9013241034a3e3116cf4c6c9851faea2"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/ethernet_packet_test.py",
+          "sha256": "a35bc658515c61fd2b217c5bffbb66bc30c6030c5903b407ee4f653a82bb968f"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/packet_phy_vectors.py",
+          "sha256": "f8187f67cda267ac61665da027285143b5ca6cfc39339b94e766bef80f1e7a03"
+        },
+        {
+          "path": "dv/functional/tb/cocotb/scenarios.py",
+          "sha256": "2cf2e141fc7d9bf8c69c77f05aeb2176c7403c48abc5f58ed9b581bf6aabf188"
+        }
+      ],
+      "outcome": "PASS",
+      "parents": {
+        "cocotb.setup": "7ef2c2a17735384bcbd01e248b98303653a65a6aeecfa2cb333ca2b831c940dd",
+        "tb.setup": "2fc1b093cca8e63185e348fe73cd4c16e05b01b4ec2b30054b92b6ad36230fb6"
+      },
+      "returncode": 0,
+      "tools": {
+        "IVERILOG": {
+          "archive": "tar.gz",
+          "min_version": "13.0",
+          "sha256": "c897bbfa9848688982c6d5c30529fc29d68df0b9ff22ffa73bad89db73a7ce49",
+          "url": "https://codeload.github.com/steveicarus/iverilog/tar.gz/v13_0",
+          "version": "13.0"
+        },
+        "VERILATOR": {
+          "min_version": "5.050",
+          "ref": "848d926ebd4addacacd294dc84e35d9d4ae8078c",
+          "repo": "https://github.com/verilator/verilator.git",
+          "version": "5.050"
+        }
+      }
+    },
+    "sdc.setup": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,gtx:phy_gtx_clk_i:phy_rst_i:8:high,gmii_rx:phy_gmii_rx_clk_i:phy_rst_i:8:high,mii_tx:phy_mii_tx_clk_i:phy_rst_i:40:high",
+        "CLOCK_RELATIONSHIPS": "",
+        "N_CLOCKS": "4",
+        "SDC_IO_DELAY_PCT": "",
+        "TOP": "ethernet"
+      },
+      "fingerprint": "67807c4c6988d1cfac933d7ff433e224fac01131d77ec2b814b4641ada8d8f9b",
+      "generated": [
+        {
+          "effective_sha256": "465c3814c97c6f18cacd9016378a1e47f6f4d84454e5f590a0e12fe479706e1e",
+          "generated_sha256": "465c3814c97c6f18cacd9016378a1e47f6f4d84454e5f590a0e12fe479706e1e",
+          "path": "constraints/ethernet.sdc"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/ethernet.sv",
+          "sha256": "d4cea5a5dbaf197fb4ee59e8fdde3b767b5d4679167b59b267052c9be8ae2263"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    },
+    "tb.setup": {
+      "config": {
+        "CLK_PERIOD": "8",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,gtx:phy_gtx_clk_i:phy_rst_i:8:high,gmii_rx:phy_gmii_rx_clk_i:phy_rst_i:8:high,mii_tx:phy_mii_tx_clk_i:phy_rst_i:40:high",
+        "CLOCK_RELATIONSHIPS": "",
+        "COMPILER": "",
+        "N_CLOCKS": "4",
+        "REG_ITF": "reg_iface",
+        "TOP": "ethernet",
+        "VSV": ""
+      },
+      "fingerprint": "2fc1b093cca8e63185e348fe73cd4c16e05b01b4ec2b30054b92b6ad36230fb6",
+      "generated": [
+        {
+          "effective_sha256": "2127650bd28ccd728620ed80f8d3cad2c2a425066f76ba34064161fca4dfc080",
+          "generated_sha256": "2127650bd28ccd728620ed80f8d3cad2c2a425066f76ba34064161fca4dfc080",
+          "path": "dv/functional/tb/sv/drivers/ethernet_reg_driver.svh"
+        },
+        {
+          "effective_sha256": "f42baee2d0bccce08ae55927318c4d753aaed841dd0f1fb1f4ab7f3a2d396db7",
+          "generated_sha256": "f42baee2d0bccce08ae55927318c4d753aaed841dd0f1fb1f4ab7f3a2d396db7",
+          "path": "dv/functional/tb/sv/drivers/ethernet_vec_driver.svh"
+        },
+        {
+          "effective_sha256": "67baab765be40c9ab4bba0a8f262c4f0168967d86152355b16d7fc7a4fa85945",
+          "generated_sha256": "67baab765be40c9ab4bba0a8f262c4f0168967d86152355b16d7fc7a4fa85945",
+          "path": "dv/functional/tb/sv/drivers/ethernet_vec_monitor.svh"
+        },
+        {
+          "effective_sha256": "2d000cbde0828521486108f1614588274950f87bc8a949eea5e1dc8697f58f3f",
+          "generated_sha256": "2d000cbde0828521486108f1614588274950f87bc8a949eea5e1dc8697f58f3f",
+          "path": "dv/functional/tb/sv/ethernet_tb.sv"
+        },
+        {
+          "effective_sha256": "2d35e9713a852cbe99c0f7787937ec67a4a50ecb4a59ae85c5e37025a711c161",
+          "generated_sha256": "2d35e9713a852cbe99c0f7787937ec67a4a50ecb4a59ae85c5e37025a711c161",
+          "path": "dv/functional/tb/sv/include_ethernet_tb.sv"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "csr/ethernet.hjson",
+          "sha256": "eda6eac90592db35692f931c3f5553e36987c7a6b7cdcd2bd415a1d2d5fbb13b"
+        },
+        {
+          "path": "constraints/ethernet.sdc",
+          "sha256": "465c3814c97c6f18cacd9016378a1e47f6f4d84454e5f590a0e12fe479706e1e"
+        }
+      ],
+      "parents": {},
+      "tools": {}
+    }
+  }
+}

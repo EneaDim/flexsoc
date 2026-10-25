@@ -1,0 +1,476 @@
+{
+  "schema": 1,
+  "ip": "ethernet",
+  "version": "1.0.0",
+  "lifecycle": "DRAFT_NOT_CUSTOMER_APPROVED",
+  "requirements": [
+    {
+      "id": "REQ-CSR-01",
+      "statement": "CSR reset/readback",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-004/TRS-005",
+      "status": "proposed",
+      "crs": "CRS-004",
+      "trs": "TRS-005",
+      "required_gates": [
+        "model",
+        "csr_vec",
+        "csr_rtl"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-005"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-CSR-02",
+      "statement": "CTRL TX/RX enable register and effective state",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-004/TRS-005",
+      "status": "proposed",
+      "crs": "CRS-004",
+      "trs": "TRS-005",
+      "required_gates": [
+        "csr_vec",
+        "integrated_rtl",
+        "cdc"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-005"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-CSR-03",
+      "statement": "IFG reset, legal writes, coherent application",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-004/TRS-003",
+      "status": "proposed",
+      "crs": "CRS-004",
+      "trs": "TRS-003",
+      "required_gates": [
+        "model",
+        "csr_vec",
+        "tx_wire",
+        "cdc"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-003"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-CSR-04",
+      "statement": "interrupt enable/state/test and errors",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-004/TRS-006",
+      "status": "proposed",
+      "crs": "CRS-004",
+      "trs": "TRS-006",
+      "required_gates": [
+        "csr_vec",
+        "integrated_rtl"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-006"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-CSR-05",
+      "statement": "STATUS speed/valid/config applied/pending",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-004/TRS-008",
+      "status": "proposed",
+      "crs": "CRS-004",
+      "trs": "TRS-008",
+      "required_gates": [
+        "model",
+        "cdc",
+        "integrated_rtl"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-008"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-CSR-06",
+      "statement": "error counts modulo 2^32/no lost events",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-004/TRS-006",
+      "status": "proposed",
+      "crs": "CRS-004",
+      "trs": "TRS-006",
+      "required_gates": [
+        "model",
+        "cdc",
+        "integrated_rtl"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-006"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-CSR-07",
+      "statement": "identical CSR semantics TLUL, Reg-IF, AXI-Lite",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-004/TRS-005",
+      "status": "proposed",
+      "crs": "CRS-004",
+      "trs": "TRS-005",
+      "required_gates": [
+        "csr_reggen",
+        "multi_bus_regression"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-005"
+      ],
+      "category": "architectural"
+    },
+    {
+      "id": "REQ-TX-01",
+      "statement": "TX preamble/SFD/payload and CRC FCS",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-002/TRS-002",
+      "status": "proposed",
+      "crs": "CRS-002",
+      "trs": "TRS-002",
+      "required_gates": [
+        "model",
+        "m2_tx_ab",
+        "tx_wire"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-002"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-TX-02",
+      "statement": "TX short frame padding option",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-002/TRS-002",
+      "status": "proposed",
+      "crs": "CRS-002",
+      "trs": "TRS-002",
+      "required_gates": [
+        "model",
+        "m2_tx_ab",
+        "tx_wire"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-002"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-TX-03",
+      "statement": "minimum IFG and config updates",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-002/TRS-003",
+      "status": "proposed",
+      "crs": "CRS-002",
+      "trs": "TRS-003",
+      "required_gates": [
+        "model",
+        "m2_tx_ab",
+        "integrated_rtl"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-003"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-TX-04",
+      "statement": "TX underflow and valid-ready backpressure",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-002/TRS-007",
+      "status": "proposed",
+      "crs": "CRS-002",
+      "trs": "TRS-007",
+      "required_gates": [
+        "m2_tx_ab",
+        "integrated_rtl"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-007"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-TX-05",
+      "statement": "TX PTP mode preserved where enabled",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-002/TRS-009",
+      "status": "proposed",
+      "crs": "CRS-002",
+      "trs": "TRS-009",
+      "required_gates": [
+        "m2_tx_ab",
+        "integrated_rtl"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-009"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-RX-01",
+      "statement": "RX valid data and FCS stripping",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-003/TRS-004",
+      "status": "proposed",
+      "crs": "CRS-003",
+      "trs": "TRS-004",
+      "required_gates": [
+        "model",
+        "m3_rx_ab",
+        "integrated_rtl"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-004"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-RX-02",
+      "statement": "RX bad FCS detect and report",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-003/TRS-004",
+      "status": "proposed",
+      "crs": "CRS-003",
+      "trs": "TRS-004",
+      "required_gates": [
+        "model",
+        "m3_rx_ab",
+        "integrated_rtl"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-004"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-RX-03",
+      "statement": "RX PHY error classification",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-003/TRS-004",
+      "status": "proposed",
+      "crs": "CRS-003",
+      "trs": "TRS-004",
+      "required_gates": [
+        "model",
+        "m3_rx_ab",
+        "integrated_rtl"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-004"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-RX-04",
+      "statement": "no PHY RX backpressure; FIFO/drop strategy",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-003/TRS-007",
+      "status": "proposed",
+      "crs": "CRS-003",
+      "trs": "TRS-007",
+      "required_gates": [
+        "integrated_rtl",
+        "overflow_stress"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-007"
+      ],
+      "category": "technical"
+    },
+    {
+      "id": "REQ-PHY-01",
+      "statement": "10/100 MII and 1000 GMII real clock/width",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-001/TRS-001",
+      "status": "proposed",
+      "crs": "CRS-001",
+      "trs": "TRS-001",
+      "required_gates": [
+        "model",
+        "m3_phy_ab",
+        "fpga"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-001"
+      ],
+      "category": "architectural"
+    },
+    {
+      "id": "REQ-PHY-02",
+      "statement": "FPGA-specific clock, I/O cells and timing",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-009/TRS-012",
+      "status": "proposed",
+      "crs": "CRS-009",
+      "trs": "TRS-012",
+      "required_gates": [
+        "fpga",
+        "sta"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-012"
+      ],
+      "category": "architectural"
+    },
+    {
+      "id": "REQ-CDC-01",
+      "statement": "multi-bit control coherency req/ack",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-006/TRS-008",
+      "status": "proposed",
+      "crs": "CRS-006",
+      "trs": "TRS-008",
+      "required_gates": [
+        "cdc",
+        "integrated_rtl"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-008"
+      ],
+      "category": "architectural"
+    },
+    {
+      "id": "REQ-CDC-02",
+      "statement": "lossless cross-domain error events",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-006/TRS-008",
+      "status": "proposed",
+      "crs": "CRS-006",
+      "trs": "TRS-008",
+      "required_gates": [
+        "cdc",
+        "stress"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-008"
+      ],
+      "category": "architectural"
+    },
+    {
+      "id": "REQ-CDC-03",
+      "statement": "reset sequencing and speed-change coherency",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-006/TRS-008",
+      "status": "proposed",
+      "crs": "CRS-006",
+      "trs": "TRS-008",
+      "required_gates": [
+        "cdc",
+        "reset_stress"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-008"
+      ],
+      "category": "architectural"
+    },
+    {
+      "id": "REQ-CDC-04",
+      "statement": "packet-domain crossings/full-duplex buffering",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-005/TRS-007",
+      "status": "proposed",
+      "crs": "CRS-005",
+      "trs": "TRS-007",
+      "required_gates": [
+        "cdc",
+        "overflow_stress"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-007"
+      ],
+      "category": "architectural"
+    },
+    {
+      "id": "REQ-QUAL-01",
+      "statement": "pinned vendor leaf functional equivalence",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-007/TRS-009",
+      "status": "proposed",
+      "crs": "CRS-007",
+      "trs": "TRS-009",
+      "required_gates": [
+        "m1_fcs_ab",
+        "m2_tx_ab",
+        "m3_rx_ab",
+        "m3_phy_ab"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-009"
+      ],
+      "category": "architectural"
+    },
+    {
+      "id": "REQ-QUAL-02",
+      "statement": "Python source authoritative; vectors fresh",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-008/TRS-010",
+      "status": "proposed",
+      "crs": "CRS-008",
+      "trs": "TRS-010",
+      "required_gates": [
+        "model",
+        "vectors",
+        "tests_gen_check"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-010"
+      ],
+      "category": "architectural"
+    },
+    {
+      "id": "REQ-QUAL-03",
+      "statement": "lint CDC/RDC formal and FlexSoC L2 provenance",
+      "scope": "common",
+      "origin": "M4-engineering-draft/CRS-008/TRS-011",
+      "status": "proposed",
+      "crs": "CRS-008",
+      "trs": "TRS-011",
+      "required_gates": [
+        "lint",
+        "cdc",
+        "formal",
+        "flexsoc_l2"
+      ],
+      "verification_status": "NOT_CLOSED",
+      "spec_refs": [
+        "TDS-011"
+      ],
+      "category": "architectural"
+    }
+  ]
+}
