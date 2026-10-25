@@ -35,8 +35,8 @@ class SlangHierarchy:
         ast.unlink(missing_ok=True)
         (stage / "summary.json").unlink(missing_ok=True)
 
-        hierarchy_command, top_file, roots = self._command(ast=ast, on=on)
-        ast_command = self._ast_command(hierarchy_command, ast=ast, on=on)
+        hierarchy_command, shared_args, top_file, roots = self._command(ast=ast, on=on)
+        ast_command = self._ast_command(shared_args, ast=ast, on=on)
         log = self.context.paths.logs / "dv" / "slang_hier" / "slang_hier.log"
         hierarchy_result = self.runner.run(
             CommandRequest(
@@ -65,6 +65,19 @@ class SlangHierarchy:
         (stage / "summary.json").write_text(
             json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8",
         )
+        if summary["status"] != "PASS":
+            failed_log = log if hierarchy_result.returncode else ast_log
+            lines = (
+                failed_log.read_text(encoding="utf-8", errors="replace").splitlines()
+                if failed_log.is_file() else ["log not produced"]
+            )
+            tail = "\n".join(lines[-40:])
+            message = f"[slang_hier] FAILED (rc={code or 1}) · {failed_log}\n{tail}\n"
+            print(message, end="")
+            command_log = self.context.paths.logs / "commands" / "slang_hier.log"
+            command_log.parent.mkdir(parents=True, exist_ok=True)
+            with command_log.open("a", encoding="utf-8") as stream:
+                stream.write(message)
         return 0 if summary["status"] == "PASS" else (code or 1)
 
     def debug(self, *, output: str | None = None, as_json: bool = False) -> int:
@@ -180,8 +193,8 @@ class SlangHierarchy:
 
     def _command(
         self, *, ast: Path, on: str, resolve_tool: bool = True
-    ) -> tuple[tuple[str, ...], Path, tuple[Path, ...]]:
-        """Build one Slang elaboration that emits hierarchy and AST evidence."""
+    ) -> tuple[tuple[str, ...], tuple[str, ...], Path, tuple[Path, ...]]:
+        """Build shared elaboration arguments and the hierarchy command."""
 
         root, top_file, roots, extra_args = self._inputs()
         if not top_file.is_file():
@@ -238,12 +251,11 @@ class SlangHierarchy:
         source = re.sub(r"/\*.*?\*/", " ", source, flags=re.S)
         source = re.sub(r"//.*?$", " ", source, flags=re.M)
         timescale = re.search(r"`timescale\s+([^/\s]+)\s*/\s*([^\s]+)", source)
-        timescale_args = ["--timescale", f"{timescale.group(1)}/{timescale.group(2)}"] if timescale else []
+        timescale_value = f"{timescale.group(1)}/{timescale.group(2)}" if timescale else "1ns/1ps"
+        timescale_args = [f"--timescale={timescale_value}"]
 
-        command = (
-            executable,
+        shared_args = (
             "--top", top,
-            "--custom-format", "{inst}\t{module}\t{file}",
             "-DSYNTHESIS",
             *timescale_args,
             *search_args,
@@ -251,10 +263,15 @@ class SlangHierarchy:
             *(str(src) for src in sources),
             str(top_file),
         )
-        return command, top_file, roots
+        command = (
+            executable,
+            "--custom-format", "{inst}\t{module}\t{file}",
+            *shared_args,
+        )
+        return command, shared_args, top_file, roots
 
-    def _ast_command(self, hierarchy_command: tuple[str, ...], *, ast: Path, on: str) -> tuple[str, ...]:
-        """Use the Slang driver for AST output; slang-hier does not own that flag."""
+    def _ast_command(self, shared_args: tuple[str, ...], *, ast: Path, on: str) -> tuple[str, ...]:
+        """Build AST invocation from the same elaboration arguments as the hierarchy."""
         tool = self.context.values.get("SLANG", "slang")
         executable = tool
         if on == "local":
@@ -268,10 +285,8 @@ class SlangHierarchy:
                 raise FileNotFoundError(f"Slang AST driver not found: {tool}")
         return (
             executable,
-            "--top", hierarchy_command[2],
-            *hierarchy_command[7:-1],
+            *shared_args,
             "--ast-json", str(ast), "--ast-json-source-info",
-            *hierarchy_command[-1:],
         )
 
     def _write_summary(

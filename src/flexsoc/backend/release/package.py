@@ -161,14 +161,8 @@ class PackageFlow:
             source, ip_name=ip_name, reg_interface=reg_interface, version=version
         )
         PackageFlow._validate_shared_rtl(source, self.project_root)
-        if requalify:
-            snapshot = QualificationFlow.validate_contract_snapshot(source, allow_spec_drift=True)
-            if snapshot["contract"].get("ip") != ip_name:
-                raise ValueError("release contract IP identity differs from requested source")
-            if snapshot["contract"].get("reg_interface") != reg_interface:
-                raise ValueError("release contract interface differs from requested source")
-        else:
-            QualificationFlow.validate_release_package(source)
+        # Loading stages sources; qualification is a separate operation.
+        # Newly authored interfaces have no release contract yet.
         run = Path(workspace) / "runs" / run_top / run_id
         destination = run if run_top == ip_name else run / "ips" / (load_as or ip_name)
         if requalify:
@@ -526,9 +520,13 @@ class PackageFlow:
             old_inputs = self._release_inputs(staged)
             self._stage_sources(staged, run)
             if old_inputs and old_inputs != self._release_inputs(staged):
-                for branch in (staged / "meta").iterdir():
-                    if branch.is_dir() and branch.name != pdk:
-                        self._discard_pdk_branch(staged, branch.name)
+                # A source-only package has no meta/ until its first ip_save.
+                # Only invalidate previously published technology branches.
+                meta_root = staged / "meta"
+                if meta_root.is_dir():
+                    for branch in meta_root.iterdir():
+                        if branch.is_dir() and branch.name != pdk:
+                            self._discard_pdk_branch(staged, branch.name)
             self._stage_dv_evidence(staged, run, top)
             # These run summaries are replaced from the current run when present;
             # never retain an earlier run's formal/RTL regression results.

@@ -382,6 +382,10 @@ class ModelFlow:
 
         output.mkdir(parents=True, exist_ok=True)
         path = output / f"{top}_regmap_tests.py"
+        if path.exists() and not path.read_text(encoding="utf-8").startswith(
+            '"""Generated FlexSoC coverage stimulus'
+        ):
+            return path  # Preserve package-authored generators.
         path.write_text(ModelFlow._regmap_tests_text(top, safe_controls=safe_controls), encoding="utf-8")
         return path
 
