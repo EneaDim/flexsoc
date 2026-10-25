@@ -694,23 +694,36 @@ class RtlDesign:
                 "truncated": bool(work) or graph["truncated"], "scope": "RTL AST dependencies, not STA"}
 
     def lint(self, path: str) -> dict[str, Any]:
+        """Read-only file-level lint evidence; never guess an elaborated instance.
+
+        Lint source paths may be relative to either the project root or the
+        qualification run (generated RTL).  Preserve all diagnostics and the
+        original provenance, including unmatched paths.
+        """
         scope = self._scope(path)
         if not self.run:
             return {"status": "unavailable", "diagnostics": []}
-        file = self.run / "dv/lint/slang/summary.json"
-        if not file.is_file():
+        report = self.run / "dv/lint/slang/summary.json"
+        if not report.is_file():
             return {"status": "unavailable", "diagnostics": []}
         source = self._source_path(scope)
         if source is None:
             return {"status": "unresolved", "diagnostics": [], "reason": "source mapping unavailable"}
-        payload = json.loads(file.read_text(encoding="utf-8"))
+        payload = json.loads(report.read_text(encoding="utf-8"))
         items = []
-        for d in payload.get("diagnostics", []):
-            if not isinstance(d, dict):
+        for item in payload.get("diagnostics", []):
+            if not isinstance(item, dict):
                 continue
-            loc = Path(str(d.get("file", "")))
-            full = (self.root / loc).resolve()
-            if full == source:
-                items.append(d)
-        return {"status": "available", "diagnostics": items[:200], "total": len(items),
-                "scope": "file-level; module attribution not guaranteed"}
+            raw = str(item.get("file") or "")
+            if not raw:
+                continue
+            relative = Path(raw)
+            if relative.is_absolute():
+                candidates = (relative.resolve(),)
+            else:
+                candidates = ((self.root / relative).resolve(), (self.run / relative).resolve())
+            if source in candidates:
+                items.append(item)
+        return {"status": "available", "diagnostics": items, "total": len(items),
+                "scope": "file-level only; instance attribution not established",
+                "file": source.relative_to(self.root).as_posix()}

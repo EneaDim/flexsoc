@@ -1,7 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const canvas = $('diagram'), ctx = canvas.getContext('2d', {alpha:false});
-const state = {overview:null,graph:null,path:'/',expanded:new Map(),viewport:new Map(),layouts:new Map(),selected:null,pinned:null,hover:null,drag:null,inspector:false,tab:'source',context:null,wire:null,manualView:false};
+const state = {overview:null,graph:null,path:'/',expanded:new Map(),viewport:new Map(),layouts:new Map(),selected:null,pinned:null,hover:null,drag:null,inspector:false,tab:'source',context:null,wire:null,manualView:false,visibility:{wires:true,names:true,lint:false},lintItems:[],lintStatus:"unavailable",lintRequest:0};
 // FlexSoC brand system: orange = transformations, sky = connectivity,
 // navy = hierarchy, neutral graphite = chrome. Colors remain legible in both modes.
 const palettes={
@@ -42,10 +42,11 @@ function resize(){
 }
 new ResizeObserver(resize).observe(canvas);
 const boxSize=FlexRouting.boxSize,baseRank=FlexRouting.baseRank;
+const layoutEngine=FlexLayoutEngine.create({fallback:FlexRouting,boxSize,baseRank});
 function layout(graph){
  const id=graph.path+':'+(graph.expanded||[]).join('|')+':'+graph.revision;
  if(state.layouts.has(id))return state.layouts.get(id);
- const result=FlexRouting.compute(graph,{boxSize,baseRank});
+ const result=layoutEngine.compute(graph);
  state.layouts.set(id,result);
  if(state.layouts.size>80)state.layouts.delete(state.layouts.keys().next().value);
  return result;
@@ -151,18 +152,18 @@ function symbol(n,p,diagram){const {x,y,w,h}=p,c=colors[n.type]||colors.signal;l
     ctx.fillStyle=colors.generate;ctx.font='bold 11px ui-monospace,monospace';
     ctx.fillText('?',px-3,py-5);
    }
-   if(view().z>=.48){ctx.fillStyle=['unbound','unresolved'].includes(port.connection)?colors.generate:colors.muted;ctx.font='9px ui-monospace,monospace';ctx.textAlign=left?'left':'right';ctx.fillText(port.name.slice(0,15),left?x+13:x+w-24,py+3);ctx.textAlign='left';}});}}
- if(view().z<.36)return;
+   if(state.visibility.names&&view().z>=.48){ctx.fillStyle=['unbound','unresolved'].includes(port.connection)?colors.generate:colors.muted;ctx.font='9px ui-monospace,monospace';ctx.textAlign=left?'left':'right';ctx.fillText(port.name.slice(0,15),left?x+13:x+w-24,py+3);ctx.textAlign='left';}});}}
+ if(view().z<.36||!state.visibility.names)return;
  ctx.font=n.type==='operator'?'bold 12px ui-monospace,monospace':'600 13px system-ui,sans-serif';ctx.fillStyle=colors.text;
  if(n.type==='operator'){ctx.textAlign='center';ctx.fillText((n.shape==='mux'?'MUX':n.shape==='case'?'CASE':n.shape==='encoder'?'ENC':n.shape==='decoder'?'DEC':String(n.name)).slice(0,9),x+w/2,y+h/2+5);ctx.textAlign='left';}
  else{const text=n.name.length>23?n.name.slice(0,22)+'…':n.name;ctx.fillText(text,x+16,y+(['register','counter','fsm'].includes(n.type)?36:n.type==='port'?29:35));}
  if(n.type==='instance'||n.type==='generate'){ctx.fillStyle=colors.muted;ctx.font='11px ui-monospace,monospace';ctx.fillText(n.type==='generate'?`${n.count} generated instances`:String(n.module||''),x+17,y+18);}
  if(['register','counter','fsm'].includes(n.type)){ctx.fillStyle=colors.register;ctx.font='10px ui-monospace,monospace';ctx.fillText('always_ff',x+16,y+53);}}
 function draw(){if(!state.graph)return;const w=canvas.clientWidth||1,h=canvas.clientHeight||1,v=view(),d=layout(state.graph);ctx.setTransform(canvas.width/w,0,0,canvas.height/h,0,0);ctx.fillStyle=colors.canvas;ctx.fillRect(0,0,w,h);ctx.save();ctx.translate(v.x,v.y);ctx.scale(v.z,v.z);
- for(const e of state.graph.edges){const path=d.edgePaths.get(e.id);if(path&&wireVisible(path,v,w,h))drawWire(e,path,v);}
+ if(state.visibility.wires)for(const e of state.graph.edges){const path=d.edgePaths.get(e.id);if(path&&wireVisible(path,v,w,h))drawWire(e,path,v);}
  // A small wire bridge at crossings prevents a perpendicular intersection
  // from reading as an electrical junction. It is decoration, not connectivity.
- if(v.z>=.44){const netById=new Map(state.graph.edges.map(e=>[e.id,e]));
+ if(state.visibility.wires&&v.z>=.44){const netById=new Map(state.graph.edges.map(e=>[e.id,e]));
   for(const hop of d.bridges){
    if(!visible({x:hop.x-7,y:hop.y-7,w:14,h:14},v,w,h,12))continue;
    const edge=netById.get(hop.edge);ctx.lineCap='round';ctx.lineWidth=7;ctx.strokeStyle=colors.canvas;
@@ -177,6 +178,7 @@ function pointer(ev){const r=canvas.getBoundingClientRect(),v=view();return{x:(e
 function distSeg(p,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],l=dx*dx+dy*dy;const t=l?clamp(((p.x-a[0])*dx+(p.y-a[1])*dy)/l,0,1):0;return Math.hypot(p.x-a[0]-t*dx,p.y-a[1]-t*dy);}
 function hit(p){if(!state.graph)return null;const d=layout(state.graph);for(let i=state.graph.nodes.length-1;i>=0;i--){const n=state.graph.nodes[i],r=d.positions.get(n.id);if(r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h)return n;}
  const radius=clamp(9/view().z,5,23);let best=null,minimum=radius;
+ if(!state.visibility.wires)return null;
  for(const edge of state.graph.edges){const poly=d.edgePaths.get(edge.id);if(!poly)continue;for(let i=1;i<poly.length;i++){const dist=distSeg(p,poly[i-1],poly[i]);if(dist<minimum){minimum=dist;best=edge;}}}return best;}
 let cameraAnimation=0;
 const noMotion=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -190,10 +192,76 @@ function animateView(goal){
  cameraAnimation=requestAnimationFrame(frame);
 }
 function fit(){state.manualView=false;if(!state.graph)return;const d=layout(state.graph),w=canvas.clientWidth,h=canvas.clientHeight,z=clamp(Math.min((w-90)/d.width,(h-105)/d.height),.13,1.35);animateView({x:(w-d.width*z)/2,y:(h-d.height*z)/2,z});$('zoomLabel').textContent=Math.round(z*100)+'%';}
-function zoom(f,x=canvas.clientWidth/2,y=canvas.clientHeight/2){state.manualView=true;const v=view(),z=clamp(v.z*f,.12,3.5);animateView({z,x:x-(x-v.x)*z/v.z,y:y-(y-v.y)*z/v.z});$('zoomLabel').textContent=Math.round(z*100)+'%';draw();}
+function zoom(f,x=canvas.clientWidth/2,y=canvas.clientHeight/2,{immediate=false}={}){
+ state.manualView=true;
+ const v=view(),z=clamp(v.z*f,.12,3.5);
+ const target={z,x:x-(x-v.x)*z/v.z,y:y-(y-v.y)*z/v.z};
+ if(immediate){cancelAnimationFrame(cameraAnimation);setView(target);draw();}
+ else animateView(target);
+ $('zoomLabel').textContent=Math.round(z*100)+'%';
+}
 function selection(item,track=false){if(!item)return;const edge=item.source&&item.target;const id=edge?(item.net||item.id):item.id;state.selected=id;if(track&&id.includes('::sig:'))state.pinned=id;const label=edge?`${item.port?item.port+' · ':''}${item.net.split('::sig:').pop()} · ${item.type} wire`+(item.mapping==='partial'?' · bus slice (not bit-exact)':''):item.name+' · '+item.type;announce((track?'Tracking · ':'Selected · ')+label);
  if(state.inspector&&state.tab==='source'){const node=edge?state.graph.nodes.find(n=>n.id===item.net):item;if(node?.line)focusLine(Number(node.line),node.name);}draw();}
 function focusLine(line,name){const row=$('sourceCode').querySelector(`[data-line="${line}"]`);if(!row)return;$('sourceCode').querySelectorAll('.focus-line').forEach(el=>el.classList.remove('focus-line'));row.classList.add('focus-line');row.scrollIntoView({block:'center',inline:'nearest'});$('inspectorFoot').textContent='AST source line '+line+' · '+name;}
+// Lint is an independent evidence layer, not a schematic connectivity edge.
+// A file-level diagnostic is never attached to an arbitrary instance.
+function priorityOf(d){
+ const raw=String(d.priority||d.pri||'').toUpperCase();
+ return ['P0','P1','P2','P3'].includes(raw)?raw:'?';
+}
+function lintRow(d){
+ const row=document.createElement('button');row.type='button';row.className='lint-overlay-row';
+ const pri=priorityOf(d),name=String(d.code||d.optionName||'warning');
+ const head=document.createElement('span');head.className='lint-overlay-code';
+ const badge=document.createElement('b');badge.className='lint-priority '+pri.toLowerCase();badge.textContent=pri;
+ head.append(badge,document.createTextNode(' '+name));
+ const message=document.createElement('span');message.className='lint-overlay-message';message.textContent=String(d.message||d.text||'');
+ const where=document.createElement('span');where.className='lint-overlay-location';
+ where.textContent=[d.file||'',d.line||''].filter(Boolean).join(':');
+ row.append(head,message,where);
+ row.onclick=()=>{
+  inspector(true,'source');
+  const line=Number(d.line);
+  if(Number.isInteger(line)&&line>0){
+   // Source loading is asynchronous: focus only after the source tab fetch.
+   pendingLintLine=line;
+   loadTab();
+  }
+ };
+ return row;
+}
+let pendingLintLine=0;
+function renderLintOverlay(){
+ const box=$('lintOverlayResults');box.replaceChildren();
+ const filter=$('lintOverlayPriority').value;
+ const matches=state.lintItems.filter(d=>filter==='all'||priorityOf(d)===filter);
+ $('lintOverlayCount').textContent=matches.length+' / '+state.lintItems.length;
+ if(state.lintStatus!=='available'){box.textContent='Lint report unavailable for this source';return;}
+ if(!matches.length){box.textContent='No matching diagnostics';return;}
+ const fragment=document.createDocumentFragment();
+ for(const d of matches)fragment.append(lintRow(d));
+ box.append(fragment);
+}
+async function loadLintOverlay(){
+ const request=++state.lintRequest,path=state.path;
+ try{
+  const result=await api('lint',{path});
+  if(request!==state.lintRequest||path!==state.path)return;
+  state.lintStatus=result.status;
+  state.lintItems=Array.isArray(result.diagnostics)?result.diagnostics:[];
+  state.lintItems.sort((a,b)=>{
+   const rank=p=>['P0','P1','P2','P3'].indexOf(priorityOf(p));
+   return (rank(a)<0?4:rank(a))-(rank(b)<0?4:rank(b))||Number(a.line||0)-Number(b.line||0);
+  });
+  renderLintOverlay();
+ }catch(error){if(request===state.lintRequest){state.lintStatus='unavailable';state.lintItems=[];renderLintOverlay();announce(error.message);}}
+}
+function setLintOverlay(enabled){
+ state.visibility.lint=enabled;
+ $('showLintOverlay').checked=enabled;
+ $('lintOverlay').hidden=!enabled;
+ if(enabled)loadLintOverlay();else ++state.lintRequest;
+}
 function nodeList(){const box=$('a11yNodes');box.replaceChildren();for(const n of state.graph.nodes){const button=document.createElement('button');button.textContent=n.name+' · '+n.type;button.onclick=()=>selection(n);box.append(button);}for(const e of state.graph.edges){const button=document.createElement('button');button.textContent='Wire · '+e.net.split('::sig:').pop()+(e.port?' → '+e.port:'');button.onclick=()=>selection(e,true);box.append(button);}}
 function expandedGroups(path=state.path){return state.expanded.get(path)||new Set();}
 async function fetchGraph(path){return api('diagram',{path,expand:[...expandedGroups(path)].join('|')});}
@@ -205,6 +273,7 @@ async function refreshGraph(preserve=true){
  syncCounts();breadcrumbs();tree();nodeList();
  if(!preserve||!previous||!state.viewport.has(state.path))fit();else draw();if($('search').value)searchGraph($('search').value);
  if(state.inspector)loadTab();
+ if(state.visibility.lint)await loadLintOverlay();
 }
 async function navigate(path){
  try{state.path=path;await refreshGraph(true);}
@@ -262,7 +331,7 @@ function togglePanel(tab){
  syncInspectorButtons();
 }
 
-async function loadTab(){try{if(state.tab==='source'){const result=await api('source',{path:state.path});$('sourceFile').textContent=result.status==='available'?result.file:'Source not mapped';const code=$('sourceCode');code.replaceChildren();$('lineNumbers').textContent='';if(result.code){const fragment=document.createDocumentFragment();result.code.split('\n').forEach((line,i)=>{const span=document.createElement('span');span.className='code-line';span.dataset.line=String(i+1);span.textContent=line||' ';fragment.append(span);});code.append(fragment);$('lineNumbers').textContent=result.code.split('\n').map((_,i)=>i+1).join('\n');}else code.textContent=result.reason||'No source location';$('inspectorFoot').textContent=result.status==='available'?'Click a source line to focus an AST symbol':'Source reference unavailable';const selected=state.graph.nodes.find(n=>n.id===state.selected);if(selected?.line)focusLine(selected.line,selected.name);}
+async function loadTab(){try{if(state.tab==='source'){const result=await api('source',{path:state.path});$('sourceFile').textContent=result.status==='available'?result.file:'Source not mapped';const code=$('sourceCode');code.replaceChildren();$('lineNumbers').textContent='';if(result.code){const fragment=document.createDocumentFragment();result.code.split('\n').forEach((line,i)=>{const span=document.createElement('span');span.className='code-line';span.dataset.line=String(i+1);span.textContent=line||' ';fragment.append(span);});code.append(fragment);$('lineNumbers').textContent=result.code.split('\n').map((_,i)=>i+1).join('\n');}else code.textContent=result.reason||'No source location';$('inspectorFoot').textContent=result.status==='available'?'Click a source line to focus an AST symbol':'Source reference unavailable';const selected=state.graph.nodes.find(n=>n.id===state.selected);if(selected?.line)focusLine(selected.line,selected.name);if(pendingLintLine){focusLine(pendingLintLine,'lint diagnostic');pendingLintLine=0;}}
  if(state.tab==='lint'){const result=await api('lint',{path:state.path}),box=$('lintResults');box.replaceChildren();if(result.status!=='available'||!result.diagnostics.length){box.textContent=result.status==='available'?'No diagnostics for mapped RTL file':'Slang lint report unavailable / no source mapping';return;}for(const warning of result.diagnostics){const article=document.createElement('article'),code=document.createElement('code');code.textContent=String(warning.code||warning.severity||'warning');article.append(code,document.createTextNode(' '+String(warning.message||warning.text||JSON.stringify(warning))));box.append(article);}}
  if(state.tab==='cone'){const list=state.graph.nodes.filter(n=>['port','register','counter','fsm','signal','operator'].includes(n.type));for(const name of ['fromSelect','toSelect']){const el=$(name),previous=el.value;el.replaceChildren();for(const n of list){const opt=document.createElement('option');opt.value=n.id;opt.textContent=n.name;el.append(opt);}if(list.some(n=>n.id===previous))el.value=previous;}}}catch(e){announce(e.message);}}
 function context(ev,item){
@@ -285,7 +354,29 @@ canvas.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;const item=hi
 canvas.addEventListener('pointermove',ev=>{const d=state.drag;if(d){const dx=ev.clientX-d.x,dy=ev.clientY-d.y;if(Math.abs(dx)+Math.abs(dy)>5)d.moved=true;if(d.moved){state.manualView=true;cancelAnimationFrame(cameraAnimation);setView({...d.origin,x:d.origin.x+dx,y:d.origin.y+dy});draw();}return;}const item=hit(pointer(ev));if(item?.id!==state.hover?.id){state.hover=item;canvas.style.cursor=item?'pointer':'grab';canvas.title=item?.source?`Wire ${item.net.split('::sig:').pop()} ${item.port||''} · ${item.mapping==='partial'?'partial bus dependency': 'direct mapping'}`:(item?.name||'')+(item?.width?' · '+item.width:'')+(item?.dimensions?.unpackedDimensions?' · unpacked '+JSON.stringify(item.dimensions.unpackedDimensions):'');draw();}});
 canvas.addEventListener('pointerup',ev=>{const d=state.drag;state.drag=null;if(!d||d.moved)return;if(d.item)selection(d.item,ev.ctrlKey||ev.metaKey);else{state.selected=null;draw();}});
 canvas.addEventListener('dblclick',ev=>{const item=hit(pointer(ev));if(item?.child)enter(item.child);});
-canvas.addEventListener('wheel',ev=>{ev.preventDefault();const rect=canvas.getBoundingClientRect();zoom(ev.deltaY<0?1.12:.9,ev.clientX-rect.left,ev.clientY-rect.top);},{passive:false});
+// Normalize line / page wheel units and use continuous, pointer-anchored zoom.
+// Never restart the 230 ms camera animation for each wheel event.
+canvas.addEventListener('wheel',ev=>{
+ ev.preventDefault();
+ const unit=ev.deltaMode===1?16:ev.deltaMode===2?canvas.clientHeight:1;
+ const dx=ev.deltaX*unit,dy=ev.deltaY*unit;
+ if(ev.shiftKey){
+  cancelAnimationFrame(cameraAnimation);
+  const v=view();state.manualView=true;
+  setView({...v,x:v.x-dy,y:v.y-dx});draw();return;
+ }
+ const rect=canvas.getBoundingClientRect();
+ zoom(Math.exp(-clamp(dy,-600,600)*0.0015),ev.clientX-rect.left,ev.clientY-rect.top,{immediate:true});
+},{passive:false});
+$('showLintOverlay').addEventListener('change',ev=>setLintOverlay(ev.target.checked));
+$('closeLintOverlay').onclick=()=>setLintOverlay(false);
+$('lintOverlayPriority').addEventListener('change',renderLintOverlay);
+for(const [control,layer] of [['showWires','wires'],['showNames','names']]){
+ $(control).addEventListener('change',ev=>{
+  state.visibility[layer]=ev.target.checked;
+  draw();
+ });
+}
 canvas.addEventListener('keydown',ev=>{if(ev.key==='Escape'){state.selected=state.pinned=null;$('context').hidden=true;draw();}
  if(ev.key==='ContextMenu'||(ev.shiftKey&&ev.key==='F10')){
   const item=[...state.graph.nodes,...state.graph.edges].find(n=>n.id===state.selected||n.net===state.selected);

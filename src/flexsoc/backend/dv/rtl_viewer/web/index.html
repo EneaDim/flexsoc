@@ -32,6 +32,12 @@
             <button id="toggleLint" aria-pressed="false" title="Toggle lint diagnostics">Lint</button>
             <button id="toggleCone" aria-pressed="false" title="Explore logical From to To cone">Cone</button>
           </div>
+          <fieldset class="visibility-controls" aria-label="Schematic visibility">
+            <legend>VISIBILITY</legend>
+            <label><input id="showWires" type="checkbox" checked> Wires</label>
+            <label><input id="showNames" type="checkbox" checked> Labels</label>
+            <label><input id="showLintOverlay" type="checkbox"> Lint</label>
+          </fieldset>
           <div class="tool-separator"></div>
           <div class="zoom-tools" aria-label="Viewport">
             <button id="zoomOut" class="icon-button" title="Zoom out" aria-label="Zoom out">−</button>
@@ -44,7 +50,12 @@
       <div class="workspace" id="workspace">
         <section class="schematic" id="schematic" aria-label="Interactive RTL schematic">
           <canvas id="diagram" tabindex="0" aria-label="RTL schematic. Select symbols and routed wires with mouse; use keyboard accessible element list for alternate navigation."></canvas>
-          <div class="canvas-hint" id="hint"><span class="hint-icon">i</span> Drag to pan <b>·</b> Scroll to zoom <b>·</b> Click a wire to trace <b>·</b> Right-click for symbol actions</div>
+          <aside id="lintOverlay" class="lint-overlay" aria-label="Lint diagnostics overlay" hidden>
+            <div class="lint-overlay-head"><strong>Lint · current RTL file</strong><span id="lintOverlayCount">—</span><button id="closeLintOverlay" type="button" title="Hide lint overlay" aria-label="Hide lint overlay">×</button></div>
+            <div class="lint-overlay-filter"><label>Priority <select id="lintOverlayPriority"><option value="all">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></label></div>
+            <div id="lintOverlayResults" class="lint-overlay-results" aria-live="polite"></div>
+          </aside>
+          <div class="canvas-hint" id="hint"><span class="hint-icon">i</span> Drag to pan <b>·</b> Wheel to zoom · Shift+wheel to pan <b>·</b> Click a wire to trace <b>·</b> Right-click for symbol actions</div>
           <div class="canvas-footer"><span id="counts">0 symbols</span><span id="message" role="status" aria-live="polite">Slang AST graph</span></div>
           <details class="a11y"><summary>Accessible element list</summary><div id="a11yNodes"></div></details>
           <nav id="context" class="context" hidden aria-label="Symbol context actions" role="menu">
@@ -73,6 +84,7 @@
 </div>
 <dialog id="helpDialog"><h3>Navigate the RTL schematic</h3><p>Drag the canvas to pan, use the mouse wheel or toolbar for zoom, and double-click a module to enter. Click any routed wire to inspect its signal; hold Ctrl/Cmd while selecting to track through proven direct port bindings.</p><p><strong>Contextual actions:</strong> right-click a generated group to expand only that group, or right-click an individual member to collapse it. Module actions show contextual SystemVerilog and lint. These are intentionally absent from the global toolbar.</p><p><strong>Keyboard:</strong> / focuses symbol search; Esc closes menus or clears selection; + and − zoom; the accessible element list works without a mouse.</p><button id="closeHelp">Close help</button></dialog>
 <script defer src="/router.js"></script>
+<script defer src="/layout-engine.js"></script>
 <script defer src="/app.js"></script>
 </body>
 </html>

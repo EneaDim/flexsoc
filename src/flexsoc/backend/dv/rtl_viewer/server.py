@@ -63,7 +63,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     return
                 self._respond(json.dumps(payload).encode(), "application/json; charset=utf-8")
                 return
-            static = {"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/router.js": "router.js", "/style.css": "style.css", "/cad": "cad.html", "/cad.html": "cad.html", "/cad.js": "cad.js", "/cad-layout.js": "cad-layout.js", "/cad.css": "cad.css"}
+            static = {"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/router.js": "router.js", "/layout-engine.js": "layout-engine.js", "/style.css": "style.css", "/cad": "cad.html", "/cad.html": "cad.html", "/cad.js": "cad.js", "/cad-layout.js": "cad-layout.js", "/cad.css": "cad.css"}
             file = static.get(route.path)
             if not file:
                 self.send_error(404)
