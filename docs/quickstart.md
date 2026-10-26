@@ -1,6 +1,6 @@
 # 🚀 FlexSoC quickstart
 
-This is the shortest practical path through the current IP flow. The narrative
+This is a **worked command sequence**, not a guarantee that a new checkout can run every EDA stage without toolchains, a PDK, and authored IP collateral. Start from the repository root and verify prerequisites before changing generated files. The narrative
 of how a project evolves from design intent to qualified release is in
 [Project lifecycle](project_lifecycle.md). The detailed step-by-step engineering
 procedure is in [IP development guide](ip_development_guide.md). Exact syntax,
@@ -179,28 +179,26 @@ fx syn
 
 ## 6. Prepare RTL-to-netlist equivalence
 
-The current scaffold qualification baseline generates EQY collateral but deliberately does not execute the proof:
+The scaffold prepares EQY collateral but does not automatically run equivalence:
 
 ```bash
 fx eqy --setup
 ```
 
-`eqy --setup` is **not** equivalence PASS. EQY is optional explicit evidence and is not required by the automatic L3/L4 qualification baseline. The automatic scaffold E2E matrix still stops after setup because EQY profiles remain IP/interface-specific:
+**Setup is not a passing proof.** The automatic scaffold E2E flow stops after EQY setup because equivalence strategies are IP- and interface-specific. To run the prepared proof **explicitly**, after confirming the RTL, mapped netlist, tool dependencies, and EQY configuration are suitable:
 
 ```bash
+fx eqy
 ```
 
-When executed, EQY selects a solver portfolio automatically:
+EQY uses a solver portfolio selected by clock configuration:
 
 ```text
 single clock: SAT → SMTBMC → PDR
 N clocks:     PDR → SMTBMC
 ```
 
-Useful controls:
-
-```bash
-```
+Inspect the real outcome; neither a generated configuration nor a launched run demonstrates equivalence PASS. See the [EQY reference](command_reference.md) and the [evidence guide](guides/reading-run-results.md) for provenance and result interpretation.
 
 Inspect unresolved or failing partitions after an explicit EQY run:
 
@@ -422,7 +420,15 @@ fx qualify
 fx ip_save
 ```
 
-EQY setup remains separate from runtime evidence. Run `fx eqy` explicitly only for an IP/interface profile that is ready for equivalence execution.
+EQY setup remains separate from runtime evidence. If equivalence is required and the chosen IP/interface profile is ready, execute `fx eqy` explicitly; a successful `fx eqy --setup` does not demonstrate equivalence.
+
+### Verify the result before calling the flow complete
+
+1. Check the exit status of each required command. A completed setup step is not a PASS for its execution stage.
+2. Read the generated tool logs and summaries; keep failures and skipped checks visible.
+3. Confirm that each result belongs to the active RTL, constraints, run configuration and tool invocation.
+4. Use `fx check` to inspect lifecycle status, then review the qualification evidence required by the [Digital IP Contract](digital_ip_contract.md). Do not equate a successful command with release qualification.
+5. For missing or stale results, follow [Reading run results](guides/reading-run-results.md).
 
 ## 13. Project regression
 

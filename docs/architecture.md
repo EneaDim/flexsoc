@@ -1,5 +1,7 @@
 # FlexSoC architecture
 
+> **Use this page for:** implementation boundaries, CLI/API flow and repository ownership. For the user-facing sequence, see [Project lifecycle](project_lifecycle.md); for release semantics, see [Digital IP Contract](digital_ip_contract.md); for sealed artifacts, see [Evidence ownership](architecture/evidence_ownership.md).
+
 This document describes the **current repository architecture**: how the Python code is split, how one `fx` command travels through the system, which module owns each lifecycle responsibility, how artifacts and provenance are tracked, and where new functionality should be added.
 
 It is intentionally descriptive rather than aspirational. FlexSoC should remain a **small, readable build and qualification system above EDA tools**, not become a second EDA framework.

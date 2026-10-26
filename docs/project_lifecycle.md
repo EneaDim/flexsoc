@@ -1,5 +1,7 @@
 # 🔄 FlexSoC project lifecycle
 
+> **Use this page for:** the order and purpose of engineering stages. For precise release levels and stage fingerprints, see the [Digital IP Contract](digital_ip_contract.md); for code-level ownership, see [Architecture](architecture.md). For sealed file ownership, see [Evidence ownership](architecture/evidence_ownership.md).
+
 This document describes **what happens during the life of a FlexSoC project** and why each stage exists. It is intentionally narrative: it explains the evolution of design intent, generated collateral, qualification evidence, technology branches, and reusable releases over time. The lifecycle is intentionally scale-independent: the same rules apply to a small IP, complex multi-clock IP/subsystem, SoC, or complex SoC; larger designs add composition intent and dependencies rather than changing the core provenance/qualification model.
 
 For exact commands and step-by-step execution, use the [IP development guide](ip_development_guide.md). For syntax and target options, use the [command reference](command_reference.md). For implementation details of FlexSoC itself, use [Architecture](architecture.md).
@@ -456,29 +458,13 @@ The detailed command sequence for each transition is maintained in the [IP devel
 
 ## Digital IP Contract status and release levels
 
-`STAGE_CONTRACTS` is the single dependency DAG: every tracked stage declares semantic configuration, real parent stages, canonical evidence ownership, run/PDK scope, and relevant tool identity. No graph database, second scheduler, or duplicate lifecycle description is used.
+The lifecycle progresses from authored design intent to verified, reusable release. A successful tool run is not, by itself, a qualification decision: **provenance freshness**, **tool outcome**, and **release policy** answer different questions.
 
-Tracked runtime evidence is recorded even when the EDA result is not PASS. This is essential because **freshness and technical outcome are independent**: a current failure may be `CLEAN + FAILED`, while an old success may be `STALE + PASS`. If inputs, effective configuration, relevant tool identity, or upstream lineage change, only the true downstream dependency set becomes stale.
+`fx qualify` evaluates the available evidence against the Digital IP Contract. Its L1–L5 release levels are hierarchical, and an explicitly waived requirement is not the same as a PASS. A prior success may become stale when its dependencies change; an up-to-date result may still report a failure.
 
-`fx qualify` evaluates this graph without inventing evidence and derives the hierarchical L1-L5 result:
+For the authoritative level definitions, `StageContract` dependencies, optional EQY semantics, and technology-specific evidence requirements, use the [Digital IP Contract](digital_ip_contract.md#qualification-levels). For the interpretation of current versus stale results, use the [evidence lifecycle](concepts/evidence-lifecycle.md); for file integrity and producer ownership, use [evidence ownership](architecture/evidence_ownership.md).
 
-```text
-0  Not Qualified
-1  Contract Valid
-2  RTL Qualified
-3  Netlist Qualified
-4  Technology Qualified
-5  Physical / Signoff Complete Digital Macro
-```
-
-A level can be `PASS`, `WAIVED`, or `BLOCKED`. `maximum_level` may include explicitly waived evidence, while `maximum_pass_level` is the highest level reached without a waiver. `WAIVED != PASS`, and `FAILED`/`REVIEW` remain blocking unless a deliberate policy records a waiver.
-
-For ASIC flows, `syn` publishes the repaired pre-PnR netlist rather than the raw Yosys output: Yosys mapping is followed by a lightweight OpenROAD `repair_design -pre_placement` round for electrical fanout/capacitance/slew repair. This is part of the Netlist Qualified artifact contract and remains distinct from `pnr`; no global placement, CTS, routing or extraction is claimed by synthesis.
-
-The levels are hierarchical. A later technology or physical result does not hide a missing earlier gate. EQY remains an explicit optional equivalence target and is not required by the automatic `Netlist Qualified` baseline. The automatic scaffold E2E matrix runs `fx eqy --setup` only; `fx eqy` is an explicit runtime target for a prepared IP/interface profile. Setup-only is not equivalence PASS; it simply does not contribute EQY evidence unless the explicit runtime target is executed.
-
-Runtime evidence covers the canonical lifecycle: Slang/Verilator lint suites, CDC/RDC, functional regression, individual formal BMC/prove/cover stages, synthesis, optional EQY execution, SDF/STA/vectorless power, post-synthesis SV GLS, PnR, physical sign-off, and routed SDF/STA/power/SV GLS. Composite commands such as `fx lint`, `fx formal`, `fx signoff`, and `fx signoff_post_impl` are compositions of those same canonical stages, so aggregate and manual execution use the same contract evidence.
-
+Do not infer sign-off from directory names or the existence of generated artifacts. Check the actual qualification result and its associated run evidence.
 
 ### Contract and generated-DV inspection
 

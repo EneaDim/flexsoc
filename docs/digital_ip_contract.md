@@ -1,5 +1,7 @@
 # Digital IP Contract and qualification
 
+> **Use this page for:** exact qualification levels, StageContract semantics, release layout and provenance scopes. For the chronological workflow, see [Project lifecycle](project_lifecycle.md). For file-level sealing and producer ownership, see [Evidence ownership](architecture/evidence_ownership.md).
+
 FlexSoC treats a release as a contract plus reproducible evidence, not as a directory of tool outputs. The **Digital IP Contract** is the first concrete release contract, but the core model is intentionally design-scale independent: the same provenance, invalidation, evidence, qualification, and repeatability primitives apply to small IP, complex IP, subsystems, SoCs, and complex SoCs.
 
 The core model is intentionally small:

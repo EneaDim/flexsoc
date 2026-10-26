@@ -1,3 +1,5 @@
+> **Historical engineering snapshot (2026-10-22).** This record documents an earlier repository assessment and pending work. It is **not** a current feature matrix, setup guide, or qualification claim. See [current handbook](../README.md), [architecture map](../architecture/system-map.md), and [command reference](../command_reference.md) for entry points. Validate any historical command against current implementation.
+
 # FlexSoC — Backend audit and development roadmap
 
 > Status: **initial evidence-based inventory** (2026-10-22). Not a completed end-to-end audit or L2 qualification run. This is a new planning/audit document; existing `docs/` content is unchanged.

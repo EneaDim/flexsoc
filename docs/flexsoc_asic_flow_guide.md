@@ -8,6 +8,14 @@
 
 ---
 
+## How to read this guide
+
+This is a **technical flow description**, not a single executable script. Sections **1–35** describe the current-flow discussion and its limits; sections **36–43** are **roadmap and future integration**, and must never be interpreted as release-ready features. Sections **44–45** contain a representative command sequence and final mental model.
+
+Use the [task-oriented ASIC navigation](guides/asic-flow-navigation.md) first, the [canonical CLI reference](command_reference.md) for exact syntax, and [Evidence lifecycle](concepts/evidence-lifecycle.md) to interpret run outcomes. Tool output and current repository behavior take precedence over narrative documentation.
+
+---
+
 ## 1. The flow in one page
 
 FlexSoC treats an ASIC build as a chain of contracts. Every stage consumes a small set of explicit inputs and produces artifacts that are checked before the next stage is trusted.

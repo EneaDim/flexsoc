@@ -399,10 +399,13 @@ For the current scaffold baseline, generate the equivalence collateral only:
 fx eqy --setup --force
 ```
 
-Setup-only is not equivalence evidence. EQY contributes only when explicitly executed and is not mandatory in the automatic L3/L4 baseline. When equivalence closure is intentionally in scope, execute it explicitly:
+Setup-only is not equivalence evidence. EQY contributes only when explicitly executed and is not mandatory in the automatic L3/L4 baseline. When equivalence closure is intentionally in scope, execute it explicitly and inspect the result:
 
 ```bash
+fx eqy
 ```
+
+A completed command is not automatically a PASS. Review its summary and source evidence before using it for qualification; see [Reading run results](guides/reading-run-results.md).
 
 For unresolved partitions after a real EQY run:
 
@@ -414,7 +417,7 @@ fx eqy --debug
 
 `fx eqy --debug` is read-only and reports the existing config, logs, strategy evidence, and trace paths.
 
-Equivalence is the behavioral gate between synthesis and downstream sign-off.
+When required by the project qualification policy, equivalence is a behavioral check between synthesis and downstream sign-off; its status must be assessed from actual run evidence.
 
 ---
 

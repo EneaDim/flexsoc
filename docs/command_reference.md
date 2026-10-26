@@ -10,6 +10,29 @@ The reference explains what each command owns. The detailed step-by-step procedu
 
 ---
 
+For a short task-based introduction, use [CLI essentials](reference/cli-essentials.md). This document remains the canonical detailed command catalogue.
+
+---
+
+## Navigate this reference
+
+This is the **canonical long-form CLI reference**, not a linear tutorial. Pick the section for your question; confirm the installed interface with `fx commands --json` and `fx <target> --help` before automating a flow.
+
+| Question | Section |
+| --- | --- |
+| What is the command grammar, setup/run distinction, and global option scope? | [CLI model](#1-command-line-model) |
+| Which stages correspond to lifecycle phases? | [Lifecycle map](#2-lifecycle-command-map) |
+| Which execution targets are documented? | [Backend catalogue](#3-complete-backend-target-catalogue) |
+| Which settings affect a run? | [Variable reference](#4-variable-reference) |
+| What must be verified after an RTL or constraint change? | [Change-type guide](#6-command-selection-by-change-type) |
+| A run failed: what should I inspect? | [Failure-driven playbook](#8-failure-driven-command-playbook) |
+| Who owns a generated or authored artifact? | [Ownership map](#9-scaffold-and-artifact-ownership-map) |
+| Where is an example multi-stage sequence? | [Lifecycle sequences](#10-reference-lifecycle-command-sequences) |
+
+For the *procedure*, use [Choose a workflow](guides/choose-a-workflow.md) and [ASIC workflow navigator](guides/asic-flow-navigation.md); for the *meaning of evidence*, use [Evidence lifecycle](concepts/evidence-lifecycle.md). The roadmap portions of the ASIC guide do **not** constitute implemented CLI support.
+
+---
+
 ## 1. Command-line model
 
 ```text

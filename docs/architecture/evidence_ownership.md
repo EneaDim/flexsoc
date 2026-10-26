@@ -1,5 +1,7 @@
 # Qualification evidence ownership
 
+> **Use this page for:** SHA-256 sealing, generated-file producer ownership, and legacy-manifest safety. It does **not** define EDA PASS/FAIL or qualification policy; see [Evidence lifecycle](../concepts/evidence-lifecycle.md) and [Digital IP Contract](../digital_ip_contract.md) for those concerns.
+
 `meta/<pdk>/evidence_integrity.json` schema 2 stores separate, sealed
 inventories: `sources` maps paths to SHA-256 values; `generated` maps paths to
 `{sha256, stage}`. This applies to RTL qualification and higher qualification

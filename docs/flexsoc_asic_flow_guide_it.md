@@ -8,6 +8,14 @@
 
 ---
 
+## Come leggere questa guida
+
+Questa è una **descrizione tecnica del flow**, non uno script eseguibile unico. Le sezioni **1–35** descrivono il flow e i suoi limiti; le sezioni **36–43** trattano **roadmap e integrazioni future** e non dimostrano funzionalità già pronte. Le sezioni **44–45** contengono una sequenza indicativa e il modello mentale conclusivo.
+
+Inizia dalla [navigazione operativa ASIC](guides/asic-flow-navigation.md), verifica la sintassi nella [reference CLI](command_reference.md) e interpreta gli esiti con [Evidence lifecycle](concepts/evidence-lifecycle.md). I risultati dei tool e il comportamento del repository hanno priorità sulle descrizioni.
+
+---
+
 ## 1. Il flow in una pagina
 
 FlexSoC tratta una build ASIC come una catena di contratti. Ogni stage consuma pochi input espliciti e produce artifact che vengono qualificati prima di considerare affidabile lo stage successivo.

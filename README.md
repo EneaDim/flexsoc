@@ -4,33 +4,45 @@
 
 # ⚡ FlexSoC
 
-FlexSoC is an open-source Python/EDA framework for **contract-driven digital design development, qualification, and release**. It applies the same small set of core mechanisms to a single reusable IP, a complex multi-clock IP, a complete SoC, or a large SoC assembled from reusable subsystems.
+**From RTL design intent to defensible engineering evidence.**
 
-FlexSoC does not replace synthesis, formal, STA, PnR, simulation, or physical-sign-off tools. Those tools remain authoritative for their analyses. FlexSoC adds the layer that is usually missing between them: **source-of-truth ownership, machine-readable requirements and test plans, provenance, selective invalidation, evidence lifecycle, qualification policy, repeatability, and release packaging** through one Python API and CLI (`fx`).
+FlexSoC is an open-source, Python-based framework for **contract-driven digital hardware development, qualification, and reusable release**. It connects the sources engineers author, the artifacts tools generate, the results they produce, and the decisions required to qualify an IP or SoC.
 
-The current frozen package command is IP-oriented (`fx ip_save` / `fx ip_load`). SoC-specific composition contracts and packaging are built on the same core model rather than on a second framework: IP composition, memory map, interconnect, clock/reset topology, software-visible contract, technology branches, and system-level evidence become additional authored inputs and StageContract dependencies.
+An EDA tool answers a specific question: *Did lint pass? Did formal prove the property? Did the implementation meet timing?* FlexSoC addresses the harder question across tools and revisions: **Which exact design, constraints and tool configuration produced that answer—and is that evidence still applicable after the design changes?**
 
-```text
-requirements and architecture
-        ↓
-CSR / register map + RTL interfaces + RTL behavior
-        ↓
-lint → authored timing contract → CDC/RDC
-        ↓
-functional DV + property formal
-        ↓
-synthesis → RTL/netlist equivalence
-        ↓
-pre-layout SDF / GLS / STA / power
-        ↓
-OpenROAD implementation
-        ↓
-post-route timing / SDF / GLS / power / physical sign-off
-        ↓
-metrics snapshot + human closure check
-        ↓
-qualified reusable design release
+FlexSoC **orchestrates rather than replaces** Slang, simulation, formal, synthesis, equivalence, timing, power and physical-design tools. They remain authoritative for their respective analyses. FlexSoC adds explicitly owned inputs, repeatable execution, provenance, stage dependencies, evidence retention and qualification policy through its Python API and `fx` CLI.
+
+### What makes FlexSoC different?
+
+| Challenge | FlexSoC approach | Why it matters |
+| --- | --- | --- |
+| Disconnected tool runs | Shared run identity, configuration and retained artifacts | An investigation can reconstruct what actually ran |
+| Unclear source of truth | Authored/generated boundaries and explicit design contracts | Regeneration need not overwrite hand-authored intent |
+| Results become stale | Dependency and provenance-aware evidence lifecycle | A historical PASS is not mistaken for a current qualification |
+| Repeated full-flow effort | Selective invalidation of dependent stages | Rerun the gates affected by a change |
+| Release lacks traceability | Qualification evidence, metrics and manifests | Review decisions against a known design state |
+| IP and SoC scale differently | Reusable core contracts with composition-oriented evolution | Avoids creating unrelated lifecycle models |
+
+### Follow the engineering thread
+
+```mermaid
+flowchart LR
+    I[Authored intent] --> C[Versioned contracts]
+    C --> R[EDA runs]
+    R --> E[Evidence + provenance]
+    E --> Q{Qualification}
+    Q -->|accepted| P[Release package]
+    Q -->|changed or incomplete| C
 ```
+
+This is a *conceptual map*, not a claim that every planned SoC-specific capability is already shipped. In particular, the current frozen package commands `fx ip_save` / `fx ip_load` are IP-oriented; extended SoC composition and packaging contracts are a direction of the shared architecture. For exact currently supported operations, consult the [command reference](docs/command_reference.md) and the implementation.
+
+### Where to begin
+
+- **New to FlexSoC?** Start with the [Engineering Handbook](docs/README.md), then run the [Quickstart](docs/quickstart.md).
+- **Developing or qualifying an IP?** Follow the [IP development guide](docs/ip_development_guide.md) and [project lifecycle](docs/project_lifecycle.md).
+- **Reviewing evidence and release confidence?** Read the [Digital IP Contract](docs/digital_ip_contract.md) and [evidence ownership model](docs/architecture/evidence_ownership.md).
+- **Extending the toolchain or viewer?** Read the [architecture](docs/architecture.md), [developer integration guide](docs/developer_integration_guide.md) and [RTL viewer architecture](docs/architecture/rtl_schematic_viewer.md).
 
 ## Why FlexSoC
 
@@ -43,7 +55,7 @@ The value of FlexSoC is not proportional to the size of the RTL generator. It co
 
 A hardware change rarely affects only one file. Adding a status register can
 change CSR configuration file (HJSON), generated register RTL, the Python CSR API,
-model behavior, tests,formal properties, synthesis, and software-visible documentation.
+model behavior, tests, formal properties, synthesis, and software-visible documentation.
 Adding a clock domain changes constraints, testbench timing, formal assumptions, CDC/RDC
 requirements, reset integration, and implementation closure.
 
@@ -244,13 +256,14 @@ adds one domain-local reset synchronizer per clock/reset domain using the common
 
 ## Documentation
 
-- [Digital IP Contract](docs/digital_ip_contract.md) — the core contract, provenance, lifecycle-state, qualification, traceability, and release model that scales from IP to SoC.
-- [Quickstart](docs/quickstart.md) — the shortest runnable single-clock and N-clock workflows.
-- [Project lifecycle](docs/project_lifecycle.md) — what happens to a project from design intent through qualification and reusable release.
-- [IP development guide](docs/ip_development_guide.md) — detailed step-by-step IP development and qualification flow.
-- [Command reference](docs/command_reference.md) — exact `fx` commands, options, variables, target responsibilities, and diagnostics.
-- [Architecture](docs/architecture.md) — repository/backend structure, ownership boundaries, execution, provenance, and evidence model.
-- [Docker and CI](docker/README.md) — locked EDA image construction, verification, publication, and CI execution.
+**[Start with the FlexSoC Engineering Handbook](docs/README.md)** — understand why FlexSoC exists, choose a guided reading path, and navigate concepts, engineering workflows, architecture, and exact reference material.
+
+- [Quickstart](docs/quickstart.md) — run the first guided IP workflow.
+- [Project lifecycle](docs/project_lifecycle.md) — understand intent, qualification and evidence freshness.
+- [Digital IP Contract](docs/digital_ip_contract.md) — explore the reusable design and release model.
+- [IP development guide](docs/ip_development_guide.md) — follow the complete implementation and qualification procedure.
+- [Architecture](docs/architecture.md) — understand ownership and execution boundaries.
+- [Command reference](docs/command_reference.md) — look up exact `fx` command behavior.
 
 ## Run layout
 

@@ -1,3 +1,8 @@
+> **Historical architecture proposal — not a description of implemented functionality.**
+> This document preserves an earlier IP/SoC qualification direction, including aspirational CPU, transport, adapter and signoff plans. Check source code, CLI and tests before claiming any capability exists. For current conceptual guidance see [IP/SoC qualification model](../concepts/ip-soc-qualification.md).
+
+---
+
 # FlexSoC: Open IP Integration, Transport Normalization, and SoC Qualification
 
 ## Status

@@ -8,9 +8,9 @@ architecture documentation. They explain **how to write the source files that
 remain under designer control**, which contracts those files should express,
 and how the generated FlexSoC flow consumes them.
 
-A methodology guide is added here only after the corresponding workflow has
-been exercised and its contract is understood well enough to document without
-guessing.
+Methodology pages explain authored engineering practice. Check the current
+CLI reference and tool outputs before treating a described workflow as verified
+for your design; inclusion in this directory is not evidence of a successful run.
 
 The goal is therefore not to document every lifecycle stage in advance. The
 goal is to build a small set of reliable guides that an IP author can follow.
@@ -54,6 +54,14 @@ How to architect and qualify CDC/RDC behavior, including:
 - generic FlexSoC CDC boundary contracts;
 - root-cause-first use of `fx cdc_rdc --debug`;
 - SAFE/INFO/WARN/REVIEW/ERROR and verification-obligation closure.
+
+### [IP requirements and traceability](ip_traceability.md)
+
+How to connect requirements to verification claims and inspect supporting evidence.
+Use this guide for traceability methodology; use the
+[Digital IP Contract](../digital_ip_contract.md) for the authoritative
+qualification requirements and [run-result guidance](../guides/reading-run-results.md)
+when checking whether the supporting results are current.
 
 ## Planned methodology areas
 
