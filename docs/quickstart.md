@@ -62,12 +62,16 @@ fx settings \
   'CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp'
 ```
 
-The commands below are identical for one or many clocks.
+The commands below are identical for one or many clocks. The clock topology
+changes generated CSR windows, RTL, model scenarios, SDC and CDC/RDC obligations;
+it does not remove the specification, independent model-test, traceability or
+RTL-regression gates.
 
 ## 3. Bootstrap specification and RTL
 
 ```bash
 fx setup --force
+fx spec
 fx hjson --force
 fx reg doc --force
 fx rtl_stub --force
@@ -75,16 +79,34 @@ fx top_from_core --force
 fx flist --force
 ```
 
-Edit the authored sources:
+The `--force` commands above are for a **new, disposable scaffold**; they can replace edited/generated content.
+The scaffold is a starting point, not a complete specification or passing test.
+After the commands, review and author the input files under the **active run root**
+(`workspace/runs/<RUN_TOP>/<RUN_ID>/` by default):
 
 ```text
-csr/<top>.hjson                  canonical CSR/register specification
-csr/systemrdl/                    generated SystemRDL views
-rtl/<top>_core.sv                RTL behavior and interfaces
-dv/functional/model/<top>_model.py
-dv/functional/model/<top>_tests.py
-dv/formal/properties/            authored assertions and covers
+spec/customer.md                        customer requirements (CRS; authored)
+spec/ip.md                              technical specification (TDS; scaffold then authored)
+spec/requirements.yaml                 atomic engineering obligations
+spec/testplan.yaml                     methods, RTL tests, properties and model_cases
+csr/<top>.hjson                         canonical CSR/register specification
+rtl/<top>_core.sv                       authored RTL behavior and interfaces
+dv/functional/py/model/<top>_model.py   Python reference model (after fx model --setup)
+dv/functional/py/model/scenarios.py     shared semantic scenario IDs
+dv/functional/py/rtl/<top>_tests.py     authored RTL vector-generator source
+dv/functional/py/model/<top>_model_tests.py  independent expected-value assertions
+dv/formal/properties/                  authored assertions and covers
 ```
+
+`fx spec` now writes **starter examples** for all four files: `customer.md`,
+`ip.md`, `requirements.yaml` and `testplan.yaml`, with traceable CRS/TDS links,
+`spec_refs` and `model_cases`. The example is **not a customer-approved contract**,
+and mapped scenarios are **not executed evidence**. Edit and approve each
+source before qualification; do not use `--force` to overwrite authored work.
+The single authoritative, fully numbered command sequence (including GLS,
+activity power, routed sign-off and release) is in the top-level
+[README — Complete IP flow](../README.md#complete-ip-flow--all-commands-in-execution-order).
+See [IP traceability](methodology/ip_traceability.md) for the contract details.
 
 ## 4. Design verification
 
@@ -123,33 +145,55 @@ Canonical CDC/RDC evidence is intentionally small: `dv/cdc_rdc/design.json`
 `cdc_rdc.rpt` (human report), plus the extraction script/log. Clock relationships
 come from `<TOP>.sdc`; reset ownership and polarity remain bootstrap metadata.
 
-### 4.4 Property formal
+### 4.4 Model, specification traceability and RTL regression
+
+First create the editable model/test sources if not already present:
 
 ```bash
-fx formal --setup --force
-fx formal
+fx model --setup
 ```
 
-This runs automatic CSR checks and authored BMC/prove/cover stages from existing
-setup collateral.
+**Authoring gate (required for real verification):** review the Python model,
+`scenarios.py`, the vector generator, and independent model assertions. Author
+`spec/customer.md` with `CRS-nnn` headings and link `TDS-nnn` sections in
+`spec/ip.md` using `Customer refs:`. Map every technical requirement via
+`spec_refs`, and map verification scenarios and independent `model_cases` in
+`spec/testplan.yaml`. The initial `fx spec` files are deliberately incomplete for
+this extended traceability contract.
 
-### 4.5 Functional regression
-
-Generate the model/test workspace once:
+Once these sources have been authored, run the *independent* checks:
 
 ```bash
-fx model --setup --force
+fx trace --summary           # Read-only: validate CRS/TDS/requirement/testplan links
+fx mtest --setup             # Create missing model-test sources without overwriting authored ones
+fx mtest                     # Execute independent Python assertions (NOT RTL simulation)
+fx mtest --check             # Require current PASS evidence without rerunning pytest
 ```
 
-After it contains authored work, use `fx regmap_py --force` for routine CSR-only
-updates instead of recreating the complete model workspace.
+`fx mtest` is not a synonym for `fx tests_gen`: it executes Python assertions
+against independently specified expected behavior. Generated assertions start
+with `pytest.skip`, so an untouched scaffold cannot establish model PASS.
+`fx trace` establishes mappings, not executed-test PASS; if customer traceability
+has not been authored, it reports `NOT_CONFIGURED` and `fx mtest` cannot proceed.
+
+Generate RTL vectors and run the separate simulation/regression gate:
 
 ```bash
-fx tests_gen --force
-fx tb cocotb --setup --force
+fx tests_gen
+fx tests_gen --check         # Detect edited/stale generated vectors
+fx tb cocotb --setup
 fx regression
-fx coverage --show
+fx coverage --summary
 ```
+
+Before `fx tests_gen`, check that the vector generator exists at
+`dv/functional/py/rtl/<TOP>_tests.py`. It is **not** the independent model-test
+file, which remains under `py/model/`. If a prior scaffold has its generator
+under `py/model/`, follow the [non-destructive migration steps](#existing-run-missing-rtl-vector-generator)
+below instead of retrying regression or silently overwriting authored files.
+
+Once you have authored work, use `fx regmap_py --force` for CSR-only updates
+instead of regenerating the whole editable model workspace.
 
 Both functional backends derive clock period, waveform, source latency, and clock
 uncertainty from `<TOP>.sdc`. Clock uncertainty becomes bounded uniform jitter
@@ -163,6 +207,88 @@ Open a waveform when needed:
 fx view
 fx view_cocotb
 ```
+
+### 4.5 Property formal
+
+```bash
+fx formal --setup --force
+fx formal
+```
+
+This runs automatic CSR checks and authored BMC/prove/cover stages from existing
+setup collateral.
+
+### Existing run: missing RTL vector generator
+
+A legacy scaffold from the 2026-10-25 source snapshot may have
+`py/model/<TOP>_tests.py` but not `py/rtl/<TOP>_tests.py`. The code fix moves
+future generator output to `py/rtl` and fixes its model imports. **Applying the
+source fix does not rewrite an already completed `model.setup` stage**: when
+FlexSoC prints `state=CLEAN reuse=...`, it is reusing the old manifest.
+
+For the `my_ip`/`dev` example, first inspect without changing anything:
+
+```bash
+RUN=workspace/runs/my_ip/dev
+find "$RUN/dv/functional/py" -maxdepth 3 -name '*tests.py' -print
+```
+
+After applying the scaffold source fix, one safe route for a **disposable, newly
+generated** model workspace is to make a backup and explicitly regenerate the
+model setup. This can overwrite authored model files, so **do not use this on
+customized sources without first reviewing and preserving them**:
+
+```bash
+RUN=workspace/runs/my_ip/dev
+cp -a "$RUN/dv/functional/py" "$RUN/dv/functional/py.before-scaffold-fix"
+fx model --setup --force
+test -f "$RUN/dv/functional/py/rtl/my_ip_tests.py"
+```
+
+If you have already edited your model, scenarios or tests, **do not use
+`--force`** as a migration shortcut. Preserve authored files and migrate the
+vector generator (including imports for the adjacent `py/model` directory)
+with a reviewed change instead. Never delete the legacy copy before diffing it.
+
+When the expected generator exists, return to the normal flow:
+
+```bash
+fx tests_gen &&
+fx tests_gen --check &&
+fx tb cocotb --setup &&
+fx regression &&
+fx coverage &&
+fx coverage --summary
+```
+
+Do not interpret a `tests_gen` failure followed by `regression` and missing
+coverage reports as three independent failures. Fix vector generation first.
+
+### 4.6 How the evidence paths fit together
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Engineer
+    participant Spec as Authored specifications
+    participant FX as fx CLI
+    participant Model as Python model checks
+    participant RTL as RTL DV / EDA
+    participant Release as Qualification
+    Engineer->>FX: fx spec (starter files)
+    Engineer->>Spec: Author CRS, TDS, requirements, testplan
+    Engineer->>FX: fx model --setup; author scenarios and independent checks
+    FX->>Spec: fx trace validates source mappings
+    FX->>Model: fx mtest runs independent assertions
+    FX->>RTL: fx tests_gen; regression; coverage
+    FX->>RTL: lint; CDC/RDC; formal; synthesis; sign-off
+    FX->>Release: fx qualify (evaluate required current evidence)
+    Release-->>Engineer: Qualification or missing/failed/stale obligations
+```
+
+This diagram shows the relationship between **independent** evidence classes;
+it is not a guarantee that every target runs successfully on a new scaffold.
+The result of model testing does not substitute for RTL regression or timing.
 
 ## 5. Select technology and synthesize
 
@@ -336,8 +462,14 @@ Change bootstrap settings only when the domain/reset topology itself changes. Th
 regenerate the SDC scaffold intentionally, reapply/review authored timing intent,
 and regenerate every clock-derived setup.
 
+The following is an example for three asynchronous domains. Replace the
+names, periods and relationships with those of the actual design **before**
+executing it:
+
 ```bash
-fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
+fx settings N_CLOCKS=3 \
+  'CLOCK_DOMAINS=cfg:cfg_clk_i:cfg_rst_ni:20:low,rx:rx_clk_i:rx_rst_ni:16:low,dsp:dsp_clk_i:dsp_rst_ni:30:low' \
+  'CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp'
 fx top_from_core flist --force
 fx lint
 fx sdc --setup --force
@@ -387,40 +519,72 @@ fx eqy --setup --force
 Preserve the IP-owned HJSON, RTL, model, tests, and properties. Regenerate only
 the explicitly derived collateral.
 
-## 12. Complete IP flow
+## 12. Complete IP flow — ordered checklist
 
-FlexSoC intentionally has no hidden composite IP-flow target. Run each lifecycle step explicitly so authored scaffolds, runtime outcomes, provenance, and qualification remain visible. A typical closure sequence is:
+No single `fx` command creates and qualifies an IP without authoring. After
+completing [bootstrap](#3-bootstrap-specification-and-rtl) and the manual
+specification, model, test and SDC work above, execute the required gates in
+order. Run each group only after the previous group has actually passed.
+
+**Structural, model and functional checks:**
 
 ```bash
-fx lint
-fx sdc --setup
-fx cdc_rdc --setup
-fx cdc_rdc
-fx tb cocotb --setup
-fx regression
-fx coverage --show
-fx formal --setup
-fx formal
-fx syn --setup
-fx syn
-fx eqy --setup
-fx signoff --setup
-fx sdf
-fx sta
-fx power-estimate
-fx pnr --setup
-fx pnr
-fx physical_signoff
-fx signoff_post_impl --setup
-fx sdf_post_impl
-fx sta --post-impl
-fx metrics
-fx check
-fx qualify
-fx ip_save
+fx lint &&
+fx cdc_rdc --setup &&
+fx cdc_rdc &&
+fx trace --summary &&
+fx mtest --setup &&
+fx mtest &&
+fx mtest --check &&
+fx tests_gen &&
+fx tests_gen --check &&
+fx tb cocotb --setup &&
+fx regression &&
+fx coverage &&
+fx coverage --summary
 ```
 
-EQY setup remains separate from runtime evidence. If equivalence is required and the chosen IP/interface profile is ready, execute `fx eqy` explicitly; a successful `fx eqy --setup` does not demonstrate equivalence.
+**Formal and synthesis:**
+
+```bash
+fx formal --setup &&
+fx formal &&
+fx syn --setup &&
+fx syn &&
+fx eqy --setup
+```
+
+`fx eqy --setup` is not a proof. After checking the profile, execute the
+required equivalence proof with `fx eqy`.
+
+**Post-synthesis and physical closure (when required by the target level):**
+
+```bash
+fx signoff --setup &&
+fx sdf &&
+fx sta &&
+fx power-estimate &&
+fx pnr --setup &&
+fx pnr &&
+fx physical_signoff &&
+fx signoff_post_impl --setup &&
+fx sdf_post_impl &&
+fx sta --post-impl
+```
+
+**Inspect and release only after the required evidence is current and passing:**
+
+```bash
+fx manifest &&
+fx metrics &&
+fx check &&
+fx qualify
+```
+
+Run `fx ip_save` only after successful qualification. Additional gate-level
+simulations, power analyses and sign-off tasks depend on the selected
+qualification level; consult the [ASIC flow guide](flexsoc_asic_flow_guide.md)
+instead of assuming these commands alone establish every possible release.
 
 ### Verify the result before calling the flow complete
 

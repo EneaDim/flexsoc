@@ -19,13 +19,21 @@
       <div class="sidebar-info" id="stats">Slang elaboration</div>
       <div class="section-title">MODULES <span class="section-count">HIERARCHY</span></div>
       <nav id="hierarchy" class="hierarchy" aria-label="Elaborated hierarchy"></nav>
-      <div class="sidebar-bottom"><div class="sidebar-caption">SCHEMATIC LEGEND</div><div class="legend-row"><span class="legend-dot input"></span>Ports <span class="legend-dot flop"></span>Sequential</div><div class="legend-row"><span class="legend-dot module"></span>Modules <span class="legend-dot wire"></span>Signals</div></div>
+      <details class="sidebar-bottom sidebar-legend" data-fsrtl0036="legend"><summary class="sidebar-caption">Connection legend</summary><div class="legend-content">
+<div class="legend-row"><span class="legend-dot input"></span>Top-level ports <span class="legend-dot module"></span>Submodules</div>
+<div class="legend-row"><span class="legend-dot flop"></span>Sequential symbols <span class="legend-dot wire"></span>Data/control nets</div>
+<div class="rtl-wire-legend"><span class="rtl-wire-swatch"></span><span>Solid: direct RTL connection</span></div>
+<div class="rtl-wire-legend"><span class="rtl-wire-swatch rtl-wire-partial"></span><span>Short dashes: partial dependency, not bit-exact</span></div>
+<div class="rtl-wire-legend"><span class="rtl-wire-swatch rtl-wire-seq"></span><span>Orange: sequential/event relationship</span></div>
+<div class="rtl-wire-legend"><span class="rtl-wire-swatch rtl-wire-event"></span><span>Orange dashed: sequential and partial</span></div>
+<div class="rtl-wire-legend"><span class="rtl-wire-swatch rtl-wire-bus"></span><span>Thicker line: multibit/array when known</span></div>
+<div class="rtl-wire-legend"><span class="rtl-wire-bridge">⌒</span><span>Bridge: crossing, no electrical junction</span></div>
+<div class="rtl-wire-note">Color and dash encode independent properties. Orange dashed does not mean a lint error.</div></div></details>
     </aside>
     <main class="main">
       <div class="toolbar" role="toolbar" aria-label="Schematic view controls">
         <div class="toolbar-title"><div class="title-overline">RTL SCHEMATIC</div><div id="viewName">Top module</div><small id="viewDesc">Elaborated connectivity</small></div>
-        <div class="toolbar-tools"><a href="/cad" title="Open structural CAD view">CAD view</a>
-          <label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Find symbol or wire…" aria-label="Find symbol or wire in this module"/><kbd>/</kbd></label>
+        <div class="toolbar-tools"><label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Find symbol or wire…" aria-label="Find symbol or wire in this module"/><kbd>/</kbd></label>
           <div class="tool-separator"></div>
           <div class="view-switch" aria-label="Inspector views">
             <button id="toggleSource" aria-pressed="false" title="Toggle SystemVerilog inspector">RTL</button>
@@ -71,9 +79,9 @@
         </section>
         <aside class="inspector" id="inspector" aria-label="Source, lint and analysis inspector" hidden>
           <div class="inspector-resizer" id="inspectorResizer" role="separator" aria-label="Resize inspector" aria-orientation="vertical" tabindex="0"></div>
-          <div class="inspector-header"><span>DESIGN INSPECTOR</span><button id="closeInspector" class="icon-button" aria-label="Close inspector" title="Close inspector">×</button></div>
-          <div class="tabs" role="tablist" aria-label="Analysis panels"><button id="sourceTab" class="active" role="tab" aria-selected="true">SystemVerilog</button><button id="lintTab" role="tab" aria-selected="false">Lint</button><button id="coneTab" role="tab" aria-selected="false">From → To</button></div>
-          <div id="sourcePane" class="pane"><div class="source-head" id="sourceFile">No source selected</div><div class="code-wrap"><div id="lineNumbers" aria-hidden="true"></div><pre id="sourceCode" tabindex="0" aria-label="SystemVerilog source"></pre></div></div>
+          <div class="inspector-header"><span>DESIGN INSPECTOR</span><div class="rtl-inspector-actions"><button id="rtlCopyPane" type="button" title="Copy visible inspector text">Copy</button><button id="rtlVimToggle" type="button" title="Toggle Vim-style navigation in SystemVerilog">Vim: off</button></div><button id="closeInspector" class="icon-button" aria-label="Close inspector" title="Close inspector">×</button></div>
+          <div class="tabs" role="tablist" aria-label="Analysis panels"><button id="detailsTab" role="tab" aria-selected="false">Details</button><button id="sourceTab" class="active" role="tab" aria-selected="true">SystemVerilog</button><button id="lintTab" role="tab" aria-selected="false">Lint</button><button id="coneTab" role="tab" aria-selected="false">From → To</button></div>
+          <div id="detailsPane" class="pane" hidden><div class="source-head">Compiler-backed entity inspection</div><pre id="detailsResults" class="results rtl-details-results" aria-live="polite">Select a schematic symbol or relation</pre></div><div id="sourcePane" class="pane"><div class="source-head" id="sourceFile">No source selected</div><div class="code-wrap"><div id="lineNumbers" aria-hidden="true"></div><pre id="sourceCode" tabindex="0" aria-label="SystemVerilog source"></pre></div></div>
           <div id="lintPane" class="pane" hidden><div class="source-head">Slang diagnostics · current source file</div><div id="lintResults" class="results"></div></div>
           <div id="conePane" class="pane" hidden><div class="source-head">RTL dependencies — not post-synthesis timing</div><div class="cone-controls"><label>From <select id="fromSelect"></select></label><label>To <select id="toSelect"></select></label><button id="runCone">Trace RTL cone</button></div><div id="coneResults" class="results"></div></div>
           <div class="inspector-foot" id="inspectorFoot">AST source mapping</div>
@@ -83,8 +91,12 @@
   </div>
 </div>
 <dialog id="helpDialog"><h3>Navigate the RTL schematic</h3><p>Drag the canvas to pan, use the mouse wheel or toolbar for zoom, and double-click a module to enter. Click any routed wire to inspect its signal; hold Ctrl/Cmd while selecting to track through proven direct port bindings.</p><p><strong>Contextual actions:</strong> right-click a generated group to expand only that group, or right-click an individual member to collapse it. Module actions show contextual SystemVerilog and lint. These are intentionally absent from the global toolbar.</p><p><strong>Keyboard:</strong> / focuses symbol search; Esc closes menus or clears selection; + and − zoom; the accessible element list works without a mouse.</p><button id="closeHelp">Close help</button></dialog>
+<script defer src="/bootstrap-guard.js"></script>
 <script defer src="/router.js"></script>
+<script defer src="/elk.bundled.js"></script>
+<script defer src="/elk-adapter.js"></script>
 <script defer src="/layout-engine.js"></script>
+<script defer src="/hierarchy-tree.js"></script>
 <script defer src="/app.js"></script>
 </body>
 </html>

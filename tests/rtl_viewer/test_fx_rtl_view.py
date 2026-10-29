@@ -1,6 +1,5 @@
 """The public viewer target follows the active FlexSoC run, not a hardcoded IP."""
 import json
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -44,12 +43,23 @@ def test_viewer_uses_configured_top_and_run(tmp_path, monkeypatch):
             pass
 
     monkeypatch.setattr(launch, "ViewerServer", DummyServer)
+    # Detached serving is the current contract. Never fork a test child process.
+    from flexsoc.backend.dv.rtl_viewer import background
+    detached = Mock()
+    monkeypatch.setattr(background, "serve_detached", detached)
+    # Headless/WSL-disabled mode must not attempt a Windows browser launch.
+    monkeypatch.setenv("FLEXSOC_RTL_NO_BROWSER", "1")
     browser = Mock(return_value=True)
     monkeypatch.setattr(launch.webbrowser, "open", browser)
     assert launch.open_viewer(context, hierarchy) == 0
     assert created[0][1].top == "my_ip"
     assert created[0][1].verified
-    browser.assert_called_once_with("http://127.0.0.1:12345/")
+    detached.assert_called_once()
+    args, kwargs = detached.call_args
+    assert args[0].server_port == 12345
+    assert kwargs["run"] == run
+    assert kwargs["url"] == "http://127.0.0.1:12345/"
+    browser.assert_not_called()
     hierarchy.run.assert_called_once_with(on="local")
 
 

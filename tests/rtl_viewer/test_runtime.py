@@ -12,11 +12,9 @@ from flexsoc.backend.dv.rtl_viewer import SlangProject, RtlDesign
 def test_revision_ignores_slang_process_addresses():
     payload = fixture_ast()
     shifted = copy.deepcopy(payload)
-    refs = shifted['design']['members'][0]['body']['members'][3]['body']['members']
     # Also test root-level Slang pointer fields.
     shifted['design']['addr'] = 999
     assert RtlDesign(shifted, root=ROOT, top='DSP').revision == RtlDesign(payload, root=ROOT, top='DSP').revision
-    old = payload['design']['members'][0]['body']['members'][3]['connections'][0]['expression']
     new = shifted['design']['members'][0]['body']['members'][3]['connections'][0]['expression']
     new['symbol'] = '985100 samples_i'
     assert RtlDesign(shifted, root=ROOT, top='DSP').revision == RtlDesign(payload, root=ROOT, top='DSP').revision

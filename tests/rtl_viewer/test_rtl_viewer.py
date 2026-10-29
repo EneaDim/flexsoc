@@ -25,7 +25,7 @@ def instance(name, module, members, file, connections=None):
 
 
 def ref(name):
-    return {"kind": "NamedValue", "symbol": "3 " + name}
+    return {"kind": "NamedValue", "symbol": name}
 
 
 def fixture_ast():

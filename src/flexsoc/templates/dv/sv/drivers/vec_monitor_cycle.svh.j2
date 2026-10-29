@@ -167,6 +167,7 @@ task automatic run_output_vectors(input string out_path);
   int now_cycle;
   int cycle;
   int event_cursor;
+  int bus_start_edges;
   logic [31:0] cycle_value;
   logic [31:0] expected;
   logic [31:0] timeout;
@@ -297,7 +298,9 @@ task automatic run_output_vectors(input string out_path);
           errors++;
           $display("[TB][ERROR] malformed @read row");
         end else begin
+          bus_start_edges = tb_vector_clock_edges;
           tb_check_read_one(cycle, t1, t2, t3);
+          now_cycle += tb_vector_clock_edges - bus_start_edges;
         end
         disable tb_output_line;
       end

@@ -61,7 +61,8 @@ def test_real_uart_rx_controls_are_not_lost():
         pytest.skip("integration AST not present in minimal checkout")
     design = RtlDesign(json.loads(path.read_text()), root=root, top="uart")
     graph = design.diagram("/u_uart_core/uart_rx", limit=1500)
-    outputs = lambda signal: [e for e in graph["edges"] if e["source"].endswith("sig:" + signal)]
+    def outputs(signal):
+        return [e for e in graph["edges"] if e["source"].endswith("sig:" + signal)]
     assert any(e["type"] == "control" for e in outputs("rx_enable"))
     assert any(e["type"] == "event" for e in outputs("clk_i"))
     assert any(e["type"] == "event" for e in outputs("rst_ni"))

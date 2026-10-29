@@ -1,5 +1,4 @@
 """Filelist paths stay portable across frozen run reloads."""
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -36,7 +35,7 @@ def test_shared_paths_are_project_relative_and_ip_sources_run_relative(tmp_path)
     _, top, roots, _ = flow._inputs()
     assert top == run / "rtl" / "uart.sv"
     assert project / "hw" / "ips" / "pkgs" in roots
-    command, _, _ = flow._command(ast=run / "ast.json", on="grid", resolve_tool=False)
+    command, _, _, _ = flow._command(ast=run / "ast.json", on="grid", resolve_tool=False)
     assert str(project / "hw" / "ips" / "pkgs" / "top_pkg.sv") in command
     assert str(project / "vendor" / "lib" / "support.sv") in command
     assert str(run / "rtl" / "uart.sv") == command[-1]

@@ -11,6 +11,7 @@ FlexSoC is a **contract-driven digital hardware engineering and qualification fr
 | Conflicting copies of design intent | Explicit ownership of authored inputs and generated outputs | [Architecture](architecture.md) |
 | A passing result whose inputs have changed | Provenance-aware stage and evidence lifecycle | [Evidence ownership](architecture/evidence_ownership.md) |
 | Repeating an entire flow after a small change | Contract dependencies and selective invalidation | [Project lifecycle](project_lifecycle.md) |
+| Requirements disconnected from tests | CRS/TDS/requirements/testplan traceability and independently executed model checks | [IP traceability](methodology/ip_traceability.md) |
 | Disconnected tool outputs and difficult release decisions | Traceable qualification evidence and Digital IP Contract | [Digital IP Contract](digital_ip_contract.md) |
 | Undocumented command invocation | Explicit `fx` command interface and reproducible run configuration | [Command reference](command_reference.md) |
 
@@ -59,6 +60,7 @@ flowchart TD
 | --- | --- | --- |
 | How does FlexSoC fit together? | [System architecture map](architecture/system-map.md) | [Architecture](architecture.md) |
 | Which checks should I run? | [Choose a workflow](guides/choose-a-workflow.md) | [Practical guides](guides/README.md) |
+| How do traceability, model tests and RTL regression differ? | [Quickstart — model and DV](quickstart.md#44-model-specification-traceability-and-rtl-regression) | [IP traceability](methodology/ip_traceability.md) |
 | Why is a run missing, failed or stale? | [Read run results](guides/reading-run-results.md) | [Evidence lifecycle](concepts/evidence-lifecycle.md) |
 | Which command and arguments do I need? | [CLI essentials](reference/cli-essentials.md) | [Command reference](command_reference.md) |
 | What counts as IP/SoC qualification? | [Qualification boundaries](concepts/ip-soc-qualification.md) | [Digital IP Contract](digital_ip_contract.md) |

@@ -68,8 +68,8 @@ class RtlFlow:
         top: str | None = None,
         force: bool = False,
         clocks: ClockConfig | None = None,
-    ) -> tuple[Path, Path]:
-        """Create the single- or multi-clock starter RTL."""
+    ) -> Path:
+        """Create only the editable single- or multi-clock RTL core."""
 
         clocks = clocks or ClockConfig.from_values()
         if clocks.multiclock:
@@ -78,8 +78,7 @@ class RtlFlow:
             Files.ensure_dir(output_dir)
             core = output_dir / f"{top}_core.sv"
             Files.safe_write_file(core, RtlFlow.render_nclock_core(top), overwrite=force)
-            wrapper = RtlFlow.write_top_from_core(top, output_dir, interface, force=force, clocks=clocks)
-            return core, wrapper
+            return core
         if hjson_file is None:
             raise ValueError("hjson_file is required for a single-clock RTL scaffold")
         return RtlFlow.generate_rtl_stubs(hjson_file, interface, output_dir, force=force, clocks=clocks)
@@ -387,8 +386,8 @@ class RtlFlow:
         *,
         force: bool = False,
         clocks: ClockConfig | None = None,
-    ) -> tuple[Path, Path]:
-        """Generate <top>_core.sv and an aligned <top>.sv wrapper."""
+    ) -> Path:
+        """Generate only <top>_core.sv; top_from_core owns wrapper generation."""
 
         hj = RtlFlow._load_hjson(Path(hjson_path).resolve())
         top = RtlFlow._id(str(hj.get("name", "")))
@@ -398,8 +397,7 @@ class RtlFlow:
         rtl = Path(outdir)
         core_path = rtl / f"{top}_core.sv"
         Files.safe_write_file(core_path, RtlFlow.render_core(hj), overwrite=force)
-        top_path = RtlFlow.write_top_from_core(top, rtl, itf, force=force, clocks=clocks)
-        return core_path, top_path
+        return core_path
 
     @staticmethod
     def _strip_comments(text: str) -> str:

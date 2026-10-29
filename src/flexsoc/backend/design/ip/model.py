@@ -60,6 +60,7 @@ class ModelFlow:
         """Create the editable model-driven scenario source."""
 
         clocks = clocks or ClockConfig.from_values()
+        output.mkdir(parents=True, exist_ok=True)
         if clocks.multiclock:
             path = ModelFlow._write_text(
                 output / f"{top}_tests.py",
@@ -99,7 +100,9 @@ class ModelFlow:
         register_dir = regmap_output if regmap_output is not None else output
         regmap = RegsFlow.generate(top, data_dir, register_dir, force=force)
         model = self.init_reference(top, output, rtl_dir, force=force, clocks=clocks)
-        tests = self.init_model_tests(top, output, force=force, clocks=clocks)
+        # Authored RTL vector generators live next to the generated RTL regmap,
+        # not with the independent behavioral model and its pytest assertions.
+        tests = self.init_model_tests(top, register_dir, force=force, clocks=clocks)
         regmap_tests = self.setup_regmap_tests(top, register_dir, clocks=clocks)
         ModelFlow._write_text(output / "scenarios.py", ModelFlow._scenarios_text(top, multiclock=clocks.multiclock), force=False)
         ModelFlow._write_text(output / f"{top}_model_tests.py", ModelFlow._model_tests_text(top), force=False)
@@ -214,7 +217,7 @@ class ModelFlow:
         from flexsoc.backend.core.render.templates import templates
 
         return templates.render(
-            "design/model/tests.py.j2",
+            "dv/functional/tests/vectors_cycle.py.j2",
             top=top, tests_repr=repr(SHARED_SCENARIO_TESTS),
         )
 
@@ -368,11 +371,11 @@ class ModelFlow:
 
     @staticmethod
     def render_nclock_tests(top: str) -> str:
-        """Render the editable N-clock model-driven test scaffold."""
+        """Render the editable N-clock RTL vector generator scaffold."""
 
         from flexsoc.backend.core.render.templates import templates
 
-        return templates.render("design/model/nclock_tests.py.j2", top=top)
+        return templates.render("dv/functional/tests/vectors_stream.py.j2", top=top)
 
     @staticmethod
     def write_regmap_tests(

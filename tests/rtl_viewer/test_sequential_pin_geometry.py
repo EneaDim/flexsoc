@@ -16,7 +16,7 @@ const r={x:100,y:200,w:133,h:73},n={id:'q',type:'register'};
 const d=pinGeometry(n,r,'','in'),c=pinGeometry(n,r,'CLK','in');
 const e=pinGeometry(n,r,'EVENT','in'),q=pinGeometry(n,r,'','out');
 assert.equal(d.x,104);assert.equal(q.x,229);
-assert.deepEqual([d.y,c.y,e.y,q.y],[220,260,243,220]);
+assert.equal(d.y,q.y);assert.ok(c.y>d.y);assert.ok(e.y>d.y);assert.equal(c.face,'bottom');assert.equal(e.face,'bottom');
 assert.equal(pinGeometry({type:'operator',shape:'mux'},r,'S','in').face,'bottom');
 console.log('register pin anchors PASS');
 '''

@@ -440,13 +440,15 @@ def test_design_scaffold_templates_are_package_owned() -> None:
         "registers/nclock_cfg.hjson.j2",
         "registers/nclock_dsp.hjson.j2",
         "model/reference_model.py.j2",
-        "model/tests.py.j2",
         "model/nclock_reference_model.py.j2",
-        "model/nclock_tests.py.j2",
         "rtl/nclock_core.sv.j2",
     }
     assert expected <= {path.relative_to(root).as_posix() for path in root.rglob("*.j2")}
     assert "model.setup" in lifecycle_module.STAGE_CONTRACTS
+    dv_root = ROOT / "src" / "flexsoc" / "templates" / "dv" / "functional" / "tests"
+    assert {"vectors_cycle.py.j2", "vectors_stream.py.j2"} == {
+        path.name for path in dv_root.glob("*.j2")
+    }
 
 
 def test_tests_gen_uses_shared_execution_target(tmp_path: Path) -> None:

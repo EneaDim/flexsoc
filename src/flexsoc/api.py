@@ -191,7 +191,7 @@ TARGETS: dict[str, TargetSpec] = {
     "doc": ("IP flow", "Generate register documentation", IP_DEV),
     "systemrdl": ("Interchange", "Export register maps as SystemRDL", IP_DEV),
     "ipxact": ("Interchange", "Export IEEE 1685-2022 IP-XACT component metadata", IPXACT),
-    "rtl_stub": ("IP flow", "Generate RTL core and aligned top wrapper", IP_DEV),
+    "rtl_stub": ("IP flow", "Generate editable RTL core only", IP_DEV),
     "top_from_core": ("IP flow", "Regenerate top wrapper from edited core ports", IP_DEV),
     "flist": ("IP flow", "Generate Slang-ordered common/IP RTL filelists", IP_DEV),
     "driver": ("IP flow", "Generate C driver files from HJSON", IP_DEV),

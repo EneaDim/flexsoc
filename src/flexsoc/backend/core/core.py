@@ -1260,14 +1260,15 @@ class RtlSourceContract:
     top: str
     root: Path
     filelists: tuple[Path, ...]
+    project_root: Path | None = None
 
     @classmethod
     def from_paths(cls, paths: "FlowPaths") -> "RtlSourceContract":
         """Resolve IP vs SoC sources from authoritative run state."""
 
         if (paths.run / "soc" / "plan.json").is_file():
-            return cls("soc", "soc", paths.run, (paths.rtl / "rtl.f",))
-        return cls("ip", paths.top, paths.run, (paths.rtl_common, paths.rtl_ip))
+            return cls("soc", "soc", paths.run, (paths.rtl / "rtl.f",), paths.project_root)
+        return cls("ip", paths.top, paths.run, (paths.rtl_common, paths.rtl_ip), paths.project_root)
 
     def require(self) -> "RtlSourceContract":
         """Require every filelist declared by this resolved source contract."""
@@ -1281,7 +1282,12 @@ class RtlSourceContract:
         return self
 
     def sources(self) -> tuple[Path, ...]:
-        """Expand source entries relative to the run root that owns the contract."""
+        """Expand both filelist namespaces without changing portable source entries.
+
+        ``hw/`` and ``vendor/`` belong to the project; ``rtl/`` (and SoC-local
+        paths) belong to the run.  This is the same contract used by LintSources
+        for the functional regression and must also hold for standalone cocotb.
+        """
 
         sources: list[Path] = []
         for filelist in self.filelists:
@@ -1292,9 +1298,16 @@ class RtlSourceContract:
                 if not item or item.startswith(("#", "+", "-")):
                     continue
                 path = Path(item).expanduser()
-                sources.append(
-                    path.resolve() if path.is_absolute() else (self.root / path).resolve()
-                )
+                if path.is_absolute():
+                    source = path.resolve()
+                else:
+                    anchor = (
+                        self.project_root
+                        if self.project_root is not None and path.parts[0] in {"hw", "vendor"}
+                        else self.root
+                    )
+                    source = (anchor / path).resolve()
+                sources.append(source)
         return tuple(dict.fromkeys(sources))
 
 

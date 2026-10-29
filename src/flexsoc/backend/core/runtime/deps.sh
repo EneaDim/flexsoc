@@ -417,7 +417,7 @@ install_netlistsvg() {
 
 profile_tools() {
     profile_ready
-    echo "verilator slang verible iverilog yosys sby eqy bitwuzla boolector opensta gtkwave surfer netlistsvg"
+    echo "verilator slang verible iverilog yosys sby eqy bitwuzla boolector opensta gtkwave surfer"
 }
 
 tool_key() { printf '%s' "${1^^}"; }

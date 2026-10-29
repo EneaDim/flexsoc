@@ -14,10 +14,12 @@ flowchart TD
     B -->|RTL or hierarchy| C[Review lint, elaboration, DV and downstream consumers]
     B -->|Clock, reset or timing intent| D[Review CDC/RDC, timing constraints and affected downstream stages]
     B -->|Register map or interface| E[Review generated collateral, integration tests and interface contracts]
+    B -->|Requirement, testplan or Python model| F[Review traceability, model tests and affected RTL vectors]
     B -->|Only docs| G[Validate documentation links and examples]
     C --> H[Inspect dependencies and freshness]
     D --> H
     E --> H
+    F --> H
     G --> I([Finish when docs checks pass])
     H --> J{Required evidence current?}
     J -->|No or unknown| K[Select affected stage in CLI reference]
@@ -27,7 +29,7 @@ flowchart TD
     L --> N([Record outcome and remaining obligations])
 ```
 
-This is a conservative *investigation heuristic*, not a complete or automatic invalidation dependency graph. Use the actual [project lifecycle](../project_lifecycle.md) to determine stage dependencies.
+This is a conservative *investigation heuristic*, not a complete or automatic invalidation dependency graph. Use the actual [project lifecycle](../project_lifecycle.md) to determine stage dependencies. For changed requirements or model expectations, check `fx trace`, then execute `fx mtest` and/or `fx tests_gen` plus RTL regression as the impact requires. Model PASS never replaces RTL evidence.
 
 ## Follow the evidence, not just the exit code
 

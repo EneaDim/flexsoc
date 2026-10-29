@@ -4,6 +4,8 @@ Unknown language constructs are not interpreted from RTL text. The renderer gets
 only proven AST relationships; unsupported relationships remain visibly unknown.
 """
 from __future__ import annotations
+import stat
+import os
 
 from collections import deque
 from dataclasses import dataclass, field
@@ -14,6 +16,8 @@ from typing import Any, Iterator
 from .slang import SlangReferences
 from .compiler import ast_revision
 from .connectivity import GraphEdges, OperatorResolver, PortResolver, SymbolTable as ASTReferences
+from .sequential_controls import collect as collect_sequential_controls
+from .sequential_profile import summarize as summarize_sequential_profile
 
 
 SIGNAL_KINDS = frozenset({"Port", "Variable", "Net", "NetSymbol", "VariableSymbol", "InterfacePort"})
@@ -21,6 +25,44 @@ ASSIGN_KINDS = frozenset({"Assignment", "AssignmentExpression", "ContinuousAssig
 # Only explicit expression nodes in the elaborated AST become functional symbols.
 OPERATOR_KINDS = frozenset({"BinaryOp", "UnaryOp", "ConditionalOp", "ConditionalExpression", "Conversion", "Concatenation"})
 BLOCK_KINDS = frozenset({"GenerateBlock", "GenerateBlockArray", "GenerateBlockSymbol", "InstanceArray"})
+
+
+def _fsrtl_evidence_read_report(run: Path, max_bytes: int = 8_000_000) -> tuple[str, Any]:
+    """Safely read run-scoped JSON; never follow symlinks below the run root."""
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory = getattr(os, "O_DIRECTORY", 0)
+    try:
+        fd = os.open(run, flags | directory)
+        try:
+            for component in ("dv", "lint", "slang"):
+                child = os.open(component, flags | directory | nofollow, dir_fd=fd)
+                os.close(fd)
+                fd = child
+            report_fd = os.open("summary.json", flags | nofollow | getattr(os, "O_NONBLOCK", 0), dir_fd=fd)
+            try:
+                meta = os.fstat(report_fd)
+                if not stat.S_ISREG(meta.st_mode):
+                    return "unavailable", "lint report is not a regular file"
+                if meta.st_size > max_bytes:
+                    return "unsupported", "lint report exceeds 8 MB limit"
+                with os.fdopen(report_fd, "rb", closefd=False) as stream:
+                    raw = stream.read(max_bytes + 1)
+                if len(raw) > max_bytes:
+                    return "unsupported", "lint report exceeds 8 MB limit"
+            finally:
+                os.close(report_fd)
+        finally:
+            os.close(fd)
+    except OSError:
+        return "unavailable", "lint report cannot be accessed safely"
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        return "unsupported", "lint report is not valid UTF-8 JSON"
+    if not isinstance(payload, dict) or not isinstance(payload.get("diagnostics"), list):
+        return "unsupported", "lint report lacks a diagnostics array"
+    return "available", payload
 
 
 def objects(node: Any) -> Iterator[dict[str, Any]]:
@@ -164,6 +206,13 @@ class RtlDesign:
                     # A generate block without a name is transparent to the
                     # topology, but remains represented by its elaborated AST.
                     pieces = (*ancestors, label) if label else ancestors
+                    # Slang may serialize the elaborated loop iteration as an
+                    # unnamed GenerateBlock with constructIndex. Preserve the
+                    # array element in the hierarchy identity: g/g[0], g/g[1].
+                    if (member.get("branchKind") == "LoopIteration"
+                            and isinstance(member.get("constructIndex"), int)
+                            and ancestors and not (label and label.endswith("]"))):
+                        pieces = (*ancestors, f"{ancestors[-1]}[{member['constructIndex']}]")
                     descend(member, pieces)
                     # Some slang AST versions serialize an array as 'elements'.
                     for element in member.get("elements", ()):
@@ -187,6 +236,30 @@ class RtlDesign:
                 "capabilities": {"hierarchy": True, "generate": "elaborated siblings grouped",
                                  "ports": "AST", "signal_follow": "only explicit direct AST port mapping",
                                  "cone": "AST-proven intra-module dependencies", "timing": False}}
+
+    def hierarchy_children(self, path: str = "/", *, offset: int = 0, limit: int = 64) -> dict[str, Any]:
+        """Page direct elaborated children without projecting their RTL graphs.
+
+        The compiler-derived scope index is authoritative. This endpoint only
+        reduces the data transferred to the UI; initial AST elaboration/indexing
+        is still eager and is not advertised as incremental compilation.
+        """
+        parent = self._scope(path)
+        if offset < 0 or not 1 <= limit <= 256:
+            raise ValueError("hierarchy offset must be nonnegative and limit 1..256")
+        children = sorted(parent.children)
+        page = children[offset:offset + limit]
+        items = []
+        for child_path in page:
+            child = self.scopes[child_path]
+            items.append({"path": child.path, "name": child.name,
+                          "module": child.module, "group": child.group,
+                          "has_children": bool(child.children),
+                          "children_count": len(child.children)})
+        return {"schema": "flexsoc.rtl_viewer.hierarchy.v1", "revision": self.revision,
+                "path": path, "offset": offset, "limit": limit,
+                "total": len(children), "has_more": offset + len(items) < len(children),
+                "items": items}
 
     @staticmethod
     def _signals(scope: Scope) -> dict[str, dict]:
@@ -212,6 +285,11 @@ class RtlDesign:
                 type_label = str(type_data.get("text") or type_data.get("name") or type_data.get("kind") or "")
             else:
                 type_label = str(type_data)
+            # Slang can prefix a type display with its internal object address.
+            # Do not expose identity tokens as RTL type names.
+            type_parts = type_label.split(None, 1)
+            if len(type_parts) == 2 and type_parts[0].isdigit() and len(type_parts[0]) >= 8:
+                type_label = type_parts[1]
             dimensions = {key: item.get(key, type_data.get(key) if isinstance(type_data, dict) else None)
                           for key in ("packedDimensions", "unpackedDimensions")}
             result[sig] = {"name": sig, "kind": item["kind"], "direction": direction,
@@ -234,6 +312,87 @@ class RtlDesign:
         operators: list[dict] = []
         symbols = ASTReferences(scope.node["body"].get("members", ()), declared)
         operands = OperatorResolver(symbols)
+
+        def literal_operands(expr: dict) -> dict[str, str]:
+            """Only show AST-proven literals, never inferred constants/net names."""
+            kind = str(expr.get("kind", ""))
+            if kind == "BinaryOp":
+                candidates = (("A", expr.get("left")), ("B", expr.get("right")))
+            elif kind in {"ConditionalOp", "ConditionalExpression"}:
+                predicate = next((expr.get(key) for key in ("condition", "predicate", "selector", "cond")
+                                  if isinstance(expr.get(key), dict)), None)
+                candidates = (("A", expr.get("right", expr.get("falseExpr"))),
+                              ("B", expr.get("left", expr.get("trueExpr"))), ("S", predicate))
+            else:
+                candidates = ()
+            result: dict[str, str] = {}
+            for role, value in candidates:
+                if not isinstance(value, dict):
+                    continue
+                # A literal may be wrapped by an explicit Slang conversion.
+                # Follow only AST expression wrappers, never invent a constant.
+                candidate = value
+                for _ in range(5):
+                    if candidate.get("kind") in {"IntegerLiteral", "IntegerLiteralExpression", "UnbasedUnsizedLiteral",
+                                                 "UnbasedUnsizedIntegerLiteral", "StringLiteral", "RealLiteral"}:
+                        break
+                    if candidate.get("kind") not in {"Conversion", "ConversionExpression", "ImplicitConversion"}:
+                        break
+                    candidate = next((candidate[k] for k in ("operand", "expression", "expr", "value")
+                                      if isinstance(candidate.get(k), dict)), {})
+                if candidate.get("kind") not in {"IntegerLiteral", "IntegerLiteralExpression", "UnbasedUnsizedLiteral",
+                                                  "UnbasedUnsizedIntegerLiteral", "StringLiteral", "RealLiteral"}:
+                    continue
+                raw = candidate.get("value")
+                if isinstance(raw, (str, int, float)) and str(raw):
+                    result[role] = str(raw)[:80]
+            return result
+
+        def describe_operand(value: Any) -> str:
+            """AST-only pin annotation. Never creates an electrical connection."""
+            if not isinstance(value, dict):
+                return ""
+            kind = str(value.get("kind", ""))
+            if kind in {"IntegerLiteral", "IntegerLiteralExpression", "UnbasedUnsizedLiteral",
+                        "UnbasedUnsizedIntegerLiteral", "RealLiteral", "StringLiteral"}:
+                raw = value.get("value")
+                return str(raw)[:72] if isinstance(raw, (str, int, float)) else ""
+            if kind in {"MemberAccess", "MemberSelect"}:
+                base = value.get("value", value.get("expression"))
+                member = value.get("member", value.get("memberName", value.get("name")))
+                if isinstance(member, dict):
+                    member = member.get("name", member.get("memberName"))
+                if isinstance(member, str) and member:
+                    prefix = describe_operand(base)
+                    if not prefix:
+                        refs = symbols.refs(base)
+                        prefix = refs[0] if len(refs) == 1 else ""
+                    return (prefix + "." + member)[:72] if prefix else "." + member[:71]
+            if kind in {"Conversion", "ConversionExpression", "ImplicitConversion"}:
+                wrapped = next((value[k] for k in ("operand", "expression", "expr", "value")
+                                if isinstance(value.get(k), dict)), None)
+                if wrapped is not None:
+                    inner = describe_operand(wrapped)
+                    if inner:
+                        return inner
+            refs = symbols.refs(value)
+            if len(refs) == 1:
+                return refs[0][:72]
+            return ""
+
+        def operand_details(expr: dict) -> dict[str, str]:
+            kind = str(expr.get("kind", ""))
+            if kind == "BinaryOp":
+                roles = (("A", expr.get("left")), ("B", expr.get("right")))
+            elif kind in {"ConditionalOp", "ConditionalExpression"}:
+                predicate = next((expr.get(k) for k in ("condition", "predicate", "selector", "cond")
+                                  if isinstance(expr.get(k), dict)), expr.get("conditions"))
+                roles = (("A", expr.get("right", expr.get("falseExpr"))),
+                         ("B", expr.get("left", expr.get("trueExpr"))), ("S", predicate))
+            else:
+                roles = ()
+            return {role: label for role, value in roles
+                    if (label := describe_operand(value))}
 
         def walk(node: Any, sequential: bool = False, controls: tuple[str, ...] = ()) -> None:
             if isinstance(node, list):
@@ -298,12 +457,16 @@ class RtlDesign:
                             counters.update(set(destinations).intersection(sources))
                     operator = rhs if isinstance(rhs, dict) and rhs.get("kind") in OPERATOR_KINDS else None
                     for dst in destinations:
-                        if operator and sources:
+                        if operator and (sources or operator.get("kind") in OPERATOR_KINDS):
                             op_id = "op:" + str(len(operators))
                             op_name = str(operator.get("op") or operator.get("operator") or operator["kind"])
                             shape = "mux" if operator["kind"] in {"ConditionalOp", "ConditionalExpression"} else "arith" if operator["kind"] == "BinaryOp" else "logic"
                             role_inputs = operands.inputs(operator)
+                            # Only AST-proven literal operands. Do not create a
+                            # fictitious signal/edge for a constant input.
                             operators.append({"name": op_name, "key": op_id, "kind": operator["kind"],
+                                              "literalOperands": literal_operands(operator),
+                                              "operandDetails": operand_details(operator),
                                               "shape": shape, "line": extract_location(operator)[1],
                                               "pins": (["A", "B", "S", "Y"] if shape == "mux" else
                                                        ["A", "B", "Y"] if operator["kind"] == "BinaryOp" else
@@ -368,17 +531,21 @@ class RtlDesign:
             for item in objects(statement):
                 if item.get("kind") in ASSIGN_KINDS or ("Assignment" in str(item.get("kind", "")) and "Pattern" not in str(item.get("kind", ""))):
                     destinations.update(symbols.writes(item.get("left", item.get("lhs"))))
-            for event in events:
-                if not isinstance(event, dict) or event.get("kind") != "SignalEvent":
-                    continue
-                edge_kind = str(event.get("edge", ""))
-                if edge_kind not in ("PosEdge", "NegEdge"):
-                    continue
+            # A multi-event sensitivity list is NOT proof that each rising
+            # event is a clock. Preserve edge polarity and avoid labeling an
+            # asynchronous reset as CLK based on polarity alone.
+            valid_events = [e for e in events if isinstance(e, dict)
+                            and e.get("kind") == "SignalEvent"
+                            and str(e.get("edge", "")) in ("PosEdge", "NegEdge")]
+            unique_event = len(valid_events) == 1
+            for event in valid_events:
+                edge_kind = str(event["edge"])
                 for source in symbols.refs(event.get("expr")):
                     for target in sorted(destinations):
                         edges.append({"source": source, "target": target, "type": "event", "net": source,
-                                      "pin": "CLK" if edge_kind == "PosEdge" else "EVENT",
-                                      "eventEdge": edge_kind, "mapping": "direct"})
+                                      "pin": "CLK" if unique_event else "EVENT",
+                                      "eventEdge": edge_kind, "timingRole": "single_event" if unique_event else "ambiguous_event",
+                                      "mapping": "direct"})
         # This is a *candidate* FSM marker, not synthesis-state extraction.
         # Require an elaborated enum type, a sequential state write and a
         # case that reads the same state. No text-name heuristics.
@@ -437,6 +604,119 @@ class RtlDesign:
         scope = self._scope(path)
         signals = self._signals(scope)
         logical_edges, registers, operators, counters, fsm_candidates = self._assignments(scope, set(signals))
+        # Facts for symbol rendering: edge sensitivity is AST verified;
+        # reset/enable/load roles are deliberately NOT inferred from names.
+        event_facts: dict[str, list[dict[str, str]]] = {}
+        for relation in logical_edges:
+            if relation.get("type") != "event" or relation.get("target") not in registers:
+                continue
+            fact = {"signal": relation["source"], "edge": relation.get("eventEdge", ""),
+                    "role": relation.get("timingRole", "ambiguous_event")}
+            facts = event_facts.setdefault(relation["target"], [])
+            if fact not in facts:
+                facts.append(fact)
+        # Enumerate AST-proven guard paths for sequential destinations.
+        # Constant RHS and guarded assignment are CANDIDATES, not reset/enable proof.
+        symbols_for_controls = ASTReferences(scope.node["body"].get("members", ()), set(signals))
+        sequential_guards: dict[str, list[dict]] = {}
+        for process in scope.node["body"].get("members", ()):
+            if not isinstance(process, dict) or process.get("kind") != "ProceduralBlock":
+                continue
+            if str(process.get("procedureKind", process.get("procedure", ""))).lower() not in ("alwaysff", "always_ff"):
+                continue
+            process_body = process.get("body", {})
+            if isinstance(process_body, dict) and process_body.get("kind") == "Timed":
+                process_body = process_body.get("stmt")
+            for target, paths in collect_sequential_controls(process_body, symbols_for_controls).items():
+                for p in paths:
+                    dest_paths = sequential_guards.setdefault(target, [])
+                    if p not in dest_paths:
+                        dest_paths.append(p)
+        # Classify two-event always_ff controls only when AST guard paths prove
+        # an asynchronous reset branch. Never derive roles from signal names.
+        for target, facts in event_facts.items():
+            if len(facts) != 2 or any(f["role"] != "ambiguous_event" for f in facts):
+                continue
+            candidates = []
+            for fact in facts:
+                sig = fact["signal"]
+                paths = sequential_guards.get(target, ())
+                reset_paths = [p for p in paths if p.get("constantRhsCandidate") is True
+                               and any(sig in g.get("signals", ()) for g in p.get("guards", ()))]
+                if reset_paths and all(len(g.get("signals", ())) == 1
+                                       for p in reset_paths for g in p.get("guards", ())
+                                       if sig in g.get("signals", ())):
+                    candidates.append(sig)
+            if len(candidates) == 1:
+                for fact in facts:
+                    fact["role"] = "async_reset" if fact["signal"] == candidates[0] else "clock"
+        for relation in logical_edges:
+            if relation.get("type") != "event":
+                continue
+            matched = next((f for f in event_facts.get(relation["target"], ())
+                            if f["signal"] == relation["source"] and f["edge"] == relation.get("eventEdge")), None)
+            if matched and matched["role"] in ("clock", "async_reset"):
+                relation["pin"] = "CLK" if matched["role"] == "clock" else "RST"
+                relation["timingRole"] = matched["role"]
+        # The guarded reset branch is already described by sequentialGuards.
+        # When the same AST-proven async reset also has an RST terminal, a
+        # second control edge to D is NOT a second physical wire. Remove only
+        # that duplicate graph relationship, leaving every other control edge.
+        reset_terminals = {(r["source"], r["target"]) for r in logical_edges
+                           if r.get("type") == "event" and r.get("pin") == "RST"
+                           and r.get("timingRole") == "async_reset"}
+        logical_edges = [r for r in logical_edges
+                         if not (r.get("type") == "control"
+                                 and (r.get("source"), r.get("target")) in reset_terminals)]
+        # A guard reading the register's own Q does not create a second D pin.
+        # Keep the AST guard evidence in sequentialGuards/sequentialProfile;
+        # only suppress the synthetic direct physical self-edge. Real
+        # feedback through an AST expression/operator remains untouched.
+        logical_edges = [r for r in logical_edges
+                         if not (r.get("type") == "control"
+                                 and r.get("source") == r.get("target")
+                                 and r.get("target") in registers)]
+        # An AST-proven async reset constant write is handled by the RST pin,
+        # not a second normal D driver. Restrict suppression to *unfed*
+        # conversion operators at the exact guarded assignment line.
+        # Unlike a generic sequential-edge filter, this keeps genuine D
+        # computation and every operand-bearing operator intact.
+        reset_write_lines = {
+            (target, int(path["line"]))
+            for target, facts in event_facts.items()
+            if any(f["role"] == "async_reset" for f in facts)
+            for path in sequential_guards.get(target, ())
+            if path.get("constantRhsCandidate") is True
+            and isinstance(path.get("line"), int)
+            and any(any(f["signal"] in guard.get("signals", ())
+                        for guard in path.get("guards", ()))
+                    for f in facts if f["role"] == "async_reset")
+        }
+        fed_operator_keys = {str(r["target"]) for r in logical_edges
+                             if str(r.get("target", "")).startswith("op:")}
+        removable_casts = {
+            str(op["key"])
+            for op in operators
+            if op.get("kind") == "Conversion"
+            and str(op.get("key", "")) not in fed_operator_keys
+            and any(r.get("source") == op.get("key")
+                    and r.get("type") == "sequential"
+                    and (r.get("target"), op.get("line")) in reset_write_lines
+                    for r in logical_edges)
+        }
+        if removable_casts:
+            # Do not discard an operator used anywhere else.
+            removable_casts = {
+                key for key in removable_casts
+                if all(r.get("type") == "sequential"
+                       and (r.get("target"), next(op["line"] for op in operators
+                                                  if str(op["key"]) == key)) in reset_write_lines
+                       for r in logical_edges if r.get("source") == key)
+            }
+            logical_edges = [r for r in logical_edges
+                             if r.get("source") not in removable_casts]
+            operators = [op for op in operators
+                         if str(op.get("key")) not in removable_casts]
         nodes: list[dict] = []
         edges: list[dict] = []
         edge_specs: list[tuple[str, str, str, str, str, str, int, str]] = []
@@ -447,14 +727,18 @@ class RtlDesign:
             nodes.append({"id": prefix + "sig:" + name, "name": name,
                           "type": "counter" if name in counters else "fsm" if name in fsm_candidates else "register" if name in registers else ("port" if sig["kind"] in ("Port", "InterfacePort") else "signal"),
                           "classification": "candidate" if name in fsm_candidates else "AST" ,
-                          "direction": sig["direction"], "width": sig["width"], "dimensions": sig["dimensions"], "line": sig["line"]})
+                          "direction": sig["direction"], "width": sig["width"], "dimensions": sig["dimensions"], "line": sig["line"],
+                          "sequentialTiming": sorted(event_facts.get(name, []), key=lambda item: (item["signal"], item["edge"])) if name in registers else [],
+                          "sequentialGuards": sequential_guards.get(name, []) if name in registers else [],
+                          "sequentialProfile": summarize_sequential_profile(event_facts.get(name, []), sequential_guards.get(name, [])) if name in registers else None})
         for operator in operators:
             if len(nodes) >= limit:
                 break
             nodes.append({"id": prefix + operator["key"], "name": operator["name"],
                           "type": "operator", "kind": operator["kind"], "shape": operator["shape"], "line": operator["line"],
+                          "literalOperands": operator.get("literalOperands", {}),
+                          "operandDetails": operator.get("operandDetails", {}),
                           "pins": operator.get("pins", [])})
-        present = {item["id"] for item in nodes}
 
         def add_edge(src: str, dst: str, kind: str, *, net: str = "", port: str = "", pin: str = "", aggregate: int = 1, mapping: str = "direct") -> None:
             edge_specs.append((src, dst, kind, net, port, pin, aggregate, mapping))
@@ -493,7 +777,6 @@ class RtlDesign:
                                   "group": group if len(children) > 1 and child.group else "",
                                   "ports": ports, "line": child.line,
                                   "file": child.source})
-        present = {item["id"] for item in nodes}
         for group, children in groups.items():
             grouped = len(children) > 1 and children[0].group and not (explode or group in expanded_groups)
             # Aggregate identical proven bindings without inventing slice wiring.
@@ -607,19 +890,35 @@ class RtlDesign:
         scopes = []
         totals = {"nodes": 0, "edges": 0, "unbound_pins": 0,
                   "unresolved_pins": 0, "partial_pins": 0, "missing_sources": 0,
-                  "truncated_scopes": 0}
+                  "truncated_scopes": 0, "edge_mapping": {}, "partial_by_type": {}}
         for path, scope in self.scopes.items():
             graph = self.diagram(path, limit=limit)
             source = self._source_path(scope)
             file = source.relative_to(self.root).as_posix() if source else ""
             pins = graph["connectivity"]
+            # Count the graph's existing semantic labels. An edge marked
+            # ``partial`` is not evidence for a bit-exact connection.
+            edge_mapping: dict[str, int] = {}
+            partial_by_type: dict[str, int] = {}
+            for edge in graph["edges"]:
+                mapping = str(edge.get("mapping", "unknown"))
+                edge_mapping[mapping] = edge_mapping.get(mapping, 0) + 1
+                if mapping == "partial":
+                    kind = str(edge.get("type", "unknown"))
+                    partial_by_type[kind] = partial_by_type.get(kind, 0) + 1
             row = {"path": path, "module": scope.module, "file": file,
                    "source_status": "available" if source else "unresolved",
                    "nodes": len(graph["nodes"]), "edges": len(graph["edges"]),
+                   "edge_mapping": dict(sorted(edge_mapping.items())),
+                   "partial_by_type": dict(sorted(partial_by_type.items())),
                    "truncated": graph["truncated"], **pins}
             scopes.append(row)
             totals["nodes"] += row["nodes"]
             totals["edges"] += row["edges"]
+            for key in ("edge_mapping", "partial_by_type"):
+                accumulator = totals[key]
+                for label, count in row[key].items():
+                    accumulator[label] = accumulator.get(label, 0) + count
             for key in ("unbound_pins", "unresolved_pins", "partial_pins"):
                 totals[key] += pins[key]
             totals["missing_sources"] += int(source is None)
@@ -649,13 +948,20 @@ class RtlDesign:
         return {"status": "available", "module": scope.module, "file": source.relative_to(self.root).as_posix(),
                 "line": scope.line, "code": source.read_text(encoding="utf-8", errors="replace")}
 
+    def occurrences(self, path: str, signal: str) -> dict[str, Any]:
+        from .occurrences import occurrences
+        return occurrences(self, path, signal)
+
     def follow(self, path: str, child: str, signal_id: str) -> dict[str, Any]:
         """Allow cross-boundary tracking only when explicit Slang bindings prove it."""
         scope = self._scope(path)
         target = self._scope(child)
         if child not in scope.children:
             return {"status": "unresolved", "reason": "not a direct elaborated child"}
-        selected = signal_id.removeprefix(path + "::sig:")
+        prefix = path + "::sig:"
+        if not signal_id.startswith(prefix):
+            return {"status": "unresolved", "reason": "signal ID does not belong to parent scope"}
+        selected = signal_id[len(prefix):]
         if selected not in self._signals(scope):
             return {"status": "unresolved", "reason": "signal does not belong to parent scope"}
         matches = [(port, mapping) for sig, port, _direction, mapping
@@ -673,25 +979,66 @@ class RtlDesign:
         graph = self.diagram(path, limit=1500)
         node_ids = {n["id"] for n in graph["nodes"]}
         if from_id not in node_ids or to_id not in node_ids:
-            return {"status": "unresolved", "reason": "endpoints not in current graph slice", "paths": []}
-        neighbours: dict[str, list[str]] = {}
+            return {"status": "unresolved", "reason": "endpoints not in current graph slice", "paths": [],
+                    "truncated": graph["truncated"]}
+        neighbours: dict[str, set[str]] = {}
+        unresolved_edges = False
         for edge in graph["edges"]:
             if edge["resolved"]:
-                neighbours.setdefault(edge["source"], []).append(edge["target"])
+                neighbours.setdefault(edge["source"], set()).add(edge["target"])
+            else:
+                # Unknown or partial relations cannot prove path absence.
+                unresolved_edges = True
         work = deque([[from_id]])
         found: list[list[str]] = []
         visits = 0
+        depth_limited = False
+        frontier_limited = False
         while work and len(found) < limit and visits < 4000:
             chain = work.popleft()
             visits += 1
             if chain[-1] == to_id:
                 found.append(chain)
-            elif len(chain) < 40:
-                work.extend([*chain, nxt] for nxt in neighbours.get(chain[-1], ()) if nxt not in chain)
+                continue
+            next_hops = [nxt for nxt in sorted(neighbours.get(chain[-1], ())) if nxt not in chain]
+            if len(chain) >= 40:
+                depth_limited |= bool(next_hops)
+                continue
+            for nxt in next_hops:
+                if len(work) >= 4000:
+                    frontier_limited = True
+                    break
+                work.append([*chain, nxt])
         sequential = {n["id"] for n in graph["nodes"] if n["type"] in ("register", "counter", "fsm")}
-        return {"status": "resolved" if found else "no_path", "paths": found,
-                "sequential_boundaries": [list(sequential.intersection(chain)) for chain in found],
-                "truncated": bool(work) or graph["truncated"], "scope": "RTL AST dependencies, not STA"}
+        truncated = bool(work) or graph["truncated"] or depth_limited or frontier_limited or unresolved_edges
+        status = "resolved" if found else "incomplete" if truncated else "no_path"
+        return {"status": status, "paths": found,
+                "sequential_boundaries": [sorted(sequential.intersection(chain)) for chain in found],
+                "truncated": truncated, "scope": "RTL AST dependencies, not STA"}
+
+    def evidence(self) -> dict[str, Any]:
+        """Run-wide lint inventory; no implicit attribution to elaborated instances.
+
+        Keep original diagnostics in the source report. Return only aggregate
+        metadata and a bounded set of distinct source labels to the browser.
+        """
+        if not self.run:
+            return {"status": "unavailable", "total": 0, "reason": "no run attached"}
+        status, report = _fsrtl_evidence_read_report(self.run)
+        if status != "available":
+            return {"status": status, "total": 0, "reason": report}
+        diagnostics = [item for item in report["diagnostics"] if isinstance(item, dict)]
+        priorities: dict[str, int] = {}
+        for item in diagnostics:
+            priority = str(item.get("priority") or item.get("severity") or "unknown")
+            priorities[priority] = priorities.get(priority, 0) + 1
+        # Labels may refer to external or generated files. They are *not*
+        # treated as authoritative mappings to a hierarchy instance.
+        return {"status": "available", "total": len(diagnostics),
+                "priorities": dict(sorted(priorities.items())),
+                "source_files": len({str(d.get("file")) for d in diagnostics if d.get("file")}),
+                "tool": "slang", "attribution": "run-level only; no instance mapping",
+                "report": "dv/lint/slang/summary.json"}
 
     def lint(self, path: str) -> dict[str, Any]:
         """Read-only file-level lint evidence; never guess an elaborated instance.

@@ -7,7 +7,8 @@
 (function(root){
  const isInput=p=>['in','input','inout'].includes(p.direction);
  const isOutput=p=>['out','output','inout'].includes(p.direction);
-function boxSize(n){if(n.type==='instance'||n.type==='generate'){const left=(n.ports||[]).filter(p=>['in','input'].includes(p.direction)).length;const right=(n.ports||[]).filter(p=>['out','output'].includes(p.direction)).length;return {w:220,h:Math.max(100,64+Math.max(left,right)*19)};}if(['register','counter','fsm'].includes(n.type))return {w:133,h:73};if(n.type==='operator')return {w:n.shape==='mux'?112:104,h:82};if(n.type==='port')return {w:144,h:44};return {w:170,h:n.dimensions?.unpackedDimensions?56:42};}
+// FSRTL-0055 geometry: compact functional glyphs; independent of bit width.
+function boxSize(n){if(n.type==='instance'||n.type==='generate'){const left=(n.ports||[]).filter(p=>['in','input'].includes(p.direction)).length;const right=(n.ports||[]).filter(p=>['out','output'].includes(p.direction)).length;return {w:220,h:Math.max(100,64+Math.max(left,right)*19)};}if(['register','counter','fsm'].includes(n.type))return {w:133,h:73};if(n.type==='operator')return {w:n.shape==='mux'?86:n.shape==='arith'?72:68,h:n.shape==='mux'?72:62};if(n.type==='port')return {w:144,h:44};return {w:170,h:n.dimensions?.unpackedDimensions?56:42};}
 function baseRank(n){if(n.type==='port')return ['in','input'].includes(n.direction)?0:['out','output'].includes(n.direction)?6:2;if(n.type==='operator'||n.type==='instance'||n.type==='generate')return 3;if(['register','counter','fsm'].includes(n.type))return 4;return 2;}
 // Component pin geometry is shared with Canvas. A/B are data inputs, S is
 // the mux selector *below* the trapezoid, Y is the driven output.
@@ -16,8 +17,8 @@ function pinGeometry(n,rect,pin,side){
  if(['register','counter','fsm'].includes(n.type)){
   // Dedicated pins coincide with the sequential symbol drawn by Canvas.
   if(side==='out')return {x:x+w-4,y:y+20,face:'right'};
-  if(pin==='CLK')return {x:x+4,y:y+h-13,face:'left'};
-  if(pin==='EVENT')return {x:x+4,y:y+h-30,face:'left'};
+  if(pin==='CLK')return {x:x+w*.34,y:y+h-3,face:'bottom'};
+  if(pin==='EVENT')return {x:x+w*.67,y:y+h-3,face:'bottom'};
   return {x:x+4,y:y+20,face:'left'};
  }
  if(n.type!=='operator')return null;
@@ -27,8 +28,8 @@ function pinGeometry(n,rect,pin,side){
   if(pin==='B')return {x:x+9,y:y+h-22,face:'left'};
   if(pin==='S')return {x:x+w/2,y:y+h-6,face:'bottom'};
  }
- if(pin==='A')return {x:x+7,y:y+23,face:'left'};
- if(pin==='B')return {x:x+7,y:y+h-23,face:'left'};
+ if(pin==='A')return {x:x+7,y:y+18,face:'left'};
+ if(pin==='B')return {x:x+7,y:y+h-18,face:'left'};
  return {x:x+7,y:y+h/2,face:'left'};
 }
 
@@ -331,11 +332,26 @@ function pinGeometry(n,rect,pin,side){
     const pos=portList.findIndex(p=>p.name===edge.port);
     if(pos>=0)return rect.y+(side==='out'?65:53)+19*pos;
    }
+   // A semantic net has one electrical origin. Do not fan its outgoing
+   // edges into four visually different pins on the same signal glyph.
+   // Distinct net IDs retain independent anchor allocations.
    return rect.y+rect.h/2+Math.max(-rect.h*.32,Math.min(rect.h*.32,(idx-(total-1)/2)*5));
   };
   for(const [id,edges] of outgoing){
    orderEdges(edges,e=>e.target);
-   edges.forEach((e,i)=>departures.set(e.id,edgeAnchor(nodes.get(id),e,'out',i,edges.length)));
+   // Fanout of one proven RTL net uses the same departure anchor, even when
+   // represented by multiple graph edges. This does not merge distinct nets.
+   const byNet=new Map();
+   for(const e of edges){
+    const key=String(e.net||e.id)+'\u0000'+String(e.port||e.pin||'');
+    if(!byNet.has(key))byNet.set(key,[]);
+    byNet.get(key).push(e);
+   }
+   const groups=[...byNet.values()];
+   groups.forEach((members,i)=>{
+    const y=edgeAnchor(nodes.get(id),members[0],'out',i,groups.length);
+    members.forEach(e=>departures.set(e.id,y));
+   });
   }
   for(const [id,edges] of incoming){
    orderEdges(edges,e=>e.source);
@@ -384,14 +400,13 @@ function pinGeometry(n,rect,pin,side){
    const from=positions.get(e.source),to=positions.get(e.target);
    if(!from||!to)continue;
    const ra=rank.get(e.source),rb=rank.get(e.target);
-   // A backward connection must really flow right -> left, including its
-   // arrowhead. Its source leaves the LEFT face; the sink receives on its
-   // RIGHT face. Pin face is exported for the component renderer.
+   // Feedback changes the routing corridor, never the electrical pin face.
+   // Outputs leave right; inputs enter left on every hierarchy level.
    const backward=rb<=ra && from.x>=to.x;
    const sourcePin=pinGeometry(nodes.get(e.source),from,e.pin,'out');
-   const sinkPin=pinGeometry(nodes.get(e.target),to,e.pin,'in');
-   const x0=sourcePin?.x??(backward?from.x+8:from.x+from.w-8);
-   const x1=sinkPin?.x??(backward?to.x+to.w-8:to.x+8);
+   const sinkPin=pinGeometry(nodes.get(e.target),to,e.type==='event'&&e.pin!=='CLK'?'EVENT':e.pin,'in');
+   const x0=sourcePin?.x??(from.x+from.w-8);
+   const x1=sinkPin?.x??(to.x+8);
    const y0=sourcePin?.y??(departures.get(e.id)+topOffset);
    const y1=sinkPin?.y??(arrivals.get(e.id)+topOffset);
    let path;
@@ -418,25 +433,54 @@ function pinGeometry(n,rect,pin,side){
     const rail=corridors.has(e.id)?corridors.get(e.id)+topOffset:60+track*17;
     // Source exit in the next free gap; target entry in the prior free gap.
     // Both are outside the module bounding boxes, even on backward edges.
-    const exit=backward?from.x-22-(track%3)*7:from.x+from.w+22+(track%3)*7;
-    const entry=backward?to.x+to.w+23+(track%3)*7:to.x-23-(track%3)*7;
+    const exit=from.x+from.w+22+(track%3)*7;
+    const entry=to.x-23-(track%3)*7;
     path=[[x0,y0],[exit,y0],[exit,rail],[entry,rail],[entry,y1],[x1,y1]];
    }
    edgePaths.set(e.id,compact(path));
    if(e.port){
     const instance=e.type==='port_out'?e.source:e.target;
     if(nodes.get(instance)?.type==='instance'||nodes.get(instance)?.type==='generate')
-     portFaces.set(instance+'::'+e.port,backward?(e.type==='port_out'?'left':'right'):(e.type==='port_out'?'right':'left'));
+     portFaces.set(instance+'::'+e.port,e.type==='port_out'?'right':'left');
    }
   }
   const polished=refine(graph,positions,edgePaths,contentHeight+topOffset);
+  // Keep a common visible source stub for fanout edges from the SAME net.
+  // The branch begins outside the symbol, at an explicitly shared junction.
+  // Geometry-only: no new source, sink, or electrical net is inferred.
+  const fanout=new Map();
+  for(const edge of graph.edges){
+   if(!polished.paths.has(edge.id)||!edge.net)continue;
+   const key=edge.source+'\u0000'+edge.net+'\u0000'+String(edge.port||edge.pin||'');
+   if(!fanout.has(key))fanout.set(key,[]);
+   fanout.get(key).push(edge);
+  }
+  const junctions=[];
+  for(const group of fanout.values()){
+   if(group.length<2)continue;
+   const first=polished.paths.get(group[0].id),start=first?.[0];
+   if(!start)continue;
+   const branchX=start[0]+24,branchY=start[1];
+   // All source anchors must agree; never connect two distinct pin positions.
+   if(!group.every(e=>{const p=polished.paths.get(e.id)?.[0];return p&&p[0]===start[0]&&p[1]===start[1];}))continue;
+   for(const edge of group){
+    const old=polished.paths.get(edge.id),end=old[old.length-1];
+    // Choose the first existing route waypoint beyond the source stub.
+    // Keep the original route, inserting a shared source corridor.
+    const tail=old.slice(1);
+    const rebuilt=compact([start,[branchX,branchY],[branchX,tail[0]?.[1]??branchY],...tail]);
+    if(rebuilt.length>=2&&rebuilt[rebuilt.length-1][0]===end[0]&&rebuilt[rebuilt.length-1][1]===end[1])
+     polished.paths.set(edge.id,rebuilt);
+   }
+   junctions.push({x:branchX,y:branchY,net:group[0].net,count:group.length});
+  }
   // Include repaired detours in the canvas extents; otherwise Fit can clip
   // a valid net routed below or to the right of the original layout.
   let routedWidth=Math.max(530,right),routedHeight=contentHeight+topOffset;
   for(const points of polished.paths.values())for(const [x,y] of points){
    routedWidth=Math.max(routedWidth,x+44);routedHeight=Math.max(routedHeight,y+44);
   }
-  return {positions,edgePaths:polished.paths,portFaces,bridges:bridges(polished.paths,graph.edges),width:routedWidth,height:routedHeight,
+  return {positions,edgePaths:polished.paths,portFaces,fanoutJunctions:junctions,bridges:bridges(polished.paths,graph.edges),width:routedWidth,height:routedHeight,
    stats:{channelTracks:packed.reduce((sum,p)=>sum+p.count,0),corridorWires:corridors.size,overheadTracks:topRails.count,...polished.stats}};
  }
  const api={compute,tracks,bridges,geometryScore,refine,RoutingOccupancy,boxSize,baseRank,pinGeometry};

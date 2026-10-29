@@ -1,6 +1,5 @@
 """Regression tests for read-only lint evidence shown by rtl-view."""
 import json
-from pathlib import Path
 
 from flexsoc.backend.dv.rtl_viewer import RtlDesign
 from test_rtl_viewer import fixture_ast

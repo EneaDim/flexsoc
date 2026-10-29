@@ -144,7 +144,7 @@ Use `fx commands` to list every backend target.
                 ("fx setup --force", "Create the run directory tree."),
                 ("fx hjson --force", "Create the CSR HJSON source of truth."),
                 ("fx reg doc --force", "Generate register RTL and documentation."),
-                ("fx rtl_stub --force", "Create the editable RTL core and aligned wrapper."),
+                ("fx rtl_stub --force", "Create only the editable RTL core; generate top separately."),
                 ("fx top_from_core flist --force", "Refresh the wrapper and ordered RTL filelists."),
             ),
         ),

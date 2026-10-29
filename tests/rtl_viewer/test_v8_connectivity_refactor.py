@@ -149,3 +149,14 @@ def test_dense_graph_has_explicit_edge_limit_not_a_silent_success():
     collector.add('a', 'c', 'data')
     assert len(collector.all()) == 1
     assert collector.truncated
+
+
+def test_unknown_address_fails_closed_even_when_declarations_lack_addresses():
+    # Some partial serializer outputs contain declaration names but not IDs.
+    # An unresolved numeric reference must never be rebound by display name.
+    symbols = SymbolTable(({'kind': 'Variable', 'name': 'data'},), {'data'})
+    assert symbols.reads(ref(999, 'data')) == ()
+    assert symbols.port_actuals(ref(999, 'data')) == ()
+    assert symbols.reads({'kind': 'NamedValue', 'symbol': {'addr': 999, 'name': 'data'}}) == ()
+    # A genuinely name-only, address-free fixture remains distinguishable.
+    assert symbols.reads({'kind': 'NamedValue', 'symbol': {'name': 'data'}}) == ('data',)

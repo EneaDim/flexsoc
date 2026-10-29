@@ -29,7 +29,8 @@ def test_dynamic_selector_remains_symbolic_and_typed():
 
 
 def test_range_selection_preserves_declared_kind():
-    lit = lambda n: {"kind": "IntegerLiteral", "value": str(n)}
+    def lit(n):
+        return {"kind": "IntegerLiteral", "value": str(n)}
     result = lower({"kind": "RangeSelect", "type": "logic[3:0]", "selectionKind": "Simple",
                     "value": ref(2), "left": lit(7), "right": lit(4)})
     assert result["status"] == "supported"

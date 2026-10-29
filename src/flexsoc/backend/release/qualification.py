@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import shutil
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence
@@ -716,6 +717,62 @@ class QualificationFlow:
         return spec, requirements, testplan
 
     @staticmethod
+    def _traceable_scaffold(
+        spec: str, requirements: dict[str, object], testplan: dict[str, object],
+        *, multiclock: bool,
+    ) -> tuple[str, str]:
+        """Provide small, *unapproved* CRS/TDS examples for new IP scaffolds.
+
+        Mapping describes planned verification; it does not execute any test.
+        """
+        if multiclock:
+            needs = (
+                ("Clock and reset", "Declared clock domains and independent reset behavior"),
+                ("Configuration", "Software configuration and control of the DSP"),
+                ("Safe data transfer", "Safe crossings and ready/valid transfers"),
+                ("Processing", "Selectable DSP computations"),
+            )
+            owners = (1, 2, 3, 4, 3, 2, 1)
+        else:
+            needs = (
+                ("Clock and reset", "Single-clock operation with controlled reset release"),
+                ("Processing", "Selectable registered datapath behavior"),
+                ("Software interface", "Stable registers and observable status"),
+            )
+            owners = (1, 3, 2, 2, 3)
+
+        customer = (
+            "# Customer requirements — scaffold example\n\n"
+            "Draft examples derived from the starter IP specification. "
+            "Review, replace and approve these needs before qualification; "
+            "they are **not** customer-approved requirements.\n"
+        )
+        for number, (title, description) in enumerate(needs, start=1):
+            customer += f"\n## CRS-{number:03d} — {title}\n\n{description}.\n"
+
+        spec += "\n## Traceable technical obligations (starter examples)\n\n"
+        for number, (req, owner) in enumerate(zip(requirements["requirements"], owners), start=1):
+            tid = f"TDS-{number:03d}"
+            req["category"] = "technical"
+            req["spec_refs"] = [tid]
+            spec += (
+                f"\n### {tid} — {req['id']}\n\n"
+                f"Customer refs: CRS-{owner:03d}\n\n"
+                f"{req['statement']}\n"
+            )
+
+        # Only names that actually appear in the generated model's scenarios.py.
+        # Even these remain NOT_RUN until engineers author independent assertions.
+        model_scenarios = {"smoke", "corners", "random_seed_1", "random_seed_2", "reconfig"}
+        if multiclock:
+            model_scenarios.update({"mac_smoke", "absdiff", "energy", "clock_gate"})
+        for item in testplan["items"]:
+            cases = [name for name in item.get("tests", ()) if name in model_scenarios]
+            if cases:
+                item["model_cases"] = cases
+        return customer, spec
+
+    @staticmethod
     def write_spec_scaffold(
         spec_root: Path,
         *,
@@ -724,28 +781,74 @@ class QualificationFlow:
         clock_relationships: Sequence[str] = (),
         force: bool = False,
     ) -> tuple[Path, Path, Path]:
-        """Create the minimal authoritative spec/requirements/test-plan scaffold."""
+        """Create or safely upgrade editable spec examples without overwriting user edits."""
 
-        if len(tuple(clock_domains)) > 1:
-            spec, requirements, testplan = QualificationFlow._multi_clock_spec(ip_name, tuple(clock_domains), tuple(clock_relationships))
+        multiclock = len(tuple(clock_domains)) > 1
+        if multiclock:
+            old_spec, requirements, testplan = QualificationFlow._multi_clock_spec(
+                ip_name, tuple(clock_domains), tuple(clock_relationships)
+            )
         else:
-            spec, requirements, testplan = QualificationFlow._single_clock_spec(ip_name, tuple(clock_domains))
-        root = Path(spec_root)
-        outputs = (
-            QualificationFlow._write_authored(root / "ip.md", spec, force=force),
-            QualificationFlow._write_authored(
-                root / "requirements.yaml",
-                yaml.safe_dump(requirements, sort_keys=False, allow_unicode=True),
-                force=force,
-            ),
-            QualificationFlow._write_authored(
-                root / "testplan.yaml",
-                yaml.safe_dump(testplan, sort_keys=False, allow_unicode=True),
-                force=force,
-            ),
+            old_spec, requirements, testplan = QualificationFlow._single_clock_spec(
+                ip_name, tuple(clock_domains)
+            )
+        customer, spec = QualificationFlow._traceable_scaffold(
+            old_spec, requirements, testplan, multiclock=multiclock,
         )
-        QualificationFlow.validate_spec_bundle(root, ip_name=ip_name)
-        return outputs
+        dump = lambda data: yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
+        generated = {
+            "customer.md": customer,
+            "ip.md": spec,
+            "requirements.yaml": dump(requirements),
+            "testplan.yaml": dump(testplan),
+        }
+        # Exact legacy scaffolds can be upgraded safely; manually edited files
+        # must remain untouched unless the user explicitly requests --force.
+        if multiclock:
+            legacy_spec, legacy_reqs, legacy_plan = QualificationFlow._multi_clock_spec(
+                ip_name, tuple(clock_domains), tuple(clock_relationships)
+            )
+        else:
+            legacy_spec, legacy_reqs, legacy_plan = QualificationFlow._single_clock_spec(
+                ip_name, tuple(clock_domains)
+            )
+        legacy = {
+            "ip.md": legacy_spec,
+            "requirements.yaml": dump(legacy_reqs),
+            "testplan.yaml": dump(legacy_plan),
+        }
+        root = Path(spec_root)
+        planned = {}
+        for name, content in generated.items():
+            path = root / name
+            if force or not path.exists():
+                planned[name] = content
+            else:
+                existing = path.read_text(encoding="utf-8")
+                planned[name] = content if existing == legacy.get(name) else existing
+
+        # Validate the final combination before touching any authored file. A
+        # partial old/new bundle must never be left behind on validation errors.
+        with tempfile.TemporaryDirectory(prefix="flexsoc-spec-") as temporary:
+            candidate = Path(temporary)
+            for name, text in planned.items():
+                (candidate / name).write_text(text, encoding="utf-8")
+            try:
+                QualificationFlow.validate_spec_bundle(candidate, ip_name=ip_name)
+            except (ValueError, KeyError, TypeError, yaml.YAMLError) as exc:
+                raise ValueError(
+                    "existing specification is not compatible with the CRS/TDS contract: "
+                    f"{exc}. No files changed. Review spec/customer.md, spec/ip.md, "
+                    "spec/requirements.yaml and spec/testplan.yaml, or back them up "
+                    "and run `fx spec --force` to regenerate starter examples."
+                ) from exc
+
+        root.mkdir(parents=True, exist_ok=True)
+        for name, text in planned.items():
+            path = root / name
+            if not path.exists() or path.read_text(encoding="utf-8") != text:
+                QualificationFlow._write_authored(path, text, force=True)
+        return (root / "ip.md", root / "requirements.yaml", root / "testplan.yaml")
 
     @staticmethod
     def _validated_gls_policy(

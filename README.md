@@ -89,8 +89,9 @@ in [`docs/digital_ip_contract.md`](docs/digital_ip_contract.md).
 
 ### Design verification
 
-- editable Python reference model;
-- scenario-based vector generation;
+- editable Python reference model and independently authored model assertions (`fx mtest`);
+- executable CRS/TDS/requirements/testplan traceability (`fx trace`);
+- scenario-based RTL vector generation (`fx tests_gen`);
 - SystemVerilog and cocotb execution;
 - Verilator code coverage;
 - automatic CSR formal checks;
@@ -163,86 +164,238 @@ but a host can run the complete ASIC flow only when the matching EDA toolchain i
 already installed and `fx doctor` reports it ready. Image build/publish details
 belong in [docker/README.md](docker/README.md).
 
-## Minimal single-clock flow
+## Complete IP flow — all commands in execution order
 
-Persist project intent once with `fx settings`; normal commands then reuse `TOP`, `RUN_ID`, `REG_ITF`, qualification target, selected PDK, and derived run paths instead of requiring them on every invocation. Explicit `--workdir` overrides are useful for isolated tests/E2E workspaces, not as the normal user experience.
+This is the **full sequence** for a *new* single-clock or multi-clock example,
+from configuration to reusable IP release. Select **one** clock configuration,
+then use the same numbered stages for either topology. Read the short notes
+between command blocks: some steps require **human-authored inputs**, and later
+stages must not be run just because an earlier `--setup` completed.
+
+**Prerequisites:** install the matching EDA tools and PDK first (see above). The
+examples use Sky130; full physical sign-off may need additional foundry/platform
+collateral. `--force` is for creating a **fresh disposable scaffold only**.
+Do not use it after editing HJSON, RTL, SDC or specifications.
+
+### 1. Configure the IP
+
+Choose **one** of the following commands. This determines the run identity,
+clock/reset intent, and generated topology.
+
+Single clock:
 
 ```bash
 fx settings \
   TOP=my_ip RUN_TOP=my_ip RUN_ID=dev HOST=uart \
+  IP_NAME=my_ip IP_VERSION=0.1.0 QUAL_LEVEL=physical_signoff \
   N_CLOCKS=1 \
   CLOCK_DOMAINS=core:clk_i:rst_ni:10:low \
   CLOCK_RELATIONSHIPS=
-
-fx setup --force
-fx hjson reg doc rtl_stub top_from_core flist --force
-fx lint
-
-# Initialize once, then review/edit as authored timing intent.
-fx sdc --setup --force
-# edit constraints/my_ip.sdc
-
-fx cdc_rdc --setup --force
-fx cdc_rdc
-
-fx model --setup --force
-fx tests_gen --force
-fx tb cocotb --setup --force
-fx regression
-fx coverage --summary
-fx coverage --show
-
-fx formal --setup --force
-fx formal
-
-fx pdk use sky130
-fx syn --setup
-fx syn
-
-# Current scaffold baseline: generate EQY collateral only.
-# EQY setup is not equivalence PASS and therefore does not satisfy L3.
-fx eqy --setup
-# Run explicitly only when this IP/interface EQY profile is ready.
-fx eqy
-
-fx signoff --setup
-fx sdf
-fx sta
-fx power-estimate
-
-fx manifest
-fx metrics
-fx check
-fx qualify
-fx ip_save
 ```
 
-`fx sdc --setup` is the handoff from bootstrap settings to authored timing intent.
-Functional SV/cocotb clocks, CDC/RDC clock relationships, synthesis drive/load
-setup, implementation, and STA all consume the same `constraints/<TOP>.sdc`.
-Functional clocks honor SDC waveform and source latency and model clock
-uncertainty as bounded reproducible jitter using the run `SEED`.
-
-`fx metrics` writes the normalized snapshot to `meta/<pdk>/metrics.json`.
-`fx check` reads that saved snapshot and renders the colored lifecycle dashboard;
-it does not recollect or modify metrics.
-
-## Minimal N-clock configuration
+Three asynchronous clocks:
 
 ```bash
 fx settings \
   TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart \
+  IP_NAME=tri_stream_dsp IP_VERSION=0.1.0 QUAL_LEVEL=physical_signoff \
   N_CLOCKS=3 \
-  'CLOCK_DOMAINS=cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low' \
+  'CLOCK_DOMAINS=cfg:cfg_clk_i:cfg_rst_ni:20:low,rx:rx_clk_i:rx_rst_ni:16:low,dsp:dsp_clk_i:dsp_rst_ni:30:low' \
   'CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp'
 ```
 
-The command vocabulary remains the same for one or many clocks. Bootstrap
-metadata initializes the first SDC and retains reset ownership/polarity. Once
-`constraints/tri_stream_dsp.sdc` exists, edit clock timing and relationships
-there rather than maintaining a parallel timing configuration. `top_from_core`
-adds one domain-local reset synchronizer per clock/reset domain using the common
-`prim_ff_2sync` primitive.
+Continue with the configured run:
+
+```bash
+fx pdk use sky130
+fx doctor
+fx deps-doctor
+```
+
+### 2. Bootstrap specification, CSR and RTL
+
+```bash
+fx setup --force
+fx spec
+fx hjson --force
+fx reg --force
+fx doc --force
+fx rtl_stub --force
+fx top_from_core --force
+fx flist --force
+```
+
+`fx spec` creates **editable examples** in `spec/customer.md`, `spec/ip.md`,
+`spec/requirements.yaml` and `spec/testplan.yaml`, including CRS → TDS →
+requirements → testplan → scenario links. These are **not approved customer
+requirements or executed tests**. `fx requirements`, `fx testplan` and
+`fx trace` inspect this authored contract; they do not generate test results.
+
+**Authoring checkpoint A:** review/replace the generated customer needs,
+technical obligations, testplan and `csr/<TOP>.hjson`; implement the real
+`rtl/<TOP>_core.sv`. Only rerun the corresponding generators after changing
+these authored inputs, and never overwrite edits accidentally.
+
+### 3. Structural checks and timing constraints
+
+```bash
+fx flist
+fx lint
+fx slang_hier
+fx sdc --setup
+```
+
+**Authoring checkpoint B:** review `constraints/<TOP>.sdc` (clocks, IO timing,
+clock relationships and exceptions). It is the **authored** timing source of
+truth. Do not rerun `fx sdc --setup --force` after editing it.
+
+```bash
+fx cdc_rdc --setup
+fx cdc_rdc
+```
+
+`fx rtl-view` is available here for optional interactive hierarchy and schematic
+inspection; it is **not** a qualification gate.
+
+### 4. Model, requirements, traceability and independent model tests
+
+```bash
+fx model --setup
+fx requirements
+fx testplan
+fx trace --summary
+fx mtest --setup
+```
+
+**Authoring checkpoint C:** implement `dv/functional/py/model/<TOP>_model.py`,
+`scenarios.py`, and independent assertions in `<TOP>_model_tests.py`. Review
+the linkages in the YAML testplan. Generated model tests containing
+`pytest.skip` are not passing verification evidence.
+
+```bash
+fx mtest
+fx mtest --check
+fx trace --summary
+```
+
+**Important for migrated runs:** the RTL vector generator belongs in
+`dv/functional/py/rtl/<TOP>_tests.py` (not `py/model`). The earlier scaffold
+location fix must be installed for `fx model --setup` to produce this on new
+runs. See [repairing older scaffolds](docs/quickstart.md#existing-run-missing-rtl-vector-generator).
+
+### 5. Functional simulation and coverage
+
+**Authoring checkpoint D:** implement the vector generator and expected RTL
+behavior; align the test names in `testplan.yaml` with real scenarios. Then:
+
+```bash
+fx tests_gen
+fx tests_gen --check
+fx tests
+fx tb --setup
+fx cocotb --setup
+fx sim --set TEST_NAME=smoke
+fx cocotb --set TEST_NAME=smoke
+fx regression
+fx coverage
+fx coverage --summary
+```
+
+The individual smoke tests are quick diagnostics. The full regression and
+coverage gates are still required for a complete run; errors in `tests_gen`
+prevent the dependent regression from producing valid evidence.
+
+### 6. Formal verification
+
+```bash
+fx formal --setup
+```
+
+**Authoring checkpoint E:** review properties, assumptions and covers under
+`dv/formal/`. An empty or placeholder assertion is not a proof.
+
+```bash
+fx formal
+```
+
+### 7. Synthesis and RTL-to-netlist equivalence
+
+```bash
+fx syn --setup
+fx syn
+fx eqy --setup
+```
+
+Review the generated EQY configuration and technology-cell assumptions.
+`fx eqy --setup` is **not** an equivalence PASS.
+
+```bash
+fx eqy
+```
+
+### 8. Post-synthesis sign-off, GLS, timing and power
+
+```bash
+fx signoff --setup
+fx sdf
+fx sta
+fx power-estimate
+fx sim --post-syn --all
+fx power-analysis --all --set POWER_TEST_NAMES=all --set POWER_TIMING_MODES=all
+fx fusion --all --set POWER_TEST_NAMES=all --set POWER_TIMING_MODES=all
+```
+
+Gate-level simulation needs suitable generated tests and SDF annotation.
+Activity-based power and fusion require matching successful GLS waveforms.
+Do not confuse vectorless `power-estimate` with activity-based `power-analysis`.
+
+### 9. Physical implementation and post-implementation sign-off
+
+```bash
+fx pnr --setup
+fx pnr
+fx physical_signoff
+fx signoff_post_impl --setup
+fx sdf_post_impl
+fx sta --post-impl
+fx power-estimate --post-impl
+fx sim --post-impl --all
+fx power-analysis --post-impl --all
+fx fusion --post-impl --all
+```
+
+Physical verification availability is PDK-dependent. Missing DRC/LVS/IR data
+is **not** silently a PASS; consult the reports and qualification requirements.
+
+### 10. Review evidence, qualify and release
+
+The example selects `QUAL_LEVEL=physical_signoff` at step 1. Check that
+all evidence required by that level is current and passing:
+
+```bash
+fx manifest
+fx metrics
+fx check
+fx qualify
+```
+
+**Only after the requested qualification actually passes** and release
+metadata is correctly set should you save the IP:
+
+```bash
+fx ip_save
+```
+
+`fx ip_load` is a separate consumption workflow for an already saved package;
+it is **not** a step in producing this new scaffold. For other qualification
+levels or IP reuse, see the [Digital IP Contract](docs/digital_ip_contract.md)
+and [ASIC flow guide](docs/flexsoc_asic_flow_guide.md).
+
+**All steps are ordered; they are not guaranteed to pass on an unedited
+scaffold.** The initial spec, model, testplan, vectors, formal properties and
+SDC must represent real design intent, and the matching EDA tools/PDK must be
+available. Stop at a failed gate, inspect its log and fix its inputs before
+continuing.
 
 ## Development principles
 

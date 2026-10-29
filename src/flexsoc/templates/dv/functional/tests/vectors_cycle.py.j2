@@ -17,6 +17,13 @@ import argparse
 import random
 from dataclasses import dataclass
 from pathlib import Path
+import sys
+
+# The vector generator belongs to py/rtl; reference model and scenarios
+# remain independent, authored sources under the adjacent py/model directory.
+_MODEL_DIR = Path(__file__).resolve().parent.parent / "model"
+if str(_MODEL_DIR) not in sys.path:
+    sys.path.insert(0, str(_MODEL_DIR))
 
 import <<: top :>>_model as model
 import <<: top :>>_regmap as regmap
@@ -258,18 +265,48 @@ def random_test(seed: int) -> TestCase:
 
 
 def reconfig_test() -> TestCase:
-    """Show initial config and repeated runtime CSR access in one test."""
+    """Exercise a runtime CSR write before the next functional transaction.
+
+    A masked CSR write may perform a read-modify-write and take a variable
+    number of bus clocks.  A fixed-cycle data check, or an overlapping CSR
+    read from the *other* vector worker, can therefore race with the write.
+
+    Starter pipelines expose ``valid_i``/``valid_o``.  For them the functional
+    expectation is event-guarded: both SV and cocotb wait for the actual DUT
+    completion, then read the CSR *after* that check.  The guarded output row
+    starts a fresh output-monitor epoch for the following ``@read``.
+
+    Retain the original fixed-cycle catalogue for designs without this
+    handshake; they need an authored protocol-specific synchronization before
+    their runtime CSR tests can be made latency independent.
+    """
 
     reference = model.ReferenceModel()
     config = csr_config()
     first_in, first_out = csr_roundtrip(8, 16)
+    if "valid_i" in INPUTS and "valid_o" in OUTPUTS:
+        functional_in, functional_out = functional_transaction_when_valid(
+            reference, drive_cycle=20, value=1, valid_signal="valid_o"
+        )
+        if not functional_out:
+            # An interface exposing only a validity bit can still prove that
+            # a transaction completed after the runtime CSR operation.
+            functional_out = [check_when_valid("valid_o", {"valid_o": 1})]
+        return TestCase(
+            config=config,
+            data_in=[*first_in, *functional_in],
+            data_out=[*functional_out, *first_out],
+        )
+
     functional_in, functional_out = functional_transaction(
         reference, drive_cycle=20, value=1
     )
     second_in, second_out = csr_roundtrip(24, 32)
-    data_in = [*first_in, *functional_in, *second_in]
-    data_out = [*first_out, *functional_out, *second_out]
-    return TestCase(config=config, data_in=data_in, data_out=data_out)
+    return TestCase(
+        config=config,
+        data_in=[*first_in, *functional_in, *second_in],
+        data_out=[*first_out, *functional_out, *second_out],
+    )
 
 
 def test_case(test: str) -> TestCase:

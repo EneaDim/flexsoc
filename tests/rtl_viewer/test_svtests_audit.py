@@ -6,7 +6,7 @@ import sys
 
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'scripts'))
-from rtl_viewer_svtests import cases_at, check_case, report
+from rtl_viewer_svtests import cases_at, check_case, report  # noqa: E402 — sys.path configured above
 
 
 def test_svtests_manifest_classifies_negative_and_positive(tmp_path):

@@ -1,6 +1,5 @@
 """Conductor rerouting: non-overlapping lines and honest pin markers."""
 from pathlib import Path
-import json
 import shutil
 import subprocess
 import pytest
@@ -19,7 +18,8 @@ def test_partial_and_unbound_pins_visible_without_fake_link():
 
 
 def test_router_repairs_foreign_box_intersection_and_is_deterministic():
-    if not shutil.which('node'):pytest.skip('node unavailable')
+    if not shutil.which('node'):
+        pytest.skip('node unavailable')
     source=r'''
 const assert=require('node:assert/strict');
 const R=require(process.argv[1]);
@@ -47,7 +47,8 @@ console.log(JSON.stringify(result.stats));
 
 
 def test_module_input_and_output_pin_stubs_have_distinct_tracks():
-    if not shutil.which('node'):pytest.skip('node unavailable')
+    if not shutil.which('node'):
+        pytest.skip('node unavailable')
     source=r'''
 const assert=require('node:assert/strict');const R=require(process.argv[1]);
 const graph={nodes:[

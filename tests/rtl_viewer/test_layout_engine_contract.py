@@ -20,9 +20,9 @@ assert.match(validate(graph,extra).errors.join(' '),/extraneous node/);
 const invalid=good();invalid.edgePaths.set('e',[[NaN,0],[100,15]]);
 assert.match(validate(graph,invalid).errors.join(' '),/invalid or missing edge/);
 const engine=create({fallback:{compute:good},boxSize:()=>null,baseRank:()=>0});
-assert.equal(engine.compute(graph).edgePaths.size,1);
-assert.throws(()=>engine.setStrategy('elk'),/unavailable/);
-assert.throws(()=>create({fallback:{compute:()=>lost}}).compute(graph),/geometry invalid/);
+assert.throws(()=>engine.compute(graph),/Native layout removed/);
+engine.setStrategy('elk');assert.equal(engine.strategy,'elk');
+assert.throws(()=>create({fallback:{compute:()=>lost}}).compute(graph),/Native layout removed/);
 """
     subprocess.run(["node", "-e", source, str(WEB / "layout-engine.js")], check=True)
 

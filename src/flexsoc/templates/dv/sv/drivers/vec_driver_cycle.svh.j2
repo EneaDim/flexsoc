@@ -2,6 +2,11 @@
 // data_in.vec supports signal drives, @write, @cfg, @reset and synchronization barriers.
 
 int tb_vector_apply_count;
+// Count actual primary-clock edges independently of the vector file cursor.
+// Blocking register/configuration operations can consume physical clock cycles.
+int tb_vector_clock_edges = 0;
+always @(posedge <<: clk :>>) tb_vector_clock_edges++;
+
 localparam realtime FLEXSOC_VEC_DRIVE_NS  = <<: drive_ns :>>;
 localparam realtime FLEXSOC_VEC_SAMPLE_NS = <<: sample_ns :>>;
 event flexsoc_vec_drive_phase;
@@ -137,6 +142,7 @@ task automatic run_input_vectors(input string input_path);
   int current_cycle;
   int apply_start;
   int event_cursor;
+  int bus_start_edges;
   bit cycle_open;
   bit seen;
   logic [31:0] cycle_value;
@@ -267,7 +273,9 @@ task automatic run_input_vectors(input string input_path);
       if (t0 == "@cfg" || t0 == "cfg" || t0 == "@config" || t0 == "config") begin
         tb_finish_cycle(now_cycle, cycle_open);
         tb_wait_before_drive(cycle, now_cycle);
+        bus_start_edges = tb_vector_clock_edges;
         load_config(t1);
+        now_cycle += tb_vector_clock_edges - bus_start_edges;
         tb_vector_apply_count++;
         disable tb_input_line;
       end
@@ -291,7 +299,9 @@ task automatic run_input_vectors(input string input_path);
         end
         tb_finish_cycle(now_cycle, cycle_open);
         tb_wait_before_drive(cycle, now_cycle);
+        bus_start_edges = tb_vector_clock_edges;
         tb_apply_reg_write(t1, t2, t3);
+        now_cycle += tb_vector_clock_edges - bus_start_edges;
         disable tb_input_line;
       end
 
@@ -319,6 +329,11 @@ task automatic run_input_vectors(input string input_path);
 endtask
 
 task automatic run_vectors(input string input_path, input string output_path);
+  // Establish one common vector epoch after any blocking CSR configuration.
+  // Otherwise the monitor may catch this cycle's sample event while the
+  // driver can only catch the following drive event (one-cycle skew).
+  // Use the primary-domain sample phase; preserve the cycle-relative vectors.
+  tb_wait_sample_phase();
   fork
     run_input_vectors(input_path);
     run_output_vectors(output_path);

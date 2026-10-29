@@ -1,8 +1,7 @@
 """Regression for real Slang source fields and AST-proven literal ports."""
-from pathlib import Path
 
 from flexsoc.backend.dv.rtl_viewer.connectivity import PortResolver
-from flexsoc.backend.dv.rtl_viewer.model import RtlDesign, extract_location
+from flexsoc.backend.dv.rtl_viewer.model import extract_location
 
 
 def test_public_slang_source_file_line():

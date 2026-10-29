@@ -176,3 +176,85 @@ button:active:not(:disabled){transform:translateY(1px)}
 .lint-overlay-location{color:var(--muted);font:10px var(--mono);overflow-wrap:anywhere}
 .lint-priority{display:inline-block;padding:2px 5px;border-radius:4px;color:#fff;background:#698092}
 .lint-priority.p0{background:#c45319}.lint-priority.p1{background:#af7524}.lint-priority.p2{background:#197da9}
+
+/* FSRTL-0054 accessible source gutter and compact module navigation */
+.sidebar{flex-shrink:0;max-width:520px;min-width:180px;box-sizing:border-box;padding:16px 10px 12px}
+.sidebar .section-title{margin-bottom:8px}
+.hierarchy .tree-button,.sidebar .tree-button{padding:6px 8px;min-height:29px;border-radius:5px;font-size:11px;line-height:1.35}
+.hierarchy .tree-button:hover,.sidebar .tree-button:hover{background:rgba(111,170,206,.10)}
+.rtl-sidebar-resizer{width:6px;flex:0 0 6px;cursor:col-resize;background:transparent;border-right:1px solid var(--line);position:relative;z-index:5}
+.rtl-sidebar-resizer:hover,.rtl-sidebar-resizer:focus-visible{background:rgba(83,191,255,.32);outline:0}
+.code-wrap{display:block;position:relative;overflow:auto;font-variant-ligatures:none}
+#lineNumbers{display:none!important}
+#sourceCode{display:block;min-width:max-content;box-sizing:border-box;padding:12px 18px 24px 10px;white-space:pre;counter-reset:rtl-line;font-variant-numeric:tabular-nums}
+#sourceCode .code-line{display:block;counter-increment:rtl-line;position:relative;min-height:1.75em;line-height:1.75;white-space:pre;padding-left:76px;padding-right:16px;border-left:0}
+#sourceCode .code-line::before{content:counter(rtl-line);position:absolute;left:0;top:0;width:54px;box-sizing:border-box;text-align:right;padding-right:12px;border-right:1px solid var(--line);color:var(--muted);opacity:.68;user-select:none;pointer-events:none}
+#sourceCode .code-line.focus-line::before{font-weight:700;opacity:1}
+.source-occurrences{padding:12px 14px;max-width:90ch;white-space:normal;display:grid;gap:7px}
+.source-occurrence-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;white-space:normal}
+.source-occurrence-jump{min-width:48px;padding:5px 10px;border-radius:6px;border:1px solid var(--line);color:var(--text);background:var(--side);cursor:pointer}
+.source-occurrence-jump:hover{border-color:var(--accent)}
+.sidebar-bottom{font-size:10px;line-height:1.5;gap:6px;padding:10px 8px}
+@media(max-width:750px){.rtl-sidebar-resizer{display:none}}
+
+/* FSRTL-0069: externalized CSP-safe legend and layout status */
+
+.rtl-wire-legend{display:flex;align-items:center;gap:9px;margin:8px 0;font:11px/1.35 ui-sans-serif,system-ui;color:var(--text-secondary,#a9c3d8)}
+.rtl-wire-swatch{display:inline-block;flex:none;width:35px;border-top:2px solid #6faace}
+.rtl-wire-partial{border-top:3px dashed #6faace}
+.rtl-wire-seq{border-top:2px solid #fb9a5d}
+.rtl-wire-event{border-top:3px dashed #fb9a5d}
+.rtl-wire-bus{border-top:5px solid #6faace}
+.rtl-wire-bridge{flex:none;width:35px;text-align:center;font-size:22px;line-height:10px;color:#6faace}
+.rtl-wire-note{margin-top:10px;font:10px/1.4 ui-sans-serif,system-ui;color:var(--text-secondary,#a9c3d8)}
+
+.rtl-layout-status{position:fixed;right:12px;bottom:12px;padding:6px 10px;z-index:3000;background:#15283b;color:#d6efff;border:1px solid #569ac0;border-radius:5px;font:12px ui-monospace,monospace;max-width:min(580px,80vw);pointer-events:none}
+.rtl-details-results{white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* FSRTL-0072: inspector remains selectable and user-resizable. */
+.rtl-inspector-actions{display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:12px}
+.rtl-inspector-actions button{font:11px var(--mono);cursor:pointer;padding:5px 9px;border-radius:6px;border:1px solid var(--line2);background:var(--control);color:var(--ink)}
+#sourceCode{user-select:text;-webkit-user-select:text}
+#sourcePane .code-wrap{resize:vertical;overflow:auto;min-height:125px;max-height:100%;flex:1}
+#sourceCode:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+
+.rtl-copy-layout-status{cursor:copy}
+
+/* RTL Explorer: compact responsive navigation and disclosure legend. */
+.sidebar{padding:14px 11px 10px;gap:0;background:var(--side)}
+.sidebar .overline{font-size:9px;letter-spacing:.8px}
+.sidebar .project{margin-top:12px}
+.sidebar-info{margin:7px 8px 17px;font-size:10px}
+.sidebar .section-title{margin-bottom:7px}
+.hierarchy .tree-button{min-height:27px;padding:5px 7px;font-size:11px}
+.hierarchy .tree-button:focus-visible{outline:2px solid var(--accent)}
+.sidebar-legend{display:block;flex-shrink:0;padding:0;margin-top:9px;max-height:48%;overflow:auto}
+.sidebar-legend summary{cursor:pointer;list-style:none;padding:12px 9px;display:flex;align-items:center;justify-content:space-between;user-select:none}
+.sidebar-legend summary::after{content:'+';font:17px var(--mono);color:var(--accent)}
+.sidebar-legend[open] summary::after{content:'−'}
+.sidebar-legend .legend-content{display:grid;gap:9px;padding:2px 9px 13px}
+.header{min-height:54px;height:54px;padding:0 13px;gap:13px}
+.brand{min-width:170px;font-size:15px}
+.brandmark{height:30px;width:30px;font-size:16px}
+.brandtext small{font-size:8px;letter-spacing:.6px}
+.head-right{gap:7px;min-width:0}
+.head-right .status{max-width:175px;text-overflow:ellipsis;overflow:hidden}
+.toolbar{padding:10px 14px;min-height:68px;gap:10px}
+.toolbar-title #viewName{font-size:17px}
+.toolbar-tools{flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:1050px){.header .brand{min-width:125px}.head-right .status{max-width:100px}.toolbar-tools .search-box{width:155px}}
+
+/* FSRTL-0084: compact semantic hierarchy, independently scrollable. */
+.hierarchy{padding:0 2px 12px;overflow:auto;scrollbar-width:thin}
+.hierarchy .fs-tree-row{display:flex;align-items:center;gap:3px;min-height:27px;padding:0 3px;border-radius:6px}
+.hierarchy .fs-tree-row:hover{background:#223548}
+.hierarchy .fs-tree-row.current{background:#20414a;box-shadow:inset 2px 0 var(--accent)}
+.hierarchy .fs-tree-expander{width:21px;min-width:21px;height:22px;padding:0;border:0;background:transparent;color:var(--muted);font:15px var(--mono);text-align:center}
+.hierarchy .fs-tree-expander:hover{color:var(--ink);background:#33465b}
+.hierarchy .fs-tree-label{display:flex;align-items:center;gap:6px;min-width:0;flex:1;text-align:left;border:0;background:transparent;padding:4px 5px;color:#b6c9dc;font:11px var(--mono)}
+.hierarchy .fs-tree-label:hover{color:#fff;background:transparent}
+.hierarchy .fs-tree-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hierarchy .fs-tree-icon{color:#7dabbc;font:11px var(--mono)}
+.hierarchy .fs-tree-more{font:10px var(--mono);padding:5px 8px;margin:3px 0 4px 24px;white-space:normal}
+.hierarchy .fs-tree-error{color:#ffad89;font:10px var(--mono);padding:5px 8px}
+.sidebar{padding-top:14px}.sidebar-info{margin-bottom:20px}.section-title{margin-bottom:7px}

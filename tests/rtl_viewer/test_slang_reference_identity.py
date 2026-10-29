@@ -60,3 +60,30 @@ def test_real_uart_ast_has_all_four_children_and_two_syncs():
     diagram = design.diagram()
     visible = {n["name"] for n in diagram["nodes"] if n["type"] == "instance"}
     assert visible == set(children)
+
+
+def test_colliding_symbol_addresses_never_select_an_arbitrary_signal():
+    from flexsoc.backend.dv.rtl_viewer.connectivity import SymbolTable
+
+    members = (
+        {"kind": "Variable", "name": "alpha", "addr": 7},
+        {"kind": "Variable", "name": "beta", "addr": 7},
+        {"kind": "Variable", "name": "unique", "addr": 8},
+    )
+    symbols = SymbolTable(members, {"alpha", "beta", "unique"})
+    assert symbols.ambiguous_addresses == {"7"}
+    assert symbols.direct({"kind": "NamedValue", "symbol": "7 alpha"}) is None
+    assert symbols.direct({"kind": "NamedValue", "symbol": "7 beta"}) is None
+    assert symbols.port_actuals({"kind": "NamedValue", "symbol": "7 beta"}) == ()
+    assert symbols.direct({"kind": "NamedValue", "symbol": "8 unique"}) == "unique"
+
+
+def test_port_backing_alias_preserves_unique_declaration_identity():
+    from flexsoc.backend.dv.rtl_viewer.connectivity import SymbolTable
+
+    symbols = SymbolTable((
+        {"kind": "Port", "name": "data_i", "addr": 11, "internalSymbol": "12 wire"},
+        {"kind": "Variable", "name": "storage", "addr": 12},
+    ), {"data_i", "storage"})
+    assert symbols.direct({"kind": "NamedValue", "symbol": "12 storage"}) == "storage"
+    assert symbols.direct({"kind": "NamedValue", "symbol": "11 data_i"}) == "data_i"

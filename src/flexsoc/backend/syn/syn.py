@@ -113,7 +113,17 @@ class Syn:
             raise FileNotFoundError(f"OpenROAD-flow-scripts Makefile not found: {makefile}")
         if not platform_config.is_file():
             raise FileNotFoundError(f"OpenROAD platform config not found: {platform_config}")
-        return self.setup_asic(
+        # The canonical filelists intentionally contain two distinct relative
+        # namespaces: hw/vendor are project-relative, rtl is run-relative.
+        # Yosys runs in syn/<pdk>, so pass execution-only absolute filelists,
+        # just as the existing functional regression does.  Never rewrite the
+        # portable filelists that belong to the design/release contract.
+        from flexsoc.backend.dv.lint.sources import LintSources
+
+        execution_filelists = LintSources(context.project_root, paths.run).prepare(
+            (paths.rtl_common, paths.rtl_ip), directory=paths.syn / "inputs",
+        )
+        generated = self.setup_asic(
             top=paths.top,
             topdir=paths.rtl,
             liberty=liberty,
@@ -121,12 +131,15 @@ class Syn:
             output=paths.syn,
             sdc=paths.sdc,
             opt=values.get("TARGET_OPT", "delay1"),
-            filelists=(paths.rtl_common, paths.rtl_ip),
+            filelists=execution_filelists,
             tie_hi=self._tuple(values.get("TIEHI_CELL_AND_PORT", ""), 2),
             tie_lo=self._tuple(values.get("TIELO_CELL_AND_PORT", ""), 2),
             min_buffer=self._tuple(values.get("MIN_BUF_CELL_AND_PORTS", ""), 3),
             platform=platform,
         )
+        # The resolved filelists are generated collateral too: include them in
+        # syn.setup provenance so manual edits cannot silently change the inputs.
+        return (*execution_filelists, *generated)
 
     def run(self, target: Target, *, inputs=(), on: str = "local") -> int:
         """Run synthesis and always publish the canonical execution summary."""

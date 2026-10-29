@@ -55,6 +55,8 @@ class SymbolTable:
         self.by_address: dict[str, str] = {}
         self.ports: dict[str, str] = {}
         self.port_addresses: dict[str, str] = {}
+        self.ambiguous_addresses: set[str] = set()
+        address_owners: dict[str, set[str]] = {}
         members = tuple(m for m in members if isinstance(m, Mapping))
         for member in members:
             if member.get("kind") not in SIGNAL_KINDS:
@@ -70,9 +72,17 @@ class SymbolTable:
                 if backing:
                     self.ports[backing] = name
             if address:
+                address_owners.setdefault(address, set()).add(name)
                 self.by_address[address] = name
         for address, port in self.ports.items():
+            # A port alias must not override an independent declaration.
             self.by_address.setdefault(address, port)
+        self.ambiguous_addresses = {address for address, owners in address_owners.items()
+                                    if len(owners) > 1}
+        # Colliding AST addresses are not stable identities.  An ambiguous
+        # reference must stay unresolved, even when its display name matches.
+        for address in self.ambiguous_addresses:
+            self.by_address.pop(address, None)
 
     def _symbol(self, expression: Mapping[str, Any]) -> str | None:
         ref = expression.get("symbol")
@@ -81,9 +91,9 @@ class SymbolTable:
             if address:
                 if address in self.by_address:
                     return self.by_address[address]
-                if self.by_address:
-                    return None
-                name = _name(ref)
+                # A Slang address is a semantic identity.  If it cannot be
+                # resolved, a matching display name is not sufficient proof.
+                return None
             else:
                 name = _name(ref)
         elif isinstance(ref, str):
@@ -91,9 +101,7 @@ class SymbolTable:
             if address:
                 if address in self.by_address:
                     return self.by_address[address]
-                if self.by_address:
-                    return None
-                name = ref.partition(" ")[2] if " " in ref else ref
+                return None
             else:
                 name = ref
         else:

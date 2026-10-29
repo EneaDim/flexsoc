@@ -67,7 +67,7 @@ def _fake_bin(tmp_path: Path) -> Path:
         "verilator", "slang", "slang-hier", "verible-verilog-syntax",
         "verible-verilog-lint", "iverilog", "yosys", "yosys-config", "sby", "eqy",
         "bitwuzla", "boolector", "btormc", "btorsim", "sta", "gtkwave",
-        "fst2vcd", "surfer", "netlistsvg",
+        "fst2vcd", "surfer",
     ):
         (bindir / name).symlink_to(driver.name)
     plugins = bindir.parent / "share" / "yosys" / "plugins"
@@ -77,9 +77,13 @@ def _fake_bin(tmp_path: Path) -> Path:
     return bindir
 
 
-def _plan(tmp_path: Path, *, yosys_mismatch: bool = False) -> str:
+def _plan(tmp_path: Path, *, yosys_mismatch: bool = False, command: str = "plan") -> str:
     bindir = _fake_bin(tmp_path)
     lock = _lock_values()
+    if command == "doctor":
+        for name in ("dot", "xdot"):
+            (bindir / name).write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            (bindir / name).chmod(0o755)
     env = os.environ.copy()
     env.update({
         "HOME": str(tmp_path / "home"),
@@ -96,14 +100,14 @@ def _plan(tmp_path: Path, *, yosys_mismatch: bool = False) -> str:
         env[f"FAKE_{key}_VERSION"] = lock[f"{key}_VERSION"]
     env["FAKE_YOSYS_REF"] = lock["YOSYS_REF"][:7]
     result = subprocess.run(
-        ["bash", str(DEPS), "plan", "--user"],
+        ["bash", str(DEPS), command, "--user"],
         cwd=ROOT,
         env=env,
         text=True,
         capture_output=True,
         check=True,
     )
-    return result.stdout
+    return result.stdout + (result.stderr if command == "doctor" else "")
 
 
 def test_yosys_formal_family_is_locked_to_release_069() -> None:
@@ -126,7 +130,14 @@ def test_plan_reuses_exact_external_tools_without_fetching(tmp_path: Path) -> No
     assert "eqy          reuse    external" in output
     assert "install  family" not in output
     assert "sv2v" not in output
+    assert "netlistsvg" not in output  # optional visualization, not a base prerequisite
     assert "slang" in output
+
+
+def test_deps_doctor_passes_without_netlistsvg(tmp_path: Path) -> None:
+    output = _plan(tmp_path, command="doctor")
+    assert "doctor PASS" in output
+    assert "netlistsvg" not in output
 
 
 def test_yosys_family_moves_together_when_one_member_mismatches(tmp_path: Path) -> None:
