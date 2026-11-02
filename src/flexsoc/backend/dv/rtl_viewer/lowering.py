@@ -25,10 +25,24 @@ class ProcessLowerer:
         self.parameters.update({
             _address(member.get("addr")): {"op": "literal", "value": str(member["value"]),
                                            "type": str(member.get("type", ""))}
-            for member in members
-            if isinstance(member, Mapping) and member.get("kind") in {"Parameter", "Specparam"}
+            for member in self._declarations(members)
+            if member.get("kind") in {"Parameter", "Specparam", "EnumValue"}
             and _address(member.get("addr")) and member.get("value") is not None
         })
+
+    @staticmethod
+    def _declarations(members: list[Any]):
+        # EnumValue declarations belong to a compiler-authored EnumType;
+        # resolve them by Slang addresses, never by a display name.
+        for entry in members:
+            if not isinstance(entry, Mapping):
+                continue
+            yield entry
+            if entry.get("kind") == "EnumType":
+                for item in entry.get("members", ()):
+                    if isinstance(item, Mapping):
+                        yield item
+
 
     @staticmethod
     def _ref(name: str) -> dict[str, Any]:
@@ -183,7 +197,7 @@ class ProcessLowerer:
             return
         kind = str(node.get("kind", ""))
         if kind in {"Block", "List", "StatementList"}:
-            for key in ("body", "statements", "members"):
+            for key in ("list", "body", "statements", "members"):
                 if key in node:
                     self._walk(node[key], env, scheduled)
             return
@@ -206,6 +220,48 @@ class ProcessLowerer:
                 previous = scheduled.get(target, self._ref(target))
                 scheduled[target] = self._select(predicate, left_nba.get(target, previous),
                                                  right_nba.get(target, previous))
+            return
+        if kind in {"Case", "CaseStatement", "CaseStmt"}:
+            # A normal SystemVerilog case compares with 4-state case equality,
+            # NOT ordinary boolean `==`. Each branch executes from the same
+            # pre-case environment; use ordered, conservative selections to
+            # merge the effects of blocking and scheduled NBA assignments.
+            # `casez`, `casex`, inside and wildcard matching require their own
+            # proven semantics and cannot be silently handled as normal case.
+            if node.get("condition", "Normal") != "Normal":
+                raise ValueError("unsupported case matching semantics")
+            items = node.get("items", node.get("branches"))
+            if not isinstance(items, list) or len(items) > 64:
+                raise ValueError("unsupported case item collection")
+            selector = self._expr(node.get("expr", node.get("expression", node.get("selector"))), env)
+            branches = []
+            for item in items:
+                if not isinstance(item, Mapping):
+                    raise ValueError("invalid case item")
+                patterns = item.get("expressions")
+                if not isinstance(patterns, list) or not 1 <= len(patterns) <= 16:
+                    raise ValueError("unresolved case pattern")
+                match = {"op": "case_match_any", "selector": selector,
+                         "patterns": [self._expr(pattern, env) for pattern in patterns],
+                         "semantics": "SystemVerilog four-state case equality"}
+                case_env, case_nba = env.copy(), scheduled.copy()
+                self._walk(item.get("stmt", item.get("statement")), case_env, case_nba)
+                branches.append((match, case_env, case_nba))
+            default = node.get("defaultCase", node.get("default"))
+            merged_env, merged_nba = env.copy(), scheduled.copy()
+            if default is not None:
+                self._walk(default, merged_env, merged_nba)
+            for match, case_env, case_nba in reversed(branches):
+                for target in set(merged_env) | set(case_env):
+                    old = env.get(target, self._ref(target))
+                    merged_env[target] = self._select(match, case_env.get(target, old),
+                                                      merged_env.get(target, old))
+                for target in set(merged_nba) | set(case_nba):
+                    old = scheduled.get(target, self._ref(target))
+                    merged_nba[target] = self._select(match, case_nba.get(target, old),
+                                                      merged_nba.get(target, old))
+            env.update(merged_env)
+            scheduled.update(merged_nba)
             return
         if kind in {"Assignment", "AssignmentExpression", "NonblockingAssignment"}:
             rhs = self._expr(node.get("right", node.get("rhs")), env)

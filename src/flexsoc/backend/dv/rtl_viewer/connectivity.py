@@ -212,6 +212,10 @@ class OperandBinding:
     pin: str
     signal: str
     mapping: str
+    # True only when the AST operand is a whole declaration (or a simple
+    # representation-preserving wrapper). A compound expression is an AST
+    # dependency, not proof of an electrical conductor at this glyph pin.
+    rendered: bool = True
 
 
 class OperatorResolver:
@@ -225,35 +229,75 @@ class OperatorResolver:
     def __init__(self, symbols: SymbolTable):
         self.symbols = symbols
 
-    def inputs(self, expression: Mapping[str, Any]) -> tuple[OperandBinding, ...]:
+    @staticmethod
+    def roles(expression: Mapping[str, Any]) -> tuple[tuple[str, Any], ...]:
+        """Compiler AST operand slots, shared by extraction and nested lowering.
+
+        A/B/S are *roles* on an expression, not inferred signal names. The
+        mux follows the Slang true/false operands and the Yosys A/B convention.
+        """
         kind = str(expression.get("kind", ""))
-        operands: list[tuple[str, Any]] = []
         if kind in {"ConditionalOp", "ConditionalExpression"}:
             condition = next((expression.get(k) for k in ("condition", "predicate", "selector", "cond")
                               if isinstance(expression.get(k), (Mapping, list))), None)
             if condition is None:
                 condition = expression.get("conditions")
-            operands = [("A", expression.get("right", expression.get("falseExpr"))),
-                        ("B", expression.get("left", expression.get("trueExpr"))),
-                        ("S", condition)]
-        elif kind == "BinaryOp":
-            operands = [("A", expression.get("left")), ("B", expression.get("right"))]
-        elif kind == "UnaryOp":
-            operands = [("A", expression.get("operand"))]
-        else:
-            operands = [("IN", expression)]
+            return (("A", expression.get("right", expression.get("falseExpr"))),
+                    ("B", expression.get("left", expression.get("trueExpr"))),
+                    ("S", condition))
+        if kind == "BinaryOp":
+            return (("A", expression.get("left")), ("B", expression.get("right")))
+        if kind == "UnaryOp":
+            return (("A", expression.get("operand")),)
+        if kind == "Conversion":
+            return (("A", expression.get("operand")),)
+        if kind == "MemberAccess":
+            # Slang identifies the base expression and the selected member.
+            # The field is a compiler-backed value, not an independently
+            # declared full-width net with a guessed bit offset.
+            return (("A", expression.get("value", expression.get("expression"))),)
+        if kind == "Concatenation":
+            # The compiler provides an ordered vector of independently typed
+            # operands. Each is a separate INPUT VALUE; no bit offset or
+            # flattening is inferred from the source text. Refuse unbounded
+            # glyphs rather than silently dropping later operands.
+            parts = expression.get("operands")
+            if isinstance(parts, list) and 1 <= len(parts) <= 32 and all(
+                    isinstance(part, Mapping) for part in parts):
+                return tuple((f"I{i}", part) for i, part in enumerate(parts))
+        if kind == "Replication" and isinstance(expression.get("concat"), Mapping):
+            # Repeated value is one AST expression, not N independently wired
+            # conductors. The repetition count is metadata, not a wire.
+            return (("I0", expression["concat"]),)
+        # Unknown/malformed expressions retain dependencies only, not a
+        # fabricated electrical connection to a generic shared terminal.
+        return (("IN", expression),)
+
+    def inputs(self, expression: Mapping[str, Any]) -> tuple[OperandBinding, ...]:
+        return tuple(binding for pin, operand in self.roles(expression)
+                     for binding in self.inputs_for_operand(pin, operand))
+
+    def inputs_for_operand(self, pin: str, operand: Any) -> tuple[OperandBinding, ...]:
+        """Conservative fallback for an operand that cannot be lowered."""
         result = []
         seen = set()
-        for pin, operand in operands:
-            for signal in self.symbols.reads(operand):
-                key = (pin, signal)
-                if key in seen:
-                    continue
-                seen.add(key)
-                # An array element, slice or concatenation is a proven
-                # dependency, but not a whole-vector bijection.
-                mapping = "direct" if self.symbols.direct(operand) == signal else "partial"
-                result.append(OperandBinding(pin, signal, mapping))
+        for signal in self.symbols.reads(operand):
+            key = (pin, signal)
+            if key in seen:
+                continue
+            seen.add(key)
+            # An array element, slice or concatenation is a proven
+            # dependency, but not a whole-vector bijection.
+            mapping = "direct" if self.symbols.direct(operand) == signal else "partial"
+            # A nested operator, concatenate, indexed selection, function
+            # call, etc. is not the value of this *physical* pin. The
+            # canonical AST still records which signals it reads. Never
+            # short their distinct nets together on a generic A/B pin.
+            cursor = operand
+            while isinstance(cursor, Mapping) and cursor.get("kind") == "ParenthesizedExpression":
+                cursor = self.symbols._operand(cursor)
+            conductor = self.symbols.direct(cursor) == signal
+            result.append(OperandBinding(pin, signal, mapping, conductor))
         return tuple(result)
 
 
@@ -340,6 +384,47 @@ class PortResolver:
                     result[key] = record
         return tuple(result.values()), states
 
+    def literal_values(self, instance: Mapping[str, Any], ports: Mapping[str, Mapping[str, Any]]) -> dict[str, str]:
+        """Return only explicitly serialized scalar constant actuals.
+
+        An expression depending on parent signals is never a constant label.
+        Unknown or complicated expressions retain the existing conservative
+        ``constant``/``unresolved`` status without fabricating a value.
+        """
+        body = instance.get("body", {})
+        members = body.get("members", ()) if isinstance(body, Mapping) else ()
+        addresses = {_address(p.get("addr")): _name(p) for p in members
+                     if isinstance(p, Mapping) and p.get("kind") in {"Port", "InterfacePort"}
+                     and _address(p.get("addr"))}
+        explicit = instance.get("connections") or instance.get("portConnections") or ()
+        if isinstance(explicit, Mapping):
+            explicit = ({"port": name, "expression": expr} for name, expr in explicit.items())
+        explicit = tuple(p for p in explicit if isinstance(p, Mapping))
+        supplied = {self._port_name(p, addresses, ports) for p in explicit}
+        inherited = tuple(p for p in members if isinstance(p, Mapping)
+                          and p.get("kind") in {"Port", "InterfacePort"}
+                          and _name(p) not in supplied)
+        result: dict[str, str] = {}
+        for item in (*explicit, *inherited):
+            name = self._port_name(item, addresses, ports)
+            if not name or str(ports[name].get("direction", "")).lower() not in {"in", "input", "inout"}:
+                continue
+            expr = next((item.get(k) for k in ("expression", "externalExpr", "expr", "value", "connection")
+                         if isinstance(item.get(k), Mapping)), None)
+            if not isinstance(expr, Mapping) or self.symbols.port_actuals(expr):
+                continue
+            current = expr
+            for _ in range(8):
+                if current.get("kind") not in CONVERSIONS or not isinstance(current.get("operand"), Mapping):
+                    break
+                current = current["operand"]
+            if current.get("kind") not in {"IntegerLiteral", "RealLiteral", "StringLiteral"} and current.get("constant") is None:
+                continue
+            raw = current.get("value", current.get("constant"))
+            if isinstance(raw, (str, int, float)) and 0 < len(str(raw)) <= 48 and not self.symbols.reads(expr):
+                result[name] = str(raw)
+        return result
+
     def bindings(self, instance: Mapping[str, Any], ports: Mapping[str, Mapping[str, Any]]) -> tuple[PortBinding, ...]:
         return self.resolve(instance, ports)[0]
 
@@ -351,24 +436,80 @@ class GraphEdges:
         self.prefix = prefix
         self.max_edges = max_edges
         self.truncated = False
-        self.present = {node["id"] for node in nodes}
+        self.node_types = {node["id"]: node.get("type", "") for node in nodes}
+        self.present = set(self.node_types)
         self.signals = signals
         self._edges: dict[tuple[str, ...], dict[str, Any]] = {}
 
-    def add(self, source: str, target: str, kind: str, *, net: str = "", port: str = "", pin: str = "", count: int = 1, mapping: str = "direct") -> None:
+    def add(self, source: str, target: str, kind: str, *, net: str = "", port: str = "", pin: str = "",
+            count: int = 1, mapping: str = "direct", driver_net: str = "",
+            rendered: bool = True) -> None:
         if source not in self.present or target not in self.present:
             return
-        key = (source, target, kind, net, port, pin, mapping)
+        # The destination of an assignment is NOT its driving net. For
+        # q <= q + 1, the elaborated q declaration is the Q output, while
+        # the AST operation's output drives D. Those are distinct conductors.
+        # driver_net is a canonical expression-output identity, not a guessed
+        # SystemVerilog signal or an extra AST declaration.
+        physical_net = driver_net or (self.prefix + "sig:" + net if net else "")
+        key = (source, target, kind, net, port, pin, mapping, physical_net)
         if key in self._edges:
             return
         if len(self._edges) >= self.max_edges:
             self.truncated = True
             return
         digest = sha256(repr(key).encode()).hexdigest()[:20]
+        # Pure address/guard dependencies are real AST facts but are not
+        # additional electrical drivers of D. Retain them for semantic
+        # inspection / cone analysis while suppressing fabricated wire routes.
+        rendered = rendered and not (kind == "address" or
+                                     (kind == "control" and self.node_types[target] != "operator"))
+        sequential = {"register", "counter", "fsm"}
         self._edges[key] = {"id": self.prefix + "wire:" + digest, "source": source, "target": target,
-                            "type": kind, "resolved": True, "net": self.prefix + "sig:" + net if net else "",
+                            "type": kind, "resolved": True, "net": physical_net,
+                            "signal": self.prefix + "sig:" + net if net else "",
+                            "rendered": rendered,
+                            **({"routingStatus": "unresolved_operand_expression"}
+                               if not rendered and self.node_types[target] == "operator"
+                               and kind == "data" else
+                               {"routingStatus": "unresolved_D_mux"}
+                               if not rendered and kind == "sequential"
+                               and self.node_types[target] in sequential else {}),
+                            "sourcePin": "Q" if self.node_types[source] in sequential else "Y" if self.node_types[source] == "operator" else "",
+                            "targetPin": "D" if self.node_types[target] in sequential and kind != "event" else "",
                             "width": self.signals.get(net, {}).get("width", "") if net else "",
                             "port": port, "pin": pin, "count": count, "mapping": mapping}
 
     def all(self) -> list[dict[str, Any]]:
-        return list(self._edges.values())
+        edges = list(self._edges.values())
+        # An operator's A/B/S pin is one physical terminal, not an arbitrary
+        # number of independent net drivers. Slang can expose several AST
+        # dependencies (e.g. a+b feeding the A operand of an outer XOR). If
+        # upstream extraction has not lowered the subexpression, leave those
+        # facts intact but draw no fabricated short at the outer pin.
+        inputs: dict[tuple[str, str], set[str]] = {}
+        for edge in edges:
+            if self.node_types.get(edge["target"]) == "operator" and edge["rendered"]:
+                inputs.setdefault((edge["target"], edge["pin"] or "IN"), set()).add(edge["net"])
+        collision = {k for k, nets in inputs.items() if len(nets) > 1}
+        for edge in edges:
+            if (edge["rendered"] and self.node_types.get(edge["target"]) == "operator"
+                    and (edge["target"], edge["pin"] or "IN") in collision):
+                edge["rendered"] = False
+                edge["routingStatus"] = "unresolved_operand_multiple_nets"
+        # Separate procedural assignments may target the same register under
+        # different guards. Until a compiler-backed D-input MUX is lowered,
+        # showing several wires as simultaneous electrical drivers is false.
+        # Preserve every provenance-bearing dependency, but fail closed on
+        # the physical D routing instead of choosing one arbitrary writer.
+        drivers: dict[str, set[str]] = {}
+        for edge in edges:
+            if (self.node_types.get(edge["target"]) in {"register", "counter", "fsm"}
+                    and edge["rendered"] and edge["type"] != "event"):
+                drivers.setdefault(edge["target"], set()).add(edge["net"])
+        ambiguous = {target for target, nets in drivers.items() if len(nets) > 1}
+        for edge in edges:
+            if edge["target"] in ambiguous and edge["rendered"] and edge["type"] != "event":
+                edge["rendered"] = False
+                edge["routingStatus"] = "unresolved_D_mux"
+        return edges

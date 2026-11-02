@@ -15,15 +15,48 @@ LITERALS = {"IntegerLiteral", "UnbasedUnsizedIntegerLiteral", "RealLiteral",
 WRAPPERS = {"Conversion", "ImplicitConversion", "AssignmentConversion",
             "ParenthesizedExpression"}
 
-def is_literal_rhs(expr):
-    if not isinstance(expr, dict):
+def is_literal_rhs(expr, *, _depth=0, _seen=None):
+    """Prove a reset value is constant using *only* compiler AST structure.
+
+    A literal may be wrapped by conversions, packed concatenations or bounded
+    replication. These have no runtime input only when *every* leaf is a
+    constant. Merely having a ``constant`` display field on a parent does not
+    prove its children are constant; declaration references always fail.
+    This is a structural proof of constant-ness, not a reimplementation of
+    Slang's constant evaluator or width/sign arithmetic.
+    """
+    if not isinstance(expr, dict) or _depth >= 24:
         return False
+    seen = set() if _seen is None else _seen
+    if id(expr) in seen:
+        return False
+    seen = seen | {id(expr)}
     kind = expr.get("kind")
     if kind in LITERALS:
         return True
     if kind in WRAPPERS:
-        children = [expr[k] for k in ("operand", "expression", "value", "expr") if k in expr]
-        return len(children) == 1 and is_literal_rhs(children[0])
+        children = [expr[k] for k in ("operand", "expression", "value", "expr")
+                    if isinstance(expr.get(k), dict)]
+        return len(children) == 1 and is_literal_rhs(children[0], _depth=_depth + 1, _seen=seen)
+    if kind == "Concatenation":
+        parts = expr.get("operands")
+        return (isinstance(parts, list) and 1 <= len(parts) <= 64
+                and all(is_literal_rhs(part, _depth=_depth + 1, _seen=seen) for part in parts))
+    if kind == "Replication":
+        count = expr.get("count", expr.get("times"))
+        # Accept Slang's constant count, not a computed or dynamic select.
+        count_ok = (isinstance(count, int) and not isinstance(count, bool) and 0 < count <= 4096)
+        if isinstance(count, dict):
+            count_ok = count.get("kind") in LITERALS and isinstance(count.get("value"), (int, str))
+        value = expr.get("concat", expr.get("operand"))
+        return bool(count_ok and is_literal_rhs(value, _depth=_depth + 1, _seen=seen))
+    if kind in {"UnaryOp", "BinaryOp"}:
+        children = ([expr.get("operand")] if kind == "UnaryOp"
+                    else [expr.get("left"), expr.get("right")])
+        return all(is_literal_rhs(x, _depth=_depth + 1, _seen=seen) for x in children)
+    if kind in {"ConditionalOp", "ConditionalExpression"}:
+        children = [expr.get("condition"), expr.get("left"), expr.get("right")]
+        return all(is_literal_rhs(x, _depth=_depth + 1, _seen=seen) for x in children)
     return False
 
 

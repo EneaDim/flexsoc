@@ -100,4 +100,6 @@ def test_explicit_enum_case_is_fsm_candidate_not_filename_heuristic():
     g=RtlDesign(root,root=Path(__file__).resolve().parent,top='UNIT').diagram()
     assert next(n for n in g['nodes'] if n['name']=='state_reg')['type']=='fsm'
     assert next(n for n in g['nodes'] if n['name']=='state_reg')['classification']=='candidate'
-    assert any(n.get('shape')=='case' for n in g['nodes'])
+    # A CASE statement supports the compiler-backed FSM *candidate* marker,
+    # but is not itself an electrical gate with proven output terminals.
+    assert not any(n.get('shape')=='case' for n in g['nodes'])

@@ -23,13 +23,16 @@ def occurrences(design, path: str, signal: str) -> dict[str, Any]:
         file, line = extract_location(node)
         if not file or line <= 0:
             return
-        resolved = (design.root / file).resolve()
+        # Reuse the same authorized-root resolver as design.source() and
+        # source_symbols(): imported ASTs often name checkout-relative files
+        # while design.root points at workspace/runs/<ip>/<run>.
+        resolved = design._resolve_source_reference(file)
         if resolved != target_file:
             return
         key = (role, line, file)
         if key not in seen:
             seen.add(key)
-            sites.append({'role': role, 'file': target_file.relative_to(design.root).as_posix(),
+            sites.append({'role': role, 'file': design._source_label(target_file),
                           'line': line, 'column': None, 'precision': 'line', 'evidence': 'slang-ast'})
     for member in members:
         if not isinstance(member, dict):
@@ -75,6 +78,36 @@ def occurrences(design, path: str, signal: str) -> dict[str, Any]:
             record(node, 'read')
 
     walk(members)
+    # Elaborated instance connections are genuine uses of parent-scope
+    # declarations. They are outside the instance body and the regular walk
+    # deliberately skips instances to avoid traversing child declarations.
+    # Attribute direction only when Slang supplies the formal Port's
+    # direction and the actual expression contains a resolved parent ref.
+    for instance in members:
+        if not isinstance(instance, dict) or not is_instance(instance):
+            continue
+        bindings = instance.get('connections', instance.get('portConnections', ()))
+        if not isinstance(bindings, (list, tuple)):
+            continue
+        for binding in bindings:
+            if not isinstance(binding, dict):
+                continue
+            formal = binding.get('port')
+            if not isinstance(formal, dict) or formal.get('kind') not in ('Port', 'InterfacePort'):
+                continue
+            direction = str(formal.get('direction', '')).lower()
+            if direction not in ('in', 'input', 'out', 'output'):
+                continue
+            actual = next((binding[k] for k in ('expr', 'expression', 'externalExpr')
+                           if isinstance(binding.get(k), dict)), None)
+            if actual is None:
+                continue
+            role = 'read' if direction in ('in', 'input') else 'write'
+            if role == 'write' and actual.get('kind') in ASSIGN_KINDS:
+                actual = actual.get('left', actual.get('lhs'))
+            for ref in references(actual):
+                record(ref, role)
+
     sites.sort(key=lambda s: (s['file'], s['line'], {'declaration':0,'write':1,'read':2}[s['role']]))
     return {'status': 'available', 'path': path, 'module': scope.module, 'signal': signal,
             'sites': sites, 'precision': 'line', 'complete': False,

@@ -19,7 +19,8 @@ function installSidebarResize(){
  handle.setAttribute('role','separator');handle.setAttribute('aria-orientation','vertical');handle.setAttribute('aria-label','Resize module navigator');handle.tabIndex=0;
  side.after(handle);
  let dragging=false;
- const setWidth=n=>{const w=Math.max(180,Math.min(520,n));side.style.width=w+'px';side.style.minWidth=w+'px';handle.setAttribute('aria-valuenow',String(w));};
+ const setWidth=(n,persist=true)=>{const w=Math.round(Math.max(180,Math.min(520,n)));side.style.width=w+'px';side.style.minWidth=w+'px';handle.setAttribute('aria-valuenow',String(w));handle.setAttribute('aria-valuemin','180');handle.setAttribute('aria-valuemax','520');if(persist)try{localStorage.setItem('flexsoc-rtl-navigator-width',String(w));}catch(_e){}};
+ try{const stored=Number(localStorage.getItem('flexsoc-rtl-navigator-width'));if(stored>=180&&stored<=520)setWidth(stored,false);}catch(_e){}
  handle.addEventListener('pointerdown',e=>{dragging=true;handle.setPointerCapture(e.pointerId);e.preventDefault();});
  handle.addEventListener('pointermove',e=>{if(dragging){setWidth(e.clientX-side.getBoundingClientRect().left);resize();}});
  handle.addEventListener('pointerup',()=>{dragging=false;});
@@ -30,7 +31,7 @@ function initExplorerUX(){ensureDetailsUI();installSidebarResize();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initExplorerUX,{once:true});else initExplorerUX();
 
 const canvas = $('diagram'), ctx = canvas.getContext('2d', {alpha:false});
-const state = {overview:null,graph:null,path:'/',expanded:new Map(),viewport:new Map(),layouts:new Map(),selected:null,multiSelected:new Set(),pinned:null,hover:null,drag:null,inspector:false,tab:'source',context:null,wire:null,manualView:false,visibility:{wires:true,names:true,lint:false},lintItems:[],lintStatus:"unavailable",lintRequest:0};
+const state = {overview:null,graph:null,path:'/',expanded:new Map(),viewport:new Map(),layouts:new Map(),selected:null,multiSelected:new Set(),pinned:null,freezeSchematic:false,hover:null,drag:null,inspector:false,tab:'source',context:null,wire:null,manualView:false,visibility:{wires:true,names:true,lint:false},lintItems:[],lintStatus:"unavailable",lintRequest:0};
 // FlexSoC brand system: orange = transformations, sky = connectivity,
 // navy = hierarchy, neutral graphite = chrome. Colors remain legible in both modes.
 const palettes={
@@ -71,9 +72,9 @@ function resize(){
 }
 new ResizeObserver(resize).observe(canvas);
 // ELK-only: the historical native router must never paint an RTL graph.
-// Retain FlexRouting only for symbol dimensions and pin markers.
-const boxSize=FlexRouting.boxSize,baseRank=FlexRouting.baseRank;
-const layoutEngine=FlexLayoutEngine.create({boxSize,baseRank});
+// One physical pin contract for Canvas and ELK; no native-router geometry.
+const boxSize=FlexSymbolGeometry.boxSize;
+const layoutEngine=FlexLayoutEngine.create({boxSize});
 const elkPending=new Set();
 const elkFailed=new Set();
 let elkEnabled=false;
@@ -103,12 +104,9 @@ function scheduleELK(graph,id){
   const key=current?.path+':'+(current?.expanded||[]).join('|')+':'+current?.revision;
   if(key!==id||current!==graph)return;
   state.layouts.set(id,result);
-  const problems=(result.stats?.treeStrictErrors||0)+(result.stats?.treeMissingRoutes||0)+(result.stats?.treeFallbacks||0)+(result.stats?.laneUnresolved||0);
-  setLayoutStatus(problems?'ELK / ROUTING ISSUES':'ELK',
-   'net trees '+(result.stats?.treeNets||0)+'; unresolved '+(result.stats?.treeFallbacks||0)+
-   '; missing '+(result.stats?.treeMissingRoutes||0)+'; issues '+(result.stats?.treeStrictErrors||0)+
-   '; overlaps '+(result.stats?.laneUnresolved||0)+'; separated '+(result.stats?.laneResolved||0));
-  if(result.stats?.treeErrors?.length)console.warn('[rtl-view] Unrouted physical terminals',result.stats.treeErrors);
+  setLayoutStatus(result.stats?.crossingBridgesLimited?'ELK / CONGESTED':'ELK',
+   'crossing bridges '+(result.stats?.crossingBridges||0)+
+   (result.stats?.crossingBridgesLimited?' (display limit reached)':''));
   if(!state.manualView)fit();else draw();
  }).catch(error=>{
   const current=state.graph;
@@ -133,7 +131,7 @@ function visible(p,v,w,h,margin=60){return(p.x+p.w)*v.z+v.x>=-margin&&p.x*v.z+v.
 function wireVisible(points,v,w,h){const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);return visible({x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)},v,w,h);}
 // Selection is one visual conductor identified by its canonical net, not a
 // combined selection of direct/partial relationships. Edge details stay AST-backed.
-function highlighted(e){const identity=e.net||e.id;return (state.hover?.net||state.hover?.id)===identity||state.selected===identity||state.multiSelected.has(identity)||state.pinned===identity;}
+function highlighted(e){if(!e)return false;const identity=e.net||e.id;return (state.hover?.net||state.hover?.id)===identity||state.selected===identity||state.multiSelected.has(identity)||state.pinned===identity;}
 function pathDraw(points){ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));}
 function drawWire(e,points,v){
  const hot=highlighted(e),partial=e.mapping==='partial';
@@ -164,113 +162,14 @@ function drawWire(e,points,v){
   ctx.fillText(rtlLabel(label).slice(0,83),points[1][0]+5,points[1][1]-9);
  }
 }
-// FSRTL-0055 compact symbols: verified functional operator glyphs and distinct event terminals.
 function rtlLabel(value){return String(value).replace(/(^|[.\s])\d{8,}\s+/g,'$1');}
-function symbol(n,p,diagram){const {x,y,w,h}=p,c=colors[n.type]||colors.signal;let picked=state.selected===n.id||state.multiSelected.has(n.id)||state.pinned===n.id||state.hover?.id===n.id;
- ctx.lineWidth=picked?2.9:1.6;ctx.strokeStyle=picked?colors.selected:c;ctx.fillStyle=picked?colors.pickedFill:colors.symbolFill;
- if(n.type==='signal'){
-  ctx.lineWidth=picked?3.5:2;ctx.beginPath();ctx.moveTo(x+8,y+h/2);ctx.lineTo(x+w-8,y+h/2);ctx.stroke();ctx.fillStyle=c;ctx.beginPath();ctx.arc(x+w/2,y+h/2,5,0,Math.PI*2);ctx.fill();
-  if(view().z>=.43){ctx.font='12px ui-monospace,monospace';ctx.fillStyle=colors.text;ctx.fillText(n.name.slice(0,21),x+8,y+11);if(view().z>=.7){ctx.font='9px ui-monospace,monospace';ctx.fillStyle=colors.muted;
-   const packed=n.dimensions?.packedDimensions,unpacked=n.dimensions?.unpackedDimensions;
-   const shape=unpacked?'unpacked '+JSON.stringify(unpacked):packed?'packed '+JSON.stringify(packed):n.width||'';
-   if(shape)ctx.fillText(rtlLabel(shape).slice(0,26),x+9,y+h-3);
-  }}
-  return;}
- if(n.type==='port'){
-  ctx.beginPath();ctx.moveTo(x+7,y+3);ctx.lineTo(x+w-25,y+3);ctx.lineTo(x+w-7,y+h/2);ctx.lineTo(x+w-25,y+h-3);ctx.lineTo(x+7,y+h-3);ctx.closePath();ctx.fill();ctx.stroke();
-  ctx.fillStyle=colors.muted;ctx.font='10px ui-monospace,monospace';ctx.fillText(['out','output'].includes(n.direction)?'OUT':'IN',x+16,y+13);}
- else if(n.type==='operator'){
-  if(n.shape==='mux'){
-   // IEC-style trapezoidal multiplexer symbol. Selected AST conditional,
-   // not a heuristic based on the name of a signal.
-   ctx.beginPath();ctx.moveTo(x+9,y+6);ctx.lineTo(x+w-15,y+22);ctx.lineTo(x+w-15,y+h-20);ctx.lineTo(x+9,y+h-6);ctx.closePath();ctx.fill();ctx.stroke();
-   // Pin ends come from the same geometry used by the router.
-   const r={x,y,w,h};
-   for(const role of ['A','B','S']){
-    const p=FlexRouting.pinGeometry(n,r,role,'in');
-    ctx.beginPath();
-    if(role==='S'){ctx.moveTo(p.x,p.y+11);ctx.lineTo(p.x,p.y);}
-    else{ctx.moveTo(p.x-12,p.y);ctx.lineTo(p.x,p.y);}
-    ctx.stroke();
-   }
-   const out=FlexRouting.pinGeometry(n,r,'Y','out');
-   ctx.beginPath();ctx.moveTo(out.x,out.y);ctx.lineTo(out.x+8,out.y);ctx.stroke();
-   ctx.font='10px ui-monospace,monospace';ctx.fillStyle=colors.muted;
-   ctx.fillText('A·0',x+13,y+20);ctx.fillText('B·1',x+13,y+h-17);
-   ctx.fillText('S',x+w/2+7,y+h-7);for(const role of ['A','B','S']){const literal=n.literalOperands?.[role]??(n.operandDetails?.[role]?.includes('.')?n.operandDetails[role]:undefined);if(literal!==undefined){const pin=FlexRouting.pinGeometry(n,r,role,'in');ctx.save();ctx.fillStyle=colors.text;ctx.font='10px ui-monospace,monospace';ctx.textAlign=role==='S'?'center':'right';ctx.fillText(rtlLabel(literal),role==='S'?pin.x:pin.x-12,role==='S'?pin.y+25:pin.y-7,120);ctx.restore();}}
-  }else if(n.shape==='arith'){
-   // FSRTL-0055 compact symbols: functionality from AST operator name, never net names.
-   round(x+6,y+7,w-13,h-14,7);ctx.fill();ctx.stroke();
-   const op=String(n.name||'').toLowerCase();
-   const exact={add:'+',plus:'+',subtract:'−',sub:'−',multiply:'×',mul:'×',divide:'÷',div:'÷',mod:'%',modulo:'%',equal:'=',equals:'=',not_equal:'≠',notequal:'≠',less_than:'<',greater_than:'>',less_equal:'≤',greater_equal:'≥',less_than_equal:'≤',greater_than_equal:'≥',shift_left:'≪',shift_right:'≫',arithmetic_shift_right:'≫'};
-   const known=Object.prototype.hasOwnProperty.call(exact,op)?exact[op]:null;
-   ctx.fillStyle=colors.text;ctx.font='bold 20px system-ui,sans-serif';ctx.textAlign='center';
-   ctx.fillText(known||'ƒ',x+w/2,y+h/2+7);ctx.textAlign='left';
-   for(const role of ['A','B']){const p=FlexRouting.pinGeometry(n,{x,y,w,h},role,'in');ctx.beginPath();ctx.moveTo(p.x-8,p.y);ctx.lineTo(p.x+3,p.y);ctx.stroke();
-    // Literal inputs are an AST-proven connection to a constant, not a wire.
-    const literal=n.literalOperands?.[role]??(n.operandDetails?.[role]?.includes('.')?n.operandDetails[role]:undefined);
-    if(literal!==undefined){ctx.save();ctx.fillStyle=colors.text;ctx.font='600 11px ui-monospace,monospace';ctx.textAlign='left';ctx.fillText(rtlLabel(literal),p.x+9,p.y+4,Math.max(30,w-25));ctx.restore();}
-   }
-   const out=FlexRouting.pinGeometry(n,{x,y,w,h},'Y','out');ctx.beginPath();ctx.moveTo(out.x-4,out.y);ctx.lineTo(out.x+7,out.y);ctx.stroke();
-  }else if(['case','encoder','decoder'].includes(n.shape)){
-   // Case-dispatch symbol; ENC/DEC shapes require explicit semantic metadata,
-   // never merely a textual match against the module or signal name.
-   round(x+7,y+9,w-14,h-18,9);ctx.fill();ctx.stroke();
-   ctx.strokeStyle=colors.muted;ctx.beginPath();
-   for(let i=0;i<3;i++){ctx.moveTo(x+1,y+21+i*15);ctx.lineTo(x+8,y+21+i*15);}
-   ctx.moveTo(x+w-7,y+h/2);ctx.lineTo(x+w,y+h/2);ctx.stroke();
-  }else{round(x+6,y+7,w-13,h-14,7);ctx.fill();ctx.stroke();}}
- else if(['register','counter','fsm'].includes(n.type)){
-  round(x+4,y+3,w-8,h-6,5);ctx.fill();ctx.stroke();
-  const timingPins=new Set((state.graph?.edges||[]).filter(e=>e.target===n.id&&e.type==='event').map(e=>e.pin||'EVENT'));
-  const anchor=(role)=>FlexElkAdapter.anchor(n,'target',{type:'event',pin:role},{w,h});
-  // ELK and Canvas consume the SAME anchor. The physical border is y+h-3.
-  if(timingPins.has('CLK')){
-   const pin=anchor('CLK'),px=x+pin.x,py=y+pin.y;
-   ctx.beginPath();ctx.moveTo(px-9,py);ctx.lineTo(px,py-12);ctx.lineTo(px+9,py);ctx.stroke();
-  }
-  if(timingPins.has('RST')){
-   const pin=anchor('RST'),px=x+pin.x,py=y+pin.y;
-   ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,py-10);ctx.stroke();
-  }
-  if(timingPins.has('EVENT')){
-   const pin=anchor('EVENT'),px=x+pin.x,py=y+pin.y;
-   ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,py-9);ctx.stroke();
-  }
-  ctx.fillStyle=colors.register;ctx.font='10px ui-monospace,monospace';
-  ctx.fillText('D',x+10,y+16);ctx.fillText('Q',x+w-23,y+16);
-  for(const role of ['CLK','RST','EVENT'])if(timingPins.has(role)){
-   const pin=anchor(role);ctx.textAlign='center';ctx.fillText(role==='EVENT'?'EVT':role,x+pin.x,y+h-20);ctx.textAlign='left';
-  }
-if(n.type==='counter'){ctx.fillText('↻',x+w-29,y+h-11);}if(n.type==='fsm')ctx.fillText('ST',x+w-28,y+h-11);}
- else{
-  if(n.type==='generate'){for(let i=2;i>=1;i--){ctx.fillStyle=colors.stackFill;round(x+i*6,y+i*7,w-4,h-4,6);ctx.fill();ctx.strokeStyle=colors.stackStroke;ctx.stroke();}ctx.strokeStyle=picked?colors.selected:c;ctx.fillStyle=colors.symbolFill;}
-  round(x,y,w-12,h-12,5);ctx.fill();ctx.stroke();ctx.strokeRect(x+7,y+7,w-26,h-26);
-  for(const dir of ['in','out']){const ports=(n.ports||[]).filter(p=>dir==='in'?['in','input'].includes(p.direction):['out','output'].includes(p.direction));ports.forEach((port,i)=>{const py=y+(dir==='out'?65:53)+i*19,left=dir==='in';ctx.strokeStyle=['unbound','unresolved'].includes(port.connection)?colors.generate:port.connection==='partial'?colors.sequential:colors.instance;
-   const px=left?x:x+w-6;
-   ctx.beginPath();ctx.moveTo(left?x:x+w-20,py);ctx.lineTo(left?x+8:x+w-6,py);ctx.stroke();
-   if(port.connection==='unbound'){ctx.beginPath();ctx.arc(px,py,3.3,0,Math.PI*2);ctx.stroke();}
-   else if(port.connection==='constant'){
-    ctx.fillStyle=colors.binding;ctx.font='bold 11px ui-monospace,monospace';
-    ctx.fillText('C',px-3,py-5);
-   }
-   else if(port.connection==='unresolved'){
-    ctx.fillStyle=colors.generate;ctx.font='bold 11px ui-monospace,monospace';
-    ctx.fillText('?',px-3,py-5);
-   }
-   if(state.visibility.names&&view().z>=.48){ctx.fillStyle=['unbound','unresolved'].includes(port.connection)?colors.generate:colors.muted;ctx.font='9px ui-monospace,monospace';ctx.textAlign=left?'left':'right';ctx.fillText(port.name.slice(0,15),left?x+13:x+w-24,py+3);ctx.textAlign='left';}});}}
- if(view().z<.36||!state.visibility.names)return;
- ctx.font=n.type==='operator'?'bold 10px ui-monospace,monospace':'600 13px system-ui,sans-serif';ctx.fillStyle=colors.text;
- if(n.type==='operator'){ctx.textAlign='center';if(n.shape!=='arith')ctx.fillText((n.shape==='mux'?'MUX':n.shape==='case'?'CASE':n.shape==='encoder'?'ENC':n.shape==='decoder'?'DEC':(String(n.name).toLowerCase().includes('conversion')?'CAST':String(n.name))).slice(0,7),x+w/2,y+h/2+4);ctx.textAlign='left';}
- else if(['register','counter','fsm'].includes(n.type)){
-  // FSRTL-0058 sequential label layout: bounded, centered; controls use a separate band.
-  const name=String(n.name||'');const display=name.length>36?name.slice(0,35)+'…':name;
-  ctx.save();ctx.beginPath();ctx.rect(x+12,y+26,Math.max(10,w-24),Math.max(12,h-49));ctx.clip();
-  ctx.textAlign='center';ctx.font='600 12px system-ui,sans-serif';
-  ctx.fillText(display,x+w/2,y+Math.min(42,h-29),Math.max(20,w-30));ctx.restore();
- }else{const text=n.name.length>23?n.name.slice(0,22)+'…':n.name;ctx.fillText(text,x+16,y+(n.type==='port'?29:35));}
- if(n.type==='instance'||n.type==='generate'){ctx.fillStyle=colors.muted;ctx.font='11px ui-monospace,monospace';ctx.fillText(n.type==='generate'?`${n.count} generated instances`:String(n.module||''),x+17,y+18);}
- /* Register shape conveys always_ff; avoid duplicate caption. */}
+// Symbols render through a stateless Canvas painter; the full symbol geometry
+// (including module port rows) is shared with ELK through FlexSymbolGeometry.
+function symbol(n,p){
+ FlexSymbolPainter.paint(ctx,n,p,{colors,
+  picked:state.selected===n.id||state.multiSelected.has(n.id)||state.pinned===n.id||state.hover?.id===n.id,
+  zoom:view().z,names:state.visibility.names,edges:state.graph?.edges||[]});
+}
 // FSRTL-0029 net-based Canvas paint
 'use strict';
 // Geometry-only grouping. Never join different canonical net identities.
@@ -421,14 +320,18 @@ function zoom(f,x=canvas.clientWidth/2,y=canvas.clientHeight/2,{immediate=false}
  else animateView(target);
  $('zoomLabel').textContent=Math.round(z*100)+'%';
 }
-function selection(item,track=false,additive=false){if(!item)return;const edge=item.source&&item.target;const id=edge?(item.net||item.id):item.id;if(additive){if(state.multiSelected.has(id)){state.multiSelected.delete(id);if(state.selected===id)state.selected=state.multiSelected.values().next().value||null;}else{if(state.selected)state.multiSelected.add(state.selected);state.multiSelected.add(id);state.selected=id;}}else{state.multiSelected.clear();state.selected=id;}state.inspectEntityId=item.id;if(track&&id.includes('::sig:'))state.pinned=id;const label=edge?`${item.port?item.port+' · ':''}${String(item.net||item.id).split('::sig:').pop()} · ${item.type} wire`+(item.mapping==='partial'?' · bus slice (not bit-exact)':''):item.name+' · '+item.type;announce((track?'Tracking · ':'Selected · ')+label);
- if(state.inspector&&state.tab==='source'){const node=sourceSelectionNode();if(node?.line)focusLine(Number(node.line),node.name);}if(state.inspector&&['details','source','lint'].includes(state.tab))loadTab();draw();}
+function selection(item,track=false,additive=false){if(!item)return;
+ if(sourceProbe&&!probeCandidates(sourceProbe.result).some(c=>c.id===item.id)){sourceProbe=null;showProbeChoices();}
+ const edge=item.source&&item.target;const id=edge?(item.net||item.id):item.id;if(additive){if(state.multiSelected.has(id)){state.multiSelected.delete(id);if(state.selected===id)state.selected=state.multiSelected.values().next().value||null;}else{if(state.selected)state.multiSelected.add(state.selected);state.multiSelected.add(id);state.selected=id;}}else{state.multiSelected.clear();state.selected=id;}state.inspectEntityId=item.id;if(track&&id.includes('::sig:'))state.pinned=id;const label=edge?`${item.port?item.port+' · ':''}${String(item.signal||item.net||item.id).split('::sig:').pop()} · ${item.type} ${item.rendered===false?'dependency (not a wire)':'wire'}`+(item.mapping==='partial'?' · bus slice (not bit-exact)':''):item.name+' · '+item.type;announce((track?'Tracking · ':'Selected · ')+label);
+ if(state.inspector&&state.tab==='source'){const node=sourceSelectionNode();if(node?.line)focusLine(Number(node.line),node.name);}if(state.inspector&&['details','connections','references','source','lint','mapping'].includes(state.tab))loadTab();refreshInspectorIdentity();refreshNavigationStatus();draw();}
 // Resolve signal selection by canonical identity, not by a guessed name.
 function sourceSelectionNode(){
  if(!state.graph)return null;
  const ids=[state.selected,state.inspectEntityId].filter(Boolean);
  const edge=state.graph.edges.find(e=>ids.includes(e.id));
- if(edge&&edge.net)ids.unshift(edge.net);
+ // Expression-output wire IDs have no SV declaration of their own. Use
+ // explicit AST destination provenance, never the coincident display name.
+ if(edge){if(edge.signal)ids.unshift(edge.signal);if(edge.net)ids.unshift(edge.net);}
  return state.graph.nodes.find(n=>ids.includes(n.id))||null;
 }
 function sourceEvidenceBanner(node){
@@ -447,21 +350,25 @@ function selectedSignalName(){
  return typeof node.name==='string'&&node.name?node.name:null;
 }
 function addOccurrenceControls(code, result, chosenFile){
+ // Keep the navigation outside the scrollable <pre>: it must remain visible
+ // when the editor is scrolled, including when native Neovim is active.
+ document.querySelectorAll('#sourcePane > .source-occurrences').forEach(el=>el.remove());
  const host=document.createElement('section');host.className='source-occurrences';
+ $('nvimContainer').before(host);
  const roleStyles=document.createElement('style');
  roleStyles.textContent='.code-line.occurrence-declaration{background:rgba(74,162,235,.19);border-left:3px solid #4aa2eb}.code-line.occurrence-write{background:rgba(242,160,57,.18);border-left:3px solid #f2a039}.code-line.occurrence-read{background:rgba(63,190,124,.17);border-left:3px solid #3fbe7c}.code-line.occurrence-declaration.occurrence-write,.code-line.occurrence-write.occurrence-read{background:linear-gradient(90deg,rgba(74,162,235,.19),rgba(242,160,57,.19),rgba(63,190,124,.17))}';
  host.append(roleStyles);
  const title=document.createElement('div');title.className='source-role-evidence';
  host.append(title);
  const signal=selectedSignalName();
- if(!signal){title.textContent='Select a signal wire or signal node to inspect declarations, writes and reads.';code.prepend(host);return;}
- title.textContent='AST references for '+signal+' · loading…';code.prepend(host);
+ if(!signal){title.textContent='Select a signal to browse AST references';return;}
+ title.textContent='References · '+signal+' · loading…';
  const request=++occurrenceRequest,scope=state.path;
  api('occurrences',{path:scope,signal}).then(data=>{
   if(request!==occurrenceRequest || state.path!==scope || state.tab!=='source' || !state.inspector || !host.isConnected)return;
   host.replaceChildren(roleStyles);
   const heading=document.createElement('div');heading.className='source-role-evidence';
-  heading.textContent='AST occurrences · '+signal+' · '+(data.complete?'complete':'partial evidence');host.append(heading);
+  heading.textContent=signal+' · '+(data.complete?'AST':'partial AST');host.append(heading);
   if(data.status!=='available'){
    const note=document.createElement('div');note.textContent=String(data.reason||'Source references unavailable');host.append(note);return;
   }
@@ -482,11 +389,7 @@ function addOccurrenceControls(code, result, chosenFile){
    row.classList.add('occurrence-'+site.role);
    const prior=roleLines.get(line)||new Set();prior.add(site.role);roleLines.set(line,prior);
   }
-  const summary=document.createElement('div');summary.className='source-role-evidence';
-  summary.textContent='Highlighted AST source lines · declaration: '+[...roleLines.values()].filter(v=>v.has('declaration')).length+
-    ' · write: '+[...roleLines.values()].filter(v=>v.has('write')).length+
-    ' · read: '+[...roleLines.values()].filter(v=>v.has('read')).length+
-    ' · only in '+String(chosenFile||'current file');host.append(summary);
+
   // AST-backed occurrence navigation: no source-text guessing.
   const valid=sites.filter(s=>s&&['declaration','write','read'].includes(s.role)&&Number.isSafeInteger(Number(s.line))&&Number(s.line)>0);
   const nav=document.createElement('nav');nav.className='fs-ast-nav';nav.setAttribute('aria-label','Signal AST references');
@@ -507,7 +410,10 @@ function addOccurrenceControls(code, result, chosenFile){
    b.textContent=label+' ('+count+')';b.title='Next AST-verified '+role+' reference';b.disabled=!count;
    b.onclick=()=>jump(role,1);nav.append(b);
   }
-  const help=document.createElement('span');help.textContent='[d / ]d · [w / ]w · [r / ]r';nav.append(help);
+  const legend=document.createElement('details');legend.className='rtl-reference-legend';
+  const legendHeading=document.createElement('summary');legendHeading.textContent='Legend';
+  const legendBody=document.createElement('p');legendBody.textContent='Decl = declaration · Assigned = write · Read = use. Shortcuts: [d/]d · [w/]w · [r/]r. Only Slang source locations are shown.';
+  legend.append(legendHeading,legendBody);nav.append(legend);
   host.append(nav);
   // One navigator per Source render; discarded as soon as selection changes.
   code._astNavigate=(role,delta)=>{
@@ -515,6 +421,8 @@ function addOccurrenceControls(code, result, chosenFile){
    jump(role,delta);return true;
   };
   const labels={declaration:'Declaration',write:'Write',read:'Read'};
+  const details=document.createElement('details');details.className='rtl-reference-details';
+  const detailsTitle=document.createElement('summary');detailsTitle.textContent='All locations';details.append(detailsTitle);
   for(const role of ['declaration','write','read']){
    const matching=sites.filter(s=>s && s.role===role && Number.isSafeInteger(Number(s.line)) && Number(s.line)>0);
    const row=document.createElement('div');row.className='source-occurrence-row';
@@ -535,16 +443,15 @@ function addOccurrenceControls(code, result, chosenFile){
      if(line){line.classList.add('occurrence-'+role);}
     };row.append(button);
    }
-   host.append(row);
+   details.append(row);
   }
-  const note=document.createElement('div');note.className='source-role-evidence';
-  note.textContent=String(data.note||'Only source locations verified by the AST are shown.');host.append(note);
+  host.append(details);
  }).catch(error=>{
   if(request!==occurrenceRequest||!host.isConnected)return;
   title.textContent='AST occurrences unavailable · '+error.message;
  });
 }
-function focusLine(line,name){const row=$('sourceCode').querySelector(`[data-line="${line}"]`);if(!row)return;$('sourceCode').querySelectorAll('.focus-line').forEach(el=>el.classList.remove('focus-line'));row.classList.add('focus-line');row.scrollIntoView({block:'center',inline:'nearest'});$('inspectorFoot').textContent='AST source line '+line+' · '+name;}
+function focusLine(line,name){window.FlexNativeEditor?.jump(line);const row=$('sourceCode').querySelector(`[data-line="${line}"]`);if(!row)return;$('sourceCode').querySelectorAll('.focus-line').forEach(el=>el.classList.remove('focus-line'));row.classList.add('focus-line');row.scrollIntoView({block:'center',inline:'nearest'});$('inspectorFoot').textContent='AST source line '+line+' · '+name;}
 // Lint is an independent evidence layer, not a schematic connectivity edge.
 // A file-level diagnostic is never attached to an arbitrary instance.
 function priorityOf(d){
@@ -574,6 +481,7 @@ function lintRow(d){
 }
 let pendingLintLine=0;
 let pendingLintFile='';
+let pendingLintProbe=false;
 // Incremented whenever a panel request becomes obsolete.
 let inspectorRequest=0;
 let navigationRequest=0;
@@ -622,11 +530,12 @@ async function refreshGraph(preserve=true){
  syncCounts();breadcrumbs();tree();nodeList();
  if(!preserve||!previous||!state.viewport.has(state.path))fit();else draw();if($('search').value)searchGraph($('search').value);
  if(state.inspector)loadTab();
+  refreshNavigationStatus();
   if(state.visibility.lint)await loadLintOverlay();
   return true;
 }
 async function navigate(path){
- try{state.path=path;++inspectorRequest;await refreshGraph(true);}
+ try{if(path!==state.path){sourceProbe=null;++sourceProbeRequest;}state.path=path;++inspectorRequest;await refreshGraph(true);}
  catch(e){announce(e.message);}
 }
 async function toggleGroup(item){
@@ -656,15 +565,23 @@ function breadcrumbs(){
  });
  box.lastElementChild?.scrollIntoView({inline:'nearest',block:'nearest'});
 }
-const lazyTree=FlexHierarchyTree.create({host:$('hierarchy'),fetchPage:(path,offset,limit)=>api('hierarchy',{path,offset,limit}),navigate:path=>navigate(path),onError:e=>announce('Hierarchy: '+e.message)});
+const lazyTree=FlexHierarchyTree.create({host:$('hierarchy'),fetchPage:(path,offset,limit)=>api('hierarchy',{path,offset,limit}),navigate:path=>navigate(path),onError:e=>announce('Hierarchy: '+e.message),onFilterStatus:(filter,count)=>{
+ $('hierarchyFilterStatus').textContent=filter?count+' loaded match'+(count===1?'':'es')+' · not a full-design search':'Expandable elaborated instances';
+}});
+$('hierarchyFilter').addEventListener('input',event=>lazyTree.setFilter(event.target.value));
+$('hierarchyFilter').addEventListener('keydown',event=>{
+ if(event.key==='Escape'){event.target.value='';lazyTree.setFilter('');event.target.blur();}
+ if(event.key==='ArrowDown'){event.preventDefault();$('hierarchy').querySelector('.fs-tree-label')?.focus();}
+});
 function tree(){lazyTree.activate(state.path);}
 function inspector(show=true,tab='source'){if(!show)++inspectorRequest;const changed=show!==state.inspector;state.inspector=show;$('inspector').hidden=!show;if(show)setTab(tab);syncInspectorButtons();requestAnimationFrame(()=>{resize();if(changed&&!state.manualView)fit();else draw();});}
 function setTab(tab){
  state.tab=tab;
- for(const t of ['details','source','lint','cone']){
+ refreshInspectorIdentity();
+ for(const t of ['details','connections','references','mapping','source','lint','cone']){
   if($(t+'Pane'))$(t+'Pane').hidden=t!==tab;
   if($(t+'Tab'))$(t+'Tab').classList.toggle('active',t===tab);
-  if($(t+'Tab'))$(t+'Tab').setAttribute('aria-selected',String(t===tab));
+  if($(t+'Tab')){$(t+'Tab').setAttribute('aria-selected',String(t===tab));$(t+'Tab').tabIndex=t===tab?0:-1;}
  }
  syncInspectorButtons();
  if(state.inspector)loadTab();
@@ -682,6 +599,163 @@ function togglePanel(tab){
  syncInspectorButtons();
 }
 
+function inspectedItem(){
+ if(!state.graph)return null;
+ const id=state.inspectEntityId||state.selected;
+ return state.graph.nodes.find(n=>n.id===id)||state.graph.edges.find(e=>e.id===id)
+  ||state.graph.edges.find(e=>e.net===state.selected)||null;
+}
+function refreshInspectorIdentity(){
+ const item=inspectedItem();
+ const name=$('inspectorEntityName'),meta=$('inspectorEntityMeta');
+ if(!name||!meta)return;
+ if(!item){name.textContent=state.graph?.module||'Select an entity';meta.textContent='Choose a symbol or wire · '+state.path;refreshNavigationStatus();return;}
+ const wire=Boolean(item.source&&item.target);
+ name.textContent=String(wire?(item.signal||item.net||item.id):(item.name||item.id)).split('::sig:').pop();
+ const mapping=wire?item.rendered===false?'AST dependency, not a physical wire':
+  item.mapping==='direct'?'Direct mapping':item.mapping==='partial'?'Partial mapping':'Mapping not established':
+  item.type==='operator'?('Operator · '+(item.shape||item.kind||'AST')):String(item.type||'entity');
+ meta.textContent=mapping+' · Scope '+state.path;refreshNavigationStatus();
+}
+function inspectorNote(target,message){
+ target.replaceChildren();const element=document.createElement('p');element.className='rtl-inspector-empty';
+ element.textContent=message;target.append(element);
+}
+function inspectorCard(target,heading,body,detail=''){
+ const card=document.createElement('article');card.className='rtl-inspector-card';
+ const title=document.createElement('strong');title.textContent=heading;card.append(title);
+ const main=document.createElement('p');main.textContent=body;card.append(main);
+ if(detail){const small=document.createElement('small');small.textContent=detail;card.append(small);}
+ target.append(card);return card;
+}
+function renderConnections(){
+ const target=$('connectionsResults'),item=inspectedItem();target.replaceChildren();
+ if(!item||!state.graph){inspectorNote(target,'Select a signal, symbol or wire to inspect its AST relationships.');return;}
+ const wire=Boolean(item.source&&item.target),id=item.id;
+ const relationships=state.graph.edges.filter(e=>wire?
+  (e.id===id||Boolean(item.net&&e.net===item.net)):
+  (e.source===id||e.target===id));
+ if(!relationships.length){inspectorNote(target,'No graph relationships in the current scope. This does not prove the hardware has no connections.');return;}
+ for(const edge of relationships.slice(0,150)){
+  const caption=edge.rendered===false?'AST dependency — not drawn':
+   edge.mapping==='partial'?'Partial / non-bit-exact mapping':
+   edge.mapping==='direct'?'Compiler-backed relation':'Mapping status unknown';
+  const short=id=>state.graph.nodes.find(n=>n.id===id)?.name||String(id).split('::').pop();
+  const card=inspectorCard(target,String(edge.type||'relationship'),
+   short(edge.source)+' → '+short(edge.target),
+   caption+(edge.port?' · Port '+edge.port:'')+(edge.pin?' · Pin '+edge.pin:''));
+  if(edge.rendered===false)card.classList.add('rtl-inspector-uncertain');
+ }
+ if(relationships.length>150)inspectorCard(target,'Results limited',
+  'Showing 150 of '+relationships.length+' relationships in this graph slice');
+}
+async function renderReferences(current){
+ const target=$('referencesResults'),signal=selectedSignalName();target.replaceChildren();
+ if(!signal){inspectorNote(target,'Choose a named signal to inspect Slang-backed declarations, writes and reads. Expression-output wires may not have a declaration of their own.');return;}
+ inspectorNote(target,'Loading AST references for '+signal+'…');
+ const result=await api('occurrences',{path:state.path,signal});
+ if(!current())return;
+ target.replaceChildren();
+ if(result.status!=='available'){
+  inspectorNote(target,'References unavailable: '+String(result.reason||result.status));return;
+ }
+ const sites=Array.isArray(result.sites)?result.sites:[];
+ for(const [role,label] of [['declaration','Declaration'],['write','Write'],['read','Read']]){
+  const hits=sites.filter(s=>s.role===role);
+  const card=inspectorCard(target,label+' · '+hits.length,hits.length?'Compiler-backed source locations':'No verified locations');
+  for(const site of hits.slice(0,60)){
+   const jump=document.createElement('button');jump.type='button';jump.className='rtl-reference-link';
+   jump.textContent=String(site.file||'unknown file')+':'+String(site.line||'?');
+   jump.title='Open source inspector';
+   jump.onclick=()=>{
+    // The scope source() API chooses its canonical module file. Avoid
+    // pretending that a reference in another file is openable here.
+    pendingLintLine=Number(site.line)||0;pendingLintFile=String(site.file||'');setTab('source');
+   };card.append(jump);
+  }
+ }
+ inspectorCard(target,'Provenance',result.complete?'Complete for supported AST constructs':'Partial evidence',
+  String(result.note||'Unsupported expressions are not guessed from source text.'));
+}
+
+// Cross-probing remains strictly scope-local and compiler-backed. No
+// source-text token matching or arbitrary instance choice is permitted.
+let sourceProbe=null;
+let mappingSnapshot=null;
+function probeCandidates(result){return (Array.isArray(result?.candidates)?result.candidates:[]).filter(c=>c.visible);}
+function refreshNavigationStatus(message=''){
+ const box=$('rtlProbeStatus');if(!box)return;
+ const item=inspectedItem();const node=sourceSelectionNode();
+ const latest=sourceProbe?.path===state.path?sourceProbe:null;
+ if(message)box.textContent=message;
+ else if(latest)box.textContent='Source L'+latest.line+' · '+latest.result.status+' · '+probeCandidates(latest.result).length+' visible candidate(s)';
+ else if(item)box.textContent=(node?.line?'AST declaration L'+node.line:'No exact source line for selection')+' · '+(item.mapping||item.type||'AST')+' · '+state.path;
+ else box.textContent='Select a schematic entity or click a SystemVerilog line';
+ const reveal=$('rtlGoSchematic');if(reveal)reveal.disabled=!(latest&&probeCandidates(latest.result).length===1&&!probeCandidates(latest.result).some(c=>c.visible===false))&&!(node&&state.graph?.nodes.some(n=>n.id===node.id));
+}
+function showProbeChoices(){
+ const panel=$('sourceProbeChoices');if(!panel)return;
+ panel.replaceChildren();const probe=sourceProbe?.path===state.path?sourceProbe:null;
+ if(!probe){panel.hidden=true;return;}
+ panel.hidden=false;
+ const candidates=probeCandidates(probe.result);
+ const heading=document.createElement('strong');
+ heading.textContent='SystemVerilog L'+probe.line+' → '+(candidates.length===1?'one AST match':candidates.length+' AST matches')+' · '+probe.result.status;
+ panel.append(heading);
+ if(!candidates.length){const note=document.createElement('span');note.textContent=probe.result.reason||'No source-backed entity in this diagram slice';panel.append(note);return;}
+ for(const candidate of candidates){
+  const b=document.createElement('button');b.type='button';b.textContent=candidate.name+' · '+(candidate.roles||[]).join('/');
+  b.title='Reveal '+candidate.name+' in this elaborated schematic scope';
+  b.onclick=()=>revealCandidate(candidate);panel.append(b);
+ }
+}
+function revealCandidate(candidate){
+ if(!state.graph||!candidate||!sourceProbe||sourceProbe.path!==state.path)return;
+ const matched=state.graph.nodes.filter(n=>n.id===candidate.id);
+ if(matched.length!==1){refreshNavigationStatus('AST entity is outside the current schematic slice');return;}
+ focusSymbol(matched[0]);refreshNavigationStatus('Revealed '+candidate.name+' · '+(candidate.roles||[]).join('/')+' · source L'+sourceProbe.line);
+}
+async function probeSourceLine(line){
+ const path=state.path,request=++sourceProbeRequest;
+ try{
+  const result=await api('source_symbols',{path,line});
+  if(request!==sourceProbeRequest||path!==state.path||!state.inspector)return;
+  sourceProbe={path,line,result};showProbeChoices();refreshNavigationStatus();
+  const candidates=probeCandidates(result);
+  if(!state.freezeSchematic&&result.status==='resolved'&&candidates.length===1)revealCandidate(candidates[0]);
+  else announce('AST L'+line+' · '+result.status+' · '+candidates.length+' visible match(es)');
+ }catch(error){if(request===sourceProbeRequest&&path===state.path){sourceProbe=null;showProbeChoices();refreshNavigationStatus('AST lookup failed · '+error.message);}}
+}
+async function renderMapping(current){
+ const box=$('mappingResults');inspectorNote(box,'Auditing AST signal visibility in this scope…');
+ const result=await api('source_coverage',{path:state.path});
+ if(!current())return;
+ mappingSnapshot={path:state.path,result};
+ const drawMapping=()=>{
+  if(!current())return;
+  box.replaceChildren();
+  const data=mappingSnapshot?.result;const counts=data?.counts||{};
+  const summary=document.createElement('p');summary.className='rtl-mapping-summary';
+  summary.textContent='AST declarations '+(data?.total||0)+' · visible with location '+(counts.visible_mapped||0)+' · visible without location '+(counts.visible_unmapped||0)+' · outside current graph '+(counts.not_in_graph||0)+(data?.graph_truncated?' · GRAPH TRUNCATED':'');box.append(summary);
+  const note=document.createElement('p');note.className='rtl-mapping-summary';note.textContent=data?.note||'';box.append(note);
+  const filter=$('rtlMappingFilter').value;
+  const rows=(data?.signals||[]).filter(r=>filter==='all'||r.status===filter);
+  for(const row of rows.slice(0,250)){
+   const entry=document.createElement('article');entry.className='rtl-mapping-entry';
+   const name=document.createElement('strong');name.textContent=row.name;
+   const detail=document.createElement('small');detail.textContent={visible_mapped:'Visible · AST source line',visible_unmapped:'Visible · no verified source location',not_in_graph:'AST signal not in current schematic slice'}[row.status]+(row.file?' · '+row.file+':'+row.line:'');
+   entry.append(name,detail);
+   if(row.status!=='not_in_graph'){
+    const b=document.createElement('button');b.textContent='Reveal';b.onclick=()=>{const n=state.graph?.nodes.find(n=>n.id===row.id);if(n)focusSymbol(n);};entry.append(b);
+   }
+   if(row.in_scope_source&&row.line>0){const b=document.createElement('button');b.textContent='Source L'+row.line;b.onclick=()=>{const n=state.graph?.nodes.find(n=>n.id===row.id);if(n)selection(n);setTab('source');};entry.append(b);}
+   box.append(entry);
+  }
+  if(rows.length>250){const notice=document.createElement('p');notice.className='rtl-mapping-summary';notice.textContent='Showing first 250 of '+rows.length+' matching AST declarations. Narrow the filter.';box.append(notice);}
+ };
+ $('rtlMappingFilter').onchange=drawMapping;drawMapping();
+}
+
 async function loadTab(){
  const request=++inspectorRequest,path=state.path,tab=state.tab;
  if(!state.inspector)return;
@@ -689,7 +763,10 @@ async function loadTab(){
  const current=()=>request===inspectorRequest&&path===state.path&&tab===state.tab&&state.inspector;
  const selectedCurrent=()=>current()&&selectedId===(state.inspectEntityId||state.selected);
  try{
-  if(tab==='details'){
+  if(tab==='mapping'){await renderMapping(current);
+  }else if(tab==='connections'){renderConnections();
+  }else if(tab==='references'){await renderReferences(current);
+  }else if(tab==='details'){
    const target=$('detailsResults');
    if(!selectedId){target.textContent='Select a schematic symbol or relation';return;}
    target.textContent='Loading compiler-backed details…';
@@ -715,18 +792,39 @@ async function loadTab(){
    for(const relation of result.relationships||[])output.push('Dependency: '+relation.source+' → '+relation.target+' ['+relation.type+', '+relation.mapping+']');
    if(result.relationships_truncated)output.push('Relationships: truncated');
    output.push('Limitations: '+String(result.limitations||'unknown'));
-   target.textContent=output.join('\n');
+   target.replaceChildren();
+   inspectorCard(target,String(result.entity?.name||result.id),
+    String(result.kind||'entity')+' · '+String(result.scope||state.path),
+    'Elaboration: '+(result.elaboration_verified?'verified':'imported / not independently verified'));
+   if(result.source?.status==='available')inspectorCard(target,'Source provenance',
+    String(result.source.file)+':'+String(result.source.line||'?'),
+    String(result.source.provenance||'AST-backed'));
+   else inspectorCard(target,'Source provenance','No precise source mapping verified',
+    String(result.source?.reason||'A source location is not available for this entity'));
+   const details=document.createElement('details');details.className='rtl-inspector-evidence';
+   const summary=document.createElement('summary');summary.textContent='Show full compiler evidence';
+   const pre=document.createElement('pre');pre.textContent=output.join('\n');
+   details.append(summary,pre);target.append(details);
   }else if(tab==='source'){
    const result=await api('source',{path});
    if(!current())return;
-   $('sourceFile').textContent=result.status==='available'?result.file:'Source not mapped';
-   const code=$('sourceCode');delete code._astNavigate;code.replaceChildren();$('lineNumbers').textContent='';const selectedNode=sourceSelectionNode();code.append(sourceEvidenceBanner(selectedNode));addOccurrenceControls(code,result,result.file);
+   $('sourceFile').textContent=result.status==='available'?result.file:'Source unavailable';
+   $('rtlSourceStatus').textContent=result.status==='available'?'READ ONLY · Mapped source · '+(result.file||''):'READ ONLY · No verified source mapping';
+   const help=$('sourceMappingHelp');
+   const selected=inspectedItem(),wire=selected?.source&&selected?.target;
+   const selectionProvenance=wire&&(!sourceSelectionNode()?.line||selected.rendered===false);
+   help.hidden=result.status==='available'&&!selectionProvenance;
+   help.textContent=result.status!=='available'
+    ?'This scope has no accessible compiler-backed source. '+String(result.reason||'The AST did not provide a resolvable file')+'. No source location will be guessed.'
+    :selectionProvenance?'Showing the module source, not an exact wire occurrence. This connection has no unique verified line or represents an AST dependency rather than an electrical net. Check References or Connections for available evidence.':'';
+   showProbeChoices();const code=$('sourceCode');delete code._astNavigate;code.replaceChildren();$('lineNumbers').textContent='';const selectedNode=sourceSelectionNode();code.append(sourceEvidenceBanner(selectedNode));addOccurrenceControls(code,result,result.file);
    if(result.code){
     const fragment=document.createDocumentFragment();
     result.code.split('\n').forEach((line,i)=>{const span=document.createElement('span');span.className='code-line';span.dataset.line=String(i+1);span.textContent=line||' ';fragment.append(span);});
     code.append(fragment);$('lineNumbers').textContent=result.code.split('\n').map((_,i)=>i+1).join('\n');
    }else {const note=document.createElement('div');note.textContent=result.reason||'No source location';code.append(note);}
    $('inspectorFoot').textContent=result.status==='available'?'Click a source line to focus an AST symbol':'Source reference unavailable';
+   window.FlexNativeEditor?.sync(path,result,selectedNode?.line||1);
    if(selectedNode?.line)focusLine(selectedNode.line,selectedNode.name);
    if(pendingLintLine){
     const targetFile=String(pendingLintFile||'').replaceAll('\\','/');
@@ -734,7 +832,8 @@ async function loadTab(){
     const exactFile=!!targetFile&&!!currentFile&&(targetFile===currentFile||targetFile.endsWith('/'+currentFile)||currentFile.endsWith('/'+targetFile));
     if(exactFile&&result.status==='available')focusLine(pendingLintLine,'lint diagnostic');
     else $('inspectorFoot').textContent='Lint location not highlighted: diagnostic file '+(targetFile||'unknown')+' differs from source '+(currentFile||'unavailable');
-    pendingLintLine=0;pendingLintFile='';
+    if(pendingLintProbe&&exactFile&&result.status==='available')probeSourceLine(pendingLintLine);
+    pendingLintLine=0;pendingLintFile='';pendingLintProbe=false;
    }
   }else if(tab==='lint'){
    const box=$('lintResults');box.replaceChildren();
@@ -783,6 +882,9 @@ async function loadTab(){
       const jump=document.createElement('button');jump.type='button';jump.textContent='Open source · L'+line;
       jump.onclick=()=>{if(!current())return;pendingLintLine=line;pendingLintFile=String(warning.file||result.file||'');setTab('source');};
       article.append(document.createTextNode(' '),jump);
+     const probe=document.createElement('button');probe.type='button';probe.textContent='Find in schematic';
+     probe.onclick=()=>{if(!current())return;pendingLintLine=line;pendingLintFile=String(warning.file||result.file||'');pendingLintProbe=true;setTab('source');};
+     article.append(document.createTextNode(' '),probe);
      }else{
       const note=document.createElement('small');note.textContent=' · no verified line';article.append(note);
      }
@@ -858,29 +960,44 @@ document.addEventListener('click',ev=>{if(!ev.target.closest('#context')&&!ev.ta
 $('toggleSource').onclick=()=>togglePanel('source');$('toggleLint').onclick=()=>togglePanel('lint');$('toggleCone').onclick=()=>togglePanel('cone');$('closeInspector').onclick=()=>inspector(false);
 
 $('zoomOut').onclick=()=>zoom(.82);$('zoomIn').onclick=()=>zoom(1.2);$('fit').onclick=fit;
-for(const t of ['details','source','lint','cone']){
+for(const t of ['details','connections','references','mapping','source','lint','cone']){
  const tab=$(t+'Tab');
  if(tab)tab.onclick=()=>setTab(t);
  else console.warn('[FlexSoC RTL] Missing tab:',t+'Tab');
 }
-// Cross-probing only uses compiler-backed source locations, never a line-number guess.
+// Accessible roving tab stops. Do not intercept keys inside source or filter inputs.
+$('inspector').querySelector('.tabs').addEventListener('keydown',ev=>{
+ const inspectorTabs=['details','connections','references','mapping','source','lint','cone'];
+ const tabs=inspectorTabs.map(id=>$(id+'Tab'));
+ if(!tabs.includes(ev.target))return;
+ const index=tabs.indexOf(ev.target);
+ const next=ev.key==='Home'?0:ev.key==='End'?tabs.length-1:ev.key==='ArrowRight'?(index+1)%tabs.length:ev.key==='ArrowLeft'?(index+tabs.length-1)%tabs.length:-1;
+ if(next<0)return;
+ ev.preventDefault();setTab(inspectorTabs[next]);tabs[next].focus();
+});
+// Source-to-schematic uses the compiler location and the current elaborated scope.
 let sourceProbeRequest=0;
-$('sourceCode').onclick=async ev=>{
+window.FlexRTLProbeLine=probeSourceLine;
+$('sourceCode').onclick=ev=>{
  const row=ev.target.closest('[data-line]');if(!row||!state.graph)return;
- const line=Number(row.dataset.line),path=state.path,request=++sourceProbeRequest;
- try{
-  const result=await api('source_symbols',{path,line});
-  if(request!==sourceProbeRequest||path!==state.path||!state.inspector||state.tab!=='source')return;
-  const candidates=Array.isArray(result.candidates)?result.candidates:[];
-  if(result.status!=='resolved'||candidates.length!==1){
-   announce('Line '+line+' · '+(result.status==='ambiguous'?candidates.length+' AST declarations; select a symbol in the schematic':'no uniquely verified AST declaration'));
-   return;
-  }
-  const candidate=candidates[0];
-  const matches=state.graph.nodes.filter(n=>n.id===candidate.id);
-  if(matches.length!==1){announce('Line '+line+' · AST symbol is outside the current diagram slice');return;}
-  selection(matches[0]);focusLine(line,matches[0].name);
- }catch(error){if(request===sourceProbeRequest&&path===state.path)announce('AST cross-probe unavailable · '+error.message);}
+ probeSourceLine(Number(row.dataset.line));
+};
+$('rtlGoSource').onclick=()=>{if(!state.inspector)inspector(true,'source');else setTab('source');};
+$('rtlGoReferences').onclick=()=>{if(!state.inspector)inspector(true,'references');else setTab('references');};
+$('rtlGoLint').onclick=()=>{if(!state.inspector)inspector(true,'lint');else setTab('lint');};
+$('rtlFreezeSchematic').onclick=()=>{
+ state.freezeSchematic=!state.freezeSchematic;
+ const button=$('rtlFreezeSchematic');button.setAttribute('aria-pressed',String(state.freezeSchematic));
+ button.textContent=state.freezeSchematic?'🔒 Locked':'🔓 Follow';
+ button.title=state.freezeSchematic?'Source navigation will not move the schematic. Reveal schematic remains available.':'Automatically reveal unique AST matches from source navigation.';
+ refreshNavigationStatus(state.freezeSchematic?'Schematic locked · use Reveal to navigate':'Schematic follows unique source matches');
+};
+$('rtlGoSchematic').onclick=()=>{
+ const latest=sourceProbe?.path===state.path?probeCandidates(sourceProbe.result):[];
+ if(latest.length===1){revealCandidate(latest[0]);return;}
+ const node=sourceSelectionNode();
+ if(node&&state.graph?.nodes.some(n=>n.id===node.id)){focusSymbol(node);return;}
+ refreshNavigationStatus('Select a source line or mapped schematic signal first');
 };
 let coneRequest=0;
 $('runCone').onclick=async()=>{const request=++coneRequest,path=state.path;try{const r=await api('cone',{path,from:$('fromSelect').value,to:$('toSelect').value});if(request!==coneRequest||path!==state.path)return;$('coneResults').textContent=r.status+' · '+r.paths.length+' path(s)\n'+(r.paths.map(p=>p.map(id=>id.split('::').pop()).join(' → ')).join('\n')||r.reason||'No proven path')+'\nSequential boundaries: '+JSON.stringify(r.sequential_boundaries||[]);if(r.paths.length){state.selected=r.paths[0][0];draw();}}catch(e){if(request===coneRequest&&path===state.path)announce(e.message);}};
@@ -913,7 +1030,10 @@ $('search').addEventListener('keydown',ev=>{
  if(ev.key==='Enter'){const first=$('searchResults').querySelector('button');if(first){ev.preventDefault();first.click();}}
 });
 document.addEventListener('keydown',ev=>{
- if(ev.key==='/'&&!ev.altKey&&!ev.ctrlKey&&!ev.metaKey&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){
+ if(ev.key.toLowerCase()==='k'&&(ev.ctrlKey||ev.metaKey)&&!ev.altKey){
+  ev.preventDefault();$('hierarchyFilter').focus();$('hierarchyFilter').select();return;
+ }
+ if(ev.key==='/'&&!ev.altKey&&!ev.ctrlKey&&!ev.metaKey&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)&&!document.activeElement.closest('#inspector')){
   ev.preventDefault();$('search').focus();
  }
  if(ev.key==='Escape'){$('context').hidden=true;$('searchResults').hidden=true;}
@@ -930,12 +1050,18 @@ $('inspectorResizer').addEventListener('pointermove',ev=>{
  const width=clamp(split.width+split.start-ev.clientX,300,Math.min(window.innerWidth*.72,900));
  $('inspector').style.width=width+'px';
 });
-$('inspectorResizer').addEventListener('pointerup',()=>{split=null;});
+function saveInspectorWidth(){
+ const width=Math.round($('inspector').getBoundingClientRect().width);
+ if(width>=300&&width<=900)try{localStorage.setItem('flexsoc-rtl-inspector-width',String(width));}catch(_e){}
+}
+$('inspectorResizer').addEventListener('pointerup',()=>{if(split)saveInspectorWidth();split=null;});
+$('inspectorResizer').addEventListener('pointercancel',()=>{split=null;});
 $('inspectorResizer').addEventListener('keydown',ev=>{
  if(!['ArrowLeft','ArrowRight'].includes(ev.key))return;
  ev.preventDefault();const width=$('inspector').getBoundingClientRect().width;
- $('inspector').style.width=clamp(width+(ev.key==='ArrowLeft'?24:-24),300,900)+'px';
+ $('inspector').style.width=clamp(width+(ev.key==='ArrowLeft'?24:-24),300,900)+'px';saveInspectorWidth();
 });
+try{const saved=Number(localStorage.getItem('flexsoc-rtl-inspector-width'));if(saved>=300&&saved<=900)$('inspector').style.width=saved+'px';}catch(_e){}
 $('themeToggle').onclick=()=>applyTheme(document.documentElement.dataset.theme==='light'?'dark':'light');
 try{applyTheme(localStorage.getItem('flexsoc-rtl-theme')||'dark');}catch(_e){applyTheme('dark');}
 $('help').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=()=>$('helpDialog').close();
@@ -959,7 +1085,7 @@ enableLocalELK();
   all.forEach(el=>el.classList.remove('focus-line'));all[i].classList.add('focus-line');all[i].scrollIntoView({block:'center'});
   if(report)report.textContent='Vim navigation · line '+(i+1)+'/'+all.length+' · press y to copy line';
  };
- toggle.addEventListener('click',()=>{vim=!vim;pendingG=false;toggle.textContent='Vim: '+(vim?'on':'off');toggle.setAttribute('aria-pressed',String(vim));if(vim)source.focus();});
+ toggle.addEventListener('click',()=>{vim=!vim;pendingG=false;toggle.textContent='Vim keys: '+(vim?'on':'off');toggle.setAttribute('aria-pressed',String(vim));if(vim)source.focus();});
  copy.addEventListener('click',async()=>{
   const pane=document.querySelector('#inspector .pane:not([hidden])');
   const selected=window.getSelection()?.toString()||'';

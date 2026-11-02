@@ -53,3 +53,30 @@ def test_lint_run_relative_generated_source(tmp_path):
     result = viewer.lint('/')
     assert result['total'] == 1
     assert result['diagnostics'][0]['code'] == 'width-expand'
+
+
+def test_lint_rejects_invalid_report_without_raising(tmp_path):
+    (tmp_path / 'DSP.sv').write_text('module DSP; endmodule')
+    run = tmp_path / 'run'
+    reports = run / 'dv' / 'lint' / 'slang'
+    reports.mkdir(parents=True)
+    report = reports / 'summary.json'
+    viewer = RtlDesign(fixture_ast(), root=tmp_path, top='DSP', run=run)
+    for invalid in ('not-json', '[]', '{"diagnostics":{}}'):
+        report.write_text(invalid)
+        result = viewer.lint('/')
+        assert result['status'] == 'unsupported'
+        assert result['diagnostics'] == []
+        assert result['reason']
+
+
+def test_lint_does_not_follow_report_symlink(tmp_path):
+    (tmp_path / 'DSP.sv').write_text('module DSP; endmodule')
+    run = tmp_path / 'run'
+    reports = run / 'dv' / 'lint' / 'slang'
+    reports.mkdir(parents=True)
+    external = tmp_path / 'outside.json'
+    external.write_text(json.dumps({'diagnostics': [{'file': 'DSP.sv', 'line': 1}]}))
+    (reports / 'summary.json').symlink_to(external)
+    viewer = RtlDesign(fixture_ast(), root=tmp_path, top='DSP', run=run)
+    assert viewer.lint('/')['status'] == 'unavailable'

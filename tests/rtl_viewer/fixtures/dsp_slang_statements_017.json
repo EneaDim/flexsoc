@@ -1,0 +1,1892 @@
+{
+  "design": {
+    "members": [
+      {
+        "name": "u_core",
+        "kind": "Instance",
+        "source_file": "DSP.sv",
+        "source_line": 14,
+        "source_column": 46,
+        "addr": 6338651397992,
+        "body": {
+          "name": "DSP_core",
+          "kind": "InstanceBody",
+          "source_file": "DSP_core.sv",
+          "source_line": 2,
+          "source_column": 8,
+          "addr": 6338651402256,
+          "members": [
+            {
+              "name": "LANES",
+              "kind": "Parameter",
+              "source_file": "DSP_core.sv",
+              "source_line": 3,
+              "source_column": 19,
+              "addr": 6338651402432,
+              "type": "int",
+              "initializer": {
+                "source_file_start": "DSP.sv",
+                "source_file_end": "DSP.sv",
+                "source_line_start": 14,
+                "source_line_end": 14,
+                "source_column_start": 23,
+                "source_column_end": 28,
+                "kind": "NamedValue",
+                "type": "int",
+                "symbol": "6338651395528 LANES",
+                "constant": "8"
+              },
+              "value": "8",
+              "isLocal": false,
+              "isPort": true,
+              "isBody": false
+            },
+            {
+              "name": "WIDTH",
+              "kind": "Parameter",
+              "source_file": "DSP_core.sv",
+              "source_line": 4,
+              "source_column": 19,
+              "addr": 6338651402600,
+              "type": "int",
+              "initializer": {
+                "source_file_start": "DSP.sv",
+                "source_file_end": "DSP.sv",
+                "source_line_start": 14,
+                "source_line_end": 14,
+                "source_column_start": 38,
+                "source_column_end": 43,
+                "kind": "NamedValue",
+                "type": "int",
+                "symbol": "6338651395696 WIDTH",
+                "constant": "16"
+              },
+              "value": "16",
+              "isLocal": false,
+              "isPort": true,
+              "isBody": false
+            },
+            {
+              "name": "clk_i",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 6,
+              "source_column": 38,
+              "addr": 6338651405448,
+              "type": "logic",
+              "direction": "In",
+              "internalSymbol": "6338651405568 clk_i"
+            },
+            {
+              "name": "clk_i",
+              "kind": "Variable",
+              "source_file": "DSP_core.sv",
+              "source_line": 6,
+              "source_column": 38,
+              "addr": 6338651405568,
+              "type": "logic",
+              "lifetime": "Static"
+            },
+            {
+              "name": "rst_ni",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 7,
+              "source_column": 38,
+              "addr": 6338651405704,
+              "type": "logic",
+              "direction": "In",
+              "internalSymbol": "6338651405824 rst_ni"
+            },
+            {
+              "name": "rst_ni",
+              "kind": "Variable",
+              "source_file": "DSP_core.sv",
+              "source_line": 7,
+              "source_column": 38,
+              "addr": 6338651405824,
+              "type": "logic",
+              "lifetime": "Static"
+            },
+            {
+              "name": "en_i",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 8,
+              "source_column": 38,
+              "addr": 6338651405960,
+              "type": "logic",
+              "direction": "In",
+              "internalSymbol": "6338651406080 en_i"
+            },
+            {
+              "name": "en_i",
+              "kind": "Variable",
+              "source_file": "DSP_core.sv",
+              "source_line": 8,
+              "source_column": 38,
+              "addr": 6338651406080,
+              "type": "logic",
+              "lifetime": "Static"
+            },
+            {
+              "name": "samples_i",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 9,
+              "source_column": 38,
+              "addr": 6338651406216,
+              "type": "logic[127:0]",
+              "direction": "In",
+              "internalSymbol": "6338651410448 samples_i"
+            },
+            {
+              "name": "samples_i",
+              "kind": "Variable",
+              "source_file": "DSP_core.sv",
+              "source_line": 9,
+              "source_column": 38,
+              "addr": 6338651410448,
+              "type": "logic[127:0]",
+              "lifetime": "Static"
+            },
+            {
+              "name": "coeffs_i",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 10,
+              "source_column": 38,
+              "addr": 6338651410584,
+              "type": "logic[127:0]",
+              "direction": "In",
+              "internalSymbol": "6338651410704 coeffs_i"
+            },
+            {
+              "name": "coeffs_i",
+              "kind": "Variable",
+              "source_file": "DSP_core.sv",
+              "source_line": 10,
+              "source_column": 38,
+              "addr": 6338651410704,
+              "type": "logic[127:0]",
+              "lifetime": "Static"
+            },
+            {
+              "name": "results_o",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 11,
+              "source_column": 38,
+              "addr": 6338651410840,
+              "type": "logic[127:0]",
+              "direction": "Out",
+              "internalSymbol": "6338651410960 results_o"
+            },
+            {
+              "name": "results_o",
+              "kind": "Variable",
+              "source_file": "DSP_core.sv",
+              "source_line": 11,
+              "source_column": 38,
+              "addr": 6338651410960,
+              "type": "logic[127:0]",
+              "lifetime": "Static"
+            },
+            {
+              "name": "valid_o",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 12,
+              "source_column": 38,
+              "addr": 6338651411096,
+              "type": "logic",
+              "direction": "Out",
+              "internalSymbol": "6338651411216 valid_o"
+            },
+            {
+              "name": "valid_o",
+              "kind": "Variable",
+              "source_file": "DSP_core.sv",
+              "source_line": 12,
+              "source_column": 38,
+              "addr": 6338651411216,
+              "type": "logic",
+              "lifetime": "Static"
+            },
+            {
+              "name": "lane_results",
+              "kind": "Variable",
+              "source_file": "DSP_core.sv",
+              "source_line": 14,
+              "source_column": 29,
+              "addr": 6338651402832,
+              "type": "logic[127:0]",
+              "lifetime": "Static"
+            },
+            {
+              "name": "valid_q",
+              "kind": "Variable",
+              "source_file": "DSP_core.sv",
+              "source_line": 15,
+              "source_column": 11,
+              "addr": 6338651402968,
+              "type": "logic",
+              "lifetime": "Static"
+            },
+            {
+              "name": "",
+              "kind": "ProceduralBlock",
+              "source_file": "DSP_core.sv",
+              "source_line": 26,
+              "source_column": 5,
+              "addr": 6338651403168,
+              "procedureKind": "AlwaysFF",
+              "body": {
+                "source_file_start": "DSP_core.sv",
+                "source_file_end": "DSP_core.sv",
+                "source_line_start": 26,
+                "source_line_end": 29,
+                "source_column_start": 15,
+                "source_column_end": 8,
+                "kind": "Timed",
+                "timing": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 26,
+                  "source_line_end": 26,
+                  "source_column_start": 16,
+                  "source_column_end": 49,
+                  "kind": "EventList",
+                  "events": [
+                    {
+                      "source_file_start": "DSP_core.sv",
+                      "source_file_end": "DSP_core.sv",
+                      "source_line_start": 26,
+                      "source_line_end": 26,
+                      "source_column_start": 17,
+                      "source_column_end": 30,
+                      "kind": "SignalEvent",
+                      "expr": {
+                        "source_file_start": "DSP_core.sv",
+                        "source_file_end": "DSP_core.sv",
+                        "source_line_start": 26,
+                        "source_line_end": 26,
+                        "source_column_start": 25,
+                        "source_column_end": 30,
+                        "kind": "NamedValue",
+                        "type": "logic",
+                        "symbol": "6338651405568 clk_i"
+                      },
+                      "edge": "PosEdge"
+                    },
+                    {
+                      "source_file_start": "DSP_core.sv",
+                      "source_file_end": "DSP_core.sv",
+                      "source_line_start": 26,
+                      "source_line_end": 26,
+                      "source_column_start": 34,
+                      "source_column_end": 48,
+                      "kind": "SignalEvent",
+                      "expr": {
+                        "source_file_start": "DSP_core.sv",
+                        "source_file_end": "DSP_core.sv",
+                        "source_line_start": 26,
+                        "source_line_end": 26,
+                        "source_column_start": 42,
+                        "source_column_end": 48,
+                        "kind": "NamedValue",
+                        "type": "logic",
+                        "symbol": "6338651405824 rst_ni"
+                      },
+                      "edge": "NegEdge"
+                    }
+                  ]
+                },
+                "stmt": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 27,
+                  "source_line_end": 28,
+                  "source_column_start": 9,
+                  "source_column_end": 40,
+                  "kind": "Block",
+                  "blockKind": "Sequential",
+                  "body": {
+                    "source_file_start": "DSP_core.sv",
+                    "source_file_end": "DSP_core.sv",
+                    "source_line_start": 27,
+                    "source_line_end": 28,
+                    "source_column_start": 9,
+                    "source_column_end": 40,
+                    "kind": "Conditional",
+                    "conditions": [
+                      {
+                        "expr": {
+                          "source_file_start": "DSP_core.sv",
+                          "source_file_end": "DSP_core.sv",
+                          "source_line_start": 27,
+                          "source_line_end": 27,
+                          "source_column_start": 13,
+                          "source_column_end": 20,
+                          "kind": "UnaryOp",
+                          "type": "logic",
+                          "op": "LogicalNot",
+                          "operand": {
+                            "source_file_start": "DSP_core.sv",
+                            "source_file_end": "DSP_core.sv",
+                            "source_line_start": 27,
+                            "source_line_end": 27,
+                            "source_column_start": 14,
+                            "source_column_end": 20,
+                            "kind": "NamedValue",
+                            "type": "logic",
+                            "symbol": "6338651405824 rst_ni"
+                          }
+                        }
+                      }
+                    ],
+                    "check": "None",
+                    "ifTrue": {
+                      "source_file_start": "DSP_core.sv",
+                      "source_file_end": "DSP_core.sv",
+                      "source_line_start": 27,
+                      "source_line_end": 27,
+                      "source_column_start": 22,
+                      "source_column_end": 38,
+                      "kind": "ExpressionStatement",
+                      "expr": {
+                        "source_file_start": "DSP_core.sv",
+                        "source_file_end": "DSP_core.sv",
+                        "source_line_start": 27,
+                        "source_line_end": 27,
+                        "source_column_start": 22,
+                        "source_column_end": 37,
+                        "kind": "Assignment",
+                        "type": "logic",
+                        "left": {
+                          "source_file_start": "DSP_core.sv",
+                          "source_file_end": "DSP_core.sv",
+                          "source_line_start": 27,
+                          "source_line_end": 27,
+                          "source_column_start": 22,
+                          "source_column_end": 29,
+                          "kind": "NamedValue",
+                          "type": "logic",
+                          "symbol": "6338651402968 valid_q"
+                        },
+                        "right": {
+                          "source_file_start": "DSP_core.sv",
+                          "source_file_end": "DSP_core.sv",
+                          "source_line_start": 27,
+                          "source_line_end": 27,
+                          "source_column_start": 33,
+                          "source_column_end": 37,
+                          "kind": "Conversion",
+                          "type": "logic",
+                          "operand": {
+                            "source_file_start": "DSP_core.sv",
+                            "source_file_end": "DSP_core.sv",
+                            "source_line_start": 27,
+                            "source_line_end": 27,
+                            "source_column_start": 33,
+                            "source_column_end": 37,
+                            "kind": "IntegerLiteral",
+                            "type": "bit[0:0]",
+                            "value": "1'b0",
+                            "constant": "1'b0"
+                          },
+                          "constant": "1'b0"
+                        },
+                        "isNonBlocking": true
+                      }
+                    },
+                    "ifFalse": {
+                      "source_file_start": "DSP_core.sv",
+                      "source_file_end": "DSP_core.sv",
+                      "source_line_start": 28,
+                      "source_line_end": 28,
+                      "source_column_start": 14,
+                      "source_column_end": 40,
+                      "kind": "Conditional",
+                      "conditions": [
+                        {
+                          "expr": {
+                            "source_file_start": "DSP_core.sv",
+                            "source_file_end": "DSP_core.sv",
+                            "source_line_start": 28,
+                            "source_line_end": 28,
+                            "source_column_start": 18,
+                            "source_column_end": 22,
+                            "kind": "NamedValue",
+                            "type": "logic",
+                            "symbol": "6338651406080 en_i"
+                          }
+                        }
+                      ],
+                      "check": "None",
+                      "ifTrue": {
+                        "source_file_start": "DSP_core.sv",
+                        "source_file_end": "DSP_core.sv",
+                        "source_line_start": 28,
+                        "source_line_end": 28,
+                        "source_column_start": 24,
+                        "source_column_end": 40,
+                        "kind": "ExpressionStatement",
+                        "expr": {
+                          "source_file_start": "DSP_core.sv",
+                          "source_file_end": "DSP_core.sv",
+                          "source_line_start": 28,
+                          "source_line_end": 28,
+                          "source_column_start": 24,
+                          "source_column_end": 39,
+                          "kind": "Assignment",
+                          "type": "logic",
+                          "left": {
+                            "source_file_start": "DSP_core.sv",
+                            "source_file_end": "DSP_core.sv",
+                            "source_line_start": 28,
+                            "source_line_end": 28,
+                            "source_column_start": 24,
+                            "source_column_end": 31,
+                            "kind": "NamedValue",
+                            "type": "logic",
+                            "symbol": "6338651402968 valid_q"
+                          },
+                          "right": {
+                            "source_file_start": "DSP_core.sv",
+                            "source_file_end": "DSP_core.sv",
+                            "source_line_start": 28,
+                            "source_line_end": 28,
+                            "source_column_start": 35,
+                            "source_column_end": 39,
+                            "kind": "Conversion",
+                            "type": "logic",
+                            "operand": {
+                              "source_file_start": "DSP_core.sv",
+                              "source_file_end": "DSP_core.sv",
+                              "source_line_start": 28,
+                              "source_line_end": 28,
+                              "source_column_start": 35,
+                              "source_column_end": 39,
+                              "kind": "IntegerLiteral",
+                              "type": "bit[0:0]",
+                              "value": "1'b1",
+                              "constant": "1'b1"
+                            },
+                            "constant": "1'b1"
+                          },
+                          "isNonBlocking": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "",
+              "kind": "ContinuousAssign",
+              "source_file": "DSP_core.sv",
+              "source_line": 30,
+              "source_column": 12,
+              "addr": 6338651415800,
+              "assignment": {
+                "source_file_start": "DSP_core.sv",
+                "source_file_end": "DSP_core.sv",
+                "source_line_start": 30,
+                "source_line_end": 30,
+                "source_column_start": 12,
+                "source_column_end": 36,
+                "kind": "Assignment",
+                "type": "logic[127:0]",
+                "left": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 30,
+                  "source_line_end": 30,
+                  "source_column_start": 12,
+                  "source_column_end": 21,
+                  "kind": "NamedValue",
+                  "type": "logic[127:0]",
+                  "symbol": "6338651410960 results_o"
+                },
+                "right": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 30,
+                  "source_line_end": 30,
+                  "source_column_start": 24,
+                  "source_column_end": 36,
+                  "kind": "NamedValue",
+                  "type": "logic[127:0]",
+                  "symbol": "6338651402832 lane_results"
+                },
+                "isNonBlocking": false
+              }
+            },
+            {
+              "name": "",
+              "kind": "ContinuousAssign",
+              "source_file": "DSP_core.sv",
+              "source_line": 31,
+              "source_column": 12,
+              "addr": 6338651415880,
+              "assignment": {
+                "source_file_start": "DSP_core.sv",
+                "source_file_end": "DSP_core.sv",
+                "source_line_start": 31,
+                "source_line_end": 31,
+                "source_column_start": 12,
+                "source_column_end": 29,
+                "kind": "Assignment",
+                "type": "logic",
+                "left": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 31,
+                  "source_line_end": 31,
+                  "source_column_start": 12,
+                  "source_column_end": 19,
+                  "kind": "NamedValue",
+                  "type": "logic",
+                  "symbol": "6338651411216 valid_o"
+                },
+                "right": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 31,
+                  "source_line_end": 31,
+                  "source_column_start": 22,
+                  "source_column_end": 29,
+                  "kind": "NamedValue",
+                  "type": "logic",
+                  "symbol": "6338651402968 valid_q"
+                },
+                "isNonBlocking": false
+              }
+            }
+          ],
+          "definition": "6338648305408 DSP_core"
+        },
+        "connections": [
+          {
+            "port": {
+              "name": "clk_i",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 6,
+              "source_column": 38,
+              "addr": 6338651405448,
+              "type": "logic",
+              "direction": "In",
+              "internalSymbol": "6338651405568 clk_i"
+            },
+            "expr": {
+              "source_file_start": "DSP.sv",
+              "source_file_end": "DSP.sv",
+              "source_line_start": 15,
+              "source_line_end": 15,
+              "source_column_start": 16,
+              "source_column_end": 21,
+              "kind": "NamedValue",
+              "type": "logic",
+              "symbol": "6338651396264 clk_i"
+            }
+          },
+          {
+            "port": {
+              "name": "rst_ni",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 7,
+              "source_column": 38,
+              "addr": 6338651405704,
+              "type": "logic",
+              "direction": "In",
+              "internalSymbol": "6338651405824 rst_ni"
+            },
+            "expr": {
+              "source_file_start": "DSP.sv",
+              "source_file_end": "DSP.sv",
+              "source_line_start": 15,
+              "source_line_end": 15,
+              "source_column_start": 32,
+              "source_column_end": 38,
+              "kind": "NamedValue",
+              "type": "logic",
+              "symbol": "6338651396520 rst_ni"
+            }
+          },
+          {
+            "port": {
+              "name": "en_i",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 8,
+              "source_column": 38,
+              "addr": 6338651405960,
+              "type": "logic",
+              "direction": "In",
+              "internalSymbol": "6338651406080 en_i"
+            },
+            "expr": {
+              "source_file_start": "DSP.sv",
+              "source_file_end": "DSP.sv",
+              "source_line_start": 15,
+              "source_line_end": 15,
+              "source_column_start": 47,
+              "source_column_end": 51,
+              "kind": "NamedValue",
+              "type": "logic",
+              "symbol": "6338651396776 en_i"
+            }
+          },
+          {
+            "port": {
+              "name": "samples_i",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 9,
+              "source_column": 38,
+              "addr": 6338651406216,
+              "type": "logic[127:0]",
+              "direction": "In",
+              "internalSymbol": "6338651410448 samples_i"
+            },
+            "expr": {
+              "source_file_start": "DSP.sv",
+              "source_file_end": "DSP.sv",
+              "source_line_start": 16,
+              "source_line_end": 16,
+              "source_column_start": 20,
+              "source_column_end": 29,
+              "kind": "NamedValue",
+              "type": "logic[127:0]",
+              "symbol": "6338651397032 samples_i"
+            }
+          },
+          {
+            "port": {
+              "name": "coeffs_i",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 10,
+              "source_column": 38,
+              "addr": 6338651410584,
+              "type": "logic[127:0]",
+              "direction": "In",
+              "internalSymbol": "6338651410704 coeffs_i"
+            },
+            "expr": {
+              "source_file_start": "DSP.sv",
+              "source_file_end": "DSP.sv",
+              "source_line_start": 16,
+              "source_line_end": 16,
+              "source_column_start": 42,
+              "source_column_end": 50,
+              "kind": "NamedValue",
+              "type": "logic[127:0]",
+              "symbol": "6338651397288 coeffs_i"
+            }
+          },
+          {
+            "port": {
+              "name": "results_o",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 11,
+              "source_column": 38,
+              "addr": 6338651410840,
+              "type": "logic[127:0]",
+              "direction": "Out",
+              "internalSymbol": "6338651410960 results_o"
+            },
+            "expr": {
+              "source_file_start": "DSP.sv",
+              "source_file_end": "DSP.sv",
+              "source_line_start": 17,
+              "source_line_end": 17,
+              "source_column_start": 20,
+              "source_column_end": 29,
+              "kind": "Assignment",
+              "type": "logic[127:0]",
+              "left": {
+                "source_file_start": "DSP.sv",
+                "source_file_end": "DSP.sv",
+                "source_line_start": 17,
+                "source_line_end": 17,
+                "source_column_start": 20,
+                "source_column_end": 29,
+                "kind": "NamedValue",
+                "type": "logic[127:0]",
+                "symbol": "6338651397544 results_o"
+              },
+              "right": {
+                "source_file_start": "DSP.sv",
+                "source_file_end": "DSP.sv",
+                "source_line_start": 17,
+                "source_line_end": 17,
+                "source_column_start": 20,
+                "source_column_end": 29,
+                "kind": "EmptyArgument",
+                "type": "logic[127:0]"
+              },
+              "isNonBlocking": false
+            }
+          },
+          {
+            "port": {
+              "name": "valid_o",
+              "kind": "Port",
+              "source_file": "DSP_core.sv",
+              "source_line": 12,
+              "source_column": 38,
+              "addr": 6338651411096,
+              "type": "logic",
+              "direction": "Out",
+              "internalSymbol": "6338651411216 valid_o"
+            },
+            "expr": {
+              "source_file_start": "DSP.sv",
+              "source_file_end": "DSP.sv",
+              "source_line_start": 17,
+              "source_line_end": 17,
+              "source_column_start": 41,
+              "source_column_end": 48,
+              "kind": "Assignment",
+              "type": "logic",
+              "left": {
+                "source_file_start": "DSP.sv",
+                "source_file_end": "DSP.sv",
+                "source_line_start": 17,
+                "source_line_end": 17,
+                "source_column_start": 41,
+                "source_column_end": 48,
+                "kind": "NamedValue",
+                "type": "logic",
+                "symbol": "6338651397800 valid_o"
+              },
+              "right": {
+                "source_file_start": "DSP.sv",
+                "source_file_end": "DSP.sv",
+                "source_line_start": 17,
+                "source_line_end": 17,
+                "source_column_start": 41,
+                "source_column_end": 48,
+                "kind": "EmptyArgument",
+                "type": "logic"
+              },
+              "isNonBlocking": false
+            }
+          }
+        ]
+      },
+      {
+        "name": "u_lane",
+        "kind": "Instance",
+        "source_file": "DSP_core.sv",
+        "source_line": 17,
+        "source_column": 35,
+        "addr": 6338651419400,
+        "body": {
+          "name": "DSP_lane",
+          "kind": "InstanceBody",
+          "source_file": "DSP_lane.sv",
+          "source_line": 2,
+          "source_column": 8,
+          "addr": 6338651419528,
+          "members": [
+            {
+              "name": "WIDTH",
+              "kind": "Parameter",
+              "source_file": "DSP_lane.sv",
+              "source_line": 3,
+              "source_column": 19,
+              "addr": 6338651419704,
+              "type": "int",
+              "initializer": {
+                "source_file_start": "DSP_core.sv",
+                "source_file_end": "DSP_core.sv",
+                "source_line_start": 17,
+                "source_line_end": 17,
+                "source_column_start": 27,
+                "source_column_end": 32,
+                "kind": "NamedValue",
+                "type": "int",
+                "symbol": "6338651402600 WIDTH",
+                "constant": "16"
+              },
+              "value": "16",
+              "isLocal": false,
+              "isPort": true,
+              "isBody": false
+            },
+            {
+              "name": "clk_i",
+              "kind": "Port",
+              "source_file": "DSP_lane.sv",
+              "source_line": 5,
+              "source_column": 36,
+              "addr": 6338651420784,
+              "type": "logic",
+              "direction": "In",
+              "internalSymbol": "6338651420904 clk_i"
+            },
+            {
+              "name": "clk_i",
+              "kind": "Variable",
+              "source_file": "DSP_lane.sv",
+              "source_line": 5,
+              "source_column": 36,
+              "addr": 6338651420904,
+              "type": "logic",
+              "lifetime": "Static"
+            },
+            {
+              "name": "rst_ni",
+              "kind": "Port",
+              "source_file": "DSP_lane.sv",
+              "source_line": 6,
+              "source_column": 36,
+              "addr": 6338651421040,
+              "type": "logic",
+              "direction": "In",
+              "internalSymbol": "6338651421160 rst_ni"
+            },
+            {
+              "name": "rst_ni",
+              "kind": "Variable",
+              "source_file": "DSP_lane.sv",
+              "source_line": 6,
+              "source_column": 36,
+              "addr": 6338651421160,
+              "type": "logic",
+              "lifetime": "Static"
+            },
+            {
+              "name": "en_i",
+              "kind": "Port",
+              "source_file": "DSP_lane.sv",
+              "source_line": 7,
+              "source_column": 36,
+              "addr": 6338651421296,
+              "type": "logic",
+              "direction": "In",
+              "internalSymbol": "6338651421416 en_i"
+            },
+            {
+              "name": "en_i",
+              "kind": "Variable",
+              "source_file": "DSP_lane.sv",
+              "source_line": 7,
+              "source_column": 36,
+              "addr": 6338651421416,
+              "type": "logic",
+              "lifetime": "Static"
+            },
+            {
+              "name": "sample_i",
+              "kind": "Port",
+              "source_file": "DSP_lane.sv",
+              "source_line": 8,
+              "source_column": 36,
+              "addr": 6338651421552,
+              "type": "logic[15:0]",
+              "direction": "In",
+              "internalSymbol": "6338651421672 sample_i"
+            },
+            {
+              "name": "sample_i",
+              "kind": "Variable",
+              "source_file": "DSP_lane.sv",
+              "source_line": 8,
+              "source_column": 36,
+              "addr": 6338651421672,
+              "type": "logic[15:0]",
+              "lifetime": "Static"
+            },
+            {
+              "name": "coeff_i",
+              "kind": "Port",
+              "source_file": "DSP_lane.sv",
+              "source_line": 9,
+              "source_column": 36,
+              "addr": 6338651421808,
+              "type": "logic[15:0]",
+              "direction": "In",
+              "internalSymbol": "6338651421928 coeff_i"
+            },
+            {
+              "name": "coeff_i",
+              "kind": "Variable",
+              "source_file": "DSP_lane.sv",
+              "source_line": 9,
+              "source_column": 36,
+              "addr": 6338651421928,
+              "type": "logic[15:0]",
+              "lifetime": "Static"
+            },
+            {
+              "name": "result_o",
+              "kind": "Port",
+              "source_file": "DSP_lane.sv",
+              "source_line": 10,
+              "source_column": 36,
+              "addr": 6338651422064,
+              "type": "logic[15:0]",
+              "direction": "Out",
+              "internalSymbol": "6338651422184 result_o"
+            },
+            {
+              "name": "result_o",
+              "kind": "Variable",
+              "source_file": "DSP_lane.sv",
+              "source_line": 10,
+              "source_column": 36,
+              "addr": 6338651422184,
+              "type": "logic[15:0]",
+              "lifetime": "Static"
+            },
+            {
+              "name": "product_d",
+              "kind": "Variable",
+              "source_file": "DSP_lane.sv",
+              "source_line": 12,
+              "source_column": 23,
+              "addr": 6338651419936,
+              "type": "logic[15:0]",
+              "lifetime": "Static"
+            },
+            {
+              "name": "product_q",
+              "kind": "Variable",
+              "source_file": "DSP_lane.sv",
+              "source_line": 13,
+              "source_column": 23,
+              "addr": 6338651420072,
+              "type": "logic[15:0]",
+              "lifetime": "Static"
+            },
+            {
+              "name": "accum_d",
+              "kind": "Variable",
+              "source_file": "DSP_lane.sv",
+              "source_line": 14,
+              "source_column": 23,
+              "addr": 6338651420208,
+              "type": "logic[15:0]",
+              "lifetime": "Static"
+            },
+            {
+              "name": "accum_q",
+              "kind": "Variable",
+              "source_file": "DSP_lane.sv",
+              "source_line": 15,
+              "source_column": 23,
+              "addr": 6338651420344,
+              "type": "logic[15:0]",
+              "lifetime": "Static"
+            },
+            {
+              "name": "",
+              "kind": "ContinuousAssign",
+              "source_file": "DSP_lane.sv",
+              "source_line": 16,
+              "source_column": 12,
+              "addr": 6338651422368,
+              "assignment": {
+                "source_file_start": "DSP_lane.sv",
+                "source_file_end": "DSP_lane.sv",
+                "source_line_start": 16,
+                "source_line_end": 16,
+                "source_column_start": 12,
+                "source_column_end": 42,
+                "kind": "Assignment",
+                "type": "logic[15:0]",
+                "left": {
+                  "source_file_start": "DSP_lane.sv",
+                  "source_file_end": "DSP_lane.sv",
+                  "source_line_start": 16,
+                  "source_line_end": 16,
+                  "source_column_start": 12,
+                  "source_column_end": 21,
+                  "kind": "NamedValue",
+                  "type": "logic[15:0]",
+                  "symbol": "6338651419936 product_d"
+                },
+                "right": {
+                  "source_file_start": "DSP_lane.sv",
+                  "source_file_end": "DSP_lane.sv",
+                  "source_line_start": 16,
+                  "source_line_end": 16,
+                  "source_column_start": 24,
+                  "source_column_end": 42,
+                  "kind": "BinaryOp",
+                  "type": "logic[15:0]",
+                  "op": "Multiply",
+                  "left": {
+                    "source_file_start": "DSP_lane.sv",
+                    "source_file_end": "DSP_lane.sv",
+                    "source_line_start": 16,
+                    "source_line_end": 16,
+                    "source_column_start": 24,
+                    "source_column_end": 32,
+                    "kind": "NamedValue",
+                    "type": "logic[15:0]",
+                    "symbol": "6338651421672 sample_i"
+                  },
+                  "right": {
+                    "source_file_start": "DSP_lane.sv",
+                    "source_file_end": "DSP_lane.sv",
+                    "source_line_start": 16,
+                    "source_line_end": 16,
+                    "source_column_start": 35,
+                    "source_column_end": 42,
+                    "kind": "NamedValue",
+                    "type": "logic[15:0]",
+                    "symbol": "6338651421928 coeff_i"
+                  }
+                },
+                "isNonBlocking": false
+              }
+            },
+            {
+              "name": "",
+              "kind": "ContinuousAssign",
+              "source_file": "DSP_lane.sv",
+              "source_line": 17,
+              "source_column": 12,
+              "addr": 6338651422448,
+              "assignment": {
+                "source_file_start": "DSP_lane.sv",
+                "source_file_end": "DSP_lane.sv",
+                "source_line_start": 17,
+                "source_line_end": 17,
+                "source_column_start": 12,
+                "source_column_end": 41,
+                "kind": "Assignment",
+                "type": "logic[15:0]",
+                "left": {
+                  "source_file_start": "DSP_lane.sv",
+                  "source_file_end": "DSP_lane.sv",
+                  "source_line_start": 17,
+                  "source_line_end": 17,
+                  "source_column_start": 12,
+                  "source_column_end": 19,
+                  "kind": "NamedValue",
+                  "type": "logic[15:0]",
+                  "symbol": "6338651420208 accum_d"
+                },
+                "right": {
+                  "source_file_start": "DSP_lane.sv",
+                  "source_file_end": "DSP_lane.sv",
+                  "source_line_start": 17,
+                  "source_line_end": 17,
+                  "source_column_start": 22,
+                  "source_column_end": 41,
+                  "kind": "BinaryOp",
+                  "type": "logic[15:0]",
+                  "op": "Add",
+                  "left": {
+                    "source_file_start": "DSP_lane.sv",
+                    "source_file_end": "DSP_lane.sv",
+                    "source_line_start": 17,
+                    "source_line_end": 17,
+                    "source_column_start": 22,
+                    "source_column_end": 29,
+                    "kind": "NamedValue",
+                    "type": "logic[15:0]",
+                    "symbol": "6338651420344 accum_q"
+                  },
+                  "right": {
+                    "source_file_start": "DSP_lane.sv",
+                    "source_file_end": "DSP_lane.sv",
+                    "source_line_start": 17,
+                    "source_line_end": 17,
+                    "source_column_start": 32,
+                    "source_column_end": 41,
+                    "kind": "NamedValue",
+                    "type": "logic[15:0]",
+                    "symbol": "6338651420072 product_q"
+                  }
+                },
+                "isNonBlocking": false
+              }
+            },
+            {
+              "name": "",
+              "kind": "ProceduralBlock",
+              "source_file": "DSP_lane.sv",
+              "source_line": 18,
+              "source_column": 5,
+              "addr": 6338651420608,
+              "procedureKind": "AlwaysFF",
+              "body": {
+                "source_file_start": "DSP_lane.sv",
+                "source_file_end": "DSP_lane.sv",
+                "source_line_start": 18,
+                "source_line_end": 26,
+                "source_column_start": 15,
+                "source_column_end": 8,
+                "kind": "Timed",
+                "timing": {
+                  "source_file_start": "DSP_lane.sv",
+                  "source_file_end": "DSP_lane.sv",
+                  "source_line_start": 18,
+                  "source_line_end": 18,
+                  "source_column_start": 16,
+                  "source_column_end": 49,
+                  "kind": "EventList",
+                  "events": [
+                    {
+                      "source_file_start": "DSP_lane.sv",
+                      "source_file_end": "DSP_lane.sv",
+                      "source_line_start": 18,
+                      "source_line_end": 18,
+                      "source_column_start": 17,
+                      "source_column_end": 30,
+                      "kind": "SignalEvent",
+                      "expr": {
+                        "source_file_start": "DSP_lane.sv",
+                        "source_file_end": "DSP_lane.sv",
+                        "source_line_start": 18,
+                        "source_line_end": 18,
+                        "source_column_start": 25,
+                        "source_column_end": 30,
+                        "kind": "NamedValue",
+                        "type": "logic",
+                        "symbol": "6338651420904 clk_i"
+                      },
+                      "edge": "PosEdge"
+                    },
+                    {
+                      "source_file_start": "DSP_lane.sv",
+                      "source_file_end": "DSP_lane.sv",
+                      "source_line_start": 18,
+                      "source_line_end": 18,
+                      "source_column_start": 34,
+                      "source_column_end": 48,
+                      "kind": "SignalEvent",
+                      "expr": {
+                        "source_file_start": "DSP_lane.sv",
+                        "source_file_end": "DSP_lane.sv",
+                        "source_line_start": 18,
+                        "source_line_end": 18,
+                        "source_column_start": 42,
+                        "source_column_end": 48,
+                        "kind": "NamedValue",
+                        "type": "logic",
+                        "symbol": "6338651421160 rst_ni"
+                      },
+                      "edge": "NegEdge"
+                    }
+                  ]
+                },
+                "stmt": {
+                  "source_file_start": "DSP_lane.sv",
+                  "source_file_end": "DSP_lane.sv",
+                  "source_line_start": 19,
+                  "source_line_end": 25,
+                  "source_column_start": 9,
+                  "source_column_end": 12,
+                  "kind": "Block",
+                  "blockKind": "Sequential",
+                  "body": {
+                    "source_file_start": "DSP_lane.sv",
+                    "source_file_end": "DSP_lane.sv",
+                    "source_line_start": 19,
+                    "source_line_end": 25,
+                    "source_column_start": 9,
+                    "source_column_end": 12,
+                    "kind": "Conditional",
+                    "conditions": [
+                      {
+                        "expr": {
+                          "source_file_start": "DSP_lane.sv",
+                          "source_file_end": "DSP_lane.sv",
+                          "source_line_start": 19,
+                          "source_line_end": 19,
+                          "source_column_start": 13,
+                          "source_column_end": 20,
+                          "kind": "UnaryOp",
+                          "type": "logic",
+                          "op": "LogicalNot",
+                          "operand": {
+                            "source_file_start": "DSP_lane.sv",
+                            "source_file_end": "DSP_lane.sv",
+                            "source_line_start": 19,
+                            "source_line_end": 19,
+                            "source_column_start": 14,
+                            "source_column_end": 20,
+                            "kind": "NamedValue",
+                            "type": "logic",
+                            "symbol": "6338651421160 rst_ni"
+                          }
+                        }
+                      }
+                    ],
+                    "check": "None",
+                    "ifTrue": {
+                      "source_file_start": "DSP_lane.sv",
+                      "source_file_end": "DSP_lane.sv",
+                      "source_line_start": 19,
+                      "source_line_end": 22,
+                      "source_column_start": 22,
+                      "source_column_end": 12,
+                      "kind": "Block",
+                      "blockKind": "Sequential",
+                      "body": {
+                        "source_file_start": "DSP_lane.sv",
+                        "source_file_end": "DSP_lane.sv",
+                        "source_line_start": 19,
+                        "source_line_end": 22,
+                        "source_column_start": 22,
+                        "source_column_end": 12,
+                        "kind": "List",
+                        "list": [
+                          {
+                            "source_file_start": "DSP_lane.sv",
+                            "source_file_end": "DSP_lane.sv",
+                            "source_line_start": 20,
+                            "source_line_end": 20,
+                            "source_column_start": 13,
+                            "source_column_end": 29,
+                            "kind": "ExpressionStatement",
+                            "expr": {
+                              "source_file_start": "DSP_lane.sv",
+                              "source_file_end": "DSP_lane.sv",
+                              "source_line_start": 20,
+                              "source_line_end": 20,
+                              "source_column_start": 13,
+                              "source_column_end": 28,
+                              "kind": "Assignment",
+                              "type": "logic[15:0]",
+                              "left": {
+                                "source_file_start": "DSP_lane.sv",
+                                "source_file_end": "DSP_lane.sv",
+                                "source_line_start": 20,
+                                "source_line_end": 20,
+                                "source_column_start": 13,
+                                "source_column_end": 22,
+                                "kind": "NamedValue",
+                                "type": "logic[15:0]",
+                                "symbol": "6338651420072 product_q"
+                              },
+                              "right": {
+                                "source_file_start": "DSP_lane.sv",
+                                "source_file_end": "DSP_lane.sv",
+                                "source_line_start": 20,
+                                "source_line_end": 20,
+                                "source_column_start": 26,
+                                "source_column_end": 28,
+                                "kind": "UnbasedUnsizedIntegerLiteral",
+                                "type": "logic[15:0]",
+                                "value": "16'd0"
+                              },
+                              "isNonBlocking": true
+                            }
+                          },
+                          {
+                            "source_file_start": "DSP_lane.sv",
+                            "source_file_end": "DSP_lane.sv",
+                            "source_line_start": 21,
+                            "source_line_end": 21,
+                            "source_column_start": 13,
+                            "source_column_end": 27,
+                            "kind": "ExpressionStatement",
+                            "expr": {
+                              "source_file_start": "DSP_lane.sv",
+                              "source_file_end": "DSP_lane.sv",
+                              "source_line_start": 21,
+                              "source_line_end": 21,
+                              "source_column_start": 13,
+                              "source_column_end": 26,
+                              "kind": "Assignment",
+                              "type": "logic[15:0]",
+                              "left": {
+                                "source_file_start": "DSP_lane.sv",
+                                "source_file_end": "DSP_lane.sv",
+                                "source_line_start": 21,
+                                "source_line_end": 21,
+                                "source_column_start": 13,
+                                "source_column_end": 20,
+                                "kind": "NamedValue",
+                                "type": "logic[15:0]",
+                                "symbol": "6338651420344 accum_q"
+                              },
+                              "right": {
+                                "source_file_start": "DSP_lane.sv",
+                                "source_file_end": "DSP_lane.sv",
+                                "source_line_start": 21,
+                                "source_line_end": 21,
+                                "source_column_start": 24,
+                                "source_column_end": 26,
+                                "kind": "UnbasedUnsizedIntegerLiteral",
+                                "type": "logic[15:0]",
+                                "value": "16'd0"
+                              },
+                              "isNonBlocking": true
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "ifFalse": {
+                      "source_file_start": "DSP_lane.sv",
+                      "source_file_end": "DSP_lane.sv",
+                      "source_line_start": 22,
+                      "source_line_end": 25,
+                      "source_column_start": 18,
+                      "source_column_end": 12,
+                      "kind": "Conditional",
+                      "conditions": [
+                        {
+                          "expr": {
+                            "source_file_start": "DSP_lane.sv",
+                            "source_file_end": "DSP_lane.sv",
+                            "source_line_start": 22,
+                            "source_line_end": 22,
+                            "source_column_start": 22,
+                            "source_column_end": 26,
+                            "kind": "NamedValue",
+                            "type": "logic",
+                            "symbol": "6338651421416 en_i"
+                          }
+                        }
+                      ],
+                      "check": "None",
+                      "ifTrue": {
+                        "source_file_start": "DSP_lane.sv",
+                        "source_file_end": "DSP_lane.sv",
+                        "source_line_start": 22,
+                        "source_line_end": 25,
+                        "source_column_start": 28,
+                        "source_column_end": 12,
+                        "kind": "Block",
+                        "blockKind": "Sequential",
+                        "body": {
+                          "source_file_start": "DSP_lane.sv",
+                          "source_file_end": "DSP_lane.sv",
+                          "source_line_start": 22,
+                          "source_line_end": 25,
+                          "source_column_start": 28,
+                          "source_column_end": 12,
+                          "kind": "List",
+                          "list": [
+                            {
+                              "source_file_start": "DSP_lane.sv",
+                              "source_file_end": "DSP_lane.sv",
+                              "source_line_start": 23,
+                              "source_line_end": 23,
+                              "source_column_start": 13,
+                              "source_column_end": 36,
+                              "kind": "ExpressionStatement",
+                              "expr": {
+                                "source_file_start": "DSP_lane.sv",
+                                "source_file_end": "DSP_lane.sv",
+                                "source_line_start": 23,
+                                "source_line_end": 23,
+                                "source_column_start": 13,
+                                "source_column_end": 35,
+                                "kind": "Assignment",
+                                "type": "logic[15:0]",
+                                "left": {
+                                  "source_file_start": "DSP_lane.sv",
+                                  "source_file_end": "DSP_lane.sv",
+                                  "source_line_start": 23,
+                                  "source_line_end": 23,
+                                  "source_column_start": 13,
+                                  "source_column_end": 22,
+                                  "kind": "NamedValue",
+                                  "type": "logic[15:0]",
+                                  "symbol": "6338651420072 product_q"
+                                },
+                                "right": {
+                                  "source_file_start": "DSP_lane.sv",
+                                  "source_file_end": "DSP_lane.sv",
+                                  "source_line_start": 23,
+                                  "source_line_end": 23,
+                                  "source_column_start": 26,
+                                  "source_column_end": 35,
+                                  "kind": "NamedValue",
+                                  "type": "logic[15:0]",
+                                  "symbol": "6338651419936 product_d"
+                                },
+                                "isNonBlocking": true
+                              }
+                            },
+                            {
+                              "source_file_start": "DSP_lane.sv",
+                              "source_file_end": "DSP_lane.sv",
+                              "source_line_start": 24,
+                              "source_line_end": 24,
+                              "source_column_start": 13,
+                              "source_column_end": 32,
+                              "kind": "ExpressionStatement",
+                              "expr": {
+                                "source_file_start": "DSP_lane.sv",
+                                "source_file_end": "DSP_lane.sv",
+                                "source_line_start": 24,
+                                "source_line_end": 24,
+                                "source_column_start": 13,
+                                "source_column_end": 31,
+                                "kind": "Assignment",
+                                "type": "logic[15:0]",
+                                "left": {
+                                  "source_file_start": "DSP_lane.sv",
+                                  "source_file_end": "DSP_lane.sv",
+                                  "source_line_start": 24,
+                                  "source_line_end": 24,
+                                  "source_column_start": 13,
+                                  "source_column_end": 20,
+                                  "kind": "NamedValue",
+                                  "type": "logic[15:0]",
+                                  "symbol": "6338651420344 accum_q"
+                                },
+                                "right": {
+                                  "source_file_start": "DSP_lane.sv",
+                                  "source_file_end": "DSP_lane.sv",
+                                  "source_line_start": 24,
+                                  "source_line_end": 24,
+                                  "source_column_start": 24,
+                                  "source_column_end": 31,
+                                  "kind": "NamedValue",
+                                  "type": "logic[15:0]",
+                                  "symbol": "6338651420208 accum_d"
+                                },
+                                "isNonBlocking": true
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "",
+              "kind": "ContinuousAssign",
+              "source_file": "DSP_lane.sv",
+              "source_line": 27,
+              "source_column": 12,
+              "addr": 6338651422528,
+              "assignment": {
+                "source_file_start": "DSP_lane.sv",
+                "source_file_end": "DSP_lane.sv",
+                "source_line_start": 27,
+                "source_line_end": 27,
+                "source_column_start": 12,
+                "source_column_end": 30,
+                "kind": "Assignment",
+                "type": "logic[15:0]",
+                "left": {
+                  "source_file_start": "DSP_lane.sv",
+                  "source_file_end": "DSP_lane.sv",
+                  "source_line_start": 27,
+                  "source_line_end": 27,
+                  "source_column_start": 12,
+                  "source_column_end": 20,
+                  "kind": "NamedValue",
+                  "type": "logic[15:0]",
+                  "symbol": "6338651422184 result_o"
+                },
+                "right": {
+                  "source_file_start": "DSP_lane.sv",
+                  "source_file_end": "DSP_lane.sv",
+                  "source_line_start": 27,
+                  "source_line_end": 27,
+                  "source_column_start": 23,
+                  "source_column_end": 30,
+                  "kind": "NamedValue",
+                  "type": "logic[15:0]",
+                  "symbol": "6338651420344 accum_q"
+                },
+                "isNonBlocking": false
+              }
+            }
+          ],
+          "definition": "6338648306176 DSP_lane"
+        },
+        "connections": [
+          {
+            "port": {
+              "name": "clk_i",
+              "kind": "Port",
+              "source_file": "DSP_lane.sv",
+              "source_line": 5,
+              "source_column": 36,
+              "addr": 6338651420784,
+              "type": "logic",
+              "direction": "In",
+              "internalSymbol": "6338651420904 clk_i"
+            },
+            "expr": {
+              "source_file_start": "DSP_core.sv",
+              "source_file_end": "DSP_core.sv",
+              "source_line_start": 18,
+              "source_line_end": 18,
+              "source_column_start": 20,
+              "source_column_end": 25,
+              "kind": "NamedValue",
+              "type": "logic",
+              "symbol": "6338651405568 clk_i"
+            }
+          },
+          {
+            "port": {
+              "name": "rst_ni",
+              "kind": "Port",
+              "source_file": "DSP_lane.sv",
+              "source_line": 6,
+              "source_column": 36,
+              "addr": 6338651421040,
+              "type": "logic",
+              "direction": "In",
+              "internalSymbol": "6338651421160 rst_ni"
+            },
+            "expr": {
+              "source_file_start": "DSP_core.sv",
+              "source_file_end": "DSP_core.sv",
+              "source_line_start": 19,
+              "source_line_end": 19,
+              "source_column_start": 21,
+              "source_column_end": 27,
+              "kind": "NamedValue",
+              "type": "logic",
+              "symbol": "6338651405824 rst_ni"
+            }
+          },
+          {
+            "port": {
+              "name": "en_i",
+              "kind": "Port",
+              "source_file": "DSP_lane.sv",
+              "source_line": 7,
+              "source_column": 36,
+              "addr": 6338651421296,
+              "type": "logic",
+              "direction": "In",
+              "internalSymbol": "6338651421416 en_i"
+            },
+            "expr": {
+              "source_file_start": "DSP_core.sv",
+              "source_file_end": "DSP_core.sv",
+              "source_line_start": 20,
+              "source_line_end": 20,
+              "source_column_start": 19,
+              "source_column_end": 23,
+              "kind": "NamedValue",
+              "type": "logic",
+              "symbol": "6338651406080 en_i"
+            }
+          },
+          {
+            "port": {
+              "name": "sample_i",
+              "kind": "Port",
+              "source_file": "DSP_lane.sv",
+              "source_line": 8,
+              "source_column": 36,
+              "addr": 6338651421552,
+              "type": "logic[15:0]",
+              "direction": "In",
+              "internalSymbol": "6338651421672 sample_i"
+            },
+            "expr": {
+              "source_file_start": "DSP_core.sv",
+              "source_file_end": "DSP_core.sv",
+              "source_line_start": 21,
+              "source_line_end": 21,
+              "source_column_start": 23,
+              "source_column_end": 50,
+              "kind": "RangeSelect",
+              "type": "logic[15:0]",
+              "selectionKind": "IndexedUp",
+              "value": {
+                "source_file_start": "DSP_core.sv",
+                "source_file_end": "DSP_core.sv",
+                "source_line_start": 21,
+                "source_line_end": 21,
+                "source_column_start": 23,
+                "source_column_end": 32,
+                "kind": "NamedValue",
+                "type": "logic[127:0]",
+                "symbol": "6338651410448 samples_i"
+              },
+              "left": {
+                "source_file_start": "DSP_core.sv",
+                "source_file_end": "DSP_core.sv",
+                "source_line_start": 21,
+                "source_line_end": 21,
+                "source_column_start": 33,
+                "source_column_end": 40,
+                "kind": "BinaryOp",
+                "type": "integer",
+                "op": "Multiply",
+                "left": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 21,
+                  "source_line_end": 21,
+                  "source_column_start": 33,
+                  "source_column_end": 34,
+                  "kind": "NamedValue",
+                  "type": "integer",
+                  "symbol": "6338651412800 i",
+                  "constant": "0"
+                },
+                "right": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 21,
+                  "source_line_end": 21,
+                  "source_column_start": 35,
+                  "source_column_end": 40,
+                  "kind": "Conversion",
+                  "type": "integer",
+                  "operand": {
+                    "source_file_start": "DSP_core.sv",
+                    "source_file_end": "DSP_core.sv",
+                    "source_line_start": 21,
+                    "source_line_end": 21,
+                    "source_column_start": 35,
+                    "source_column_end": 40,
+                    "kind": "NamedValue",
+                    "type": "int",
+                    "symbol": "6338651402600 WIDTH",
+                    "constant": "16"
+                  },
+                  "constant": "16"
+                },
+                "constant": "0"
+              },
+              "right": {
+                "source_file_start": "DSP_core.sv",
+                "source_file_end": "DSP_core.sv",
+                "source_line_start": 21,
+                "source_line_end": 21,
+                "source_column_start": 44,
+                "source_column_end": 49,
+                "kind": "NamedValue",
+                "type": "int",
+                "symbol": "6338651402600 WIDTH",
+                "constant": "16"
+              }
+            }
+          },
+          {
+            "port": {
+              "name": "coeff_i",
+              "kind": "Port",
+              "source_file": "DSP_lane.sv",
+              "source_line": 9,
+              "source_column": 36,
+              "addr": 6338651421808,
+              "type": "logic[15:0]",
+              "direction": "In",
+              "internalSymbol": "6338651421928 coeff_i"
+            },
+            "expr": {
+              "source_file_start": "DSP_core.sv",
+              "source_file_end": "DSP_core.sv",
+              "source_line_start": 22,
+              "source_line_end": 22,
+              "source_column_start": 22,
+              "source_column_end": 48,
+              "kind": "RangeSelect",
+              "type": "logic[15:0]",
+              "selectionKind": "IndexedUp",
+              "value": {
+                "source_file_start": "DSP_core.sv",
+                "source_file_end": "DSP_core.sv",
+                "source_line_start": 22,
+                "source_line_end": 22,
+                "source_column_start": 22,
+                "source_column_end": 30,
+                "kind": "NamedValue",
+                "type": "logic[127:0]",
+                "symbol": "6338651410704 coeffs_i"
+              },
+              "left": {
+                "source_file_start": "DSP_core.sv",
+                "source_file_end": "DSP_core.sv",
+                "source_line_start": 22,
+                "source_line_end": 22,
+                "source_column_start": 31,
+                "source_column_end": 38,
+                "kind": "BinaryOp",
+                "type": "integer",
+                "op": "Multiply",
+                "left": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 22,
+                  "source_line_end": 22,
+                  "source_column_start": 31,
+                  "source_column_end": 32,
+                  "kind": "NamedValue",
+                  "type": "integer",
+                  "symbol": "6338651412800 i",
+                  "constant": "0"
+                },
+                "right": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 22,
+                  "source_line_end": 22,
+                  "source_column_start": 33,
+                  "source_column_end": 38,
+                  "kind": "Conversion",
+                  "type": "integer",
+                  "operand": {
+                    "source_file_start": "DSP_core.sv",
+                    "source_file_end": "DSP_core.sv",
+                    "source_line_start": 22,
+                    "source_line_end": 22,
+                    "source_column_start": 33,
+                    "source_column_end": 38,
+                    "kind": "NamedValue",
+                    "type": "int",
+                    "symbol": "6338651402600 WIDTH",
+                    "constant": "16"
+                  },
+                  "constant": "16"
+                },
+                "constant": "0"
+              },
+              "right": {
+                "source_file_start": "DSP_core.sv",
+                "source_file_end": "DSP_core.sv",
+                "source_line_start": 22,
+                "source_line_end": 22,
+                "source_column_start": 42,
+                "source_column_end": 47,
+                "kind": "NamedValue",
+                "type": "int",
+                "symbol": "6338651402600 WIDTH",
+                "constant": "16"
+              }
+            }
+          },
+          {
+            "port": {
+              "name": "result_o",
+              "kind": "Port",
+              "source_file": "DSP_lane.sv",
+              "source_line": 10,
+              "source_column": 36,
+              "addr": 6338651422064,
+              "type": "logic[15:0]",
+              "direction": "Out",
+              "internalSymbol": "6338651422184 result_o"
+            },
+            "expr": {
+              "source_file_start": "DSP_core.sv",
+              "source_file_end": "DSP_core.sv",
+              "source_line_start": 23,
+              "source_line_end": 23,
+              "source_column_start": 23,
+              "source_column_end": 53,
+              "kind": "Assignment",
+              "type": "logic[15:0]",
+              "left": {
+                "source_file_start": "DSP_core.sv",
+                "source_file_end": "DSP_core.sv",
+                "source_line_start": 23,
+                "source_line_end": 23,
+                "source_column_start": 23,
+                "source_column_end": 53,
+                "kind": "RangeSelect",
+                "type": "logic[15:0]",
+                "selectionKind": "IndexedUp",
+                "value": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 23,
+                  "source_line_end": 23,
+                  "source_column_start": 23,
+                  "source_column_end": 35,
+                  "kind": "NamedValue",
+                  "type": "logic[127:0]",
+                  "symbol": "6338651402832 lane_results"
+                },
+                "left": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 23,
+                  "source_line_end": 23,
+                  "source_column_start": 36,
+                  "source_column_end": 43,
+                  "kind": "BinaryOp",
+                  "type": "integer",
+                  "op": "Multiply",
+                  "left": {
+                    "source_file_start": "DSP_core.sv",
+                    "source_file_end": "DSP_core.sv",
+                    "source_line_start": 23,
+                    "source_line_end": 23,
+                    "source_column_start": 36,
+                    "source_column_end": 37,
+                    "kind": "NamedValue",
+                    "type": "integer",
+                    "symbol": "6338651412800 i",
+                    "constant": "0"
+                  },
+                  "right": {
+                    "source_file_start": "DSP_core.sv",
+                    "source_file_end": "DSP_core.sv",
+                    "source_line_start": 23,
+                    "source_line_end": 23,
+                    "source_column_start": 38,
+                    "source_column_end": 43,
+                    "kind": "Conversion",
+                    "type": "integer",
+                    "operand": {
+                      "source_file_start": "DSP_core.sv",
+                      "source_file_end": "DSP_core.sv",
+                      "source_line_start": 23,
+                      "source_line_end": 23,
+                      "source_column_start": 38,
+                      "source_column_end": 43,
+                      "kind": "NamedValue",
+                      "type": "int",
+                      "symbol": "6338651402600 WIDTH",
+                      "constant": "16"
+                    },
+                    "constant": "16"
+                  },
+                  "constant": "0"
+                },
+                "right": {
+                  "source_file_start": "DSP_core.sv",
+                  "source_file_end": "DSP_core.sv",
+                  "source_line_start": 23,
+                  "source_line_end": 23,
+                  "source_column_start": 47,
+                  "source_column_end": 52,
+                  "kind": "NamedValue",
+                  "type": "int",
+                  "symbol": "6338651402600 WIDTH",
+                  "constant": "16"
+                }
+              },
+              "right": {
+                "source_file_start": "DSP_core.sv",
+                "source_file_end": "DSP_core.sv",
+                "source_line_start": 23,
+                "source_line_end": 23,
+                "source_column_start": 23,
+                "source_column_end": 53,
+                "kind": "EmptyArgument",
+                "type": "logic[15:0]"
+              },
+              "isNonBlocking": false
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

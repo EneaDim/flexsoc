@@ -13,7 +13,11 @@
   window.addEventListener('error',function(event){
     const target=event.target;
     if(target&&target.tagName==='SCRIPT')show('Script failed to load: '+(target.getAttribute('src')||'unknown'));
-    else show((event.message||'JavaScript error')+' @ '+(event.filename||'?')+':'+(event.lineno||'?'));
+    else {
+      const detail=event.error?.stack||event.message||'JavaScript error without browser-provided details';
+      const location=event.filename?(' @ '+event.filename+':'+(event.lineno||'?')):'';
+      show(detail+location);
+    }
   },true);
   window.addEventListener('unhandledrejection',function(event){show('Unhandled promise rejection: '+(event.reason?.message||String(event.reason)));});
   window.addEventListener('DOMContentLoaded',function(){

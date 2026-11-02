@@ -258,3 +258,110 @@ button:active:not(:disabled){transform:translateY(1px)}
 .hierarchy .fs-tree-more{font:10px var(--mono);padding:5px 8px;margin:3px 0 4px 24px;white-space:normal}
 .hierarchy .fs-tree-error{color:#ffad89;font:10px var(--mono);padding:5px 8px}
 .sidebar{padding-top:14px}.sidebar-info{margin-bottom:20px}.section-title{margin-bottom:7px}
+
+/* 007: Two-panel workbench. These tokens style only chrome, never semantic wires. */
+.sr-only{position:absolute!important;clip:rect(0,0,0,0);width:1px;height:1px;overflow:hidden;white-space:nowrap}
+.sidebar{background:var(--side);border-right:1px solid var(--line2)}
+.sidebar .project{background:var(--control);border:1px solid var(--line2);border-radius:10px;padding:11px 10px;margin:14px 0 0}
+.sidebar .overline{font-weight:750;letter-spacing:1.5px;color:var(--muted)}
+.sidebar-info{margin:9px 7px 19px;line-height:1.5}
+.hierarchy-search{display:flex;align-items:center;gap:6px;min-height:36px;border:1px solid var(--line2);border-radius:8px;background:var(--control);padding:0 9px;color:var(--muted)}
+.hierarchy-search:focus-within{border-color:var(--blue);box-shadow:0 0 0 2px color-mix(in srgb,var(--blue) 18%,transparent)}
+.hierarchy-search input{min-width:0;flex:1;border:0;background:transparent;outline:0;color:var(--ink);font-size:11px}
+.hierarchy-search input::placeholder{color:var(--muted)}
+.hierarchy-search kbd{flex:none;font-size:9px;padding:2px 4px}
+.hierarchy-filter-status{min-height:31px;padding:8px 4px;color:var(--muted);font:10px/1.35 var(--mono)}
+.hierarchy .fs-tree-row{border-radius:7px;margin:2px 0;min-height:31px}
+.hierarchy .fs-tree-row:hover{background:var(--control)}
+.hierarchy .fs-tree-row.current{background:var(--accent-soft);box-shadow:inset 2px 0 var(--accent)}
+.hierarchy .fs-tree-label{flex-wrap:wrap;gap:4px;color:var(--ink);padding:6px 5px}
+.hierarchy .fs-tree-label[aria-current=page]{color:var(--accent);font-weight:650}
+.hierarchy .fs-tree-icon{font-size:12px;color:var(--blue)}
+.hierarchy .fs-tree-label:focus-visible,.hierarchy .fs-tree-expander:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.hierarchy[data-filtering=true] .fs-tree-row{border-bottom:1px solid var(--line);padding:5px 3px}
+.hierarchy .fs-tree-path{display:block;flex-basis:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:17px;color:var(--muted);font-size:9px}
+.fs-tree-empty{padding:16px 8px;text-align:center;color:var(--muted);font:11px/1.5 var(--mono)}
+.inspector{background:var(--panel);border-left-color:var(--line2);box-shadow:-12px 0 36px #0002}
+.inspector-header{border-bottom:1px solid var(--line);gap:8px;padding:0 14px}
+.inspector-heading{color:var(--ink);font-weight:750;letter-spacing:1.15px}
+.rtl-inspector-actions{min-width:0;gap:5px;margin-left:auto;margin-right:0}
+.rtl-inspector-actions button{font-size:10px;padding:6px 7px;white-space:nowrap}
+.tabs{padding:0 10px;gap:0;overflow-x:auto;scrollbar-width:thin}
+.tabs button{flex:1;min-width:max-content;padding:11px 7px;border-radius:0;font-weight:600}
+.tabs button[aria-selected=true]{background:var(--accent-soft);color:var(--accent);border-bottom-color:var(--accent)}
+.tabs button:focus-visible{outline-offset:-3px}
+.source-mode{flex:none;padding:7px 15px;font:10px/1.4 var(--mono);color:var(--muted);border-bottom:1px solid var(--line);background:var(--side)}
+.source-mode span{margin:0 3px;color:var(--accent)}
+.inspector-resizer{touch-action:none}
+.rtl-sidebar-resizer{touch-action:none}
+@media(max-width:880px){.hierarchy-search kbd{display:none}.inspector-header{flex-wrap:wrap;height:auto;min-height:50px;padding:9px}.tabs button{font-size:10px}}
+/* FSRTL-008: optional local native Neovim UI, never a second RTL parser. */
+.native-nvim{display:flex;flex:1;min-height:0;flex-direction:column;background:#111927}
+.native-nvim[hidden]{display:none!important}
+.native-nvim-status,.native-nvim-hint{padding:7px 12px;font:10px/1.5 var(--mono);color:var(--muted);background:var(--side);border-bottom:1px solid var(--line)}
+.native-nvim-hint{border-top:1px solid var(--line);border-bottom:0}
+.native-nvim-screen{flex:1;min-height:160px;overflow:hidden;white-space:pre;font:12px/19px var(--mono);padding:8px;outline:none;font-variant-ligatures:none;cursor:text}
+.native-nvim-screen:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
+.nvim-row{height:19px;line-height:19px;white-space:pre}
+.nvim-caret{background:#e6ecf5!important;color:#111827!important;outline:1px solid #e6ecf5}
+
+/* FSRTL-023 inspector: scoped source provenance and distinct selection state. */
+.inspector{width:min(44%,680px);min-width:340px}
+.inspector-header{height:auto;min-height:70px;padding:11px 14px;align-items:center;gap:10px}
+.rtl-inspector-identity{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}
+.rtl-inspector-identity strong{font:600 14px/1.3 system-ui,sans-serif;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rtl-inspector-identity #inspectorEntityMeta{font:10px/1.35 var(--mono);letter-spacing:0;color:var(--muted);white-space:normal;overflow-wrap:anywhere}
+.inspector .tabs{overflow-x:auto;scrollbar-width:thin;flex-shrink:0;gap:3px;padding:0 8px}
+.inspector .tabs button{flex:none;white-space:nowrap;padding:10px 9px;font-size:11px}
+.rtl-inspector-scroll{flex:1;overflow:auto;padding:12px;min-height:0;display:flex;flex-direction:column;gap:10px}
+.rtl-inspector-card{padding:12px 13px;border:1px solid var(--line2);border-radius:9px;background:var(--side);overflow-wrap:anywhere;line-height:1.5}
+.rtl-inspector-card strong{font:600 12px system-ui,sans-serif;color:var(--ink)}
+.rtl-inspector-card p{margin:7px 0;font:11px/1.6 var(--mono);overflow-wrap:anywhere;color:var(--ink)}
+.rtl-inspector-card small{display:block;font:10px/1.5 var(--mono);color:var(--muted)}
+.rtl-inspector-uncertain{border-style:dashed}
+.rtl-inspector-empty{padding:14px;color:var(--muted);line-height:1.7;font-size:12px}
+.rtl-reference-link{display:block;text-align:left;width:100%;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:5px;padding:6px;margin-top:7px;overflow-wrap:anywhere;font:11px var(--mono);cursor:pointer}
+.rtl-reference-link:hover{border-color:var(--accent)}
+.rtl-source-explainer{padding:12px 15px;color:var(--muted);font:11px/1.6 system-ui,sans-serif;background:var(--side);border-bottom:1px solid var(--line)}
+.rtl-source-explainer[hidden]{display:none}
+@media(max-width:880px){.inspector{min-width:290px}.rtl-inspector-actions{flex-wrap:wrap;justify-content:flex-end}}
+
+.rtl-details-results{display:flex;flex-direction:column;gap:10px;padding:12px;white-space:normal}
+.rtl-inspector-evidence{border:1px solid var(--line2);border-radius:8px;padding:10px 12px;min-width:0}
+.rtl-inspector-evidence summary{cursor:pointer;font:600 11px system-ui,sans-serif;color:var(--ink)}
+.rtl-inspector-evidence pre{overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:10px/1.7 var(--mono);color:var(--muted)}
+
+/* FSRTL-024: one navigation strip across source, schematic, evidence and lint. */
+.rtl-crossprobe-bar{display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:10px 13px;background:var(--side);border-bottom:1px solid var(--line2)}
+.rtl-crossprobe-bar button{padding:7px 10px;border-radius:7px;border:1px solid var(--line2);background:var(--control);color:var(--ink);font:600 11px system-ui,sans-serif;cursor:pointer}
+.rtl-crossprobe-bar button:hover:not(:disabled){border-color:var(--accent)}
+.rtl-crossprobe-bar button:disabled{opacity:.48;cursor:not-allowed}
+#rtlProbeStatus{flex-basis:100%;font:10px/1.5 var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.rtl-probe-choices{padding:11px 14px;background:var(--side);border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;align-items:center;gap:6px;line-height:1.6}
+.rtl-probe-choices[hidden]{display:none}
+.rtl-probe-choices strong{flex-basis:100%;font:600 11px system-ui,sans-serif;color:var(--ink)}
+.rtl-probe-choices button{border:1px solid var(--line2);border-radius:6px;padding:6px 9px;background:var(--control);color:var(--ink);font:11px var(--mono);cursor:pointer}
+.rtl-mapping-tools{display:flex;align-items:center;gap:9px;padding:10px 14px;border-bottom:1px solid var(--line);font:11px var(--mono);color:var(--muted)}
+.rtl-mapping-tools select{background:var(--control);color:var(--ink);border:1px solid var(--line2);border-radius:6px;padding:6px;min-width:0;flex:1}
+.rtl-mapping-summary{margin:3px 0 10px;color:var(--muted);font:11px/1.6 var(--mono)}
+.rtl-mapping-entry{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:9px 10px;background:var(--side);border:1px solid var(--line2);border-radius:8px}
+.rtl-mapping-entry strong{font:600 12px var(--mono);color:var(--ink);overflow-wrap:anywhere}
+.rtl-mapping-entry small{flex-basis:100%;font:10px/1.4 var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.rtl-mapping-entry button{margin-left:auto;border:1px solid var(--line2);background:var(--control);color:var(--ink);border-radius:6px;padding:5px 8px;cursor:pointer}
+
+/* FSRTL-025: source navigation remains above the editor scroll surface. */
+#sourcePane > .source-occurrences{flex:none;max-width:none;max-height:154px;overflow:auto;
+ display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 12px;
+ border-bottom:1px solid var(--line2);background:var(--panel);z-index:2}
+#sourcePane > .source-occurrences .source-role-evidence{font:600 11px var(--mono);color:var(--ink);margin-right:auto}
+#sourcePane > .source-occurrences .fs-ast-nav{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+#sourcePane > .source-occurrences .fs-ast-nav button{padding:5px 9px;border-radius:6px;cursor:pointer}
+#sourcePane > .source-occurrences details{font:10px/1.45 var(--mono);color:var(--muted)}
+#sourcePane > .source-occurrences summary{cursor:pointer;padding:5px 7px}
+#sourcePane > .source-occurrences .rtl-reference-details{flex-basis:100%}
+#sourcePane > .source-occurrences .rtl-reference-details:not([open]){flex-basis:auto}
+#sourcePane > .source-occurrences .rtl-reference-details .source-occurrence-row{padding:3px 0}
+#sourcePane > .source-occurrences .rtl-reference-legend p{max-width:340px;margin:3px 0}
+#sourcePane > .native-nvim{min-height:0;flex:1}
+#nvimScreen{overscroll-behavior:contain;touch-action:pan-y}
+#rtlFreezeSchematic[aria-pressed=true]{border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}

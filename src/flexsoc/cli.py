@@ -405,7 +405,7 @@ Use `fx commands` to list every backend target.
     PSEUDO_HELP = {
         "settings": (
             "Show or update persistent project settings and derived run paths.",
-            ("fx settings", "fx settings TOP=my_ip RUN_ID=dev", "fx settings --reset ..."),
+            ("fx settings", "fx settings TOP=my_ip RUN_ID=dev", "fx settings workspace/runs/my_ip/dev", "fx settings --reset ..."),
             ("--set KEY=VALUE", "--unset KEY", "--reset", "--workdir PATH", "--json"),
         ),
         "commands": (
@@ -1397,8 +1397,22 @@ Use `fx commands` to list every backend target.
 
             from .backend.core import PDKRunLayout
 
+            # `fx settings workspace/runs/<owner>/<id>` selects an existing run
+            # atomically from its canonical filesystem identity. The other
+            # settings (clocking, PDK, interface, etc.) remain user-owned.
+            run_selection = None
+            if len(items) == 1 and "=" not in items[0]:
+                from .run_select import select_run
+                try:
+                    selected_workdir, run_selection = select_run(Path(items[0]))
+                except (OSError, ValueError) as exc:
+                    raise click.BadParameter(str(exc)) from exc
+                if workdir is not None and workdir.expanduser().resolve() != selected_workdir:
+                    raise click.BadParameter("--workdir conflicts with the selected run directory")
+                workdir = selected_workdir
+                items = ()
             settings_path = WorkspaceFlow.settings_path(root, workdir)
-            writes_settings = bool(reset or unsets or sets or items)
+            writes_settings = bool(reset or unsets or sets or items or run_selection)
             if reset:
                 values = dict(DEFAULT_SETTINGS)
             elif workdir is not None and not settings_path.exists() and writes_settings:
@@ -1409,7 +1423,13 @@ Use `fx commands` to list every backend target.
                 values = WorkspaceFlow.read_settings(root, workdir, defaults=DEFAULT_SETTINGS)
             for key in unsets:
                 values.pop(key.upper(), None)
-            updates = self._assignments((*items, *sets))
+            updates = {**(run_selection or {}), **self._assignments((*items, *sets))}
+            # A run directory is authoritative for its identity, even when
+            # `--set` is provided on the same command line.
+            if run_selection and any(k in self._assignments(sets) and
+                                     self._assignments(sets)[k] != v
+                                     for k, v in run_selection.items()):
+                raise click.BadParameter("--set conflicts with the selected run identity")
             if "PDK" in updates and "PDK_ROOT" not in updates:
                 values.pop("PDK_ROOT", None)
             clock_updates = {"N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS"} & updates.keys()
@@ -1426,7 +1446,7 @@ Use `fx commands` to list every backend target.
                 from .backend.core import ClockConfig
 
                 values.update(ClockConfig.from_values(values).to_settings())
-            if reset or unsets or sets or items:
+            if reset or unsets or sets or items or run_selection:
                 WorkspaceFlow.write_settings(root, values, workdir)
             display = WorkspaceFlow.effective_settings(root, workdir, values)
             if workdir is not None:

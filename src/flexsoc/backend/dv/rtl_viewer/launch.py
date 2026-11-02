@@ -51,7 +51,11 @@ def open_viewer(context: BackendContext, hierarchy: SlangHierarchy, *, on: str =
     layout_asset = ASSETS / "layout-engine.js"
     log(f"Serving frontend from: {ASSETS.resolve()}")
     log(f"layout-engine.js SHA256: {hashlib.sha256(layout_asset.read_bytes()).hexdigest()[:16] if layout_asset.is_file() else 'MISSING'}")
-    server = ViewerServer(("127.0.0.1", 0), design)
+    native_editor = os.environ.get('FLEXSOC_RTL_NEOVIM', '').lower() in ('1', 'true', 'yes')
+    server = (ViewerServer(("127.0.0.1", 0), design, enable_neovim=True) if native_editor
+              else ViewerServer(("127.0.0.1", 0), design))
+    if native_editor:
+        log('Neovim: enabled on localhost; starts only when the browser requests it')
     url = f"http://127.0.0.1:{server.server_port}/"
     log("Verify served assets at: " + url + "api/runtime")
     log(f"Ready after {time.perf_counter()-started:.2f}s | HTTP log: {'verbose' if os.environ.get('FLEXSOC_RTL_HTTP_LOG') == '1' else 'errors only'}")
