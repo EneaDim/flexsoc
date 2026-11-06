@@ -35,7 +35,7 @@
   return {mark:'OP',family:'generic',known:false};
  }
  function boxSize(n){
-  if(n.type==='instance'||n.type==='generate'){
+  if(n.type==='instance'||n.type==='generate'||n.type==='process_group'||n.type==='fsm_group'){
    const inputs=(n.ports||[]).filter(p=>['input','inout'].includes(direction(p))).length;
    const outputs=(n.ports||[]).filter(p=>['output','inout'].includes(direction(p))).length;
    // Measure *labels* predictably using the renderer's monospace font. Long
@@ -56,7 +56,8 @@
    // Field extraction is a lightweight value projection, not a logic cell.
    // Keep the inline capsule bounded even for long member names.
    if(n.shape==='field')return {w:Math.min(126,Math.max(62,24+String(n.field||'').length*6)),h:32};
-   if(n.shape==='slice')return {w:Math.min(122,Math.max(62,26+String(n.selection||'').length*8)),h:32};
+   if(n.shape==='slice')return {w:Math.min(136,Math.max(72,26+String(n.selection||'').length*8)),h:Math.max(36,20+Math.max(1,(n.pins||[]).length-1)*20)};
+   if(n.shape==='case')return {w:120,h:78};
    if(n.shape==='mux')return {w:102,h:82};
    if(n.shape==='function'){
     const count=Array.isArray(n.pins)?n.pins.filter(p=>/^I\d+$/.test(p)).length:0;
@@ -86,8 +87,12 @@
       y:(source?65:53)+index*19,side:source?'EAST':'WEST'}));
  }
  function pinName(e,role){
+  // A rewritten virtual boundary owns an explicit named target terminal.
+  // In particular, event edges retain their source timingRole/pin as AST
+  // evidence, but must anchor at the *new* CLK:/RST: virtual port, never
+  // at the old FF pin name or at an unnamed fallback center.
   return String(role==='source'?(e.sourcePin||e.source_port||e.port||e.pin||''):
-   (e.type==='event'?(e.pin||'EVENT'):(e.targetPin||e.port||e.pin||'')));
+   (e.targetPin||e.port||(e.type==='event'?(e.pin||'EVENT'):(e.pin||''))));
  }
  function anchor(node,role,e,size=boxSize(node)){
   const {w,h}=size,source=role==='source',name=pinName(e,role);
@@ -97,9 +102,12 @@
    return {x:east?w:0,y:h/2,side:east?'EAST':'WEST'};
   }
   if(node.type==='signal')return {x:source?w:0,y:h/2,side:source?'EAST':'WEST'};
-  if(node.type==='instance'||node.type==='generate'){
+  if(node.type==='instance'||node.type==='generate'||node.type==='fsm_group'||node.type==='process_group'){
    const row=portRows(node,role,size).find(r=>r.port.name===name);
-   // Unsupported binding: fall back to an UNNAMED terminal; do not invent a pin.
+   // Virtual process/FSM port names must match exactly. A fallback center
+   // falsely depicts the wire attached to the wrong pin (especially CLK/RST).
+   if(!row&&['fsm_group','process_group'].includes(node.type))
+    throw Error('Unmatched virtual boundary port: '+node.id+' / '+name);
    return row?{x:row.x,y:row.y,side:row.side}:
     {x:source?w:0,y:h/2,side:source?'EAST':'WEST'};
   }
@@ -125,6 +133,10 @@
     if(index>=0 && /^I\d+$/.test(name)){
      return {x:0,y:roles.length===1?h/2:20+index*20,side:'WEST'};
     }
+   }
+   if(node.shape==='slice'&&roles.length>1){
+    const index=roles.indexOf(name);
+    if(index>=0)return {x:0,y:20+index*20,side:'WEST'};
    }
    if(unary)return {x:0,y:h/2,side:'WEST'};
    if(node.shape==='mux'){

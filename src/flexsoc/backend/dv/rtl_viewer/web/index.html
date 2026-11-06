@@ -3,14 +3,35 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0c131e">
-  <title>FlexSoC · RTL Explorer</title><link rel="stylesheet" href="/style.css">
+  <title>FlexSoC · RTL Explorer</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/workbench-017.css?v=017"><link rel="stylesheet" href="/workbench-019.css?v=019">
 </head>
 <body>
 <div class="shell">
   <header class="header">
     <div class="brand" aria-label="FlexSoC RTL EXPLORER"><span class="brandmark" aria-hidden="true">F<span>∿</span></span><span class="brandtext">FlexSoC <small>ENGINEERING WORKSPACE</small></span></div>
     <nav class="head-mid" id="breadcrumb" aria-label="Current elaborated module hierarchy"></nav>
-    <div class="head-right"><button id="themeToggle" class="theme-button" title="Switch light/dark colors" aria-label="Switch color theme">☀ Light</button><span id="status" class="status">Loading design…</span><button id="help" class="icon-button" aria-label="Keyboard shortcuts and help" title="Help and shortcuts">?</button></div>
+    <div class="head-right"><div class="theme-picker" id="themePicker">
+  <button id="themeToggle" class="theme-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="themeMenu" title="Color theme and accent">◐ <span id="themeName">Graphite</span><span class="theme-chevron" aria-hidden="true">⌄</span></button>
+  <div id="themeMenu" class="theme-menu" role="group" aria-label="Theme preferences" hidden>
+    <div class="theme-menu-title">COLOR THEME <span>Personalize your viewer</span></div>
+    <div class="theme-presets" role="group" aria-label="Preset themes">
+      <button type="button" data-theme-choice="graphite" aria-pressed="true"><i class="theme-swatch sw-graphite" aria-hidden="true"></i>Graphite</button>
+      <button type="button" data-theme-choice="oled" aria-pressed="false"><i class="theme-swatch sw-oled" aria-hidden="true"></i>OLED Black</button>
+      <button type="button" data-theme-choice="midnight" aria-pressed="false"><i class="theme-swatch sw-midnight" aria-hidden="true"></i>Midnight Blue</button>
+      <button type="button" data-theme-choice="ocean" aria-pressed="false"><i class="theme-swatch sw-ocean" aria-hidden="true"></i>Deep Ocean</button>
+      <button type="button" data-theme-choice="light" aria-pressed="false"><i class="theme-swatch sw-light" aria-hidden="true"></i>Light · high contrast</button>
+    </div>
+    <div class="theme-menu-title theme-menu-accent">ACCENT <span>Chrome & selection</span></div>
+    <div class="theme-accents" role="group" aria-label="Accent colors">
+      <button type="button" data-accent-choice="teal" aria-label="Teal accent" title="Teal" aria-pressed="true" style="--swatch:#56cbb6"></button>
+      <button type="button" data-accent-choice="blue" aria-label="Blue accent" title="Blue" aria-pressed="false" style="--swatch:#7caeff"></button>
+      <button type="button" data-accent-choice="violet" aria-label="Violet accent" title="Violet" aria-pressed="false" style="--swatch:#bc95fa"></button>
+      <button type="button" data-accent-choice="amber" aria-label="Amber accent" title="Amber" aria-pressed="false" style="--swatch:#eab073"></button>
+      <label class="theme-custom" title="Custom accent color"><span>Custom</span><input id="accentCustom" type="color" aria-label="Custom accent color" value="#67dfc5"></label>
+    </div>
+    <p class="theme-menu-help">Applies to Canvas and workbench together. Settings stay in this browser.</p>
+  </div>
+</div><span id="status" class="status">Loading design…</span><button id="help" class="icon-button" aria-label="Keyboard shortcuts and help" title="Help and shortcuts">?</button></div>
   </header>
   <div class="body">
     <aside class="sidebar" aria-label="Design navigator">
@@ -23,30 +44,26 @@
       <nav id="hierarchy" class="hierarchy" aria-label="Elaborated hierarchy"></nav>
       <details class="sidebar-bottom sidebar-legend" data-fsrtl0036="legend"><summary class="sidebar-caption">Connection legend</summary><div class="legend-content">
 <div class="legend-row"><span class="legend-dot input"></span>Top-level ports <span class="legend-dot module"></span>Submodules</div>
-<div class="legend-row"><span class="legend-dot flop"></span>Sequential symbols <span class="legend-dot wire"></span>Data/control nets</div>
+<div class="legend-row"><span class="legend-dot flop"></span>Registers / timing <span class="legend-dot wire"></span>Data nets</div>
+<div class="legend-row"><span class="legend-dot fsm"></span>Virtual FSM <span class="legend-dot operation"></span>RTL operators</div>
 <div class="rtl-wire-legend"><span class="rtl-wire-swatch"></span><span>Solid: direct RTL connection</span></div>
 <div class="rtl-wire-legend"><span class="rtl-wire-swatch rtl-wire-partial"></span><span>Short dashes: partial dependency, not bit-exact</span></div>
 <div class="rtl-wire-legend"><span class="rtl-wire-swatch rtl-wire-seq"></span><span>Orange: sequential/event relationship</span></div>
 <div class="rtl-wire-legend"><span class="rtl-wire-swatch rtl-wire-event"></span><span>Orange dashed: sequential and partial</span></div>
 <div class="rtl-wire-legend"><span class="rtl-wire-swatch rtl-wire-bus"></span><span>Thicker line: multibit/array when known</span></div>
 <div class="rtl-wire-legend"><span class="rtl-wire-bridge">⌒</span><span>Bridge: crossing, no electrical junction</span></div>
-<div class="rtl-wire-note">Color and dash encode independent properties. Orange dashed does not mean a lint error.</div></div></details>
+<div class="rtl-wire-note">Hover over symbols and wires for their AST-backed role and routing status. An orange dashed line does not imply a lint error. Lint markers in Source are file-level diagnostics, not instance-specific errors.</div></div></details>
     </aside>
     <main class="main">
       <div class="toolbar" role="toolbar" aria-label="Schematic view controls">
         <div class="toolbar-title"><div class="title-overline">RTL SCHEMATIC</div><div id="viewName">Top module</div><small id="viewDesc">Elaborated connectivity</small></div>
         <div class="toolbar-tools"><label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Find symbol or wire…" aria-label="Find symbol or wire in this module"/><kbd>/</kbd></label>
           <div class="tool-separator"></div>
-          <div class="view-switch" aria-label="Inspector views">
-            <button id="toggleSource" aria-pressed="false" title="Toggle SystemVerilog inspector">RTL</button>
-            <button id="toggleLint" aria-pressed="false" title="Toggle lint diagnostics">Lint</button>
-            <button id="toggleCone" aria-pressed="false" title="Explore logical From to To cone">Cone</button>
-          </div>
+          <button id="toggleInspector" class="inspector-toggle" type="button" aria-controls="inspector" aria-expanded="false" title="Open or close the RTL inspector">Inspector</button>
           <fieldset class="visibility-controls" aria-label="Schematic visibility">
             <legend>VISIBILITY</legend>
             <label><input id="showWires" type="checkbox" checked> Wires</label>
             <label><input id="showNames" type="checkbox" checked> Labels</label>
-            <label><input id="showLintOverlay" type="checkbox"> Lint</label>
           </fieldset>
           <div class="tool-separator"></div>
           <div class="zoom-tools" aria-label="Viewport">
@@ -59,12 +76,8 @@
       </div>
       <div class="workspace" id="workspace">
         <section class="schematic" id="schematic" aria-label="Interactive RTL schematic">
+          <div id="rtlSemanticTooltip" class="rtl-semantic-tooltip" role="tooltip" hidden></div>
           <canvas id="diagram" tabindex="0" aria-label="RTL schematic. Select symbols and routed wires with mouse; use keyboard accessible element list for alternate navigation."></canvas>
-          <aside id="lintOverlay" class="lint-overlay" aria-label="Lint diagnostics overlay" hidden>
-            <div class="lint-overlay-head"><strong>Lint · current RTL file</strong><span id="lintOverlayCount">—</span><button id="closeLintOverlay" type="button" title="Hide lint overlay" aria-label="Hide lint overlay">×</button></div>
-            <div class="lint-overlay-filter"><label>Priority <select id="lintOverlayPriority"><option value="all">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></label></div>
-            <div id="lintOverlayResults" class="lint-overlay-results" aria-live="polite"></div>
-          </aside>
           <div class="canvas-hint" id="hint"><span class="hint-icon">i</span> Drag to pan <b>·</b> Wheel to zoom · Shift+wheel to pan <b>·</b> Click a wire to trace <b>·</b> Right-click for symbol actions</div>
           <div class="canvas-footer"><span id="counts">0 symbols</span><span id="message" role="status" aria-live="polite">Slang AST graph</span></div>
           <details class="a11y"><summary>Accessible element list</summary><div id="a11yNodes"></div></details>
@@ -75,23 +88,22 @@
             <div class="context-divider"></div>
             <button id="contextPin" role="menuitem">Track signal <span>◎</span></button>
             <button id="contextEnter" role="menuitem">Enter module <span>→</span></button>
-            <button id="contextGenerate" role="menuitem" hidden>Expand instances <span>▥</span></button>
+            <button id="contextGenerate" role="menuitem" hidden>Enter virtual block <span>→</span></button>
+            <button id="contextFlatten" role="menuitem" hidden>Flatten here <span>▥</span></button>
           </nav>
           <div id="searchResults" class="search-results" hidden aria-label="Symbol search results"></div>
         </section>
         <aside class="inspector" id="inspector" aria-label="Source, lint and analysis inspector" hidden>
           <div class="inspector-resizer" id="inspectorResizer" role="separator" aria-label="Resize inspector" aria-orientation="vertical" tabindex="0"></div>
-          <div class="inspector-header"><div class="rtl-inspector-identity"><span class="inspector-heading">RTL INSPECTOR</span><strong id="inspectorEntityName">Select an entity</strong><span id="inspectorEntityMeta" role="status">Compiler-backed schematic inspection</span></div><div class="rtl-inspector-actions"><button id="rtlCopyPane" type="button" title="Copy visible inspector text">Copy</button><button id="rtlNeovimToggle" type="button" title="Embed real local Neovim when enabled on the viewer server" aria-pressed="false">Neovim</button><button id="rtlVimToggle" type="button" title="Basic Vim-like line navigation only, not Neovim">Vim keys: off</button></div><button id="closeInspector" class="icon-button" aria-label="Close inspector" title="Close inspector">×</button></div>
+          <div class="inspector-header"><div class="rtl-inspector-identity"><span class="inspector-heading">RTL INSPECTOR</span><strong id="inspectorEntityName">Select an entity</strong><span id="inspectorEntityMeta" role="status">Compiler-backed schematic inspection</span></div><div class="rtl-inspector-actions"><button id="rtlCopyPane" type="button" title="Copy visible inspector text">⧉ Copy</button><button id="rtlNeovimToggle" type="button" title="Embed real local Neovim when enabled on the viewer server" aria-pressed="false">⌘ Nvim</button><button id="rtlVimToggle" type="button" title="Basic Vim-like line navigation only, not Neovim">Vim keys: off</button></div><button id="closeInspector" class="icon-button" aria-label="Close inspector" title="Close inspector">×</button></div>
           <nav class="rtl-crossprobe-bar" aria-label="Navigate between schematic, source and diagnostics">
-            <button id="rtlGoSource" type="button" title="Open SystemVerilog for this scope">Open SystemVerilog</button>
             <button id="rtlFreezeSchematic" type="button" aria-pressed="false" title="Toggle automatic schematic movement while navigating source">🔓 Follow</button>
-            <button id="rtlGoSchematic" type="button" title="Reveal the compiler-matched signal in the diagram">Reveal schematic</button>
-            <button id="rtlGoReferences" type="button">References</button>
-            <button id="rtlGoLint" type="button">Lint</button>
+            <button id="rtlTraceDriver" type="button" title="Locate the AST-proven producer of this signal" aria-label="Locate signal driver">↑ Driver</button>
+            <button id="rtlGoSchematic" type="button" title="Locate the compiler-matched signal in the diagram" aria-label="Locate in schematic">⌖ Locate</button>
             <span id="rtlProbeStatus" role="status" aria-live="polite">Select a signal or source line to cross-probe</span>
           </nav>
-          <div class="tabs" role="tablist" aria-label="Analysis panels" aria-orientation="horizontal"><button id="detailsTab" role="tab" aria-selected="false">Overview</button><button id="connectionsTab" role="tab" aria-selected="false">Connections</button><button id="referencesTab" role="tab" aria-selected="false">References</button><button id="mappingTab" role="tab" aria-selected="false">Source map</button><button id="sourceTab" class="active" role="tab" aria-selected="true">SystemVerilog</button><button id="lintTab" role="tab" aria-selected="false">Lint</button><button id="coneTab" role="tab" aria-selected="false">Paths</button></div>
-          <div id="detailsPane" class="pane" hidden><div class="source-head">Compiler-backed entity inspection</div><div id="detailsResults" class="results rtl-details-results" aria-live="polite">Select a schematic symbol or relation</div></div><div id="connectionsPane" class="pane" hidden><div class="source-head">Compiler-backed connections and dependencies</div><div id="connectionsResults" class="rtl-inspector-scroll" aria-live="polite"></div></div><div id="referencesPane" class="pane" hidden><div class="source-head">Declared and observed source references</div><div id="referencesResults" class="rtl-inspector-scroll" aria-live="polite"></div></div><div id="sourcePane" class="pane"><div id="sourceProbeChoices" class="rtl-probe-choices" aria-live="polite" hidden></div><div class="source-head" id="sourceFile">No source selected</div><div class="source-mode" aria-label="SystemVerilog read-only source"><strong id="rtlSourceStatus">Compiler-mapped source</strong> <span>·</span> Read only <span>·</span> Click a line to cross-probe</div><div id="sourceMappingHelp" class="rtl-source-explainer" role="status" hidden></div><div class="native-nvim" id="nvimContainer" hidden><div class="native-nvim-status" id="nvimStatus" role="status">Neovim session not started</div><div id="nvimScreen" class="native-nvim-screen" role="textbox" aria-label="Native Neovim SystemVerilog editor" aria-readonly="true" aria-multiline="true" tabindex="0"></div><div class="native-nvim-hint">Local Neovim · your mappings and Vim commands · read-only scratch buffer</div></div><div class="code-wrap" id="sourceFallback"><div id="lineNumbers" aria-hidden="true"></div><pre id="sourceCode" tabindex="0" aria-label="SystemVerilog source"></pre></div></div>
+          <div class="tabs" role="tablist" aria-label="Analysis panels" aria-orientation="horizontal"><button id="detailsTab" title="Overview" aria-label="Overview" role="tab" aria-selected="false"><svg class="rtl-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg><span class="rtl-tab-caption">Overview</span></button><button id="connectionsTab" title="Connections" aria-label="Connections" role="tab" aria-selected="false"><svg class="rtl-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 11l10-5M7 13l10 5"/></svg><span class="rtl-tab-caption">Connections</span></button><button id="referencesTab" title="References" aria-label="References" role="tab" aria-selected="false"><svg class="rtl-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h10v14H4zM14 9h6v10h-6M7 9h4M7 13h4M17 13h1"/></svg><span class="rtl-tab-caption">References</span></button><button id="mappingTab" title="Source map" aria-label="Source map" role="tab" aria-selected="false"><svg class="rtl-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16M3 10h18"/></svg><span class="rtl-tab-caption">Source map</span></button><button id="sourceTab" title="SystemVerilog" aria-label="SystemVerilog" class="active" role="tab" aria-selected="true"><svg class="rtl-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7L3 12l5 5M16 7l5 5-5 5M14 4l-4 16"/></svg><span class="rtl-tab-caption">SystemVerilog</span></button><button id="lintTab" title="Lint" aria-label="Lint" role="tab" aria-selected="false"><svg class="rtl-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4L2 19h20L14 4zM12 9v4M12 16h.01"/></svg><span class="rtl-tab-caption">Lint</span></button><button id="coneTab" title="Paths" aria-label="Paths" role="tab" aria-selected="false"><svg class="rtl-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h5a4 4 0 014 4v4M16 14l3 4 3-4"/></svg><span class="rtl-tab-caption">Paths</span></button></div>
+          <div id="detailsPane" class="pane" hidden><div class="source-head">Compiler-backed entity inspection</div><div id="detailsResults" class="results rtl-details-results" aria-live="polite">Select a schematic symbol or relation</div></div><div id="connectionsPane" class="pane" hidden><div class="source-head">Compiler-backed connections and dependencies</div><div id="connectionsResults" class="rtl-inspector-scroll" aria-live="polite"></div></div><div id="referencesPane" class="pane" hidden><div class="source-head">Declared and observed source references</div><div id="referencesResults" class="rtl-inspector-scroll" aria-live="polite"></div></div><div id="sourcePane" class="pane"><div id="sourceProbeChoices" class="rtl-probe-choices" aria-live="polite" hidden></div><div class="source-head" id="sourceFile">No source selected</div><div class="source-mode" aria-label="SystemVerilog read-only source"><strong id="rtlSourceStatus">Compiler-mapped source</strong> <span>·</span> Read only <span>·</span> Click a line to cross-probe</div><div id="sourceMappingHelp" class="rtl-source-explainer" role="status" hidden></div><div id="nvimNotice" class="native-nvim-notice" role="status" aria-live="polite" hidden></div><div class="native-nvim" id="nvimContainer" hidden><div class="native-nvim-status" id="nvimStatus" role="status">Neovim session not started</div><div id="nvimScreen" class="native-nvim-screen" role="textbox" aria-label="Native Neovim SystemVerilog editor" aria-readonly="true" aria-multiline="true" tabindex="0"></div><div class="native-nvim-hint">Local Neovim · your mappings and Vim commands · read-only scratch buffer</div></div><div class="code-wrap" id="sourceFallback"><div id="lineNumbers" aria-hidden="true"></div><pre id="sourceCode" tabindex="0" aria-label="SystemVerilog source"></pre></div></div>
           <div id="mappingPane" class="pane" hidden><div class="source-head">AST declarations vs current schematic slice</div><div class="rtl-mapping-tools"><label for="rtlMappingFilter">Show</label><select id="rtlMappingFilter"><option value="all">All AST signals</option><option value="not_in_graph">Not in schematic slice</option><option value="visible_unmapped">No source location</option><option value="visible_mapped">Mapped and visible</option></select></div><div id="mappingResults" class="rtl-inspector-scroll" aria-live="polite"></div></div>
           <div id="lintPane" class="pane" hidden><div class="source-head">Slang diagnostics · current source file</div><div id="lintResults" class="results"></div></div>
           <div id="conePane" class="pane" hidden><div class="source-head">RTL dependencies — not post-synthesis timing</div><div class="cone-controls"><label>From <select id="fromSelect"></select></label><label>To <select id="toSelect"></select></label><button id="runCone">Trace RTL cone</button></div><div id="coneResults" class="results"></div></div>
@@ -101,7 +113,7 @@
     </main>
   </div>
 </div>
-<dialog id="helpDialog"><h3>Navigate the RTL schematic</h3><p>Drag the canvas to pan, use the mouse wheel or toolbar for zoom, and double-click a module to enter. Click any routed wire to inspect its signal; hold Ctrl/Cmd while selecting to track through proven direct port bindings.</p><p><strong>Contextual actions:</strong> right-click a generated group to expand only that group, or right-click an individual member to collapse it. Module actions show contextual SystemVerilog and lint. These are intentionally absent from the global toolbar.</p><p><strong>Keyboard:</strong> Ctrl+K focuses the loaded hierarchy filter; arrow keys navigate its visible entries; / focuses schematic search. Inspector tabs support Left/Right/Home/End. The Neovim button starts an actual local Neovim process when the viewer runs with --enable-neovim; otherwise the read-only source view is available with limited Vim keys. Esc closes menus or clears selection.</p><button id="closeHelp">Close help</button></dialog>
+<dialog id="helpDialog"><h3>Navigate the RTL schematic</h3><p>Drag the canvas to pan, use the mouse wheel or toolbar for zoom, and double-click a module to enter. Click any routed wire to inspect its signal; hold Ctrl/Cmd while selecting to track through proven direct port bindings.</p><p><strong>Inspector:</strong> use the single Inspector button to open the right panel. Select SystemVerilog, Lint, or Paths from its tabs. Right-click actions navigate to the same panel; no separate lint overlay is used.</p><p><strong>Contextual actions:</strong> right-click a generated group to expand only that group, or right-click an individual member to collapse it.</p><p><strong>Keyboard:</strong> Ctrl+K focuses the loaded hierarchy filter; arrow keys navigate its visible entries; / focuses schematic search. Inspector tabs support Left/Right/Home/End. The Neovim button starts an actual local Neovim process when the viewer runs with FLEXSOC_RTL_NEOVIM=1 fx rtl-view (or --enable-neovim in scripts/rtl_viewer.py); otherwise the read-only source view is available with limited Vim keys. Esc closes menus or clears selection.</p><button id="closeHelp">Close help</button></dialog>
 <script defer src="/bootstrap-guard.js"></script>
 <script defer src="/router.js"></script>
 <script defer src="/elk.bundled.js"></script>
@@ -110,6 +122,11 @@
 <script defer src="/elk-adapter.js"></script>
 <script defer src="/layout-engine.js"></script>
 <script defer src="/hierarchy-tree.js"></script>
+<script defer src="/virtual-process.js"></script>
+<script defer src="/sv-highlight.js"></script>
+<script defer src="/workbench-semantics.js"></script>
+<script defer src="/driver-trace.js"></script>
+<script defer src="/theme-presets.js?v=019"></script>
 <script defer src="/app.js"></script>
 <script defer src="/neovim-editor.js"></script>
 </body>

@@ -121,7 +121,7 @@ window.FlexAPI=(name,params={})=>{
             page.on('pageerror',lambda error: errors.append(str(error)))
             page.set_content(html, wait_until='domcontentloaded')
             page.wait_for_function("document.getElementById('counts').textContent.includes('symbols')", timeout=25000)
-            page.locator('#rtlGoSource').click() if page.locator('#rtlGoSource').is_visible() else page.locator('#toggleSource').click()
+            page.locator('#toggleInspector').click()
             page.locator('#sourceCode .code-line[data-line="1"]').click()
             page.wait_for_function("document.getElementById('rtlProbeStatus').textContent.includes('Revealed a')")
             page.locator('#sourceCode .code-line[data-line="4"]').click()
@@ -133,7 +133,7 @@ window.FlexAPI=(name,params={})=>{
             assert 'outside current graph 1' in page.locator('#mappingResults').inner_text()
             page.locator('#rtlMappingFilter').select_option('not_in_graph')
             assert 'missing' in page.locator('#mappingResults').inner_text()
-            page.locator('#rtlGoLint').click()
+            page.locator('#lintTab').click()
             page.locator('#lintPane button',has_text='Find in schematic').click()
             page.wait_for_function("document.querySelector('#sourceCode') && !document.querySelector('#sourcePane').hidden")
             assert not errors,errors

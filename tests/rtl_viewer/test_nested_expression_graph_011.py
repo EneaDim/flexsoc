@@ -87,15 +87,19 @@ def test_parenthesized_nested_expression_is_not_short_circuited():
                for e in g['edges'])
 
 
-def test_unsupported_indexed_operand_does_not_create_fake_wire_even_when_nested():
+def test_dynamic_indexed_operand_has_separate_data_and_selector_wires():
     select = {'kind': 'ElementSelect', 'value': ref(2), 'selector': ref(3)}
     g = diagram(op('BitwiseXor', op('Add', select, ref(4)), ref(2)))
+    selected = next(n for n in g['nodes'] if n.get('name') == 'IndexedSelect')
     inner = next(n for n in g['nodes'] if n.get('name') == 'Add')
-    bad = [e for e in g['edges'] if e['target'] == inner['id'] and e['pin'] == 'A']
-    assert len(bad) == 2 and all(e['rendered'] is False for e in bad)
-    assert inner['operandStatus']['A'] == 'composite AST operand; no proven wire'
-    assert any(e['source'] == inner['id'] and e['target'] == '/::op:0' and e['rendered']
-               for e in g['edges'])
+    assert selected['selectionMapping'].startswith('dynamic AST-indexed read')
+    assert {(e['source'], e['pin']) for e in g['edges']
+            if e['target'] == selected['id'] and e['rendered']} == {
+                ('/::sig:a', 'A'), ('/::sig:b', 'S')}
+    assert [(e['source'], e['pin']) for e in g['edges']
+            if e['target'] == inner['id'] and e['pin'] == 'A' and e['rendered']] == [
+                (selected['id'], 'A')]
+    assert not inner.get('operandStatus', {}).get('A')
 
 
 def test_ambiguous_sequential_writers_still_fail_closed_after_expansion():

@@ -112,7 +112,6 @@ def test_each_leaf_expression_retains_distinct_conductor():
 @pytest.mark.parametrize('stmt', [
     cond(3, assign(ref(1), ref(2)), cond(6, assign({'kind': 'ElementSelect', 'value': ref(1), 'selector': ref(5)}, ref(2)))),
     cond(3, assign(ref(1), ref(2)), {'kind': 'Block', 'body': [assign(ref(1), ref(5)), assign(ref(1), ref(2))]}),
-    cond(3, assign(ref(1), ref(2)), cond(6, assign(ref(1), {'kind': 'ElementSelect', 'value': ref(2), 'selector': ref(5)}))),
     cond(3, assign(ref(1), ref(2)), {'kind': 'Conditional', 'condition': ref(6), 'ifTrue': assign(ref(1), ref(5))}),
 ])
 def test_unsupported_nested_ast_fails_closed_without_physical_d_mux(stmt):
@@ -171,3 +170,17 @@ const ELK=require(w+'/elk.bundled.js').default;
     result = subprocess.run(['node','-e',script,str(WEB)],input=json.dumps(g),
                             capture_output=True,text=True,timeout=45)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_nested_dynamic_read_has_own_select_node_and_single_d_driver():
+    indexed = {'kind': 'ElementSelect', 'value': ref(2), 'selector': ref(5)}
+    g = design(cond(3, assign(ref(1), ref(2)), cond(6, assign(ref(1), indexed))))
+    selects = [n for n in g['nodes'] if n.get('name') == 'IndexedSelect']
+    assert len(selects) == 1
+    assert len(muxes(g)) == 2
+    assert len(d_drivers(g)) == 1
+    for pin, source in [('A', '/::sig:d'), ('S', '/::sig:other')]:
+        assert any(e['source'] == source and e['target'] == selects[0]['id']
+                   and e['pin'] == pin and e['rendered'] for e in g['edges'])
+    assert any(e['source'] == selects[0]['id'] and e['rendered']
+               and e['target'] in {m['id'] for m in muxes(g)} for e in g['edges'])

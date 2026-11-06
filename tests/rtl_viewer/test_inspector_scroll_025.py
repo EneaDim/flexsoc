@@ -57,7 +57,7 @@ def test_browser_reference_toolbar_stays_visible_and_can_lock(monkeypatch):
     errors=[]
     page.on('pageerror',lambda error:errors.append(str(error)))
     try:
-        page.locator('#toggleSource').click()
+        page.locator('#toggleInspector').click()
         page.locator('#sourceCode .code-line').first.wait_for()
         page.locator('#a11yNodes button').first.evaluate('(el)=>el.click()')
         page.wait_for_timeout(150)

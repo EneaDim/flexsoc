@@ -79,7 +79,8 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 elif resource == "diagram":
                     payload = design.diagram(path, explode=arg("explode") == "1",
                                              expanded=tuple(filter(None, arg("expand").split("|"))),
-                                             limit=int(arg("limit", "320")))
+                                             limit=int(arg("limit", "320")),
+                                             fsm_view=arg("fsm") == "1")
                 elif resource == "behavior":
                     payload = design.behavior(path)
                 elif resource == "lowering":
@@ -111,7 +112,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     return
                 self._respond(json.dumps(payload).encode(), "application/json; charset=utf-8")
                 return
-            static = {"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/neovim-editor.js": "neovim-editor.js", "/bootstrap-guard.js": "bootstrap-guard.js", "/lazy-hierarchy.js": "lazy-hierarchy.js", "/hierarchy-tree.js": "hierarchy-tree.js", "/router.js": "router.js", "/layout-engine.js": "layout-engine.js", "/elk-adapter.js": "elk-adapter.js", "/symbol-geometry.js": "symbol-geometry.js", "/symbol-painter.js": "symbol-painter.js", "/elk.bundled.js": "elk.bundled.js", "/style.css": "style.css", "/cad": "cad.html", "/cad.html": "cad.html", "/cad.js": "cad.js", "/cad-layout.js": "cad-layout.js", "/cad.css": "cad.css"}
+            static = {"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/neovim-editor.js": "neovim-editor.js", "/bootstrap-guard.js": "bootstrap-guard.js", "/lazy-hierarchy.js": "lazy-hierarchy.js", "/hierarchy-tree.js": "hierarchy-tree.js", "/virtual-process.js": "virtual-process.js", "/driver-trace.js": "driver-trace.js", "/router.js": "router.js", "/layout-engine.js": "layout-engine.js", "/elk-adapter.js": "elk-adapter.js", "/symbol-geometry.js": "symbol-geometry.js", "/symbol-painter.js": "symbol-painter.js", "/elk.bundled.js": "elk.bundled.js", "/style.css": "style.css", "/workbench-017.css": "workbench-017.css", "/workbench-019.css": "workbench-019.css", "/theme-presets.js": "theme-presets.js", "/cad": "cad.html", "/cad.html": "cad.html", "/cad.js": "cad.js", "/cad-layout.js": "cad-layout.js", "/cad.css": "cad.css"}
             file = static.get(route.path)
             if not file:
                 self.send_error(404)

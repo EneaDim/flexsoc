@@ -109,12 +109,19 @@ class ProcessAnalyzer:
                     # Include symbols in case-item expressions as controls.
                     item_conditions = tuple(dict.fromkeys((*next_conditions,
                         *self.symbols.reads(item.get("expressions", ())))))
-                    self._statement(item.get("stmt", item.get("statement")), item_conditions, events,
+                    self._statement(next((item[key] for key in ("stmt", "statement", "body") if key in item), None),
+                                    item_conditions, events,
                                     (*guards, self._guard(node, branch, index)))
             for branch in ("defaultCase", "default"):
                 if branch in node:
                     self._statement(node[branch], next_conditions, events,
                                     (*guards, self._guard(node, branch)))
+            return
+        if kind == "CaseItem":
+            # Some Slang AST serializers expose the case arm as `body`.
+            # The predicate belongs to the caller's case control context.
+            self._statement(next((node[key] for key in ("stmt", "statement", "body")
+                                  if key in node), None), conditions, events, guards)
             return
         if kind in self._LOOPS:
             predicate = self.symbols.reads([node.get(k) for k in ("stopExpr", "condition", "count", "range")])

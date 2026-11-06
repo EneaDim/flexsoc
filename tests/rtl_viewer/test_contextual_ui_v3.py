@@ -31,8 +31,10 @@ def test_ui_has_only_global_top_controls_and_contextual_generate():
     html = (assets / 'index.html').read_text()
     js = (assets / 'app.js').read_text()
     assert 'id="explode"' not in html
-    assert 'id="toggleSource"' in html and 'id="toggleLint"' in html
-    assert 'id="toggleCone"' in html and 'id="search"' in html
+    assert 'id="toggleInspector"' in html and 'id="search"' in html
+    assert 'id="sourceTab"' in html and 'id="lintTab"' in html
+    assert 'id="toggleSource"' not in html and 'id="toggleLint"' not in html
+    assert 'id="lintOverlay"' not in html
     assert 'id="contextGenerate"' in html
     assert 'toggleGroup(state.context)' in js
     assert 'layout(graph)' in js  # no new client-side RTL parsing

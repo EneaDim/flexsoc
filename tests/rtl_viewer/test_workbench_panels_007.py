@@ -86,7 +86,7 @@ def test_inspector_read_only_source_and_keyboard_tabs():
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     try:
-        page.locator('#toggleSource').click()
+        page.locator('#toggleInspector').click()
         assert page.locator('#inspector').is_visible()
         assert page.locator('.source-mode').inner_text().startswith('READ ONLY')
         page.locator('#sourceTab').focus()

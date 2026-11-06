@@ -162,18 +162,6 @@ button:active:not(:disabled){transform:translateY(1px)}
 @media(max-width:900px){.visibility-controls{order:3}}
 
 /* Independent lint evidence layer: source and cone inspector remain usable. */
-.lint-overlay{position:absolute;z-index:5;top:18px;right:18px;width:min(385px,calc(100% - 36px));max-height:min(68%,650px);display:flex;flex-direction:column;background:var(--panel);color:var(--ink);border:1px solid var(--line2);border-radius:13px;box-shadow:0 12px 45px #0007;overflow:hidden}
-.lint-overlay[hidden]{display:none}
-.lint-overlay-head{display:flex;gap:9px;align-items:center;justify-content:space-between;padding:11px 13px;border-bottom:1px solid var(--line);font-size:12px}
-.lint-overlay-head button{padding:3px 8px}
-.lint-overlay-filter{padding:7px 12px;border-bottom:1px solid var(--line);font:11px var(--mono)}
-.lint-overlay-filter select{margin-left:8px;background:var(--control);color:var(--ink);border:1px solid var(--line2);border-radius:5px}
-.lint-overlay-results{min-height:45px;overflow:auto;overscroll-behavior:contain;padding:7px}
-.lint-overlay-row{display:flex;flex-direction:column;align-items:stretch;text-align:left;width:100%;gap:4px;padding:9px;margin:0 0 5px;background:transparent;border:1px solid transparent;border-bottom-color:var(--line);border-radius:6px;color:var(--ink)}
-.lint-overlay-row:hover,.lint-overlay-row:focus-visible{border-color:var(--blue);background:var(--control)}
-.lint-overlay-code{color:var(--blue);font:600 12px var(--mono)}
-.lint-overlay-message{font-size:11px;line-height:1.45;overflow-wrap:anywhere}
-.lint-overlay-location{color:var(--muted);font:10px var(--mono);overflow-wrap:anywhere}
 .lint-priority{display:inline-block;padding:2px 5px;border-radius:4px;color:#fff;background:#698092}
 .lint-priority.p0{background:#c45319}.lint-priority.p1{background:#af7524}.lint-priority.p2{background:#197da9}
 
@@ -365,3 +353,114 @@ button:active:not(:disabled){transform:translateY(1px)}
 #sourcePane > .native-nvim{min-height:0;flex:1}
 #nvimScreen{overscroll-behavior:contain;touch-action:pan-y}
 #rtlFreezeSchematic[aria-pressed=true]{border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}
+/* An FSM is a reversible schematic view within an elaborated module, not a
+   synthetic child scope. Show the control even when its expanded cone is huge. */
+.hierarchy .fs-tree-virtual{background:rgba(58,166,183,.08);border-left:2px solid var(--blue)}
+.hierarchy .fs-tree-virtual.expanded{background:var(--accent-soft)}
+.hierarchy .fs-tree-fsm{gap:5px;flex-wrap:nowrap}
+.hierarchy .fs-tree-fsm .fs-tree-name{flex:1;min-width:0}
+.hierarchy .fs-tree-fsm-mode{font:9px var(--mono);color:var(--accent);white-space:nowrap}
+.head-mid .fsm-crumb-label{font:11px var(--mono);color:var(--blue);white-space:nowrap}
+.head-mid .fsm-crumb-back{color:var(--ink);background:var(--accent-soft);border:1px solid var(--accent);white-space:nowrap}
+
+/* Workbench inspector: compact hierarchy, readable RTL, local file-lint. */
+.inspector{background:var(--panel);border-left:1px solid var(--line2)}
+.inspector-header{background:linear-gradient(135deg,var(--side),var(--panel));border-bottom:1px solid var(--line2)}
+.inspector .tabs{background:var(--side);gap:5px;padding:6px 10px 0;min-height:47px}
+.inspector .tabs button{border-radius:7px 7px 0 0;transition:background .14s,border-color .14s}
+.inspector .tabs button:hover{background:var(--control)}
+#sourcePane .source-head{font:600 12px/1.4 var(--mono);letter-spacing:0;overflow-wrap:anywhere}
+#sourcePane .source-mode{letter-spacing:.015em}
+#sourceCode{font:12px/1.75 var(--mono);font-variant-ligatures:none}
+#sourceCode .code-line{border-radius:0 4px 4px 0}
+#sourceCode .sv-keyword{color:#7fcaff;font-weight:650}
+#sourceCode .sv-number{color:#ffbe80}
+#sourceCode .sv-comment{color:#849bb1;font-style:italic}
+#sourceCode .sv-string{color:#a6dc9c}
+#sourceCode .sv-directive{color:#d6adff}
+[data-theme=light] #sourceCode .sv-keyword{color:#086da9}
+[data-theme=light] #sourceCode .sv-number{color:#a04e13}
+[data-theme=light] #sourceCode .sv-comment{color:#6a8293}
+[data-theme=light] #sourceCode .sv-string{color:#237b43}
+[data-theme=light] #sourceCode .sv-directive{color:#7547a4}
+.rtl-lint-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:12px 12px 3px}
+.rtl-lint-stat{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;min-height:55px;background:var(--side);border:1px solid var(--line2);border-radius:8px}
+.rtl-lint-stat strong{font:700 17px/1.1 var(--mono);color:var(--ink)}
+.rtl-lint-stat span{font:10px var(--mono);color:var(--muted);text-align:center}
+.lint-filter-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px}
+.rtl-lint-search{min-width:140px;flex:1;padding:7px 9px;border:1px solid var(--line2);border-radius:7px;background:var(--control);color:var(--ink);font:11px var(--mono)}
+#lintResults .lint-entry{display:flex;align-items:flex-start;flex-wrap:wrap;gap:6px;margin:7px 12px;padding:12px;background:var(--side);border:1px solid var(--line2);border-radius:9px;line-height:1.55;overflow-wrap:anywhere}
+#lintResults .lint-entry code{font:650 11px var(--mono);color:var(--blue)}
+#lintResults .lint-entry span{flex-basis:100%;font:12px/1.55 system-ui,sans-serif}
+#lintResults .lint-entry button{font-size:11px}
+@media(max-width:520px){.rtl-lint-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* FSRTL-015: pin application chrome to the viewport. Canvas transforms
+   operate only inside the schematic; browser scroll never shifts the header. */
+html,body{width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
+.shell{position:fixed;inset:0;width:100%;height:100%;height:100dvh;overflow:hidden}
+.header,.toolbar{flex:none;position:relative;z-index:3}
+.body,.main,.workspace{min-height:0;overflow:hidden}
+.header{flex-shrink:0}
+.schematic{min-height:0;overscroll-behavior:contain}
+.hierarchy,.code-wrap,.rtl-inspector-scroll,.results{overscroll-behavior:contain}
+.inspector-toggle{padding:8px 15px;border:1px solid var(--line2);border-radius:8px;background:var(--control);font-weight:650}
+.inspector-toggle.active{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.toolbar-tools{flex-wrap:wrap;justify-content:flex-end}
+/* Preserve a fixed-height toolbar and scroll only its controls at narrow widths. */
+@media(max-width:1030px){.toolbar{min-height:84px;flex-wrap:nowrap}.toolbar-tools{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin}}
+@media(max-width:750px){.toolbar{min-height:84px}.toolbar-title{min-width:95px}}
+
+/* FSRTL-016: quieter workspace, semantic focus and contextual evidence.
+   Presentation only — topology, ELK anchor positions and AST identity stay unchanged. */
+:root{
+  --rtl-data:#5bbce9;--rtl-timing:#efa569;--rtl-fsm:#b59bfb;
+  --rtl-good:#65d6ae;--rtl-warn:#f2c56d;--rtl-bad:#f18492;
+  --rtl-radius:10px;
+}
+:root[data-theme='light']{
+  --rtl-data:#177eb5;--rtl-timing:#bb6223;--rtl-fsm:#7754c3;
+  --rtl-good:#1e8d65;--rtl-warn:#9b690f;--rtl-bad:#bc334c;
+}
+.toolbar,.inspector-header,.inspector .tabs{box-shadow:none}
+.inspector .tabs button{border-radius:6px 6px 0 0}
+.inspector .tabs button.active{background:var(--control);box-shadow:inset 0 -2px var(--accent)}
+.sidebar-legend .legend-content{gap:8px}
+.sidebar-legend .legend-dot.fsm{border-color:var(--rtl-fsm);border-radius:50%}
+.sidebar-legend .legend-dot.operation{border-color:var(--rtl-timing);transform:rotate(45deg);border-radius:2px}
+.sidebar-legend .rtl-wire-note{line-height:1.6}
+.schematic .rtl-semantic-tooltip{
+ position:absolute;z-index:12;max-width:min(325px,calc(100% - 16px));min-width:200px;
+ padding:11px 13px;border:1px solid var(--line2);border-left:3px solid var(--rtl-data);
+ border-radius:var(--rtl-radius);background:var(--panel);box-shadow:0 15px 36px #030b18b3;
+ color:var(--ink);font:11px/1.4 var(--font);pointer-events:none;overflow-wrap:anywhere;
+}
+.rtl-semantic-tooltip[data-tone=timing],.rtl-semantic-tooltip[data-tone=logic]{border-left-color:var(--rtl-timing)}
+.rtl-semantic-tooltip[data-tone=fsm]{border-left-color:var(--rtl-fsm)}
+.rtl-semantic-tooltip[data-tone=partial]{border-left-color:var(--rtl-warn)}
+.rtl-semantic-tooltip strong{display:block;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.rtl-semantic-tooltip .rtl-tip-name{font:650 12px/1.5 var(--mono);margin:4px 0 8px}
+.rtl-semantic-tooltip .rtl-tip-row{display:grid;grid-template-columns:78px minmax(0,1fr);gap:8px;padding:3px 0;border-top:1px solid var(--line)}
+.rtl-semantic-tooltip .rtl-tip-row span:first-child{color:var(--muted)}
+.rtl-semantic-tooltip .rtl-tip-row span:last-child{font-family:var(--mono);overflow-wrap:anywhere}
+#sourceCode .code-line.rtl-lint-line::after{
+ content:attr(data-lint-count);position:absolute;left:57px;top:3px;min-width:14px;
+ height:14px;padding:0 3px;border-radius:4px;background:var(--rtl-warn);color:#132131;
+ font:750 9px/14px var(--mono);text-align:center;user-select:none;pointer-events:none;
+}
+#sourceCode .code-line.rtl-lint-p0::after,#sourceCode .code-line.rtl-lint-p1::after{background:var(--rtl-bad)}
+#sourceCode .code-line.rtl-lint-p3::after{background:var(--rtl-data)}
+#sourceCode .code-line.rtl-lint-line{box-shadow:inset 2px 0 var(--rtl-warn)}
+#sourceCode .code-line.rtl-lint-p0,#sourceCode .code-line.rtl-lint-p1{box-shadow:inset 2px 0 var(--rtl-bad)}
+#sourceCode .code-line.rtl-lint-p3{box-shadow:inset 2px 0 var(--rtl-data)}
+#sourceCode .code-line.rtl-lint-line.focus-line{box-shadow:inset 3px 0 var(--accent)}
+@media(prefers-reduced-motion:reduce){.rtl-semantic-tooltip{transition:none}}
+
+/* FSRTL-021: native editor opt-in diagnostics remain visible in the fallback source view. */
+.native-nvim-notice:not([hidden]) {
+  margin: 8px 12px; padding: 9px 11px; border: 1px solid var(--warning, #c18e54);
+  border-radius: 7px; color: var(--text, #d6e3f3);
+  background: color-mix(in srgb, var(--warning, #c18e54) 12%, transparent);
+  font: 11px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace;
+  overflow-wrap: anywhere;
+}

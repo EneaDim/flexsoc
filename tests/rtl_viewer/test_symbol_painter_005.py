@@ -29,7 +29,8 @@ function context(){
 const nodes=[
  {id:'sig',type:'signal',name:'foo'},
  {id:'port',type:'port',name:'payload',direction:'inout'},
- {id:'mux',type:'operator',shape:'mux',name:'ConditionalOp',literalOperands:{A:'42'}},
+ {id:'mux',type:'operator',shape:'mux',name:'ConditionalOp',literalOperands:{A:'42'},
+  controlBadge:'FSM',controlSource:'state_reg',controlPatterns:['STATE_PAYLOAD']},
  {id:'sum',type:'operator',shape:'arith',name:'Add'},
  {id:'q',type:'register',name:'state_reg'},
  {id:'array',type:'generate',name:'generate_array',count:6,ports:[
@@ -59,6 +60,14 @@ for(const n of nodes){
   assert(labels.filter(x=>String(x[1]).includes('long_bus')||String(x[1]).includes('payload_bus'))
    .every(x=>Number.isFinite(x[4])&&x[4]<rect.w/2),
     'long port labels must be clipped to half the module width');
+ }
+ if(n.id==='mux'){
+  const labels=ctx.trace.filter(x=>x[0]==='fillText');
+  const literal=labels.find(x=>x[1]==='42');
+  assert(literal && literal[2] < rect.x+18,'MUX literal label must stay on the left side of the symbol');
+  assert(labels.some(x=>x[1]==='FSM'),'FSM badge should be visible on the MUX selector');
+  assert(labels.some(x=>String(x[1]).includes('state_reg')||String(x[1]).includes('STATE_PAYLOAD')),
+   'MUX selector summary should expose the controlling FSM path');
  }
 }
 const long=nodes[5];

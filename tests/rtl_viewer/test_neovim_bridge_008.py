@@ -135,7 +135,8 @@ def test_native_editor_frontend_uses_rpc_input_and_safe_fallback():
                 const body = options.body ? JSON.parse(options.body) : {};
                 window.nativeRequests.push({action,body});
                 const grid = [['module top;', 0], ['endmodule ', 0]];
-                const result = action === 'start' ? {status:'available',token:'test-token',file:'DSP.sv',readonly:true}
+                const result = action === 'capability' ? {enabled:true,executable:true,msgpack:true,local_only:true}
+                  : action === 'start' ? {status:'available',token:'test-token',file:'DSP.sv',readonly:true}
                   : action === 'state' ? {status:'available',changed:true,version:2,
                     width:20,height:4,cursor:[0,1],styles:{},fg:16777215,bg:0,
                     rows:[[['module top;         ',0]],[['endmodule           ',0]],[['                    ',0]],[['                    ',0]]],source_line:1}
@@ -144,7 +145,7 @@ def test_native_editor_frontend_uses_rpc_input_and_safe_fallback():
             };
         }''')
         page.add_script_tag(path=str(WEB / 'neovim-editor.js'))
-        page.locator('#toggleSource').click()
+        page.locator('#toggleInspector').click()
         page.locator('#sourceCode .code-line').first.wait_for()
         page.locator('#rtlNeovimToggle').click()
         page.locator('#nvimScreen .nvim-row').first.wait_for()

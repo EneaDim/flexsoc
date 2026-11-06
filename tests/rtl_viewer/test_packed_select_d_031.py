@@ -139,7 +139,7 @@ const Adapter=require(web+'/elk-adapter.js');
    assert.deepEqual(path.at(-1),[end.x,end.y]);
   }
   const size=Geo.boxSize(slice);
-  assert.equal(size.h,32);
+  assert.equal(size.h,Math.max(36,20+(slice.pins.length-1)*20));
   const ctx=new Proxy({labels:[],save(){},restore(){},fillText(t){this.labels.push(t)}},
     {get(t,k){return k in t?t[k]:()=>{}}});
   Painter.paint(ctx,slice,{x:0,y:0,...size},{colors:{operator:'#e0b',text:'#fff',muted:'#aaa',

@@ -29,6 +29,10 @@
    if(!Array.isArray(points)||points.length<2||points.some(p=>!Array.isArray(p)||p.length!==2||!p.every(Number.isFinite)))
     errors.push('invalid or missing edge route: '+edge.id);
   }
+  const elkAdapter=typeof module==='object'&&module.exports?
+   require('./elk-adapter.js'):root.FlexElkAdapter;
+  if(elkAdapter?.checkCompoundOwnership)
+   errors.push(...elkAdapter.checkCompoundOwnership(graph,geometry));
   for(const id of positions.keys())if(!nodes.has(id))errors.push('extraneous node: '+id);
   for(const id of paths.keys())if(!edges.has(id))errors.push('extraneous edge: '+id);
   if(!Number.isFinite(geometry.width)||geometry.width<=0||!Number.isFinite(geometry.height)||geometry.height<=0)
@@ -82,6 +86,7 @@
    schema:'flexsoc.rtl_viewer.elk_geometry.v1',phase,issue:issue||'',
    graph:{nodes:graph.nodes,edges:graph.edges},
    geometry:{positions:[...geometry.positions],edgePaths:[...geometry.edgePaths],
+    groupRects:[...(geometry.groupRects||new Map())],
     width:geometry.width,height:geometry.height,stats:geometry.stats||{}}
   };
  }

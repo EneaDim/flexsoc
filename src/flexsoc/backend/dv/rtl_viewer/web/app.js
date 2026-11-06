@@ -31,26 +31,65 @@ function initExplorerUX(){ensureDetailsUI();installSidebarResize();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initExplorerUX,{once:true});else initExplorerUX();
 
 const canvas = $('diagram'), ctx = canvas.getContext('2d', {alpha:false});
-const state = {overview:null,graph:null,path:'/',expanded:new Map(),viewport:new Map(),layouts:new Map(),selected:null,multiSelected:new Set(),pinned:null,freezeSchematic:false,hover:null,drag:null,inspector:false,tab:'source',context:null,wire:null,manualView:false,visibility:{wires:true,names:true,lint:false},lintItems:[],lintStatus:"unavailable",lintRequest:0};
-// FlexSoC brand system: orange = transformations, sky = connectivity,
-// navy = hierarchy, neutral graphite = chrome. Colors remain legible in both modes.
-const palettes={
- dark:{counter:'#ffbd70',fsm:'#9de2ee',port:'#53bfff',signal:'#91b2cd',register:'#ff9954',operator:'#ffb56c',instance:'#54c4ec',generate:'#ffa558',wire:'#6faace',binding:'#48c5ee',sequential:'#fb9a5d',selected:'#ffd089',symbolFill:'#1b3046',pickedFill:'#284560',stackFill:'#34475b',stackStroke:'#9b6e4a',text:'#f0f6ff',muted:'#a9c3d8',canvas:'#111c2b'},
- light:{counter:'#bd5815',fsm:'#1384ba',port:'#0879b2',signal:'#456d88',register:'#d35b1b',operator:'#c36a20',instance:'#0b82bb',generate:'#e06e22',wire:'#4c86aa',binding:'#167eac',sequential:'#c76320',selected:'#ee8429',symbolFill:'#e9f3fa',pickedFill:'#d3e9f9',stackFill:'#dbe4ef',stackStroke:'#b36e3c',text:'#102c4b',muted:'#375b78',canvas:'#f4f9fd'}
-};
-let colors=palettes.dark;
+const semanticTip=$('rtlSemanticTooltip');
+function hideSemanticTip(){if(semanticTip)semanticTip.hidden=true;}
+function showSemanticTip(item,ev){
+ if(!semanticTip||!window.FlexWorkbenchSemantics)return;
+ const detail=window.FlexWorkbenchSemantics.semantic(item);
+ if(!detail){hideSemanticTip();return;}
+ // textContent only: never insert AST metadata as HTML.
+ semanticTip.replaceChildren();semanticTip.dataset.tone=detail.tone;
+ const heading=document.createElement('strong');heading.textContent=detail.kind;
+ const name=document.createElement('div');name.className='rtl-tip-name';name.textContent=detail.name;
+ semanticTip.append(heading,name);
+ for(const [key,value] of detail.rows.slice(0,6)){
+  const row=document.createElement('div');row.className='rtl-tip-row';
+  const label=document.createElement('span');label.textContent=key;
+  const text=document.createElement('span');text.textContent=value;
+  row.append(label,text);semanticTip.append(row);
+ }
+ semanticTip.hidden=false;
+ const bounds=$('schematic').getBoundingClientRect();
+ const left=Math.min(Math.max(8,ev.clientX-bounds.left+16),Math.max(8,bounds.width-semanticTip.offsetWidth-12));
+ const top=Math.min(Math.max(8,ev.clientY-bounds.top+14),Math.max(8,bounds.height-semanticTip.offsetHeight-12));
+ semanticTip.style.left=left+'px';semanticTip.style.top=top+'px';
+}
+const state = {overview:null,graph:null,path:'/',fsmFocus:null,processFocus:null,processParent:null,generateFocus:null,valueFocus:null,valueParent:null,expanded:new Map(),viewport:new Map(),layouts:new Map(),selected:null,multiSelected:new Set(),pinned:null,freezeSchematic:false,hover:null,drag:null,inspector:false,tab:'source',context:null,wire:null,manualView:false,visibility:{wires:true,names:true}};
+// Theme manager owns paired CSS chrome and Canvas palettes. No graph changes.
+let colors=window.FlexRTLThemes.presets.graphite.canvas;
 
 const clamp=(x,lo,hi)=>Math.min(hi,Math.max(lo,x));
 const keyOf=n=>n?.net||n?.id||'';
 const isSignal=n=>n?.id?.includes('::sig:');
-function applyTheme(mode){
- const next=mode==='light'?'light':'dark';
- document.documentElement.dataset.theme=next;
- colors=palettes[next];
- $('themeToggle').textContent=next==='light'?'☾ Dark':'☀ Light';
- $('themeToggle').setAttribute('aria-label','Switch to '+(next==='light'?'dark':'light')+' theme');
- try{localStorage.setItem('flexsoc-rtl-theme',next);}catch(_e){}
- draw();
+function applyTheme(mode,accent=window.FlexRTLThemes.readAccent()){
+ const result=window.FlexRTLThemes.apply(mode,accent);
+ colors=result.colors;
+ const label=$('themeName');if(label)label.textContent=result.spec.label;
+ for(const button of document.querySelectorAll('[data-theme-choice]')){
+  const pressed=button.dataset.themeChoice===result.name;button.setAttribute('aria-pressed',String(pressed));
+ }
+ for(const button of document.querySelectorAll('[data-accent-choice]')){
+  const pressed=button.dataset.accentChoice===result.accentChoice;button.setAttribute('aria-pressed',String(pressed));
+ }
+ const picker=$('accentCustom');if(picker&&result.accentChoice.startsWith('#'))picker.value=result.accentChoice;
+ if(state.graph)draw();
+}
+function installThemePicker(){
+ const toggle=$('themeToggle'),menu=$('themeMenu');if(!toggle||!menu)return;
+ const open=show=>{menu.hidden=!show;toggle.setAttribute('aria-expanded',String(show));};
+ toggle.onclick=()=>open(menu.hidden);
+ for(const button of menu.querySelectorAll('[data-theme-choice]')){
+  button.onclick=()=>{applyTheme(button.dataset.themeChoice);open(false);toggle.focus();};
+ }
+ for(const button of menu.querySelectorAll('[data-accent-choice]')){
+  button.onclick=()=>applyTheme(document.documentElement.dataset.palette,button.dataset.accentChoice);
+ }
+ const custom=$('accentCustom');if(custom){
+  custom.oninput=()=>applyTheme(document.documentElement.dataset.palette,custom.value);
+ }
+ document.addEventListener('pointerdown',event=>{if(!event.target.closest('#themePicker'))open(false);});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!menu.hidden){open(false);toggle.focus();}});
+ open(false);applyTheme(window.FlexRTLThemes.readTheme(),window.FlexRTLThemes.readAccent());
 }
 function announce(message){$('message').textContent=message;}
 async function api(name,params={}) {
@@ -59,8 +98,9 @@ async function api(name,params={}) {
  Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
  const r=await fetch(url);const data=await r.json();if(!r.ok)throw Error(data.error||r.status);return data;
 }
-function view(){return state.viewport.get(state.path)||{x:90,y:90,z:1};}
-function setView(v){state.viewport.set(state.path,v);}
+function cameraKey(){return state.path+'|'+(state.valueFocus||state.processFocus||state.fsmFocus||state.generateFocus||'module');}
+function view(){return state.viewport.get(cameraKey())||{x:90,y:90,z:1};}
+function setView(v){state.viewport.set(cameraKey(),v);}
 let lastCanvasSize={w:0,h:0};
 function resize(){
  const w=canvas.clientWidth||1,h=canvas.clientHeight||1,scale=Math.min(devicePixelRatio||1,2);
@@ -101,7 +141,7 @@ function scheduleELK(graph,id){
  elkPending.add(id);setLayoutStatus('ELK / COMPUTING');
  Promise.resolve().then(()=>layoutEngine.computeELK(graph)).then(result=>{
   const current=state.graph;
-  const key=current?.path+':'+(current?.expanded||[]).join('|')+':'+current?.revision;
+  const key=layoutKey(current);
   if(key!==id||current!==graph)return;
   state.layouts.set(id,result);
   setLayoutStatus(result.stats?.crossingBridgesLimited?'ELK / CONGESTED':'ELK',
@@ -110,7 +150,7 @@ function scheduleELK(graph,id){
   if(!state.manualView)fit();else draw();
  }).catch(error=>{
   const current=state.graph;
-  const key=current?.path+':'+(current?.expanded||[]).join('|')+':'+current?.revision;
+  const key=layoutKey(current);
   if(key===id&&current===graph){
    elkFailed.add(id);
    state.layouts.delete(id);
@@ -120,8 +160,9 @@ function scheduleELK(graph,id){
   console.error('[rtl-view] ELK layout failed (no native fallback):',error);
  }).finally(()=>elkPending.delete(id));
 }
+function layoutKey(graph){return graph?.path+':'+(graph?.expanded||[]).join('|')+':'+graph?.revision+':'+(graph?.virtualFocus||'module');}
 function layout(graph){
- const id=graph.path+':'+(graph.expanded||[]).join('|')+':'+graph.revision;
+ const id=layoutKey(graph);
  if(state.layouts.has(id))return state.layouts.get(id);
  scheduleELK(graph,id);
  return emptyGeometry();
@@ -279,7 +320,90 @@ function paintNets(edges,paths,v,w,h){
  }
 }
 
-function draw(){if(!state.graph)return;const w=canvas.clientWidth||1,h=canvas.clientHeight||1,v=view(),d=layout(state.graph);ctx.setTransform(canvas.width/w,0,0,canvas.height/h,0,0);ctx.fillStyle=colors.canvas;ctx.fillRect(0,0,w,h);ctx.save();ctx.translate(v.x,v.y);ctx.scale(v.z,v.z);
+// A flattened virtual block retains a visible *frame*, even though ELK
+// positions the original circuit nodes in the parent diagram. Frames have
+// no electrical ports: all wires and source identities remain unchanged.
+function flattenedFrames(graph,positions,groupRects){
+ if(!graph||!positions)return [];
+ const specs=[];
+ for(const g of graph.processGroups||[]){
+  if(g.view==='flattened'&&Array.isArray(g.memberIds))
+   specs.push({token:g.token,name:g.name,type:'process_group',memberIds:g.memberIds});
+ }
+ for(const g of graph.fsmGroups||[]){
+  if(g.view==='expanded'&&Array.isArray(g.memberIds))
+   specs.push({token:g.token,name:'FSM · '+g.state,type:'fsm_group',memberIds:g.memberIds});
+ }
+ for(const g of graph.generateGroups||[]){
+  if(g.view==='flattened')specs.push({token:g.token,name:g.name,type:'generate',
+   memberIds:graph.nodes.filter(n=>n.type==='instance'&&n.group===g.token.slice(4)).map(n=>n.id)});
+ }
+ const output=[];
+ for(const item of specs){
+  // Process AND FSM frames use actual ELK compound-node bounds. A painted
+  // post-layout bounding box can surround unrelated logic, particularly
+  // when a flattened FSM exposes compact always_ff/always_comb children.
+  if((item.type==='process_group'||item.type==='fsm_group')&&groupRects instanceof Map){
+   const box=groupRects.get(item.token);
+   if(box&&[box.x,box.y,box.w,box.h].every(Number.isFinite))
+    output.push({...item,...box});
+   continue;
+  }
+  const rects=item.memberIds.map(id=>positions.get(id)).filter(Boolean);
+  if(!rects.length)continue;
+  const x=Math.min(...rects.map(r=>r.x))-22,y=Math.min(...rects.map(r=>r.y))-56;
+  const right=Math.max(...rects.map(r=>r.x+r.w))+22;
+  const bottom=Math.max(...rects.map(r=>r.y+r.h))+26;
+  if(![x,y,right,bottom].every(Number.isFinite))continue;
+  output.push({...item,x,y,w:right-x,h:bottom-y});
+ }
+ // Parent frames go behind any smaller nested process frame.
+ return output.sort((a,b)=>b.w*b.h-a.w*a.h);
+}
+function paintFlattenedFrames(frames,v,w,h){
+ for(const f of frames){
+  if(!visible(f,v,w,h,60))continue;
+  const tone=f.type==='fsm_group'?colors.fsm:f.type==='generate'?colors.generate:colors.operator;
+  ctx.save();ctx.strokeStyle=tone;ctx.fillStyle=tone;
+  ctx.globalAlpha=.035;ctx.beginPath();ctx.roundRect(f.x,f.y,f.w,f.h,11);ctx.fill();
+  // Screen-space stroke and caption remain legible even at 12% zoom.
+  ctx.globalAlpha=.7;ctx.lineWidth=Math.max(2,1.6/v.z);
+  ctx.setLineDash([Math.max(9,7/v.z),Math.max(5,4/v.z)]);ctx.stroke();ctx.setLineDash([]);
+  ctx.restore();
+ }
+}
+// Keep the flattened group identity visible even if its 10k-unit ELK cone
+// extends beyond the top of a zoomed-out viewport. Labels are screen-space
+// overlays and do not add any electrical pin, node or routing edge.
+function frameLabelRects(frames,v,w,h){
+ return frames.filter(f=>visible(f,v,w,h,10)).map(f=>{
+  const width=Math.min(320,Math.max(225,f.name.length*8+132));
+  const x=clamp(f.x*v.z+v.x+10,6,Math.max(6,w-width-6));
+  const y=clamp(f.y*v.z+v.y+8,56,Math.max(56,h-30));
+  return {...f,labelX:x,labelY:y,labelW:width,labelH:25};
+ });
+}
+function paintFrameLabels(labels){
+ for(const f of labels){
+  const tone=f.type==='fsm_group'?colors.fsm:f.type==='generate'?colors.generate:colors.operator;
+  ctx.save();ctx.fillStyle=colors.canvas;ctx.globalAlpha=.96;
+  ctx.fillRect(f.labelX,f.labelY,f.labelW,f.labelH);
+  ctx.globalAlpha=1;ctx.strokeStyle=tone;ctx.lineWidth=1.2;
+  ctx.strokeRect(f.labelX,f.labelY,f.labelW,f.labelH);
+  ctx.fillStyle=colors.text;ctx.font='600 12px system-ui,sans-serif';
+  ctx.textAlign='left';ctx.fillText(f.name+' · FLATTENED',f.labelX+8,f.labelY+17,f.labelW-102);
+  // Canvas overlay only: this click target restores the ORIGINAL compact
+  // group in the same scope. No semantic nodes/edges are synthesized.
+  ctx.strokeStyle=tone;ctx.beginPath();
+  ctx.moveTo(f.labelX+f.labelW-94,f.labelY+4);
+  ctx.lineTo(f.labelX+f.labelW-94,f.labelY+f.labelH-4);ctx.stroke();
+  ctx.font='600 10px system-ui,sans-serif';
+  ctx.fillText('↶ Unflatten',f.labelX+f.labelW-87,f.labelY+17,81);
+  ctx.restore();
+ }
+}
+function draw(){if(!state.graph)return;const w=canvas.clientWidth||1,h=canvas.clientHeight||1,v=view(),d=layout(state.graph);ctx.setTransform(canvas.width/w,0,0,canvas.height/h,0,0);ctx.fillStyle=colors.canvas;ctx.fillRect(0,0,w,h);const frames=flattenedFrames(state.graph,d.positions,d.groupRects);ctx.save();ctx.translate(v.x,v.y);ctx.scale(v.z,v.z);
+ paintFlattenedFrames(frames,v,w,h);
  if(state.visibility.wires)paintNets(state.graph.edges,d.edgePaths,v,w,h);
  // A small wire bridge at crossings prevents a perpendicular intersection
  // from reading as an electrical junction. It is decoration, not connectivity.
@@ -293,10 +417,22 @@ function draw(){if(!state.graph)return;const w=canvas.clientWidth||1,h=canvas.cl
   }
  }
  for(const n of state.graph.nodes){const p=d.positions.get(n.id);if(p&&visible(p,v,w,h))symbol(n,p,d);}
- ctx.restore();}
+ ctx.restore();paintFrameLabels(frameLabelRects(frames,v,w,h));}
 function pointer(ev){const r=canvas.getBoundingClientRect(),v=view();return{x:(ev.clientX-r.left-v.x)/v.z,y:(ev.clientY-r.top-v.y)/v.z};}
 function distSeg(p,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],l=dx*dx+dy*dy;const t=l?clamp(((p.x-a[0])*dx+(p.y-a[1])*dy)/l,0,1):0;return Math.hypot(p.x-a[0]-t*dx,p.y-a[1]-t*dy);}
 function hit(p){if(!state.graph)return null;const d=layout(state.graph);for(let i=state.graph.nodes.length-1;i>=0;i--){const n=state.graph.nodes[i],r=d.positions.get(n.id);if(r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h)return n;}
+ // The frame header is also a context-menu/navigation target, while its
+ // transparent body never steals clicks from wires or schematic operators.
+ const v=view(),screenX=p.x*v.z+v.x,screenY=p.y*v.z+v.y;
+ for(const frame of frameLabelRects(flattenedFrames(state.graph,d.positions,d.groupRects),v,canvas.clientWidth,canvas.clientHeight)){
+  if(screenX>=frame.labelX&&screenX<=frame.labelX+frame.labelW&&
+     screenY>=frame.labelY&&screenY<=frame.labelY+frame.labelH){
+   if(screenX>=frame.labelX+frame.labelW-94)
+    return {id:frame.token+'::unflatten',name:'Unflatten '+frame.name,
+     type:'frame_unflatten',group:frame.token};
+   return {id:frame.token,name:frame.name,type:frame.type,group:frame.token};
+  }
+ }
  const radius=clamp(9/view().z,5,23);let best=null,minimum=radius;
  if(!state.visibility.wires)return null;
  for(const edge of state.graph.edges){const poly=d.edgePaths.get(edge.id);if(!poly)continue;for(let i=1;i<poly.length;i++){const dist=distSeg(p,poly[i-1],poly[i]);if(dist<minimum){minimum=dist;best=edge;}}}return best;}
@@ -337,9 +473,12 @@ function sourceSelectionNode(){
 function sourceEvidenceBanner(node){
  const banner=document.createElement('div');banner.className='source-role-evidence';
  const name=node?.name||'No AST signal selected';
- banner.textContent=node?.line
-  ?`Selected: ${name} · Declaration: AST line ${node.line} · Writes: not indexed · Reads: not indexed`
-  :`Selected: ${name} · Declaration / writes / reads: no verified locations for this selection`;
+ const call=node?.shape==='function'&&node?.function;
+ banner.textContent=call&&node?.line
+  ?`Selected function: ${name} · Slang call site: AST line ${node.line} · definition: ${String(call.definitionFile||'unknown file')}:${String(call.definitionLine||'?')}`
+  :node?.line
+   ?`Selected: ${name} · Declaration: AST line ${node.line} · Writes: not indexed · Reads: not indexed`
+   :`Selected: ${name} · Declaration / writes / reads: no verified locations for this selection`;
  return banner;
 }
 // Compiler-backed occurrence navigator. Never infer roles by searching source text.
@@ -458,67 +597,94 @@ function priorityOf(d){
  const raw=String(d.priority||d.pri||'').toUpperCase();
  return ['P0','P1','P2','P3'].includes(raw)?raw:'?';
 }
-function lintRow(d){
- const row=document.createElement('button');row.type='button';row.className='lint-overlay-row';
- const pri=priorityOf(d),name=String(d.code||d.optionName||'warning');
- const head=document.createElement('span');head.className='lint-overlay-code';
- const badge=document.createElement('b');badge.className='lint-priority '+pri.toLowerCase();badge.textContent=pri;
- head.append(badge,document.createTextNode(' '+name));
- const message=document.createElement('span');message.className='lint-overlay-message';message.textContent=String(d.message||d.text||'');
- const where=document.createElement('span');where.className='lint-overlay-location';
- where.textContent=[d.file||'',d.line||''].filter(Boolean).join(':');
- row.append(head,message,where);
- row.onclick=()=>{
-  inspector(true,'source');
-  const line=Number(d.line);
-  if(Number.isInteger(line)&&line>0){
-   // Source loading is asynchronous: focus only after the source tab fetch.
-   pendingLintLine=line;pendingLintFile=String(d.file||'');
-   loadTab();
-  }
- };
- return row;
-}
 let pendingLintLine=0;
 let pendingLintFile='';
 let pendingLintProbe=false;
 // Incremented whenever a panel request becomes obsolete.
 let inspectorRequest=0;
 let navigationRequest=0;
-function renderLintOverlay(){
- const box=$('lintOverlayResults');box.replaceChildren();
- const filter=$('lintOverlayPriority').value;
- const matches=state.lintItems.filter(d=>filter==='all'||priorityOf(d)===filter);
- $('lintOverlayCount').textContent=matches.length+' / '+state.lintItems.length;
- if(state.lintStatus!=='available'){box.textContent='Lint report unavailable for this source';return;}
- if(!matches.length){box.textContent='No matching diagnostics';return;}
- const fragment=document.createDocumentFragment();
- for(const d of matches)fragment.append(lintRow(d));
- box.append(fragment);
-}
-async function loadLintOverlay(){
- const request=++state.lintRequest,path=state.path;
- try{
-  const result=await api('lint',{path});
-  if(request!==state.lintRequest||path!==state.path)return;
-  state.lintStatus=result.status;
-  state.lintItems=Array.isArray(result.diagnostics)?result.diagnostics:[];
-  state.lintItems.sort((a,b)=>{
-   const rank=p=>['P0','P1','P2','P3'].indexOf(priorityOf(p));
-   return (rank(a)<0?4:rank(a))-(rank(b)<0?4:rank(b))||Number(a.line||0)-Number(b.line||0);
-  });
-  renderLintOverlay();
- }catch(error){if(request===state.lintRequest){state.lintStatus='unavailable';state.lintItems=[];renderLintOverlay();announce(error.message);}}
-}
-function setLintOverlay(enabled){
- state.visibility.lint=enabled;
- $('showLintOverlay').checked=enabled;
- $('lintOverlay').hidden=!enabled;
- if(enabled)loadLintOverlay();else ++state.lintRequest;
-}
 function nodeList(){const box=$('a11yNodes');box.replaceChildren();for(const n of state.graph.nodes){const button=document.createElement('button');button.textContent=n.name+' · '+n.type;button.onclick=()=>selection(n);box.append(button);}for(const e of state.graph.edges){const button=document.createElement('button');button.textContent='Wire · '+e.net.split('::sig:').pop()+(e.port?' → '+e.port:'');button.onclick=()=>selection(e,true);box.append(button);}}
 function expandedGroups(path=state.path){return state.expanded.get(path)||new Set();}
-async function fetchGraph(path){return api('diagram',{path,expand:[...expandedGroups(path)].join('|')});}
+// The default 320-node slice can cut a valid, atomic process-value cone
+// from a realistic TX/RX module. Request a bounded 800-node scope; the
+// backend still refuses partially emitted expression cones.
+function generateGroupSummaries(graph){
+ const buckets=new Map();
+ for(const node of graph.nodes){
+  if(node.type==='generate'&&node.group){
+   buckets.set(node.group,{name:'generate · '+node.name,count:node.count||1});
+  }else if(node.type==='instance'&&node.group){
+   const previous=buckets.get(node.group)||{name:'generate · '+node.group,count:0};
+   previous.count++;buckets.set(node.group,previous);
+  }
+ }
+ return [...buckets].sort(([a],[b])=>a.localeCompare(b)).map(([group,meta])=>({
+  token:'gen:'+group,name:meta.name,kind:'generate',count:meta.count,
+  view:state.generateFocus===group?'entered':expandedGroups().has(group)?'flattened':'collapsed'
+ }));
+}
+function focusGeneratedGraph(graph,group){
+ const memberIds=new Set(graph.nodes.filter(n=>n.type==='instance'&&n.group===group).map(n=>n.id));
+ if(!memberIds.size)throw Error('No elaborated generate members are visible in this graph slice');
+ const visible=new Set(memberIds);
+ for(const edge of graph.edges){
+  if(memberIds.has(edge.source))visible.add(edge.target);
+  if(memberIds.has(edge.target))visible.add(edge.source);
+ }
+ const nodes=graph.nodes.filter(n=>visible.has(n.id));
+ const edges=graph.edges.filter(e=>visible.has(e.source)&&visible.has(e.target));
+ return {...graph,nodes,edges,virtualFocus:'gen:'+group,
+  module:'generate · '+group,virtualParent:graph.path,total:nodes.length,truncated:false};
+}
+async function fetchGraph(path){
+ const groups=new Set(expandedGroups(path));
+ if(state.fsmFocus&&!state.processFocus&&!state.generateFocus)groups.add(state.fsmFocus);
+ if(state.generateFocus)groups.add(state.generateFocus);
+ const graph=await api('diagram',{path,expand:[...groups].join('|'),
+  fsm:state.processFocus||state.generateFocus?0:1,limit:800});
+ const generateGroups=generateGroupSummaries(graph);
+ if(state.valueFocus){
+  // Use the unprojected compiler graph so functions hidden behind virtual
+  // process/FSM boxes can still be examined with their real terminals.
+  const projection=window.FlexDriverTrace?.valuePath(graph,state.valueFocus);
+  if(!projection||projection.status==='not_visible'||projection.status==='unavailable')
+   throw Error('Selected signal has no AST-backed value path in this graph slice');
+  return {...projection.graph,traceInfo:{...projection.graph.traceInfo,status:projection.status}};
+ }
+ if(state.generateFocus){
+  const focused=focusGeneratedGraph(graph,state.generateFocus);
+  return {...focused,generateGroups,virtualFocus:'gen:'+state.generateFocus};
+ }
+ if(state.processFocus){
+  if(typeof FlexVirtualProcess==='undefined')throw Error('Process navigation asset is missing');
+  const focused=FlexVirtualProcess.focus(graph,state.processFocus);
+  return {...focused,generateGroups,virtualFocus:state.processFocus};
+ }
+ const focused=state.fsmFocus?focusFsmGraph(graph,state.fsmFocus):graph;
+ if(typeof FlexVirtualProcess==='undefined')return {...focused,generateGroups,virtualFocus:state.fsmFocus||null};
+ // Flattening one virtual layer must NOT flatten its descendants.
+ // An expanded FSM exposes the immediate process shells (always_ff / comb)
+ // as COMPACT children. Their own tokens are expanded only when explicitly
+ // requested, independently of the parent FSM token. The backend already
+ // restores the original FSM nodes before this process projection.
+ const grouped=FlexVirtualProcess.project(focused,groups,
+  {allowPartial:!!state.fsmFocus});
+ return {...grouped,generateGroups,virtualFocus:state.fsmFocus||null};
+}
+function focusFsmGraph(graph,token){
+ const entry=(graph.fsmGroups||[]).find(g=>g.token===token);
+ if(!entry||!Array.isArray(entry.memberIds)||!Array.isArray(entry.inputIds)||!Array.isArray(entry.outputIds)){
+  throw Error('FSM interior is unavailable in this graph slice');
+ }
+ const visible=new Set([...entry.memberIds,...entry.inputIds,...entry.outputIds]);
+ const nodes=graph.nodes.filter(n=>visible.has(n.id));
+ // Unmodified compiler-backed edges, including timing, preserve their IDs
+ // and original endpoints. No virtual port is claimed to be electrical RTL.
+ const edges=graph.edges.filter(e=>visible.has(e.source)&&visible.has(e.target));
+ return {...graph,nodes,edges,total:nodes.length,truncated:false,
+  module:'FSM · '+entry.state,virtualParent:graph.path,
+  fsmGroups:graph.fsmGroups.map(g=>({...g,view:g.token===token?'entered':g.view}))};
+}
 async function refreshGraph(preserve=true){
   const requestedPath=state.path, request=++navigationRequest;
   const graph=await fetchGraph(requestedPath);
@@ -526,27 +692,109 @@ async function refreshGraph(preserve=true){
   const previous=state.graph;
   state.graph=graph;
  $('viewName').textContent=state.graph.module;
- $('viewDesc').textContent='Hierarchy ' + state.path + ' · RTL connectivity';
+ $('viewDesc').textContent=state.valueFocus?'AST value path · original pins and edges · parent '+state.path:
+  state.generateFocus?'Virtual generate array · parent '+state.path:state.processFocus?'Virtual procedural process · parent '+state.path:state.fsmFocus?'Virtual FSM schematic · parent '+state.path:'Hierarchy ' + state.path + ' · RTL connectivity';
  syncCounts();breadcrumbs();tree();nodeList();
- if(!preserve||!previous||!state.viewport.has(state.path))fit();else draw();if($('search').value)searchGraph($('search').value);
+ if(!preserve||!previous||!state.viewport.has(cameraKey()))fit();else draw();if($('search').value)searchGraph($('search').value);
  if(state.inspector)loadTab();
   refreshNavigationStatus();
-  if(state.visibility.lint)await loadLintOverlay();
   return true;
 }
 async function navigate(path){
- try{if(path!==state.path){sourceProbe=null;++sourceProbeRequest;}state.path=path;++inspectorRequest;await refreshGraph(true);}
- catch(e){announce(e.message);}
+ const previousPath=state.path,previousFocus=state.fsmFocus,previousProcess=state.processFocus,previousParent=state.processParent,previousGenerate=state.generateFocus;
+ const previousValue=state.valueFocus,previousValueParent=state.valueParent;
+ try{if(path!==state.path){sourceProbe=null;++sourceProbeRequest;}
+  state.path=path;state.fsmFocus=null;state.processFocus=null;state.processParent=null;state.generateFocus=null;
+  state.valueFocus=null;state.valueParent=null;++inspectorRequest;
+  await refreshGraph(previousFocus===null);
+ }catch(e){state.path=previousPath;state.fsmFocus=previousFocus;state.processFocus=previousProcess;state.processParent=previousParent;state.generateFocus=previousGenerate;
+  state.valueFocus=previousValue;state.valueParent=previousValueParent;announce(e.message);}
 }
-async function toggleGroup(item){
- if(!item?.group)return;
- const group=item.group,groups=new Set(expandedGroups());
+async function toggleGroupToken(group){
+ if(!group)return false;
+ const groups=new Set(expandedGroups());
  const wasExpanded=groups.has(group);
  const before=new Set(groups);
  if(wasExpanded)groups.delete(group);else groups.add(group);
  state.expanded.set(state.path,groups);
- try{await refreshGraph(false);announce((wasExpanded?'Collapsed ':'Expanded ')+group);}
- catch(e){state.expanded.set(state.path,before);announce('Expand failed: '+e.message);}
+ try{const refreshed=await refreshGraph(false);
+  if(!refreshed){state.expanded.set(state.path,before);return false;}
+  announce((wasExpanded?'Collapsed ':'Expanded ')+group);return true;}
+ catch(e){state.expanded.set(state.path,before);announce('FSM view change failed: '+e.message);return false;}
+}
+async function toggleFsmToken(scope,token){
+ if(scope!==state.path||!state.graph?.fsmGroups?.some(g=>g.token===token))return false;
+ const previous=state.fsmFocus;
+ state.fsmFocus=previous===token?null:token;
+ try{
+  const ok=await refreshGraph(false);
+  if(!ok){state.fsmFocus=previous;return false;}
+  announce(state.fsmFocus?'Entered FSM · '+token.slice(4):'Returned to '+state.path);
+  return true;
+ }catch(e){state.fsmFocus=previous;announce('FSM navigation failed: '+e.message);return false;}
+}
+async function toggleProcessToken(scope,token){
+ if(scope!==state.path||!/^proc:\d+$/.test(token))return false;
+ const previous=state.processFocus,parent=state.processParent;
+ if(previous===token){state.processFocus=null;state.fsmFocus=parent;state.processParent=null;}
+ else{state.processParent=previous?parent:state.fsmFocus;state.processFocus=token;state.fsmFocus=null;}
+ try{if(!await refreshGraph(false))throw Error('navigation was superseded');
+  announce(state.processFocus?'Entered '+token:'Returned to parent schematic');return true;
+ }catch(e){state.processFocus=previous;state.processParent=parent;
+  state.fsmFocus=previous?null:parent;announce('Process navigation failed: '+e.message);return false;}
+}
+async function toggleGenerateToken(scope,group){
+ if(scope!==state.path||!group)return false;
+ const previous=state.generateFocus;
+ state.generateFocus=previous===group?null:group;
+ try{if(!await refreshGraph(false))throw Error('navigation was superseded');
+  announce(state.generateFocus?'Entered generate · '+group:'Returned to parent module');return true;
+ }catch(e){state.generateFocus=previous;announce('Generate navigation failed: '+e.message);return false;}
+}
+async function enterValuePath(item){
+ if(!item||!state.graph||state.valueFocus)return false;
+ const prior={fsmFocus:state.fsmFocus,processFocus:state.processFocus,
+  processParent:state.processParent,generateFocus:state.generateFocus};
+ state.valueParent=prior;state.valueFocus=item.id;
+ state.fsmFocus=null;state.processFocus=null;state.processParent=null;state.generateFocus=null;
+ try{
+  if(!await refreshGraph(false))throw Error('Value path navigation superseded');
+  announce('Showing AST value path · '+(item.name||item.id));return true;
+ }catch(error){
+  state.valueFocus=null;state.valueParent=null;
+  Object.assign(state,prior);
+  announce('Value path unavailable: '+error.message);return false;
+ }
+}
+async function leaveValuePath(){
+ if(!state.valueFocus)return false;
+ const previous=state.valueFocus,parent=state.valueParent;
+ state.valueFocus=null;state.valueParent=null;
+ if(parent)Object.assign(state,parent);
+ try{
+  if(!await refreshGraph(false))throw Error('Navigation superseded');
+  announce('Returned to parent schematic');return true;
+ }catch(error){
+  state.valueFocus=previous;state.valueParent=parent;
+  state.fsmFocus=null;state.processFocus=null;state.processParent=null;state.generateFocus=null;
+  announce('Return failed: '+error.message);return false;
+ }
+}
+async function virtualAction(scope,token,mode='enter'){
+ if(scope!==state.path)return false;
+ if(mode==='flatten')return toggleGroupToken(token.startsWith('gen:')?token.slice(4):token);
+ if(token.startsWith('gen:'))return toggleGenerateToken(scope,token.slice(4));
+ if(token.startsWith('proc:'))return toggleProcessToken(scope,token);
+ if(token.startsWith('fsm:'))return toggleFsmToken(scope,token);
+ return false;
+}
+async function toggleGroup(item){
+ if(item?.type==='fsm_group')return toggleFsmToken(state.path,item.group);
+ if(item?.type==='process_group')return toggleProcessToken(state.path,item.group);
+ if(item?.type==='generate')return toggleGenerateToken(state.path,item.group);
+ if(item?.fsmExpanded)return toggleFsmToken(state.path,item.group);
+ if(!item?.group)return false;
+ return toggleGroupToken(item.group);
 }
 
 function syncCounts(){const c=state.graph.connectivity||{};const unbound=c.unbound_pins||0,unknown=c.unresolved_pins||0,partial=c.partial_pins||0;$('counts').textContent=state.graph.nodes.length+' symbols · '+state.graph.edges.length+' wires'+(unbound?' · '+unbound+' unbound':'')+(unknown?' · '+unknown+' unresolved':'')+(partial?' · '+partial+' partial':'')+(state.graph.truncated?' · limited':'');}
@@ -563,9 +811,49 @@ function breadcrumbs(){
   if(scope.path===state.path){button.setAttribute('aria-current','page');button.classList.add('current');}
   button.onclick=()=>navigate(scope.path);box.append(button);
  });
+ // A virtual FSM is a separate schematic view, not a compiler module.
+ if(state.fsmFocus&&!state.processFocus){
+  const group=(state.graph.fsmGroups||[]).find(g=>g.token===state.fsmFocus);
+  if(group){
+   const sep=document.createElement('span');sep.className='crumb-sep';sep.textContent='›';sep.setAttribute('aria-hidden','true');box.append(sep);
+   const label=document.createElement('span');label.className='fsm-crumb-label';label.textContent='FSM · '+group.state;label.setAttribute('aria-current','page');box.append(label);
+   const back=document.createElement('button');back.type='button';back.className='fsm-crumb-back';
+   back.textContent='← '+(state.graph.ancestors||[]).at(-1)?.name;
+   back.title='Return to parent module schematic';
+   back.setAttribute('aria-label','Return to parent module from FSM '+group.state);
+   back.onclick=()=>toggleFsmToken(state.path,group.token);box.append(back);
+  }
+ }
+ if(state.generateFocus){
+  const sep=document.createElement('span');sep.className='crumb-sep';sep.textContent='›';box.append(sep);
+  const label=document.createElement('span');label.className='fsm-crumb-label';label.textContent='generate · '+state.generateFocus;box.append(label);
+  const back=document.createElement('button');back.type='button';back.className='fsm-crumb-back';
+  back.textContent='← Module';back.title='Return to parent module';
+  back.onclick=()=>toggleGenerateToken(state.path,state.generateFocus);box.append(back);
+ }
+ if(state.processFocus){
+  const group=(state.graph.processGroups||[]).find(g=>g.token===state.processFocus);
+  if(group){
+   const sep=document.createElement('span');sep.className='crumb-sep';sep.textContent='›';box.append(sep);
+   const label=document.createElement('span');label.className='fsm-crumb-label';label.textContent=group.name;
+   label.setAttribute('aria-current','page');box.append(label);
+   const back=document.createElement('button');back.type='button';back.className='fsm-crumb-back';
+   back.textContent='← '+(state.processParent?'FSM':'Module');
+   back.title='Return to the parent schematic';
+   back.onclick=()=>toggleProcessToken(state.path,state.processFocus);box.append(back);
+  }
+ }
+ if(state.valueFocus){
+  const sep=document.createElement('span');sep.className='crumb-sep';sep.textContent='›';box.append(sep);
+  const label=document.createElement('span');label.className='fsm-crumb-label';label.textContent='Value path';
+  label.setAttribute('aria-current','page');box.append(label);
+  const back=document.createElement('button');back.type='button';back.className='fsm-crumb-back';
+  back.textContent='← Diagram';back.title='Return to the full parent schematic';
+  back.onclick=()=>leaveValuePath();box.append(back);
+ }
  box.lastElementChild?.scrollIntoView({inline:'nearest',block:'nearest'});
 }
-const lazyTree=FlexHierarchyTree.create({host:$('hierarchy'),fetchPage:(path,offset,limit)=>api('hierarchy',{path,offset,limit}),navigate:path=>navigate(path),onError:e=>announce('Hierarchy: '+e.message),onFilterStatus:(filter,count)=>{
+const lazyTree=FlexHierarchyTree.create({host:$('hierarchy'),fetchPage:(path,offset,limit)=>api('hierarchy',{path,offset,limit}),navigate:path=>navigate(path),onVirtualGroup:virtualAction,onError:e=>announce('Hierarchy: '+e.message),onFilterStatus:(filter,count)=>{
  $('hierarchyFilterStatus').textContent=filter?count+' loaded match'+(count===1?'':'es')+' · not a full-design search':'Expandable elaborated instances';
 }});
 $('hierarchyFilter').addEventListener('input',event=>lazyTree.setFilter(event.target.value));
@@ -573,7 +861,12 @@ $('hierarchyFilter').addEventListener('keydown',event=>{
  if(event.key==='Escape'){event.target.value='';lazyTree.setFilter('');event.target.blur();}
  if(event.key==='ArrowDown'){event.preventDefault();$('hierarchy').querySelector('.fs-tree-label')?.focus();}
 });
-function tree(){lazyTree.activate(state.path);}
+function tree(){
+ lazyTree.activate(state.path);
+ const processes=(state.graph?.processGroups||[]).map(g=>({...g,
+  view:state.processFocus===g.token?'entered':expandedGroups().has(g.token)?'flattened':g.view}));
+ lazyTree.setVirtualGroups(state.path,[...(state.graph?.fsmGroups||[]),...processes,...(state.graph?.generateGroups||[])]);
+}
 function inspector(show=true,tab='source'){if(!show)++inspectorRequest;const changed=show!==state.inspector;state.inspector=show;$('inspector').hidden=!show;if(show)setTab(tab);syncInspectorButtons();requestAnimationFrame(()=>{resize();if(changed&&!state.manualView)fit();else draw();});}
 function setTab(tab){
  state.tab=tab;
@@ -587,16 +880,9 @@ function setTab(tab){
  if(state.inspector)loadTab();
 }
 function syncInspectorButtons(){
- for(const [id,tab] of [['toggleSource','source'],['toggleLint','lint'],['toggleCone','cone']]){
-  const active=state.inspector&&state.tab===tab;
-  $(id).classList.toggle('active',active);
-  $(id).setAttribute('aria-pressed',String(active));
- }
-}
-function togglePanel(tab){
- if(state.inspector&&state.tab===tab)inspector(false);
- else inspector(true,tab);
- syncInspectorButtons();
+ const opener=$('toggleInspector');
+ opener.classList.toggle('active',state.inspector);
+ opener.setAttribute('aria-expanded',String(state.inspector));
 }
 
 function inspectedItem(){
@@ -631,6 +917,39 @@ function inspectorCard(target,heading,body,detail=''){
 function renderConnections(){
  const target=$('connectionsResults'),item=inspectedItem();target.replaceChildren();
  if(!item||!state.graph){inspectorNote(target,'Select a signal, symbol or wire to inspect its AST relationships.');return;}
+ const result=window.FlexDriverTrace?.producer(state.graph,item);
+ if(!state.valueFocus && item.id && item.type!=='fsm_group' && item.type!=='process_group'){
+  const card=inspectorCard(target,'Value path','Isolate the compiler-backed producing circuit',
+   'Original inputs, operator pins and output; return with the breadcrumb');
+  const button=document.createElement('button');button.type='button';
+  button.textContent='↗ View value path';
+  button.title='Show the existing input → operator/function → output circuit';
+  button.onclick=()=>enterValuePath(item);card.append(button);
+ }
+ if(state.valueFocus && state.graph.traceInfo){
+  const info=state.graph.traceInfo;
+  inspectorCard(target,'Value path · '+info.status,
+   info.rootDrivers+' direct producer(s)',
+   info.limitedEdges?'Some connections exceed the display budget':'Only existing graph edges are shown');
+ }
+ if(result?.status==='unique'){
+  const source=result.source;
+  const card=inspectorCard(target,'Upstream producer',
+    source.name+' · '+(source.shape==='function'?'FUNCTION':source.kind||source.shape||source.type),
+    'Compiler-backed input → operation → destination; no new wires inferred');
+  const reveal=document.createElement('button');reveal.type='button';reveal.textContent='⌖ Locate producer';
+  reveal.title='Center the proven upstream driver in the ELK schematic';
+  reveal.onclick=()=>focusSymbol(source);card.append(reveal);
+  if(source.line){const jump=document.createElement('button');jump.type='button';
+   jump.textContent='SV · L'+source.line;
+   jump.onclick=()=>{selection(source);setTab('source');};card.append(jump);}
+  if(result.inputs.length){const detail=document.createElement('small');
+   detail.textContent='Inputs: '+result.inputs.map(i=>(i.pin?i.pin+'=':'')+i.source.name).join(', ');
+   card.append(detail);}
+ }else if(result?.status==='multiple_drivers'){
+  inspectorCard(target,'No unique driver',result.count+' visible producers',
+   'Multiple inputs cannot be collapsed into one electrical source');
+ }
  const wire=Boolean(item.source&&item.target),id=item.id;
  const relationships=state.graph.edges.filter(e=>wire?
   (e.id===id||Boolean(item.net&&e.net===item.net)):
@@ -689,7 +1008,7 @@ function refreshNavigationStatus(message=''){
  const latest=sourceProbe?.path===state.path?sourceProbe:null;
  if(message)box.textContent=message;
  else if(latest)box.textContent='Source L'+latest.line+' · '+latest.result.status+' · '+probeCandidates(latest.result).length+' visible candidate(s)';
- else if(item)box.textContent=(node?.line?'AST declaration L'+node.line:'No exact source line for selection')+' · '+(item.mapping||item.type||'AST')+' · '+state.path;
+ else if(item)box.textContent=(node?.line?('AST '+(node?.shape==='function'?'call':'declaration')+' L'+node.line):'No exact source line for selection')+' · '+(item.mapping||item.type||'AST')+' · '+state.path;
  else box.textContent='Select a schematic entity or click a SystemVerilog line';
  const reveal=$('rtlGoSchematic');if(reveal)reveal.disabled=!(latest&&probeCandidates(latest.result).length===1&&!probeCandidates(latest.result).some(c=>c.visible===false))&&!(node&&state.graph?.nodes.some(n=>n.id===node.id));
 }
@@ -712,7 +1031,14 @@ function showProbeChoices(){
 function revealCandidate(candidate){
  if(!state.graph||!candidate||!sourceProbe||sourceProbe.path!==state.path)return;
  const matched=state.graph.nodes.filter(n=>n.id===candidate.id);
- if(matched.length!==1){refreshNavigationStatus('AST entity is outside the current schematic slice');return;}
+ if(matched.length!==1){
+  const group=state.graph.nodes.find(n=>['fsm_group','process_group'].includes(n.type)&&n.hiddenNodeIds?.includes(candidate.id));
+  if(group){toggleGroup(group).then(()=>{
+   const resolved=state.graph.nodes.find(n=>n.id===candidate.id);
+   if(resolved)focusSymbol(resolved);
+  });return;}
+  refreshNavigationStatus('AST entity is outside the current schematic slice');return;
+ }
  focusSymbol(matched[0]);refreshNavigationStatus('Revealed '+candidate.name+' · '+(candidate.roles||[]).join('/')+' · source L'+sourceProbe.line);
 }
 async function probeSourceLine(line){
@@ -819,9 +1145,29 @@ async function loadTab(){
     :selectionProvenance?'Showing the module source, not an exact wire occurrence. This connection has no unique verified line or represents an AST dependency rather than an electrical net. Check References or Connections for available evidence.':'';
    showProbeChoices();const code=$('sourceCode');delete code._astNavigate;code.replaceChildren();$('lineNumbers').textContent='';const selectedNode=sourceSelectionNode();code.append(sourceEvidenceBanner(selectedNode));addOccurrenceControls(code,result,result.file);
    if(result.code){
-    const fragment=document.createDocumentFragment();
-    result.code.split('\n').forEach((line,i)=>{const span=document.createElement('span');span.className='code-line';span.dataset.line=String(i+1);span.textContent=line||' ';fragment.append(span);});
+    const fragment=document.createDocumentFragment();let syntaxState={comment:false};
+    result.code.split('\n').forEach((line,i)=>{
+     const highlighted=window.FlexSvHighlight?.renderLine(line,document,syntaxState);
+     const span=highlighted?.span||document.createElement('span');
+     if(!highlighted){span.className='code-line';span.textContent=line||' ';}
+     else syntaxState=highlighted.state;
+     span.dataset.line=String(i+1);fragment.append(span);
+    });
     code.append(fragment);$('lineNumbers').textContent=result.code.split('\n').map((_,i)=>i+1).join('\n');
+    // Lint is file-level evidence, not an inferred error on this RTL instance.
+    // Annotate exact verified source lines only; stale requests must not mark a new scope.
+    api('lint',{path}).then(lint=>{
+     if(!current()||!window.FlexWorkbenchSemantics||!code.isConnected)return;
+     const marks=window.FlexWorkbenchSemantics.lintMarks(lint,result.file,result.code.split('\n').length);
+     for(const [line,entries] of marks){
+      const row=code.querySelector('[data-line="'+line+'"]');if(!row)continue;
+      const p=entries[0].priority.toLowerCase();row.classList.add('rtl-lint-line','rtl-lint-'+p);
+      row.dataset.lintCount=String(entries.length);
+      row.title=entries.map(e=>e.priority+' '+e.code+': '+e.message).join('\n');
+      row.setAttribute('aria-label','Line '+line+' · '+entries.length+' file-level lint diagnostic(s)');
+     }
+    }).catch(()=>{});
+
    }else {const note=document.createElement('div');note.textContent=result.reason||'No source location';code.append(note);}
    $('inspectorFoot').textContent=result.status==='available'?'Click a source line to focus an AST symbol':'Source reference unavailable';
    window.FlexNativeEditor?.sync(path,result,selectedNode?.line||1);
@@ -844,7 +1190,7 @@ async function loadTab(){
    box.replaceChildren();
    const heading=document.createElement('div');heading.className='source-head';
    const moduleName=state.graph?.module||'module unavailable';
-   heading.textContent='RTL scope: '+path+' · module: '+moduleName;
+   heading.textContent='Module diagnostics · '+moduleName;
    box.append(heading);
    const provenance=document.createElement('p');provenance.className='source-role-evidence';
    const file=result.file?String(result.file):'source file not resolved';
@@ -859,20 +1205,33 @@ async function loadTab(){
     const warning=document.createElement('p');warning.textContent='Lint unavailable for this scope: '+String(result.reason||result.status||'no report');box.append(warning);return;
    }
    const diagnostics=Array.isArray(result.diagnostics)?result.diagnostics:[];
-   if(!diagnostics.length){const empty=document.createElement('p');empty.textContent='No diagnostics reported for this module source file. This does not mean that a dedicated per-instance lint run was performed.';box.append(empty);return;}
+   const summaryGrid=document.createElement('div');summaryGrid.className='rtl-lint-summary';
+   const levels=['P0','P1','P2','P3'];
+   const priority=(d)=>priorityOf(d);
+   const addStat=(label,value)=>{const cell=document.createElement('div');cell.className='rtl-lint-stat';
+    const number=document.createElement('strong');number.textContent=String(value);
+    const title=document.createElement('span');title.textContent=label;cell.append(number,title);summaryGrid.append(cell);};
+   addStat('File findings',diagnostics.length);
+   for(const level of levels)addStat(level,diagnostics.filter(d=>priority(d)===level).length);
+   box.append(summaryGrid);
+   if(!diagnostics.length){const empty=document.createElement('p');empty.className='rtl-inspector-empty';empty.textContent='No diagnostics reported for this module source file. This is not a dedicated per-instance lint result.';box.append(empty);return;}
    const types=[...new Set(diagnostics.map(w=>String(w.severity||'unknown').toLowerCase()))].sort();
    const tools=document.createElement('div');tools.className='lint-filter-bar';
    const label=document.createElement('label');label.textContent='Severity: ';
    const selector=document.createElement('select');selector.setAttribute('aria-label','Filter lint severity');
+   const search=document.createElement('input');search.type='search';search.className='rtl-lint-search';
+   search.placeholder='Filter code or message';search.setAttribute('aria-label','Search lint diagnostics');
    const all=document.createElement('option');all.value='all';all.textContent='All ('+diagnostics.length+')';selector.append(all);
    for(const severity of types){const option=document.createElement('option');option.value=severity;option.textContent=severity+' ('+diagnostics.filter(d=>String(d.severity||'unknown').toLowerCase()===severity).length+')';selector.append(option);}
-   label.append(selector);tools.append(label);box.append(tools);
+   label.append(selector);tools.append(label,search);box.append(tools);
    const list=document.createElement('div');box.append(list);
    const render=()=>{
     list.replaceChildren();
     for(const warning of diagnostics){
      const severity=String(warning.severity||'unknown').toLowerCase();
      if(selector.value!=='all'&&selector.value!==severity)continue;
+     const searchText=(String(warning.code||'')+' '+String(warning.message||warning.text||'')).toLowerCase();
+     if(!searchText.includes(search.value.trim().toLowerCase()))continue;
      const article=document.createElement('article');article.className='lint-entry';
      const code=document.createElement('code');code.textContent=severity+' · '+String(warning.code||'diagnostic');
      const message=document.createElement('span');message.textContent=' '+String(warning.message||warning.text||'No diagnostic message');
@@ -891,7 +1250,7 @@ async function loadTab(){
      list.append(article);
     }
    };
-   selector.addEventListener('change',render);render();
+   selector.addEventListener('change',render);search.addEventListener('input',render);render();
   }else if(tab==='cone'){
    if(!current()||!state.graph)return;
    const list=state.graph.nodes.filter(n=>['port','register','counter','fsm','signal','operator'].includes(n.type));
@@ -899,27 +1258,82 @@ async function loadTab(){
   }
  }catch(e){if(current())announce(e.message);}
 }
+// Right-clicking anywhere *inside* a flattened virtual group targets the
+// group itself, not the module-level context menu. Prefer the smallest frame
+// when groups are nested; the ordinary left-click hit testing is unchanged.
+function flattenedFrameAt(p){
+ if(!state.graph)return null;
+ const d=layout(state.graph),v=view();
+ const frames=flattenedFrames(state.graph,d.positions,d.groupRects);
+ const x=p.x*v.z+v.x,y=p.y*v.z+v.y;
+ const labels=frameLabelRects(frames,v,canvas.clientWidth,canvas.clientHeight);
+ const within=(f)=>({id:f.token+'::unflatten',name:f.name,
+  type:'frame_unflatten',group:f.token});
+ for(const f of [...labels].sort((a,b)=>a.w*a.h-b.w*b.h)){
+  if(x>=f.labelX&&x<=f.labelX+f.labelW&&
+     y>=f.labelY&&y<=f.labelY+f.labelH)return within(f);
+ }
+ for(const f of [...frames].sort((a,b)=>a.w*a.h-b.w*b.h)){
+  if(p.x>=f.x&&p.x<=f.x+f.w&&p.y>=f.y&&p.y<=f.y+f.h)
+   return within(f);
+ }
+ return null;
+}
+function closeContext(){
+ $('context').hidden=true;
+ state.context=null;
+}
 function context(ev,item){
  ev.preventDefault();
+ const frameOnly=item?.type==='frame_unflatten';
+ closeContext();
  state.context=item;
- if(item)selection(item);
+ // The transparent frame is a layout/navigation artifact, not a symbol to
+ // inspect or track as if it were a physical net.
+ if(item&&!frameOnly)selection(item);
  const box=$('context'),r=$('schematic').getBoundingClientRect();
+ $('contextTitle').hidden=frameOnly;
  $('contextTitle').textContent=item ? (item.source ? 'WIRE · '+item.net.split('::sig:').pop() + (item.mapping==='partial'?' · partial slice':'') : item.type.toUpperCase()+' · '+item.name) : 'MODULE · '+state.graph.module;
- $('contextEnter').hidden=!item?.child;
- $('contextPin').hidden=!(item?.net||isSignal(item));
- $('contextGenerate').hidden=!item?.group;
- if(item?.group)$('contextGenerate').firstChild.textContent=item.type==='generate'?'Expand instances ':'Collapse instances ';
+ $('contextSource').hidden=frameOnly;
+ $('contextLint').hidden=frameOnly;
+ $('contextEnter').hidden=frameOnly||!item?.child||item.type==='generate';
+ $('contextPin').hidden=frameOnly||!(item?.net||isSignal(item));
+ $('contextGenerate').hidden=frameOnly||!item?.group;
+ $('contextFlatten').hidden=!(item?.group||item?.child);
+ if(item?.group&&!frameOnly)$('contextGenerate').firstChild.textContent=
+  item.type==='fsm_group'?'Enter FSM ':item.type==='process_group'?'Enter process ':item.type==='generate'?'Enter generate group ':
+  item.fsmExpanded?'Return to parent ':item.type==='generate'?'Expand instances ':'Collapse instances ';
+ if(item?.group)$('contextFlatten').firstChild.textContent=
+  frameOnly||expandedGroups().has(item.group)?'Unflatten here ':'Flatten here ';
+ if(item?.child&&!item.group){$('contextFlatten').disabled=true;
+  $('contextFlatten').title='Direct child-scope flattening requires proven port remapping (not available in this increment)';}
+ else {$('contextFlatten').disabled=false;$('contextFlatten').removeAttribute('title');}
  box.hidden=false;
  box.style.left=clamp(ev.clientX-r.left,5,Math.max(5,r.width-245))+'px';
  box.style.top=clamp(ev.clientY-r.top,5,Math.max(5,r.height-245))+'px';
 }
 
-canvas.addEventListener('contextmenu',ev=>context(ev,hit(pointer(ev))));
-canvas.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;const item=hit(pointer(ev));state.drag={x:ev.clientX,y:ev.clientY,origin:{...view()},item,moved:false};canvas.setPointerCapture(ev.pointerId);});
-canvas.addEventListener('pointermove',ev=>{const d=state.drag;if(d){const dx=ev.clientX-d.x,dy=ev.clientY-d.y;if(Math.abs(dx)+Math.abs(dy)>5)d.moved=true;if(d.moved){state.manualView=true;cancelAnimationFrame(cameraAnimation);setView({...d.origin,x:d.origin.x+dx,y:d.origin.y+dy});draw();}return;}const item=hit(pointer(ev));if(item?.id!==state.hover?.id){state.hover=item;canvas.style.cursor=item?'pointer':'grab';canvas.title=item?.source?`Wire ${String(item.net||item.id).split('::sig:').pop()} ${item.port||''} · ${item.mapping==='partial'?'partial bus dependency': 'direct mapping'}`:(item?.name||'')+(item?.width?' · '+item.width:'')+(item?.dimensions?.unpackedDimensions?' · unpacked '+JSON.stringify(item.dimensions.unpackedDimensions):'');draw();}});
+// A flattened parent contains other virtual blocks.  Only its BACKGROUND
+// and header have the Unflatten-only menu: a compact child is independently
+// actionable and must keep Flatten here / Enter in its own context menu.
+// Node hit testing already checks the actual ELK symbol rectangle before
+// considering frames; do not let an ancestor's overlay shadow that node.
+function contextTargetAt(p){
+ const item=hit(p);
+ if(item?.group&&['process_group','fsm_group','generate'].includes(item.type))
+  return item;
+ return flattenedFrameAt(p)||item;
+}
+canvas.addEventListener('contextmenu',ev=>{
+ const p=pointer(ev);context(ev,contextTargetAt(p));
+});
+canvas.addEventListener('pointerdown',ev=>{hideSemanticTip();if(ev.button!==0)return;const item=hit(pointer(ev));state.drag={x:ev.clientX,y:ev.clientY,origin:{...view()},item,moved:false};canvas.setPointerCapture(ev.pointerId);});
+canvas.addEventListener('pointermove',ev=>{const d=state.drag;if(d){hideSemanticTip();const dx=ev.clientX-d.x,dy=ev.clientY-d.y;if(Math.abs(dx)+Math.abs(dy)>5)d.moved=true;if(d.moved){state.manualView=true;cancelAnimationFrame(cameraAnimation);setView({...d.origin,x:d.origin.x+dx,y:d.origin.y+dy});draw();}return;}const item=hit(pointer(ev));if(item?.id!==state.hover?.id){state.hover=item;canvas.style.cursor=item?'pointer':'grab';canvas.removeAttribute('title');draw();}if(item)showSemanticTip(item,ev);else hideSemanticTip();});
+canvas.addEventListener('pointerleave',hideSemanticTip);
+canvas.addEventListener('wheel',hideSemanticTip,{passive:true});
 let lastScopeClick=null;
-canvas.addEventListener('pointerup',ev=>{const d=state.drag;state.drag=null;if(!d||d.moved)return;if(d.item?.child && ev.button===0 && lastScopeClick && lastScopeClick.id===d.item.id && performance.now()-lastScopeClick.at<450){lastScopeClick=null;enter(d.item.child);return;}lastScopeClick=d.item?.child?{id:d.item.id,at:performance.now()}:null;if(d.item)selection(d.item,false,ev.ctrlKey||ev.metaKey);else if(!(ev.ctrlKey||ev.metaKey)){state.selected=null;state.multiSelected.clear();state.inspectEntityId=null;if(state.inspector&&state.tab==='details')loadTab();draw();}});
-canvas.addEventListener('dblclick',ev=>{const item=hit(pointer(ev));if(item?.child)enter(item.child);});
+canvas.addEventListener('pointerup',ev=>{const d=state.drag;state.drag=null;if(!d||d.moved)return;if(d.item?.type==='frame_unflatten'){virtualAction(state.path,d.item.group,'flatten');return;}if(d.item?.child && ev.button===0 && lastScopeClick && lastScopeClick.id===d.item.id && performance.now()-lastScopeClick.at<450){lastScopeClick=null;enter(d.item.child);return;}lastScopeClick=d.item?.child?{id:d.item.id,at:performance.now()}:null;if(d.item)selection(d.item,false,ev.ctrlKey||ev.metaKey);else if(!(ev.ctrlKey||ev.metaKey)){state.selected=null;state.multiSelected.clear();state.inspectEntityId=null;if(state.inspector&&state.tab==='details')loadTab();draw();}});
+canvas.addEventListener('dblclick',ev=>{const item=hit(pointer(ev));if(item?.type==='fsm_group'||item?.type==='process_group'||item?.type==='generate'||item?.fsmExpanded)toggleGroup(item);else if(item?.child)enter(item.child);});
 // Normalize line / page wheel units and use continuous, pointer-anchored zoom.
 // Never restart the 230 ms camera animation for each wheel event.
 canvas.addEventListener('wheel',ev=>{
@@ -934,9 +1348,6 @@ canvas.addEventListener('wheel',ev=>{
  const rect=canvas.getBoundingClientRect();
  zoom(Math.exp(-clamp(dy,-600,600)*0.0015),ev.clientX-rect.left,ev.clientY-rect.top,{immediate:true});
 },{passive:false});
-$('showLintOverlay').addEventListener('change',ev=>setLintOverlay(ev.target.checked));
-$('closeLintOverlay').onclick=()=>setLintOverlay(false);
-$('lintOverlayPriority').addEventListener('change',renderLintOverlay);
 for(const [control,layer] of [['showWires','wires'],['showNames','names']]){
  $(control).addEventListener('change',ev=>{
   state.visibility[layer]=ev.target.checked;
@@ -952,12 +1363,25 @@ canvas.addEventListener('keydown',ev=>{if(ev.key==='Escape'){state.selected=stat
  }
  if(ev.key==='+'||ev.key==='=')zoom(1.1);if(ev.key==='-')zoom(.9);});
 $('contextGenerate').onclick=async()=>{$('context').hidden=true;await toggleGroup(state.context);};
+$('contextFlatten').onclick=async()=>{$('context').hidden=true;if(state.context?.group)await virtualAction(state.path,state.context.group,'flatten');};
 $('contextSource').onclick=async()=>{$('context').hidden=true;if(state.context?.child)await enter(state.context.child);inspector(true,'source');};
 $('contextLint').onclick=async()=>{$('context').hidden=true;if(state.context?.child)await enter(state.context.child);inspector(true,'lint');};
 $('contextEnter').onclick=()=>{$('context').hidden=true;if(state.context?.child)enter(state.context.child);};
 $('contextPin').onclick=()=>{$('context').hidden=true;selection(state.context,true);};
-document.addEventListener('click',ev=>{if(!ev.target.closest('#context')&&!ev.target.closest('#diagram'))$('context').hidden=true;if(!ev.target.closest('.search-box')&&!ev.target.closest('#searchResults'))$('searchResults').hidden=true;});
-$('toggleSource').onclick=()=>togglePanel('source');$('toggleLint').onclick=()=>togglePanel('lint');$('toggleCone').onclick=()=>togglePanel('cone');$('closeInspector').onclick=()=>inspector(false);
+// A menu is modal only to itself: click/tap anywhere else (including the
+// Canvas, toolbar or inspector), or press Escape, to dismiss it.
+document.addEventListener('pointerdown',ev=>{
+ if(!ev.target.closest('#context'))closeContext();
+});
+document.addEventListener('keydown',ev=>{
+ if(ev.key==='Escape'&&!$('context').hidden){
+  ev.preventDefault();closeContext();
+ }
+});
+document.addEventListener('click',ev=>{
+ if(!ev.target.closest('.search-box')&&!ev.target.closest('#searchResults'))$('searchResults').hidden=true;
+});
+$('toggleInspector').onclick=()=>inspector(!state.inspector,state.tab);$('closeInspector').onclick=()=>inspector(false);
 
 $('zoomOut').onclick=()=>zoom(.82);$('zoomIn').onclick=()=>zoom(1.2);$('fit').onclick=fit;
 for(const t of ['details','connections','references','mapping','source','lint','cone']){
@@ -982,15 +1406,24 @@ $('sourceCode').onclick=ev=>{
  const row=ev.target.closest('[data-line]');if(!row||!state.graph)return;
  probeSourceLine(Number(row.dataset.line));
 };
-$('rtlGoSource').onclick=()=>{if(!state.inspector)inspector(true,'source');else setTab('source');};
-$('rtlGoReferences').onclick=()=>{if(!state.inspector)inspector(true,'references');else setTab('references');};
-$('rtlGoLint').onclick=()=>{if(!state.inspector)inspector(true,'lint');else setTab('lint');};
 $('rtlFreezeSchematic').onclick=()=>{
  state.freezeSchematic=!state.freezeSchematic;
  const button=$('rtlFreezeSchematic');button.setAttribute('aria-pressed',String(state.freezeSchematic));
  button.textContent=state.freezeSchematic?'🔒 Locked':'🔓 Follow';
  button.title=state.freezeSchematic?'Source navigation will not move the schematic. Reveal schematic remains available.':'Automatically reveal unique AST matches from source navigation.';
  refreshNavigationStatus(state.freezeSchematic?'Schematic locked · use Reveal to navigate':'Schematic follows unique source matches');
+};
+$('rtlTraceDriver').onclick=()=>{
+ const result=window.FlexDriverTrace?.producer(state.graph,inspectedItem());
+ if(result?.status==='unique'){
+  focusSymbol(result.source);
+  announce('Proven producer → '+result.source.name+' ('+(result.source.shape||result.source.kind||result.source.type)+')');
+  return;
+ }
+ const descriptions={multiple_drivers:'More than one visible driver; no unique source',
+  no_visible_driver:'No driver visible in this graph view',not_visible:'Selected signal not visible',
+  unavailable:'No graph available'};
+ announce(descriptions[result?.status]||'Select a signal with a verified producer');
 };
 $('rtlGoSchematic').onclick=()=>{
  const latest=sourceProbe?.path===state.path?probeCandidates(sourceProbe.result):[];
@@ -1062,8 +1495,7 @@ $('inspectorResizer').addEventListener('keydown',ev=>{
  $('inspector').style.width=clamp(width+(ev.key==='ArrowLeft'?24:-24),300,900)+'px';saveInspectorWidth();
 });
 try{const saved=Number(localStorage.getItem('flexsoc-rtl-inspector-width'));if(saved>=300&&saved<=900)$('inspector').style.width=saved+'px';}catch(_e){}
-$('themeToggle').onclick=()=>applyTheme(document.documentElement.dataset.theme==='light'?'dark':'light');
-try{applyTheme(localStorage.getItem('flexsoc-rtl-theme')||'dark');}catch(_e){applyTheme('dark');}
+installThemePicker();
 $('help').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=()=>$('helpDialog').close();
 api('overview').then(async data=>{state.overview=data;lazyTree.activate('/');$('topLabel').textContent=data.top;$('stats').textContent=data.instances+' elaborated scopes · '+data.modules+' modules';$('status').textContent=data.source==='Slang verified'?'● SLANG VERIFIED':'◌ IMPORTED AST';await navigate('/');}).catch(e=>{$('status').textContent='ERROR';announce(e.message);});
 

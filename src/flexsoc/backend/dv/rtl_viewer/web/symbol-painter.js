@@ -29,6 +29,19 @@ function smallOperand(value){
  if(text.length>9||/[\s.\[\]]/.test(text))return '';
  return text;
 }
+function summarizeCaseLabels(values){
+ const list=Array.isArray(values)?values.filter(v=>typeof v==='string').map(v=>rtlLabel(v).trim()).filter(Boolean):[];
+ if(!list.length)return '';
+ const clipped=list.map(v=>v.length>16?v.slice(0,15)+'…':v);
+ const head=clipped.slice(0,2).join(' | ');
+ return clipped.length>2?head+' …':head;
+}
+function summarizeControlText(node){
+ const source=rtlLabel(String(node.controlSource||'')).trim();
+ const patterns=summarizeCaseLabels(node.controlPatterns||node.casePatterns||node.literalOperands?.patterns);
+ if(source&&patterns)return (source+' · '+patterns).slice(0,28);
+ return (patterns||source).slice(0,28);
+}
 function paintOperatorFace(ctx,n,{x,y,w,h},colors){
  const face=FlexSymbolGeometry.operatorFace(n),mid=y+h/2;
  const left=x+12,right=x+w-12,top=y+8,bottom=y+h-8;
@@ -57,7 +70,7 @@ function paintOperatorFace(ctx,n,{x,y,w,h},colors){
   round(ctx,left,top,right-left,bottom-top,5);ctx.fill();ctx.stroke();
   ctx.save();ctx.textAlign='center';ctx.fillStyle=colors.text;
   ctx.font='bold 10px ui-monospace,monospace';
-  ctx.fillText(String(n.selection||'?'),x+w/2,mid+3.5,w-26);
+  ctx.fillText(String(n.selection|| (n.selectionKind==='ElementSelect'?'[index]':'?')),x+w/2,mid+3.5,w-26);
   ctx.restore();
  }else if(n.shape==='function'){
   // A function call is a compiler-backed, opaque value transform, not a
@@ -140,7 +153,7 @@ function paintOperatorFace(ctx,n,{x,y,w,h},colors){
  }
 }
 function paintGlyph(ctx,n,p,{colors,picked=false,zoom=1,names=true,edges=[]}={}){
-  const {x,y,w,h}=p,c=colors[n.type]||colors.signal;
+  const {x,y,w,h}=p,c=(n.type==='fsm_group'?colors.fsm:n.type==='process_group'?colors.operator:colors[n.type])||colors.signal;
  ctx.lineWidth=picked?2.9:1.6;ctx.strokeStyle=picked?colors.selected:c;ctx.fillStyle=picked?colors.pickedFill:colors.symbolFill;
  if(n.type==='signal'){
   ctx.lineWidth=picked?3.5:2;ctx.beginPath();ctx.moveTo(x,y+h/2);ctx.lineTo(x+w,y+h/2);ctx.stroke();ctx.fillStyle=c;ctx.beginPath();ctx.arc(x+w/2,y+h/2,5,0,Math.PI*2);ctx.fill();
@@ -172,20 +185,25 @@ function paintGlyph(ctx,n,p,{colors,picked=false,zoom=1,names=true,edges=[]}={})
    }
    const out=FlexSymbolGeometry.absoluteAnchor(n,r,'source',{sourcePin:'Y'});
    ctx.beginPath();ctx.moveTo(x+w-15,out.y);ctx.lineTo(out.x,out.y);ctx.stroke();
-   // Only AST-proven scalar constants are shown as values; otherwise A·0
-   // and B·1 identify the MUX alternatives, never electrical constants.
+   // Only AST-proven scalar constants are shown as values. Label the two
+   // alternatives at the input side, not on top of the MUX body, so the
+   // user can read the selected values as incoming wires.
    ctx.font='10px ui-monospace,monospace';ctx.fillStyle=colors.muted;
    ctx.textAlign='center';ctx.fillText('MUX',x+w*.57,y+h/2+3,45);
    for(const [role,bit] of [['A','0'],['B','1']]){
     const pin=FlexSymbolGeometry.absoluteAnchor(n,r,'target',{targetPin:role});
     const literal=smallOperand(n.literalOperands?.[role]||'');
-    ctx.save();ctx.textAlign='left';ctx.font='bold 10px ui-monospace,monospace';
+    ctx.save();ctx.textAlign='right';ctx.font='bold 10px ui-monospace,monospace';
     ctx.fillStyle=literal?colors.text:colors.muted;
-    ctx.fillText(literal||role+'·'+bit,x+16,pin.y+4,46);ctx.restore();
+    ctx.fillText(literal||role+'·'+bit,pin.x-8,pin.y+4,72);ctx.restore();
    }
    const selector=FlexSymbolGeometry.absoluteAnchor(n,r,'target',{targetPin:'S'});
+   const badge=String(n.controlBadge||('case'===n.controlKind?'CASE':'')||'S');
+   const summary=summarizeControlText(n);
    ctx.textAlign='center';ctx.fillStyle=colors.muted;
-   ctx.fillText('S',selector.x,selector.y-13);ctx.textAlign='left';
+   if(summary){ctx.font='8px ui-monospace,monospace';ctx.fillText(summary,selector.x,selector.y-24,86);}
+   ctx.font='10px ui-monospace,monospace';
+   ctx.fillText(badge,selector.x,selector.y-13,68);ctx.textAlign='left';
   }else if(['case','encoder','decoder'].includes(n.shape)){
    // Case-dispatch symbol; ENC/DEC shapes require explicit semantic metadata,
    // never merely a textual match against the module or signal name.
@@ -193,6 +211,15 @@ function paintGlyph(ctx,n,p,{colors,picked=false,zoom=1,names=true,edges=[]}={})
    ctx.strokeStyle=colors.muted;ctx.beginPath();
    for(let i=0;i<3;i++){ctx.moveTo(x,y+21+i*15);ctx.lineTo(x+8,y+21+i*15);}
    ctx.moveTo(x+w-7,y+h/2);ctx.lineTo(x+w,y+h/2);ctx.stroke();
+   ctx.save();ctx.textAlign='center';ctx.fillStyle=colors.text;
+   ctx.font='bold 10px ui-monospace,monospace';
+   ctx.fillText((n.controlBadge==='FSM'?'FSM CASE':'CASE'),x+w/2,y+h/2-6,w-28);
+   const selector=rtlLabel(String(n.controlSource||'')).trim();
+   const patterns=summarizeCaseLabels(n.casePatterns||n.literalOperands?.patterns);
+   ctx.font='8px ui-monospace,monospace';ctx.fillStyle=colors.muted;
+   if(selector)ctx.fillText(selector,x+w/2,y+h/2+6,w-24);
+   if(patterns)ctx.fillText(patterns,x+w/2,y+h/2+18,w-20);
+   ctx.restore();
   }else{paintOperatorFace(ctx,n,{x,y,w,h},colors);}
   // Unknown operand input: show an explicit '?' at the correct terminal.
   // No invented electrical segment is drawn to cover the missing topology.
@@ -241,7 +268,7 @@ function paintGlyph(ctx,n,p,{colors,picked=false,zoom=1,names=true,edges=[]}={})
    const pin=anchor(role);ctx.textAlign='center';ctx.fillText(role==='EVENT'?'EVT':role,x+pin.x,y+h-39);ctx.textAlign='left';
   }
 if(n.type==='counter'){ctx.fillText('↻',x+w-29,y+h-11);}if(n.type==='fsm')ctx.fillText('ST',x+w-28,y+h-11);}
- else if(n.type==='instance'||n.type==='generate'){
+ else if(n.type==='instance'||n.type==='generate'||n.type==='fsm_group'||n.type==='process_group'){
   // The outer ports belong to the ELK box, while the visual chassis is inset
   // by eight pixels on both sides. Every visible stub reaches its real anchor.
   if(n.type==='generate')for(let i=2;i>=1;i--){
@@ -263,6 +290,17 @@ if(n.type==='counter'){ctx.fillText('↻',x+w-29,y+h-11);}if(n.type==='fsm')ctx.
     ctx.strokeStyle=untrusted?colors.generate:port.connection==='partial'?colors.sequential:c;
     ctx.lineWidth=1.7;ctx.beginPath();
     ctx.moveTo(px,py);ctx.lineTo(px+(left?8:-8),py);ctx.stroke();
+    if((n.type==='fsm_group'||n.type==='process_group')&&left&&port.timingRole==='clock'){
+     // The clock glyph is allowed only for a compiler-backed event edge to
+     // the FSM state register. It is not inferred from a signal name.
+     ctx.beginPath();ctx.moveTo(px+9,py-5);ctx.lineTo(px+15,py);
+     ctx.lineTo(px+9,py+5);ctx.stroke();
+    }
+    if((n.type==='fsm_group'||n.type==='process_group')&&left&&port.timingRole==='async_reset'){
+     // The exact event role comes from Slang; synchronous reset is a plain
+     // signal input and must not acquire an asynchronous timing glyph.
+     ctx.beginPath();ctx.arc(px+12,py,3,0,Math.PI*2);ctx.stroke();
+    }
     if(port.connection==='unbound'||port.connection==='unresolved'){
      ctx.beginPath();ctx.arc(px,py,3,0,Math.PI*2);ctx.stroke();
     }
@@ -274,8 +312,11 @@ if(n.type==='counter'){ctx.fillText('↻',x+w-29,y+h-11);}if(n.type==='fsm')ctx.
      ctx.save();ctx.fillStyle=port.connection==='constant'?colors.binding:colors.generate;
      ctx.font='bold 10px ui-monospace,monospace';
      ctx.textAlign=left?'right':'left';
+     // This is an actual-connection label: vertically centre it on the
+     // SAME ELK port row as the wire, not above the pin like a caption.
+     ctx.textBaseline='middle';
      ctx.fillText(port.connection==='constant'?(literal||'CONST'):'?',
-      px+(left?-8:8),py-7,72);ctx.restore();
+      px+(left?-8:8),py,72);ctx.restore();
     }
     if(String(port.direction).toLowerCase()==='inout'){
      ctx.fillStyle=c;ctx.beginPath();ctx.arc(px+(left?8:-8),py,2,0,Math.PI*2);ctx.fill();
@@ -292,7 +333,7 @@ if(n.type==='counter'){ctx.fillText('↻',x+w-29,y+h-11);}if(n.type==='fsm')ctx.
    ctx.fillStyle=colors.text;ctx.font='600 12px system-ui,sans-serif';
    ctx.fillText(String(n.name||''),x+18,y+23,Math.max(20,w-38));
    ctx.fillStyle=colors.muted;ctx.font='10px ui-monospace,monospace';
-   const detail=n.type==='generate'?String(n.count||0)+' generated instances':String(n.module||'');
+   const detail=n.type==='process_group'?`${n.processSummary?.members||0} circuit nodes · enter / flatten`+(n.processSummary?.coverage!=='connected'?` · ${n.processSummary?.coverage||'partial'}`:''):n.type==='fsm_group'?`${n.fsmSummary?.members||0} AST symbols · double-click to enter`+(n.fsmSummary?.hiddenDependencies?` · ${n.fsmSummary.hiddenDependencies} non-routed`:``):n.type==='generate'?String(n.count||0)+' generated instances':String(n.module||'');
    ctx.fillText(detail,x+18,y+38,Math.max(20,w-38));
   }
   return;

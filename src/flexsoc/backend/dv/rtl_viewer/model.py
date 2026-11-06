@@ -16,9 +16,11 @@ from typing import Any, Iterator
 from .slang import SlangReferences
 from .compiler import ast_revision
 from .connectivity import GraphEdges, OperatorResolver, PortResolver, SymbolTable as ASTReferences
+from .graph_integrity import inspect_graph
 from .sequential_controls import collect as collect_sequential_controls, is_literal_rhs
 from .sequential_profile import summarize as summarize_sequential_profile
 from .sequential_projection import project_destination
+from .port_flow import normalize_output_clock_consumers
 
 
 SIGNAL_KINDS = frozenset({"Port", "Variable", "Net", "NetSymbol", "VariableSymbol", "InterfacePort"})
@@ -350,7 +352,8 @@ class RtlDesign:
 
     @staticmethod
     def _assignments(scope: Scope, declared: set[str],
-                     subroutines: dict[str, dict[str, Any]] | None = None) -> tuple[list[dict], set[str], list[dict], set[str], set[str]]:
+                     subroutines: dict[str, dict[str, Any]] | None = None,
+                     *, operator_budget: int = 256) -> tuple[list[dict], set[str], list[dict], set[str], set[str]]:
         """Directed dependencies from elaborated assignments, without source parsing.
 
         A combinational RHS is not a timing gate: a recognized AST operator
@@ -501,7 +504,14 @@ class RtlDesign:
                 info = function_info(expr)
                 return tuple(info[1]) if info else ()
             if expr.get("kind") in {"RangeSelect", "ElementSelect"}:
-                return (("A", expr.get("value")),) if static_select(expr) else ()
+                if static_select(expr):
+                    return (("A", expr.get("value")),)
+                if expr.get("kind") == "ElementSelect":
+                    index = expr.get("selector", expr.get("index"))
+                    base = expr.get("value")
+                    if isinstance(base, dict) and isinstance(index, dict):
+                        return (("A", base), ("S", index))
+                return ()
             return operands.roles(expr)
 
         def literal_operands(expr: dict) -> dict[str, str]:
@@ -657,14 +667,17 @@ class RtlDesign:
                 return None
             selection = (static_select(expr) if expr.get("kind") in
                          {"RangeSelect", "ElementSelect"} else None)
-            if expr.get("kind") in {"RangeSelect", "ElementSelect"} and selection is None:
+            dynamic_select = (expr.get("kind") == "ElementSelect" and selection is None
+                              and isinstance(expr.get("value"), dict)
+                              and isinstance(expr.get("selector", expr.get("index")), dict))
+            if expr.get("kind") in {"RangeSelect", "ElementSelect"} and selection is None and not dynamic_select:
                 return None
             op_id = "op:" + str(len(operators))
             kind = str(expr["kind"])
             name = (call[0]["name"] if call else
-                    "SliceSelect" if selection else "FieldSelect" if field else
+                    "IndexedSelect" if dynamic_select else "SliceSelect" if selection else "FieldSelect" if field else
                     str(expr.get("op") or expr.get("operator") or kind))
-            shape = ("function" if call else "slice" if selection else "field" if field else
+            shape = ("function" if call else "slice" if selection or dynamic_select else "field" if field else
                      "mux" if kind in {"ConditionalOp", "ConditionalExpression"}
                      else "arith" if kind == "BinaryOp" else "logic")
             roles = expression_roles(expr)
@@ -679,6 +692,9 @@ class RtlDesign:
                               **({"selection": selection, "selectionKind": kind,
                                   "selectionMapping": "AST partial bus projection"}
                                  if selection else {}),
+                              **({"selectionKind": "ElementSelect",
+                                  "selectionMapping": "dynamic AST-indexed read; bit-level wiring not asserted"}
+                                 if dynamic_select else {}),
                               "literalOperands": literal_operands(expr),
                               "operandDetails": operand_details(expr),
                               "shape": shape, "line": extract_location(expr)[1],
@@ -691,7 +707,11 @@ class RtlDesign:
                                                               call[0].get("members", ())
                                                               if isinstance(formal, dict) and
                                                               formal.get("kind") == "FormalArgument"],
-                                                "semantics": "opaque AST function call"}}
+                                                "semantics": "opaque AST function call",
+                                                "subroutineAddr": str(expr.get("subroutine", "")).partition(" ")[0],
+                                                "callFile": str(expr.get("source_file_start", expr.get("source_file", ""))),
+                                                "callLine": int(expr.get("source_line_start", expr.get("source_line", 0)) or 0),
+                                                "callColumn": int(expr.get("source_column_start", expr.get("source_column", 0)) or 0)}}
                                  if call else {}),
                               **({"repeatCount": repeat_count} if repeat_count is not None else {})}
             operators.append(record)
@@ -998,7 +1018,13 @@ class RtlDesign:
                 if raw.get("kind") == "Call" and function_info(raw) is None:
                     return None
                 if raw.get("kind") in {"RangeSelect", "ElementSelect"} and static_select(raw) is None:
-                    return None
+                    # Mirror add_expression's AST-backed dynamic element
+                    # selection. The selector is a distinct input, not a
+                    # second driver on the indexed data terminal.
+                    if not (raw.get("kind") == "ElementSelect"
+                            and isinstance(raw.get("value"), dict)
+                            and isinstance(raw.get("selector", raw.get("index")), dict)):
+                        return None
                 for _, operand in expression_roles(raw):
                     count = expression_count(operand, depth + 1)
                     if count is None:
@@ -1370,10 +1396,81 @@ class RtlDesign:
                     if assignment.get("kind") in ASSIGN_KINDS:
                         case_controlled.update(symbols.writes(
                             assignment.get("left", assignment.get("lhs"))))
+        # The ordered blocking value of a supported always_comb is the
+        # canonical source of truth for case-controlled assignments. The
+        # old per-assignment facts remain in the inspector, not as competing
+        # physical drivers. Commit each bounded value cone atomically.
+        # No incomplete process, implicit latch or multiple process writer is
+        # promoted into a real wire.
+        from .lowering import ProcessLowerer
+        from .procedural_value_graph import (
+            project_value, prune_superseded_operators, UnrepresentableValue,
+        )
+        original_operator_keys = {op["key"] for op in operators}
+
+        comb_members = list(scope.node["body"].get("members", ()))
+        comb_lowerer = ProcessLowerer(comb_members, declared, subroutines=subroutines)
+        projected_targets: set[str] = set()
+        pending_values: list[tuple[int, str, dict]] = []
+        for process_index, process_node in enumerate(comb_members):
+            if (not isinstance(process_node, dict) or
+                    process_node.get("kind") != "ProceduralBlock" or
+                    str(process_node.get("procedureKind", "")).lower() not in
+                    {"alwayscomb", "always_comb"}):
+                continue
+            result = comb_lowerer.lower(process_node, process_index)
+            if result["status"] != "supported":
+                continue
+            for target, expression in result["blocking_final"].items():
+                # Only proven case-controlled *values* become schematic cones.
+                # A symbolic partial aggregate update is an ordering fact, not
+                # a physical mux, write cell or proven bit mapping. Keep that
+                # information in the process IR and semantic audit, but do not
+                # emit an invented UPDATE chain in the drawing.
+                if target not in case_controlled:
+                    continue
+                if target in multi_process_writes:
+                    continue
+                try:
+                    preview_ops, _ = project_value(expression, target, declared, start=0)
+                except UnrepresentableValue:
+                    continue
+                pending_values.append((len(preview_ops), target, expression))
+
+        # Pack complete, bounded cones before layout. Small cones first gives
+        # deterministic, broad coverage when the user requests a limited
+        # schematic. An incomplete cone must never steal nodes from an actual
+        # connection or cause the old proven facts to be suppressed.
+        for _, target, expression in sorted(pending_values, key=lambda x: (x[0], x[1])):
+            if target in projected_targets:
+                continue
+            try:
+                new_ops, new_edges = project_value(
+                    expression, target, declared,
+                    start=max((int(op["key"][3:]) for op in operators
+                               if str(op.get("key", "")).startswith("op:")
+                               and str(op["key"][3:]).isdigit()), default=-1) + 1)
+            except UnrepresentableValue:
+                continue
+            if len(operators) + len(new_ops) > min(768, operator_budget):
+                continue
+            for old in edges:
+                if old.get("target") == target and old.get("type") in {"data", "sequential"}:
+                    old["rendered"] = False
+                    old["proceduralStatus"] = "superseded by ordered ProcessLowerer value"
+            operators.extend(new_ops)
+            edges.extend(new_edges)
+            projected_targets.add(target)
+
+        # A previous per-assignment glyph with no remaining live consumer is
+        # not an additional circuit component. Keep shared legacy expressions
+        # used elsewhere, but remove obsolete islands and their ghost pins.
+        prune_superseded_operators(operators, edges, original_operator_keys)
+
         for edge in edges:
             if (edge.get("type") == "sequential" and edge.get("target") in multi_process_writes):
                 edge["rendered"] = False
-            if (edge.get("target") in case_controlled and
+            if (edge.get("target") in case_controlled - projected_targets and
                     edge.get("type") in {"data", "sequential"}):
                 edge["rendered"] = False
                 edge["proceduralStatus"] = "case-controlled value not yet routed"
@@ -1415,10 +1512,31 @@ class RtlDesign:
         # This is a *candidate* FSM marker, not synthesis-state extraction.
         # Require an elaborated enum type, a sequential state write and a
         # case that reads the same state. No text-name heuristics.
-        enum_state = {name_of(m) for m in scope.node["body"].get("members", ())
-                      if isinstance(m, dict) and isinstance(m.get("type"), dict)
-                      and m["type"].get("kind") in ("Enum", "EnumType")}
-        return edges, registered, operators, counters, registered & case_selectors & enum_state, case_controlled
+        # Slang serializes user-defined enum variable types as an address-
+        # qualified string referencing a TypeAlias, whose target references an
+        # EnumType. Follow only exact compiler addresses: the textual suffix
+        # of the type is display information, not identity.
+        members = scope.node["body"].get("members", ())
+        enum_addresses = {str(m.get("addr")) for m in members
+                          if isinstance(m, dict) and m.get("kind") == "EnumType"
+                          and str(m.get("addr", "")).isdecimal()}
+        enum_type_ids = set(enum_addresses)
+        for m in members:
+            if not isinstance(m, dict) or m.get("kind") != "TypeAlias":
+                continue
+            addr = str(m.get("addr", ""))
+            target = str(m.get("target", "")).split(" ", 1)[0]
+            if addr.isdecimal() and target in enum_addresses:
+                enum_type_ids.add(addr)
+        enum_state = set()
+        for m in members:
+            if not isinstance(m, dict) or m.get("kind") not in SIGNAL_KINDS:
+                continue
+            typ = m.get("type")
+            if (isinstance(typ, dict) and typ.get("kind") in ("Enum", "EnumType")) or (
+                    isinstance(typ, str) and typ.split(" ", 1)[0] in enum_type_ids):
+                enum_state.add(name_of(m))
+        return edges, registered, operators, counters, registered & case_selectors & enum_state, case_controlled - projected_targets
 
     @staticmethod
     def _bindings(parent: Scope, child: Scope, signals: set[str]) -> list[tuple[str, str, str, str]]:
@@ -1458,19 +1576,24 @@ class RtlDesign:
                 aliases.append((internal, name, "port_alias"))
         return aliases
 
-    def diagram(self, path: str = "/", *, explode: bool = False, expanded: tuple[str, ...] = (), limit: int = 320) -> dict[str, Any]:
+    def diagram(self, path: str = "/", *, explode: bool = False, expanded: tuple[str, ...] = (), limit: int = 320, fsm_view: bool = False) -> dict[str, Any]:
         if not 1 <= limit <= 1500:
             raise ValueError("limit must be between 1 and 1500")
         expanded_groups = frozenset(expanded)
         if len(expanded_groups) > 32 or any(len(group) > 256 for group in expanded_groups):
             raise ValueError("too many expanded groups")
-        key = (path, explode, tuple(sorted(expanded_groups)), limit)
+        key = (path, explode, tuple(sorted(expanded_groups)), limit, fsm_view)
         if key in self._diagrams:
             return self._diagrams[key]
         scope = self._scope(path)
         signals = self._signals(scope)
         logical_edges, registers, operators, counters, fsm_candidates, case_controlled = self._assignments(
-            scope, set(signals), self.subroutines)
+            scope, set(signals), self.subroutines,
+            operator_budget=max(0, limit - len(signals) - len(scope.children)))
+        # An internally reused output clock is fed by its *proven* continuous
+        # driver, not by a backwards wire emerging from the module's OUT glyph.
+        # The output port itself keeps its original Slang-backed connection.
+        normalize_output_clock_consumers(scope.node["body"].get("members", []), signals, logical_edges)
         # Facts for symbol rendering: edge sensitivity is AST verified;
         # reset/enable/load roles are deliberately NOT inferred from names.
         event_facts: dict[str, list[dict[str, str]]] = {}
@@ -1609,15 +1732,25 @@ class RtlDesign:
                           **({"repeatCount": operator["repeatCount"]} if "repeatCount" in operator else {}),
                           **({"operandStatus": operator["operandStatus"]} if operator.get("operandStatus") else {}),
                           **({"field": operator["field"]} if operator.get("field") else {}),
-                          **({"selection": operator["selection"],
+                          **({"selection": operator.get("selection", ""),
                               "selectionKind": operator["selectionKind"],
                               "selectionMapping": operator["selectionMapping"]}
-                             if operator.get("selection") else {}),
+                             if operator.get("selectionKind") else {}),
                           **({"constantValue": operator["constantValue"],
                               "constantOrigin": operator["constantOrigin"],
                               "constantType": operator["constantType"]}
                              if "constantValue" in operator else {}),
                           **({"origin": operator["origin"]} if operator.get("origin") else {}),
+                          **({"caseSemantics": operator["caseSemantics"]}
+                             if operator.get("caseSemantics") else {}),
+                          **({"casePatterns": operator["casePatterns"]}
+                             if operator.get("casePatterns") else {}),
+                          **({"controlKind": operator["controlKind"]}
+                             if operator.get("controlKind") else {}),
+                          **({"controlSource": operator["controlSource"]}
+                             if operator.get("controlSource") else {}),
+                          **({"controlPatterns": operator["controlPatterns"]}
+                             if operator.get("controlPatterns") else {}),
                           "pins": operator.get("pins", [])})
 
         def add_edge(src: str, dst: str, kind: str, *, net: str = "", port: str = "", pin: str = "",
@@ -1695,12 +1828,49 @@ class RtlDesign:
                     and edge["target"] in collector.present):
                 unresolved_inputs.setdefault(edge["target"], {})[edge["pin"] or "IN"] = (
                     "composite AST operand; no proven wire")
+        node_by_id = {node["id"]: node for node in nodes}
+        incoming_by_target: dict[str, list[dict]] = {}
+        for edge in edges:
+            incoming_by_target.setdefault(edge["target"], []).append(edge)
+
         for node in nodes:
             if node.get("name") in case_controlled and node.get("type") not in {"instance", "generate"}:
                 node["proceduralStatus"] = "case-controlled next-value not yet represented as a conductor"
             if node["id"] in unresolved_inputs:
                 node["operandStatus"] = dict(sorted({**node.get("operandStatus", {}),
                                                      **unresolved_inputs[node["id"]]}.items()))
+            if node.get("type") == "operator" and node.get("shape") == "case":
+                selector_edges = [edge for edge in incoming_by_target.get(node["id"], [])
+                                  if edge.get("rendered") and (edge.get("targetPin") or edge.get("pin")) == "A"]
+                if len(selector_edges) == 1:
+                    selector_node = node_by_id.get(selector_edges[0]["source"])
+                    if selector_node is not None:
+                        node.setdefault("controlSource", selector_node.get("name", ""))
+                        if selector_node.get("type") == "fsm":
+                            node["controlBadge"] = "FSM"
+                        else:
+                            node.setdefault("controlBadge", "CASE")
+            if node.get("type") == "operator" and node.get("shape") == "mux":
+                select_edges = [edge for edge in incoming_by_target.get(node["id"], [])
+                                if edge.get("rendered") and (edge.get("targetPin") or edge.get("pin")) == "S"]
+                if len(select_edges) == 1:
+                    select_node = node_by_id.get(select_edges[0]["source"])
+                    if select_node is not None and select_node.get("kind") == "CaseMatch":
+                        node.setdefault("controlKind", "case")
+                        patterns = (select_node.get("casePatterns") or
+                                    select_node.get("literalOperands", {}).get("patterns", []))
+                        if patterns:
+                            node.setdefault("controlPatterns", patterns)
+                        selector_edges = [edge for edge in incoming_by_target.get(select_node["id"], [])
+                                          if edge.get("rendered") and (edge.get("targetPin") or edge.get("pin")) == "A"]
+                        if len(selector_edges) == 1:
+                            selector_node = node_by_id.get(selector_edges[0]["source"])
+                            if selector_node is not None:
+                                node.setdefault("controlSource", selector_node.get("name", ""))
+                                if selector_node.get("type") == "fsm":
+                                    node["controlBadge"] = "FSM"
+                                else:
+                                    node.setdefault("controlBadge", "CASE")
         # An unresolved conditional D mux must not be presented as multiple
         # physical drivers; the AST relationships remain inspectable.
         unresolved_d = {edge["target"] for edge in edges
@@ -1765,6 +1935,7 @@ class RtlDesign:
                                  if p == "/" or path == p or path.startswith(p.rstrip("/") + "/")],
                    "expanded": sorted(expanded_groups), "nodes": nodes, "edges": edges,
                    "children": len(scope.children), "connectivity": {"unbound_pins": unbound, "unresolved_pins": unresolved, "partial_pins": partial},
+                   "graph_integrity": inspect_graph(nodes, edges),
                    "total": len(signals) + len(operators) + len(scope.children),
                    "truncated": len(nodes) >= limit or collector.truncated, "limits": [
                        "Sequential markers only where AST explicitly denotes always_ff assignments",
@@ -1772,6 +1943,16 @@ class RtlDesign:
                        "Case decision and MUX controls are AST dependencies; encoder/decoder/FSM semantics are not inferred from names",
                        "A wire is a logical RTL dependency, not a physical net or timing path",
                        "Clock/reset/enable not guessed from naming; register/counter only when AST process and feedback prove it"]}
+        # Procedural blocks remain independent compiler identities even when
+        # their flattened gates are displayed inside a virtual FSM.  This is
+        # presentation metadata only; the canonical graph is unchanged.
+        from .process_projection import process_groups
+        payload["processGroups"] = process_groups(
+            payload, list(scope.node["body"].get("members", ())), set(signals))
+        if fsm_view:
+            from .fsm_projection import collapse_fsm_cones
+            payload = collapse_fsm_cones(payload, expanded_groups)
+            payload["graph_integrity"] = inspect_graph(payload["nodes"], payload["edges"])
         if len(self._diagrams) > 120:
             self._diagrams.clear()
         self._diagrams[key] = payload
@@ -1818,7 +1999,8 @@ class RtlDesign:
         totals = {"nodes": 0, "edges": 0, "unbound_pins": 0,
                   "unresolved_pins": 0, "partial_pins": 0, "missing_sources": 0,
                   "truncated_scopes": 0, "edge_mapping": {}, "partial_by_type": {},
-                  "d_inputs": {"total": 0, "routed": 0, "unresolved": 0}}
+                  "d_inputs": {"total": 0, "routed": 0, "unresolved": 0},
+                  "graph_integrity": {"rendered": 0, "not_rendered": 0, "suppressed_by_reason": {}, "invalid_scopes": 0}}
         for path, scope in self.scopes.items():
             graph = self.diagram(path, limit=limit)
             source = self._source_path(scope)
@@ -1853,11 +2035,19 @@ class RtlDesign:
                    "nodes": len(graph["nodes"]), "edges": len(graph["edges"]),
                    "edge_mapping": dict(sorted(edge_mapping.items())),
                    "partial_by_type": dict(sorted(partial_by_type.items())),
-                   "d_inputs": d_inputs,
+                   "d_inputs": d_inputs, "graph_integrity": graph["graph_integrity"],
                    "truncated": graph["truncated"], **pins}
             scopes.append(row)
             totals["nodes"] += row["nodes"]
             totals["edges"] += row["edges"]
+            global_integrity = totals["graph_integrity"]
+            local_integrity = row["graph_integrity"]
+            for field in ("rendered", "not_rendered"):
+                global_integrity[field] += local_integrity[field]
+            global_integrity["invalid_scopes"] += int(local_integrity["status"] != "ok")
+            for reason, count in local_integrity["suppressed_by_reason"].items():
+                summary = global_integrity["suppressed_by_reason"]
+                summary[reason] = summary.get(reason, 0) + count
             for key in ("total", "routed", "unresolved"):
                 totals["d_inputs"][key] += d_inputs[key]
             for key in ("edge_mapping", "partial_by_type"):
@@ -1872,7 +2062,8 @@ class RtlDesign:
                 "top": self.top, "revision": self.revision, "scopes": scopes,
                 "totals": totals, "qualified": self.verified and not any((
                     totals["unbound_pins"], totals["unresolved_pins"],
-                    totals["missing_sources"], totals["truncated_scopes"])),
+                    totals["missing_sources"], totals["truncated_scopes"],
+                    totals["graph_integrity"]["invalid_scopes"])),
                 "qualification_scope": "structural viewer integrity, not RTL simulation or equivalence"}
 
     def _resolve_source_reference(self, raw: str) -> Path | None:

@@ -2,10 +2,11 @@
 /* Paginated compiler-backed hierarchy with bounded search over loaded rows.
  * Never fetch all descendants to satisfy a text filter. */
 (function(root){
- function create({host,fetchPage,navigate,onError,onFilterStatus}){
+ function create({host,fetchPage,navigate,onError,onFilterStatus,onVirtualGroup}){
   if(!host||typeof fetchPage!=='function'||typeof navigate!=='function')throw Error('hierarchy dependencies missing');
   const PAGE=64,cache=new Map(),expanded=new Set(['/']);
   let active='/',generation=0,filter='';
+  const virtualByScope=new Map();
   function record(path,name,hasChildren=true){
    if(!cache.has(path))cache.set(path,{path,name,hasChildren,items:[],loaded:0,total:null,busy:false,error:null});
    return cache.get(path);
@@ -57,9 +58,44 @@
    if(flat){const where=document.createElement('span');where.className='fs-tree-path';where.textContent=r.path;btn.append(where);}
    btn.onclick=()=>navigate(r.path);line.append(exp,btn);host.append(line);
   }
+  function makeVirtualRow(scope,group,depth,flat=false){
+   // Virtual groups are schematic views; they never become compiler scopes.
+   if(typeof group.token!=='string'||!(/^(fsm:[^\s]+|proc:\d+|gen:.+)$/.test(group.token)))return;
+   const isFsm=group.token.startsWith('fsm:');
+   const entered=group.view==='entered';
+   const flattened=group.view==='flattened'||group.view==='expanded';
+   const line=document.createElement('div');
+   line.className='fs-tree-row fs-tree-virtual'+(entered?' expanded':'');
+   line.style.paddingLeft=flat?'4px':Math.min(depth,20)*11+'px';
+   line.dataset.fsmGroup=group.token;
+   const icon=document.createElement('span');icon.className='fs-tree-icon';
+   icon.textContent=isFsm?'◇':'▣';icon.setAttribute('aria-hidden','true');
+   const btn=document.createElement('button');btn.type='button';
+   btn.className='fs-tree-label fs-tree-fsm';btn.dataset.fsmGroup=group.token;
+   btn.setAttribute('aria-expanded',String(entered));
+   btn.title=(isFsm?'Virtual AST FSM':'Slang procedural block')+' in '+scope+' · enter dedicated schematic';
+   const name=document.createElement('span');name.className='fs-tree-name';
+   name.textContent=isFsm?'FSM · '+group.state:String(group.name||group.kind||group.token);
+   const mode=document.createElement('span');mode.className='fs-tree-fsm-mode';
+   mode.textContent=entered?'← Parent':'Enter ›';btn.append(icon,name,mode);
+   btn.onclick=()=>onVirtualGroup?.(scope,group.token,'enter');
+   line.append(btn);
+   const flatten=document.createElement('button');flatten.type='button';
+   flatten.className='fs-tree-expander fs-tree-virtual-flatten';
+   flatten.textContent=flattened?'▣':'▥';
+   flatten.title=flattened?'Unflatten here · restore the compact block':'Flatten here · display its inner circuit in this diagram';
+   flatten.setAttribute('aria-label',(flattened?'Unflatten ':'Flatten ')+name.textContent+' here in the parent diagram');
+   flatten.setAttribute('aria-pressed',String(flattened));
+   flatten.onclick=()=>onVirtualGroup?.(scope,group.token,'flatten');
+   line.append(flatten);host.append(line);
+  }
   function walk(r,depth){
    makeRow(r,depth);
    if(!expanded.has(r.path))return;
+   // Only display virtual groups for their active schematic scope.
+   if(r.path===active){
+    for(const group of virtualByScope.get(r.path)||[])makeVirtualRow(r.path,group,depth+1);
+   }
    for(const item of r.items)walk(record(item.path,item.name,item.has_children),depth+1);
    if(r.busy){const busy=document.createElement('div');busy.className='fs-tree-error';busy.textContent='Loading…';host.append(busy);}
    if(r.error){const error=document.createElement('div');error.className='fs-tree-error';error.textContent=r.error;host.append(error);}
@@ -76,12 +112,25 @@
    const matches=[...cache.values()].filter(r=>(r.name+' '+(r.module||'')+' '+r.path).toLocaleLowerCase().includes(filter));
    matches.sort((a,b)=>a.path.localeCompare(b.path));
    for(const r of matches)makeRow(r,0,true);
-   if(!matches.length){const empty=document.createElement('p');empty.className='fs-tree-empty';empty.textContent='No matching loaded instances';host.append(empty);}
-   onFilterStatus?.(filter,matches.length);
+   const virtualMatches=(virtualByScope.get(active)||[]).filter(g=>
+    ('fsm process generate '+(g.state||g.name||g.kind)+' '+g.token+' '+active).toLocaleLowerCase().includes(filter));
+   for(const group of virtualMatches)makeVirtualRow(active,group,0,true);
+   if(!matches.length&&!virtualMatches.length){const empty=document.createElement('p');empty.className='fs-tree-empty';empty.textContent='No matching loaded instances or virtual processes';host.append(empty);}
+   onFilterStatus?.(filter,matches.length+virtualMatches.length);
    if(keep)focusPath(keep);
   }
   function activate(path){active=path||'/';const known=knownAncestors(active);for(const p of known)expanded.add(p);render();for(const p of known)if(cache.get(p).hasChildren)load(p);}
   function setFilter(text){filter=String(text||'').trim().toLocaleLowerCase();render();}
+  function setVirtualGroups(scope,groups){
+   if(typeof scope!=='string'||!cache.has(scope)||!Array.isArray(groups))return;
+   // Derived from the graph returned by /api/diagram. This is presentation
+   // metadata, not a second source of truth for hierarchy or connectivity.
+   const valid=groups.filter(g=>g&&typeof g.token==='string'&&
+    /^(fsm:[^\s]+|proc:\d+|gen:.+)$/.test(g.token)&&(typeof g.state==='string'||typeof g.name==='string')&&
+    (g.view==='entered'||g.view==='expanded'||g.view==='flattened'||g.view==='collapsed'));
+   virtualByScope.set(scope,valid);
+   if(active===scope)render();
+  }
   // Navigate visible labels only; the tree stays usable without a pointing device.
   host.addEventListener('keydown',event=>{
    const btn=event.target.closest?.('.fs-tree-label');if(!btn)return;
@@ -102,7 +151,7 @@
     else{const parent=knownAncestors(path).filter(p=>p!==path).sort((a,b)=>b.length-a.length)[0]||'/';focusPath(parent);}
    }
   });
-  return {activate,setFilter};
+  return {activate,setFilter,setVirtualGroups};
  }
  const api={create};if(typeof module==='object'&&module.exports)module.exports=api;else root.FlexHierarchyTree=api;
 })(typeof window==='object'?window:globalThis);

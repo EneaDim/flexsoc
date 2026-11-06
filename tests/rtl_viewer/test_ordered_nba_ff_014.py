@@ -111,7 +111,6 @@ def test_nonblocking_feedback_read_uses_q_not_intermediate_scheduled_d():
     block(write(1, ref(2)), write(1, ref(5), nba=False)),
     block(write(1, ref(2)), {'kind': 'Assignment', 'left': ref(1), 'right': ref(5)}),
     block(write(1, ref(2)), {'kind': 'Case', 'expr': ref(3)}),
-    block(write(1, ref(2)), write(1, {'kind': 'ElementSelect', 'value': ref(5), 'selector': ref(3)})),
 ])
 def test_unsupported_sequence_fails_closed_without_any_claimed_d(stmt):
     g = graph(stmt)
@@ -174,3 +173,15 @@ def test_final_literal_without_a_proven_constant_source_fails_closed():
     g = graph(block(write(1, ref(2)), write(1, {'kind': 'IntegerLiteral', 'value': "1'b0"})))
     assert not wires(g)
     assert any(e.get('routingStatus') == 'unresolved_D_mux' for e in g['edges'])
+
+
+def test_last_nba_can_read_dynamic_index_without_shorting_select_and_data():
+    selected = {'kind': 'ElementSelect', 'value': ref(5), 'selector': ref(3)}
+    g = graph(block(write(1, ref(2)), write(1, selected)))
+    selection = [n for n in g['nodes'] if n.get('name') == 'IndexedSelect']
+    assert len(selection) == 1
+    assert len(wires(g)) == 1
+    assert any(e['target'] == selection[0]['id'] and e['pin'] == 'A'
+               and e['rendered'] for e in g['edges'])
+    assert any(e['target'] == selection[0]['id'] and e['pin'] == 'S'
+               and e['rendered'] for e in g['edges'])

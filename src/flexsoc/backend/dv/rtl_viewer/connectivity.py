@@ -163,10 +163,12 @@ class SymbolTable:
         """Dynamic array selectors are read dependencies, never write targets."""
         if not isinstance(lhs, Mapping):
             return ()
+        if lhs.get("kind") in CONVERSIONS:
+            return self.address_reads(self._operand(lhs))
         if lhs.get("kind") in SELECTORS:
             selected = [lhs.get(k) for k in ("selector", "index", "range", "selection", "left", "right")]
             return tuple(dict.fromkeys((*self.reads(selected), *self.address_reads(self._operand(lhs)))))
-        if lhs.get("kind") in {"Concatenation", "StreamingConcatenation"}:
+        if lhs.get("kind") in {"Concatenation", "StreamingConcatenation", "AssignmentPattern"}:
             parts = next((lhs.get(k) for k in ("operands", "elements", "parts", "expressions")
                           if isinstance(lhs.get(k), (list, tuple))), ())
             return tuple(dict.fromkeys(name for part in parts for name in self.address_reads(part)))

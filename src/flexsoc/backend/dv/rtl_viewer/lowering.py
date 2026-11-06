@@ -16,9 +16,20 @@ class ProcessLowerer:
     """Build a symbolic SSA-like result for one elaborated procedural block."""
 
     def __init__(self, members: list[Any], declared: set[str],
-                 constants: Mapping[str, dict[str, Any]] | None = None):
+                 constants: Mapping[str, dict[str, Any]] | None = None,
+                 subroutines: Mapping[str, dict[str, Any]] | None = None):
         self.symbols = SymbolTable(members, declared)
         self.diagnostics: list[str] = []
+        self.subroutines = dict(subroutines or {})
+        for member in members:
+            if (isinstance(member, Mapping) and member.get("kind") == "Subroutine"
+                    and _address(member.get("addr"))):
+                address = _address(member["addr"])
+                existing = self.subroutines.get(address)
+                if existing is not None and existing != member:
+                    self.subroutines.pop(address, None)  # conflicting compiler identity
+                elif existing is None:
+                    self.subroutines[address] = member
         # Elaborated parameters are values, not electrical nets. Resolve them
         # by Slang symbol identity, never by their textual names.
         self.parameters = dict(constants or {})
@@ -74,6 +85,49 @@ class ProcessLowerer:
             return env.get(name, self._ref(name))
         if kind in {"IntegerLiteral", "UnbasedUnsizedIntegerLiteral"}:
             return self._typed(node, "literal", value=str(node.get("value", "")))
+        if kind == "Call":
+            address = _address(node.get("subroutine"))
+            definition = self.subroutines.get(address)
+            if (not address or not isinstance(definition, Mapping) or
+                    definition.get("subroutineKind") != "Function" or
+                    not isinstance(definition.get("name"), str) or
+                    not definition["name"] or not isinstance(definition.get("body"), Mapping)
+                    or definition.get("returnType") in (None, "", "void")
+                    or node.get("type") in (None, "", "void")):
+                raise ValueError("unresolved compiler function call")
+            formals = [item for item in definition.get("members", ())
+                       if isinstance(item, Mapping) and item.get("kind") == "FormalArgument"]
+            actuals = node.get("arguments")
+            if (not isinstance(actuals, list) or len(formals) != len(actuals)
+                    or len(actuals) > 16 or any(not isinstance(actual, Mapping)
+                    or actual.get("kind") == "EmptyArgument" for actual in actuals)
+                    or any(not isinstance(formal.get("name"), str) or not formal["name"]
+                           or str(formal.get("direction", "")).lower() not in {"in", "input"}
+                           for formal in formals)):
+                raise ValueError("function arguments lack safe input-only identity")
+            # Opaque value transform. We preserve Slang's exact call site and
+            # argument order; the function body is NOT synthesized or assumed
+            # side-effect-free by this symbolic representation.
+            return self._typed(node, "call", name=definition["name"],
+                               subroutineAddr=address,
+                               returnType=str(definition["returnType"]),
+                               arguments=[formal["name"] for formal in formals],
+                               callFile=str(node.get("source_file_start", node.get("source_file", ""))),
+                               callLine=int(node.get("source_line_start", node.get("source_line", 0)) or 0),
+                               callColumn=int(node.get("source_column_start", node.get("source_column", 0)) or 0),
+                               definitionFile=str(definition.get("source_file", "")),
+                               definitionLine=int(definition.get("source_line", 0) or 0),
+                               args=[self._expr(actual, env) for actual in actuals])
+        if kind == "Replication":
+            # A fully elaborated Slang constant is authoritative even if the
+            # repetition count is an elaborated parameter expression. Never
+            # infer a constant from the displayed RTL syntax or count name.
+            constant = node.get("constant")
+            if (isinstance(constant, (str, int)) and not isinstance(constant, bool)
+                    and 0 < len(str(constant)) <= 128
+                    and not any(ord(c) < 32 for c in str(constant))):
+                return self._typed(node, "literal", value=str(constant))
+            raise ValueError("dynamic replication requires explicit value lowering")
         if kind == "ParenthesizedExpression":
             return self._expr(node.get("expression", node.get("operand")), env)
         if kind in {"Conversion", "ImplicitConversion", "AssignmentConversion"}:
@@ -120,6 +174,14 @@ class ProcessLowerer:
         if not isinstance(node, Mapping):
             raise ValueError("invalid assignment destination")
         kind = str(node.get("kind", ""))
+        if kind == "ParenthesizedExpression":
+            # Parentheses do not change the storage location being written.
+            # Preserve the underlying bit/array selectors and their address
+            # reads rather than rejecting the entire elaborated process.
+            child = node.get("expression", node.get("operand"))
+            if not isinstance(child, Mapping):
+                raise ValueError("missing parenthesized assignment destination")
+            return self._lvalue(child, env)
         if kind in {"NamedValue", "SymbolReference", "HierarchicalValue"}:
             name = self.symbols.direct(node)
             if name is None:
@@ -244,8 +306,15 @@ class ProcessLowerer:
                 match = {"op": "case_match_any", "selector": selector,
                          "patterns": [self._expr(pattern, env) for pattern in patterns],
                          "semantics": "SystemVerilog four-state case equality"}
+                # Slang serializers may use stmt, statement, or body.  An
+                # absent/ambiguous arm must not silently become a no-op: doing
+                # so drops writes while still reporting a supported process.
+                arm_keys = [key for key in ("stmt", "statement", "body")
+                            if item.get(key) is not None]
+                if len(arm_keys) != 1 or not isinstance(item[arm_keys[0]], Mapping):
+                    raise ValueError("missing or ambiguous case arm statement")
                 case_env, case_nba = env.copy(), scheduled.copy()
-                self._walk(item.get("stmt", item.get("statement")), case_env, case_nba)
+                self._walk(item[arm_keys[0]], case_env, case_nba)
                 branches.append((match, case_env, case_nba))
             default = node.get("defaultCase", node.get("default"))
             merged_env, merged_nba = env.copy(), scheduled.copy()
@@ -296,7 +365,8 @@ class LoweredIR:
     def __init__(self, design: Any, path: str):
         scope = design._scope(path)
         members = list(scope.node["body"].get("members", ()))
-        analyzer = ProcessLowerer(members, set(design._signals(scope)), design.references.constants)
+        analyzer = ProcessLowerer(members, set(design._signals(scope)),
+                                  design.references.constants, design.subroutines)
         self.path = path
         self.processes = [analyzer.lower(member, index) for index, member in enumerate(members)
                           if isinstance(member, dict) and member.get("kind") == "ProceduralBlock"]

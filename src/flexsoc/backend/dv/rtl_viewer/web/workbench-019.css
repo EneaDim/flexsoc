@@ -1,0 +1,115 @@
+/* FlexSoC Workbench 019 · paired high-contrast Canvas / chrome themes.
+ * Presentation only. No changes to Slang, graph IDs, ELK or Follow behavior.
+ */
+:root[data-palette='graphite'] {
+  color-scheme:dark;
+  --bg:#0d1118;--surface:#171b24;--side:#121720;--panel:#151923;
+  --raised:#242b3b;--control:#232937;--line:#30394a;--line2:#424f62;
+  --ink:#edf2fc;--muted:#a6b4c7;--blue:#89bff8;--amber:#e9b17d;
+  --purple:#c5a4f5;--success:#79cfaa;
+}
+:root[data-palette='oled'] {
+  color-scheme:dark;
+  --bg:#08090c;--surface:#111216;--side:#0b0d11;--panel:#101115;
+  --raised:#20232b;--control:#1a1d25;--line:#30343d;--line2:#414753;
+  --ink:#f4f5f9;--muted:#bac1cc;--blue:#8dc8fc;--amber:#f1b987;
+  --purple:#ccb1fc;--success:#83d3b0;
+}
+:root[data-palette='midnight'] {
+  color-scheme:dark;
+  --bg:#0b1324;--surface:#121d31;--side:#0d1729;--panel:#111b2d;
+  --raised:#1d3049;--control:#21344e;--line:#324661;--line2:#3e5877;
+  --ink:#f0f5ff;--muted:#a9bfdc;--blue:#85c4ff;--amber:#efb67f;
+  --purple:#c6aaf5;--success:#79d3b0;
+}
+:root[data-palette='ocean'] {
+  color-scheme:dark;
+  --bg:#08191e;--surface:#10252b;--side:#0a1d23;--panel:#0d2328;
+  --raised:#1c3a41;--control:#1a363e;--line:#2e4d54;--line2:#39616c;
+  --ink:#f1f9fa;--muted:#a6cbd0;--blue:#8dd5e5;--amber:#f0b680;
+  --purple:#c8aeff;--success:#74d9bd;
+}
+:root[data-palette='light'] {
+  color-scheme:light;
+  --bg:#f4f7fb;--surface:#ffffff;--side:#f8fafc;--panel:#ffffff;
+  --raised:#f2f6fb;--control:#eaf1f8;--line:#d5e1ed;--line2:#b8cadd;
+  --ink:#192e42;--muted:#46627a;--blue:#155e93;--amber:#925014;
+  --purple:#6e4cba;--success:#186a52;
+}
+/* Persistent theme switcher, not a toggle: every preset is independently selectable. */
+.theme-picker{position:relative;flex:0 0 auto;}
+.theme-picker .theme-button{min-width:118px;display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  border:1px solid var(--line2);background:var(--control);color:var(--ink);font:650 11px var(--font);padding:8px 10px;border-radius:9px;}
+.theme-chevron{color:var(--muted);font-size:14px;line-height:1;}
+.theme-menu{position:absolute;right:0;top:calc(100% + 10px);z-index:110;width:290px;max-width:calc(100vw - 32px);
+  padding:12px;background:var(--surface);color:var(--ink);border:1px solid var(--line2);border-radius:14px;
+  box-shadow:0 18px 54px #0009;}
+:root[data-palette='light'] .theme-menu{box-shadow:0 18px 48px #1b385033;}
+.theme-menu-title{font:750 9px/1.5 var(--font);letter-spacing:.1em;color:var(--muted);
+  display:flex;align-items:center;justify-content:space-between;padding:1px 3px 8px;}
+.theme-menu-title span{font:500 9px var(--font);letter-spacing:0;text-transform:none;}
+.theme-presets{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.theme-presets button{display:flex;align-items:center;gap:8px;padding:9px 8px;min-width:0;min-height:39px;text-align:left;
+  background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:9px;
+  font:600 10px/1.35 var(--font);white-space:normal;overflow-wrap:normal;}
+.theme-presets button:hover{background:var(--control);border-color:var(--line2);}
+.theme-presets button[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);}
+.theme-swatch{display:inline-block;flex:0 0 24px;width:24px;height:17px;border-radius:5px;
+  border:1px solid #ffffff4a;box-shadow:inset 7px 0 0 #ffffff15;}
+.sw-graphite{background:#171b24}.sw-oled{background:#060609}.sw-midnight{background:#142740}
+.sw-ocean{background:#11373d}.sw-light{background:#f8fbff;border-color:#a9bdd4}
+.theme-menu-accent{border-top:1px solid var(--line);margin-top:12px;padding-top:12px;}
+.theme-accents{display:flex;align-items:center;gap:9px;padding:1px 3px;}
+.theme-accents button{width:23px;height:23px;min-width:23px;padding:0;border:3px solid var(--surface);
+  border-radius:50%;background:var(--swatch);box-shadow:0 0 0 1px var(--line2);}
+.theme-accents button[aria-pressed=true]{box-shadow:0 0 0 2px var(--accent);}
+.theme-custom{margin-left:auto;display:flex;align-items:center;gap:5px;color:var(--muted);font:10px var(--font);}
+.theme-custom input{height:25px;width:30px;padding:1px;border:1px solid var(--line2);border-radius:5px;cursor:pointer;
+  background:var(--panel);}
+.theme-menu-help{color:var(--muted);font:10px/1.5 var(--font);margin:11px 3px 1px;}
+/* Theme-specific Canvas contrast. CSS background also matches the actual Canvas paint. */
+:root[data-palette='graphite'] .schematic{background-color:#0e121a;background-image:radial-gradient(#657a981d .8px,transparent .8px)}
+:root[data-palette='oled'] .schematic{background-color:#050609;background-image:radial-gradient(#778ba222 .8px,transparent .8px)}
+:root[data-palette='midnight'] .schematic{background-color:#0a1225;background-image:radial-gradient(#6581b42a .8px,transparent .8px)}
+:root[data-palette='ocean'] .schematic{background-color:#091b20;background-image:radial-gradient(#6aa7ae22 .8px,transparent .8px)}
+:root[data-palette='light'] .schematic{background-color:#fbfcff;background-image:radial-gradient(#a9c0cf50 .8px,transparent .8px)}
+:root[data-palette='light'] .canvas-hint,
+:root[data-palette='light'] .canvas-footer{background:#fffffff2;color:#39546a;border-color:var(--line2)}
+:root[data-palette='light'] .inspector .pane{color:#192e42}
+:root[data-palette='light'] .schematic .rtl-semantic-tooltip{box-shadow:0 14px 40px #243d522f}
+/* Inspector: compact icon-first panels, with one active caption. Existing tab IDs
+   and keyboard behavior remain unchanged; every icon has a text/ARIA label. */
+.inspector{background:var(--panel);}
+.inspector-header{min-height:67px;padding:11px 13px 9px;gap:9px;}
+.rtl-inspector-identity{min-width:0;flex:1;overflow:hidden;}
+.inspector-heading{font-size:9px!important;letter-spacing:.10em;}
+.rtl-inspector-identity strong{font:750 14px/1.25 var(--font);}
+#inspectorEntityMeta{font-size:9px!important;}
+.rtl-inspector-actions{gap:4px;}
+.rtl-inspector-actions button{padding:5px 7px!important;font-size:9px!important;min-height:26px;}
+.inspector-header #closeInspector{font-size:18px;min-width:23px;}
+.rtl-crossprobe-bar{padding:6px 11px;min-height:34px;gap:6px;}
+.rtl-crossprobe-bar button{font-size:10px;padding:5px 7px;border-radius:7px;}
+#rtlProbeStatus{font-size:9px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+.inspector .tabs{min-height:44px;height:44px;padding:4px 9px 0;gap:3px;align-items:stretch;
+  display:flex;justify-content:flex-start;overflow-x:auto;scrollbar-width:thin;}
+.inspector .tabs button,.inspector .tabs button.active,.inspector .tabs button[aria-selected=true]{
+  min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  padding:5px 8px;border-radius:8px 8px 0 0;flex:0 0 auto;font:600 10px var(--font);}
+.inspector .tabs .rtl-tab-icon{display:block;width:16px;height:16px;flex:none;stroke-width:1.65;}
+.inspector .tabs .rtl-tab-caption{display:none;}
+.inspector .tabs button.active .rtl-tab-caption,
+.inspector .tabs button[aria-selected=true] .rtl-tab-caption{display:inline;font-size:10px;}
+.inspector .tabs button:hover{background:var(--control);}
+.inspector .tabs button[aria-selected=true]{background:var(--accent-soft);color:var(--accent);}
+.inspector .source-head{font-size:10px;padding:9px 12px;}
+.inspector .source-mode{font-size:9px;padding:6px 12px;}
+.inspector .inspector-foot{font-size:9px;padding:7px 12px;}
+.inspector .rtl-inspector-card{padding:10px 12px;}
+#lintResults .lint-entry{margin:6px 9px;padding:9px 11px;}
+@media(max-width:930px){.theme-picker .theme-button{min-width:34px;}.theme-picker #themeName{display:none;}.theme-menu{right:-42px;}}
+@media(prefers-reduced-motion:reduce){.theme-picker button,.inspector .tabs button{transition:none!important;}}
+/* Keep the theme popover above the schematic toolbar and the inspector.
+   It must remain clickable, not merely visible. */
+.header{position:relative;z-index:60;overflow:visible;}
+.head-right{position:relative;z-index:2;}

@@ -120,7 +120,6 @@ def test_other_writer_in_same_scope_prevents_mux_inference():
            {'kind': 'ElementSelect', 'value': ref(3), 'selector': ref(5)}),
     ifelse({'kind': 'Assignment', 'left': {'kind': 'ElementSelect',
             'value': ref(1), 'selector': ref(5)}, 'right': ref(2)}),
-    ifelse(assignment(1, {'kind': 'ElementSelect', 'value': ref(2), 'selector': ref(5)})),
     ifelse(assignment(1, ref(2)), assignment(5, ref(1))),
 ])
 def test_unsupported_guarded_writes_do_not_invent_mux(stmt):
@@ -217,3 +216,18 @@ const ELK=require(w+'/elk.bundled.js').default;
     result = subprocess.run(['node', '-e', script, str(WEB)], input=json.dumps(g),
                             capture_output=True, text=True, timeout=45)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_dynamic_indexed_ff_branch_lowers_select_before_d_mux():
+    """A dynamic selector is not a second driver of the data operand."""
+    indexed = {'kind': 'ElementSelect', 'value': ref(2), 'selector': ref(5)}
+    g = graph(ifelse(assignment(1, indexed), assignment(1, ref(2))))
+    select_nodes = [n for n in g['nodes'] if n.get('name') == 'IndexedSelect']
+    assert len(select_nodes) == 1
+    select = select_nodes[0]
+    assert {e['source'] for e in wires_to(g, select['id'], pin='A')} == {'/::sig:d'}
+    assert {e['source'] for e in wires_to(g, select['id'], pin='S')} == {'/::sig:other'}
+    m = mux(g)
+    assert {e['source'] for e in wires_to(g, m['id'], pin='B')} == {select['id']}
+    assert len([e for e in wires_to(g, '/::sig:q') if e['targetPin'] == 'D']) == 1
+    assert 'dInputStatus' not in next(n for n in g['nodes'] if n['id'] == '/::sig:q')

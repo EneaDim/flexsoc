@@ -104,17 +104,18 @@ const ELK=require(w+'/elk.bundled.js').default;
     assert "routed independently PASS" in completed.stdout
 
 
-def test_indexed_operand_keeps_ast_reads_but_not_fake_bit_wire():
-    # The address is needed to select an element, not a second physical
-    # data net tied to the same A terminal.
+def test_indexed_operand_is_separate_ast_select_operator():
     expr = {"kind": "BinaryOp", "op": "Add", "left": {
         "kind": "ElementSelect", "value": ref(2), "selector": ref(3)}, "right": ref(4)}
     graph = schematic(expr)
-    op = next(n for n in graph["nodes"] if n["type"] == "operator")
-    a = [e for e in graph["edges"] if e["target"] == op["id"] and e["pin"] == "A"]
-    assert {e["source"] for e in a} == {"/::sig:a", "/::sig:b"}
-    assert all(not e["rendered"] for e in a)
-    assert op["operandStatus"]["A"] == "composite AST operand; no proven wire"
+    select = next(n for n in graph["nodes"] if n.get("name") == "IndexedSelect")
+    add = next(n for n in graph["nodes"] if n.get("name") == "Add")
+    assert {(e["source"], e["pin"]) for e in graph["edges"]
+            if e["target"] == select["id"] and e["rendered"]} == {
+                ("/::sig:a", "A"), ("/::sig:b", "S")}
+    assert [(e["source"], e["pin"]) for e in graph["edges"]
+            if e["target"] == add["id"] and e["rendered"] and e["pin"] == "A"] == [
+                (select["id"], "A")]
 
 
 def test_same_pin_two_distinct_explicit_nets_fails_closed():
@@ -131,8 +132,8 @@ def test_same_pin_two_distinct_explicit_nets_fails_closed():
 
 
 @pytest.mark.skipif(not shutil.which("node"), reason="Node.js required")
-def test_canvas_glyph_marks_unresolved_operand_without_drawing_wire():
-    # A dynamic element select remains unsupported without bit-exact proof.
+def test_canvas_draws_dynamic_indexed_select_without_unresolved_marker():
+    # A dynamic select has an explicit AST-backed data+selector operation.
     expr = {"kind": "BinaryOp", "op": "Add", "left": {
         "kind": "ElementSelect", "value": ref(2), "selector": ref(3)}, "right": ref(4)}
     graph = schematic(expr)
@@ -140,16 +141,16 @@ def test_canvas_glyph_marks_unresolved_operand_without_drawing_wire():
 const assert=require('node:assert/strict'),fs=require('node:fs');
 const w=process.argv[1],g=JSON.parse(fs.readFileSync(0,'utf8'));
 const P=require(w+'/symbol-painter.js');
-const op=g.nodes.find(n=>n.type==='operator'),labels=[];
+const op=g.nodes.find(n=>n.name==='IndexedSelect'),labels=[];
 const ctx={save(){},restore(){},beginPath(){},moveTo(){},lineTo(){},stroke(){},
  roundRect(){},fill(){},closePath(){},quadraticCurveTo(){},arc(){},
  fillText(t){labels.push(String(t));},clearRect(){}};
 const colors=new Proxy({}, {get:(_,key)=>'#aaa'});
 P.paint(ctx,op,{x:20,y:20,w:120,h:76},{colors,picked:false,zoom:1,names:true});
-assert(labels.includes('?'),'unresolved composite operand must be marked');
-console.log('UNRESOLVED PIN MARKER PASS');
+assert(!labels.includes('?'),'lowered dynamic select must not appear unresolved');
+console.log('DYNAMIC SELECT GLYPH PASS');
 '''
     done = subprocess.run(["node", "-e", script, str(WEB)], input=json.dumps(graph),
                           text=True, capture_output=True, timeout=10)
     assert done.returncode == 0, done.stdout + done.stderr
-    assert "UNRESOLVED PIN MARKER PASS" in done.stdout
+    assert "DYNAMIC SELECT GLYPH PASS" in done.stdout

@@ -104,7 +104,7 @@ def test_real_web_assets_inspector_tabs_source_and_bootstrap():
                                   '<script>'+ (WEB/name).read_text()+'</script>')
             page.set_content(html,wait_until='domcontentloaded')
             page.wait_for_function("document.getElementById('counts').textContent.includes('symbols')",timeout=25000)
-            page.locator('#toggleSource').click()
+            page.locator('#toggleInspector').click()
             assert page.locator('#rtlSourceStatus').inner_text().startswith('READ ONLY · Mapped source')
             page.locator('#connectionsTab').click()
             assert page.locator('#connectionsPane').is_visible()

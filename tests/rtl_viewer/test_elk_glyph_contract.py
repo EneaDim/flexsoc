@@ -156,7 +156,8 @@ def test_real_browser_loads_canonical_geometry_with_bundled_elk():
                 };
             }''', payloads)
             for script in scripts:
-                page.add_script_tag(path=str(WEB / script))
+                # Cache-busting URL query is not part of the local filename.
+                page.add_script_tag(path=str(WEB / script.split('?', 1)[0]))
             page.wait_for_function('state.layouts.size === 1', timeout=15000)
             assert page.locator('#layoutEngineStatus').inner_text().startswith('LAYOUT: ELK')
             assert len(payloads['diagram']['nodes']) == page.evaluate('state.graph.nodes.length')

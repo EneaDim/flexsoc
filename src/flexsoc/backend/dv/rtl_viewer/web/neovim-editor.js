@@ -5,7 +5,7 @@
  const $ = id => document.getElementById(id);
  const button = $('rtlNeovimToggle'), panel = $('nvimContainer'), screen = $('nvimScreen');
  if (!button || !panel || !screen) return;
- const fallback = $('sourceFallback'), status = $('nvimStatus');
+ const fallback = $('sourceFallback'), status = $('nvimStatus'), notice = $('nvimNotice');
  let enabled = false, token = '', path = '', file = '', source = null, version = -1;
  let generation = 0, pollTimer = null, desiredLine = 1, latestLine = 0;
  let lastDimensions = '';
@@ -16,7 +16,10 @@
   if (!reply.ok) throw Error(data.error || 'Neovim endpoint failed');
   return data;
  };
- const message = value => {status.textContent = value;};
+ const message = (value, expose=false) => {
+  status.textContent = value;
+  if (notice) {notice.textContent = expose ? value : ''; notice.hidden = !expose;}
+ };
  const dimensions = () => {
   const style = getComputedStyle(screen);
   const probe = document.createElement('span');probe.textContent = 'MMMMMMMMMM';
@@ -82,7 +85,7 @@
 
     }
    }
-  } catch(error) {if(myGeneration === generation){message('Neovim unavailable: '+error.message);clearInterval(pollTimer);pollTimer=null;}}
+  } catch(error) {if(myGeneration === generation){message('Neovim unavailable: '+error.message, true);clearInterval(pollTimer);pollTimer=null;}}
  };
  const refresh = () => {
   if (!enabled || !token || panel.hidden) return;
@@ -99,7 +102,7 @@
  const start = async () => {
   if (!enabled) return;
   if (!source || source.status !== 'available') {
-   message('Neovim cannot start: '+(source?.reason || 'no compiler-mapped source for this scope'));
+   message('Neovim cannot start: '+(source?.reason || 'no compiler-mapped source for this scope'), true);
    enabled=false;panel.hidden=true;fallback.hidden=false;
    button.setAttribute('aria-pressed','false');button.textContent='Neovim';
    return;
@@ -110,6 +113,13 @@
   const previous = token;token='';version=-1;
   if(previous)try{await post('stop',{token:previous});}catch(_e){}
   try {
+   // The desktop bridge is deliberately opt-in. Preflight before POST so a
+   // disabled bridge or missing nvim/msgpack dependency gives the user a
+   // meaningful action rather than an opaque 403 in the editor pane.
+   const capabilityReply = await fetch('/api/neovim/capability');
+   const bridge = await capabilityReply.json();
+   if(!capabilityReply.ok || bridge.enabled !== true)
+    throw Error(bridge.reason || 'Set FLEXSOC_RTL_NEOVIM=1 before fx rtl-view');
    const size = dimensions();lastDimensions=size.cols+'x'+size.rows;
    const result = await post('start',{path, ...size});
    if(myGeneration!==generation){post('stop',{token:result.token}).catch(()=>{});return;}
@@ -121,7 +131,7 @@
    pollTimer = setInterval(()=>query(myGeneration, token), 220);
   } catch (error) {
    if(myGeneration!==generation)return;
-   message('Neovim unavailable: '+error.message+' · read-only fallback active');
+   message('Neovim unavailable: '+error.message+' · read-only fallback active', true);
    enabled=false;panel.hidden=true;fallback.hidden=false;button.setAttribute('aria-pressed','false');
    button.textContent='Neovim';
   }
@@ -131,7 +141,7 @@
   button.setAttribute('aria-pressed',String(enabled));
   button.textContent=enabled?'Source view':'Neovim';
   panel.hidden=!enabled;fallback.hidden=enabled;
-  if(enabled)await start();else await shutdown();
+  if(enabled)await start();else {message('Neovim session closed');await shutdown();}
  });
  const special = {Escape:'Esc',Enter:'CR',Backspace:'BS',Tab:'Tab',Delete:'Del',
   ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',

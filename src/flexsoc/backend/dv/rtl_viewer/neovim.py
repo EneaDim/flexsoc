@@ -28,7 +28,7 @@ def capability(enabled: bool, local_only: bool) -> dict[str, Any]:
         dependency = False
     return {'enabled': bool(enabled and local_only and available and dependency),
             'executable': available, 'msgpack': dependency, 'local_only': local_only,
-            'reason': ('Launch with --enable-neovim on 127.0.0.1' if not enabled else
+            'reason': ('Set FLEXSOC_RTL_NEOVIM=1 before fx rtl-view (localhost only)' if not enabled else
                        'Neovim is restricted to localhost' if not local_only else
                        'Install nvim in WSL' if not available else
                        'Install the optional msgpack Python dependency' if not dependency else '')}
