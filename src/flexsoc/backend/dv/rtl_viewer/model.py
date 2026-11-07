@@ -1958,6 +1958,46 @@ class RtlDesign:
         self._diagrams[key] = payload
         return payload
 
+    def inspect(self, path: str, entity_id: str, *, expanded: tuple[str, ...] = ()) -> dict[str, Any]:
+        """Inspect only a compiler-derived entity visible in the bounded graph slice.
+
+        This does not resolve an arbitrary ID by name and never turns an RTL
+        dependency into a proven electrical connection or source occurrence.
+        """
+        if not entity_id or len(entity_id) > 1024:
+            raise ValueError("invalid entity ID")
+        graph = self.diagram(path, expanded=expanded)
+        node = next((item for item in graph['nodes'] if item['id'] == entity_id), None)
+        edge = next((item for item in graph['edges'] if item['id'] == entity_id), None)
+        if node is None and edge is None:
+            return {"status": "unresolved", "reason": "Entity not present in current graph slice",
+                    "scope": path, "id": entity_id, "revision": self.revision}
+        entity = node if node is not None else edge
+        source = {"status": "unresolved", "reason": "No precise compiler-backed source location"}
+        line = entity.get('line')
+        if isinstance(line, int) and line > 0:
+            resolved = self._source_path(self._scope(path))
+            if resolved is not None:
+                source = {"status": "available", "file": self._source_label(resolved),
+                          "line": line, "provenance": "Slang AST"}
+        relationships = []
+        if node is not None:
+            for relation in graph['edges']:
+                if relation['source'] == entity_id or relation['target'] == entity_id:
+                    relationships.append({key: relation[key] for key in ('id', 'source', 'target', 'type', 'mapping', 'rendered') if key in relation})
+                    if len(relationships) >= 64:
+                        break
+        return {"status": "available", "id": entity_id, "scope": path,
+                "revision": self.revision, "elaboration_verified": self.verified,
+                "kind": entity.get('type', 'relationship') if node is not None else 'relationship',
+                "entity": dict(node) if node is not None else None,
+                "relationship": dict(edge) if edge is not None else None,
+                "source": source, "relationships": relationships,
+                "relationships_truncated": node is not None and sum(
+                    relation['source'] == entity_id or relation['target'] == entity_id
+                    for relation in graph['edges']) > len(relationships),
+                "limitations": "Only current bounded graph slice; relationships are RTL dependencies, not physical wires"}
+
     def behavior(self, path: str = "/") -> dict[str, Any]:
         """Return process-level semantic dependencies without graphical interpretation."""
         from .process import BehavioralIR

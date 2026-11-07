@@ -9,8 +9,11 @@ const http = require('node:http');
 const {spawn} = require('node:child_process');
 const {randomBytes} = require('node:crypto');
 
-const API = new Set(['overview', 'diagram', 'source', 'follow', 'cone', 'lint']);
-const VIEWS = ['index.html', 'style.css', 'router.js', 'app.js'];
+const API = new Set(['overview', 'hierarchy', 'diagram', 'source', 'source_coverage',
+  'source_symbols', 'occurrences', 'follow', 'cone', 'lint', 'evidence', 'inspect']);
+// Fetch all frontend assets from the same checkout as the Python backend.
+// A vendored media copy otherwise drifts from the standalone viewer.
+const ASSET = /(?:src|href)="\/([a-zA-Z0-9_.-]+\.(?:js|css))(?:\?[^"]*)?"/g;
 
 function backendGet(port, route, params, timeoutMs=12000) {
   if (!API.has(route)) return Promise.reject(new Error('Unsupported RTL graph request'));
@@ -36,11 +39,15 @@ function backendGet(port, route, params, timeoutMs=12000) {
 
 function webviewHtml(webview, media) {
   const nonce=randomBytes(16).toString('base64');
-  const uri=name=>webview.asWebviewUri(vscode.Uri.file(path.join(media,name))).toString();
   let html=fs.readFileSync(path.join(media,'index.html'),'utf8');
-  html=html.replace('href="/style.css"',`href="${uri('style.css')}"`)
-    .replace('src="/router.js"',`src="${uri('router.js')}"`)
-    .replace('src="/app.js"',`src="${uri('app.js')}"`);
+  const assets=[...html.matchAll(ASSET)].map(match=>match[1]);
+  for(const asset of assets){
+    if(!fs.existsSync(path.join(media,asset)))throw new Error(`Missing RTL viewer asset: ${asset}`);
+  }
+  html=html.replace(ASSET, (_match,name)=>{
+    const uri=webview.asWebviewUri(vscode.Uri.file(path.join(media,name))).toString();
+    return _match.startsWith('src=')?`src="${uri}"`:`href="${uri}"`;
+  });
   const bootstrap=`<script nonce="${nonce}">
     (()=>{ const vscode=acquireVsCodeApi(); let next=1; const pending=new Map();
       window.FlexAPI=(route,params={})=>new Promise((resolve,reject)=>{
@@ -54,7 +61,7 @@ function webviewHtml(webview, media) {
       });
     })();
   </script>`;
-  const csp=`default-src 'none'; img-src ${webview.cspSource} data:; font-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src ${webview.cspSource} 'nonce-${nonce}'; connect-src 'none';`;
+  const csp=`default-src 'none'; img-src ${webview.cspSource} data:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'nonce-${nonce}'; connect-src 'none';`;
   return html.replace('<head>',`<head><meta http-equiv="Content-Security-Policy" content="${csp}">`)
     .replace('</head>',`${bootstrap}</head>`);
 }
@@ -66,9 +73,9 @@ async function open(context){
   const cfg=vscode.workspace.getConfiguration('flexsoc.rtlExplorer');
   const repo=cfg.get('repository')||root;
   const script=path.join(repo,'scripts','rtl_viewer.py');
-  const media=path.join(context.extensionPath,'media');
-  if(!fs.existsSync(script)||!VIEWS.every(name=>fs.existsSync(path.join(media,name)))){
-    vscode.window.showErrorMessage('FlexSoC backend or viewer media missing. Configure flexsoc.rtlExplorer.repository and package the media assets.');return;
+  const media=path.join(repo,'src','flexsoc','backend','dv','rtl_viewer','web');
+  if(!fs.existsSync(script)||!fs.existsSync(path.join(media,'index.html'))){
+    vscode.window.showErrorMessage('FlexSoC backend or canonical viewer assets missing. Configure flexsoc.rtlExplorer.repository.');return;
   }
   const filelists=cfg.get('filelists')||[];
   let files=[];
@@ -83,7 +90,7 @@ async function open(context){
   const suggested=vscode.window.activeTextEditor?.document.uri.fsPath;
   const top=await vscode.window.showInputBox({prompt:'Top module (Slang elaboration)',value:suggested?path.basename(suggested).replace(/\.(sv|v)$/,''):''});
   if(!top)return;
-  const argv=[script,'--root',root,'--top',top,'--port','0'];
+  const argv=[script,'--root',root,'--top',top,'--port','0','--slang',cfg.get('slang')||'slang'];
   for(const file of files)argv.push('--file',file);
   for(const file of filelists)argv.push('--filelist',file);
   for(const include of cfg.get('includes')||[])argv.push('--include',include);
@@ -102,7 +109,9 @@ async function open(context){
     const match=buffer.match(/FlexSoC RTL Explorer:\s*http:\/\/127\.0\.0\.1:(\d+)/);
     if(!match||started||dead)return;
     started=true;clearTimeout(timeout);
-    const port=Number(match[1]);panel.webview.html=webviewHtml(panel.webview,media);
+    const port=Number(match[1]);
+    try {panel.webview.html=webviewHtml(panel.webview,media);}
+    catch(error){terminal.appendLine(String(error));vscode.window.showErrorMessage(`FlexSoC assets: ${error.message}`);panel.dispose();return;}
     panel.webview.onDidReceiveMessage(async m=>{
       if(m?.type!=='api'||!Number.isSafeInteger(m.id))return;
       try{const data=await backendGet(port,m.route,m.params);if(!dead)panel.webview.postMessage({type:'apiResult',id:m.id,data});}

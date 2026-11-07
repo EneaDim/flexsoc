@@ -1,5 +1,6 @@
 """FSRTL-024: cross-probing uses AST identities, never source text guesses."""
 import json
+import re
 import shutil
 from pathlib import Path
 from threading import Thread
@@ -78,6 +79,29 @@ def test_new_coverage_endpoint(tmp_path):
         server.shutdown();server.server_close();thread.join(timeout=3)
 
 
+def test_server_serves_every_script_declared_by_main_viewer(tmp_path):
+    """Standalone HTTP must not ship an HTML page with unavailable JS assets."""
+    (tmp_path / 'top.sv').write_text('module top; endmodule')
+    server = ViewerServer(('127.0.0.1', 0), RtlDesign(_ast(), root=tmp_path, top='top'))
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f'http://127.0.0.1:{server.server_port}'
+    try:
+        with urlopen(base + '/') as reply:
+            html = reply.read().decode()
+        paths = re.findall(r'<script[^>]*\bsrc="(/[^"]+)"', html)
+        assert paths
+        for path in paths:
+            with urlopen(base + path) as reply:
+                assert reply.status == 200, path
+                assert reply.read(), path
+                assert 'javascript' in reply.headers.get('Content-Type', ''), path
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+
+
 @pytest.mark.e2e
 def test_inspector_round_trip_ambiguity_mapping_and_lint():
     chromium = shutil.which('chromium') or shutil.which('google-chrome')
@@ -112,8 +136,14 @@ window.FlexAPI=(name,params={})=>{
 };</script>''' % json.dumps(fixture)
     html=(WEB/'index.html').read_text().replace('<link rel="stylesheet" href="/style.css">','<style>'+(WEB/'style.css').read_text()+'</style>')
     html=html.replace('<script defer src="/bootstrap-guard.js"></script>',script+'<script>'+(WEB/'bootstrap-guard.js').read_text()+'</script>')
-    for name in ['router.js','elk.bundled.js','symbol-geometry.js','symbol-painter.js','elk-adapter.js','layout-engine.js','hierarchy-tree.js','app.js','neovim-editor.js']:
-        html=html.replace('<script defer src="/'+name+'"></script>','<script>'+(WEB/name).read_text()+'</script>')
+    # Inline the actual declared assets, including versioned URLs. A stale list
+    # silently left scripts unloaded and made the cross-probing test time out.
+    def inline_asset(match):
+        name = match.group(1).split('?', 1)[0]
+        asset = WEB / name
+        assert asset.is_file(), f"Missing viewer script: {name}"
+        return '<script>' + asset.read_text() + '</script>'
+    html = re.sub(r'<script defer src="/([^"]+)"></script>', inline_asset, html)
     with pw.sync_playwright() as runner:
         browser=runner.chromium.launch(headless=True,executable_path=chromium,args=['--no-sandbox'])
         try:
